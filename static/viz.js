@@ -11,6 +11,14 @@
 
 // ─── Global themed tooltip ────────────────────────────────────────────────────
 const _gtip = { el: null, timer: null, DELAY: 380 };
+const _jobViewerLease = {
+    jobId: window.JOB_ID || null,
+    viewerId: null,
+    openPromise: null,
+    pingTimer: null,
+    pingMs: 20000,
+    closeSent: false,
+};
 
 function _initGlobalTooltip() {
     const el = document.createElement('div');
@@ -71,6 +79,114 @@ function _gtipPos(mx, my) {
     el.style.left = `${Math.max(4, x)}px`; el.style.top = `${Math.max(4, y)}px`;
 }
 
+async function _jobViewerPost(path, payload, keepalive = false) {
+    return fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        keepalive,
+    });
+}
+
+async function _jobViewerOpen(forceNew = false) {
+    if (!_jobViewerLease.jobId) return null;
+    if (!forceNew && _jobViewerLease.viewerId) return _jobViewerLease.viewerId;
+    if (_jobViewerLease.openPromise) return _jobViewerLease.openPromise;
+    _jobViewerLease.openPromise = (async () => {
+        const res = await _jobViewerPost('/job-view/open', { job_id: _jobViewerLease.jobId });
+        if (!res.ok) throw new Error(`viewer open failed (${res.status})`);
+        const data = await res.json();
+        if (!data.viewer_id) throw new Error('viewer open missing viewer_id');
+        _jobViewerLease.viewerId = data.viewer_id;
+        _jobViewerLease.closeSent = false;
+        if (Number.isFinite(data.ping_interval_seconds) && data.ping_interval_seconds > 0) {
+            _jobViewerLease.pingMs = Math.max(5000, data.ping_interval_seconds * 1000);
+        }
+        return _jobViewerLease.viewerId;
+    })();
+    try {
+        return await _jobViewerLease.openPromise;
+    } finally {
+        _jobViewerLease.openPromise = null;
+    }
+}
+
+function _jobViewerStopHeartbeat() {
+    if (_jobViewerLease.pingTimer) {
+        clearInterval(_jobViewerLease.pingTimer);
+        _jobViewerLease.pingTimer = null;
+    }
+}
+
+function _jobViewerStartHeartbeat() {
+    if (!_jobViewerLease.jobId || _jobViewerLease.pingTimer) return;
+    _jobViewerLease.pingTimer = setInterval(async () => {
+        try {
+            if (!_jobViewerLease.viewerId) {
+                await _jobViewerOpen(true);
+                return;
+            }
+            const res = await _jobViewerPost('/job-view/ping', {
+                job_id: _jobViewerLease.jobId,
+                viewer_id: _jobViewerLease.viewerId,
+            });
+            if (res.ok) return;
+            let data = null;
+            try { data = await res.json(); } catch (err) { data = null; }
+            if (res.status === 404 || (data && data.error === 'Unknown viewer')) {
+                _jobViewerLease.viewerId = null;
+                _jobViewerLease.closeSent = false;
+                await _jobViewerOpen(true);
+            }
+        } catch (err) {
+            console.warn('viewer heartbeat failed', err);
+        }
+    }, _jobViewerLease.pingMs);
+}
+
+function _jobViewerClose(useBeacon = false) {
+    const jobId = _jobViewerLease.jobId;
+    const viewerId = _jobViewerLease.viewerId;
+    if (!jobId || !viewerId || _jobViewerLease.closeSent) return;
+    _jobViewerLease.closeSent = true;
+    _jobViewerLease.viewerId = null;
+    const payload = JSON.stringify({ job_id: jobId, viewer_id: viewerId });
+    if (useBeacon && navigator.sendBeacon) {
+        const ok = navigator.sendBeacon('/job-view/close', new Blob([payload], { type: 'application/json' }));
+        if (ok) return;
+    }
+    fetch('/job-view/close', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        keepalive: true,
+    }).catch(() => { });
+}
+
+function _jobViewerHandlePageHide(ev) {
+    _jobViewerStopHeartbeat();
+    if (ev && ev.persisted) return;
+    _jobViewerClose(true);
+}
+
+function _jobViewerHandlePageShow() {
+    if (!_jobViewerLease.jobId) return;
+    _jobViewerLease.closeSent = false;
+    _jobViewerOpen().then(() => {
+        _jobViewerStopHeartbeat();
+        _jobViewerStartHeartbeat();
+    }).catch(err => console.warn('viewer open failed', err));
+}
+
+function _jobViewerInit() {
+    if (!_jobViewerLease.jobId || _jobViewerLease._initDone) return;
+    _jobViewerLease._initDone = true;
+    window.addEventListener('pagehide', _jobViewerHandlePageHide, true);
+    window.addEventListener('beforeunload', _jobViewerHandlePageHide, true);
+    window.addEventListener('pageshow', _jobViewerHandlePageShow, true);
+    _jobViewerHandlePageShow();
+}
+
 window.addEventListener('DOMContentLoaded', () => {
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -84,6 +200,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 console.log(`JSON.parse: ${(performance.now() - t0).toFixed(0)}ms`);
 
                 if (!window.DATA?.stats) { showMsg(T('errorInvalidDataFormat')); return; }
+
+                _jobViewerInit();
 
                 const s = DATA.stats;
                 const rootOther = (DATA.other_files_by_module || {})['_root'] || [];

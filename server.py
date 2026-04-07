@@ -34,7 +34,9 @@ JOBS_LOCK = threading.Lock()
 # ─── Input-source limits ──────────────────────────────────────────────────────
 ZIP_MAX_BYTES          = 200 * 1024 * 1024   # 200 MB upload cap
 NPM_TARBALL_MAX_BYTES  =  50 * 1024 * 1024   # 50 MB npm tarball cap
-TEMP_DIR_TTL_SECONDS   = 1800                 # 30 min before cleanup
+VIEWER_TTL_SECONDS          = 90   # viewer considered stale after 90 s
+VIEWER_REAP_INTERVAL_SECONDS = 5   # scan frequently for close/crash cleanup
+VIEWER_CLOSE_GRACE_SECONDS   = 5   # avoid refresh races when the last tab closes
 
 
 def _browse_for_folder(start_dir: str = '') -> str:
@@ -124,7 +126,9 @@ def _make_job_dict(root: str, temp_dir=None) -> dict:
         'pct': 0, 'msg': 'Queued...', 'done': False,
         'error': None, 'stats': None, 'data': None,
         'root': root, 'started': time.time(),
-        'temp_dir': temp_dir, 'served': False,
+        'temp_dir': temp_dir,
+        'viewers': {}, 'viewer_tracking_started': False,
+        'last_viewer_gone_at': None,
         'stage': 'scan', 'stage_label': 'Scan source files',
         'stage_index': 1, 'stage_total': 6,
         'total_files': 0, 'analyzed_files': 0,
@@ -135,6 +139,54 @@ def _make_job_dict(root: str, temp_dir=None) -> dict:
         'func_edge_count': 0, 'edge_count': 0,
         'project_type': None,
     }
+
+
+def _ensure_job_viewer_fields(job: dict):
+    if not isinstance(job.get('viewers'), dict):
+        job['viewers'] = {}
+    if 'viewer_tracking_started' not in job:
+        job['viewer_tracking_started'] = False
+    if 'last_viewer_gone_at' not in job:
+        job['last_viewer_gone_at'] = None
+
+
+def _prune_job_viewers_locked(job: dict, now: float = None):
+    _ensure_job_viewer_fields(job)
+    now = time.time() if now is None else now
+    viewers = job['viewers']
+    stale = [
+        vid for vid, last_seen in list(viewers.items())
+        if now - float(last_seen or 0.0) > VIEWER_TTL_SECONDS
+    ]
+    for vid in stale:
+        viewers.pop(vid, None)
+    if viewers:
+        job['last_viewer_gone_at'] = None
+    elif (stale or job.get('viewer_tracking_started')) and job.get('last_viewer_gone_at') is None:
+        job['last_viewer_gone_at'] = now
+    return stale
+
+
+def _cleanup_job_temp_if_idle(jid: str, now: float = None, grace_seconds: float = VIEWER_CLOSE_GRACE_SECONDS):
+    """Remove a temp dir only after all viewers are gone and the grace period elapsed."""
+    now = time.time() if now is None else now
+    with JOBS_LOCK:
+        job = JOBS.get(jid, {})
+        if not job:
+            return False
+        _prune_job_viewers_locked(job, now)
+        tmp = job.get('temp_dir')
+        viewers = job.get('viewers', {})
+        last_gone = job.get('last_viewer_gone_at')
+        tracking_started = job.get('viewer_tracking_started', False)
+        if not tmp or viewers or not tracking_started or last_gone is None:
+            return False
+        if now - last_gone < grace_seconds:
+            return False
+        job['temp_dir'] = None
+    shutil.rmtree(tmp, ignore_errors=True)
+    print(f'[CLEANUP] Job {jid}: removed {tmp}')
+    return True
 
 
 def _cleanup_job_temp(jid: str):
@@ -149,16 +201,88 @@ def _cleanup_job_temp(jid: str):
         print(f'[CLEANUP] Job {jid}: removed {tmp}')
 
 
+def _cleanup_all_job_temps():
+    with JOBS_LOCK:
+        targets = [jid for jid, job in JOBS.items() if job.get('temp_dir')]
+    for jid in targets:
+        _cleanup_job_temp(jid)
+
+
 def _reap_loop():
-    """Daemon: every 5 min, delete temp dirs for jobs older than TTL."""
+    """Daemon: reap expired viewers and clean up temp sources once all viewers are gone."""
     while True:
-        time.sleep(300)
+        time.sleep(VIEWER_REAP_INTERVAL_SECONDS)
         now = time.time()
         with JOBS_LOCK:
-            stale = [jid for jid, j in JOBS.items()
-                     if j.get('temp_dir') and now - j.get('started', now) > TEMP_DIR_TTL_SECONDS]
-        for jid in stale:
-            _cleanup_job_temp(jid)
+            job_ids = list(JOBS.keys())
+            for jid in job_ids:
+                job = JOBS.get(jid)
+                if job:
+                    _prune_job_viewers_locked(job, now)
+        for jid in job_ids:
+            _cleanup_job_temp_if_idle(jid, now=now)
+
+
+def _read_json_body(handler) -> dict:
+    length = int(handler.headers.get('Content-Length', 0))
+    raw = handler.rfile.read(length) if length else b''
+    if not raw:
+        return {}
+    if isinstance(raw, bytes):
+        raw = raw.decode('utf-8')
+    data = json.loads(raw)
+    if not isinstance(data, dict):
+        raise ValueError('JSON body must be an object')
+    return data
+
+
+def _open_job_viewer(jid: str):
+    now = time.time()
+    with JOBS_LOCK:
+        job = JOBS.get(jid)
+        if not job:
+            return None
+        _prune_job_viewers_locked(job, now)
+        _ensure_job_viewer_fields(job)
+        viewer_id = uuid.uuid4().hex[:16]
+        job['viewers'][viewer_id] = now
+        job['viewer_tracking_started'] = True
+        job['last_viewer_gone_at'] = None
+        return {
+            'viewer_id': viewer_id,
+            'viewer_ttl_seconds': VIEWER_TTL_SECONDS,
+            'ping_interval_seconds': max(1, VIEWER_TTL_SECONDS // 4),
+        }
+
+
+def _ping_job_viewer(jid: str, viewer_id: str):
+    now = time.time()
+    with JOBS_LOCK:
+        job = JOBS.get(jid)
+        if not job:
+            return False, 'Unknown job'
+        _prune_job_viewers_locked(job, now)
+        viewers = job.get('viewers', {})
+        if viewer_id not in viewers:
+            return False, 'Unknown viewer'
+        viewers[viewer_id] = now
+        job['last_viewer_gone_at'] = None
+        return True, None
+
+
+def _close_job_viewer(jid: str, viewer_id: str):
+    now = time.time()
+    with JOBS_LOCK:
+        job = JOBS.get(jid)
+        if not job:
+            return False, 0
+        _prune_job_viewers_locked(job, now)
+        viewers = job.get('viewers', {})
+        viewers.pop(viewer_id, None)
+        remaining = len(viewers)
+        if remaining == 0 and job.get('viewer_tracking_started'):
+            job['last_viewer_gone_at'] = now
+    return True, remaining
 
 
 def _run_analysis_thread(jid: str, root: str, pre_fn=None):
@@ -385,12 +509,6 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header('Cache-Control', 'no-cache')
                 self.end_headers()
                 self.wfile.write(body)
-                # Mark served so temp dir can be cleaned up
-                with JOBS_LOCK:
-                    if jid in JOBS:
-                        JOBS[jid]['served'] = True
-                threading.Thread(target=_cleanup_job_temp, args=(jid,),
-                                 daemon=True).start()
             except Exception as e:
                 self.html_error(f'Failed to render HTML: {e}')
 
@@ -1796,7 +1914,57 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         p = parsed.path
 
-        if p == '/browse-folder':
+        if p == '/job-view/open':
+            try:
+                body = _read_json_body(self)
+            except Exception:
+                self.json_resp({'error': 'Invalid JSON'}, 400)
+                return
+            jid = body.get('job_id', '').strip()
+            if not jid:
+                self.json_resp({'error': 'Missing job_id'}, 400)
+                return
+            data = _open_job_viewer(jid)
+            if not data:
+                self.json_resp({'error': 'Unknown job'}, 404)
+                return
+            self.json_resp({'ok': True, **data})
+
+        elif p == '/job-view/ping':
+            try:
+                body = _read_json_body(self)
+            except Exception:
+                self.json_resp({'error': 'Invalid JSON'}, 400)
+                return
+            jid = body.get('job_id', '').strip()
+            viewer_id = body.get('viewer_id', '').strip()
+            if not jid or not viewer_id:
+                self.json_resp({'error': 'Missing job_id or viewer_id'}, 400)
+                return
+            ok, error = _ping_job_viewer(jid, viewer_id)
+            if not ok:
+                self.json_resp({'error': error}, 404)
+                return
+            self.json_resp({'ok': True})
+
+        elif p == '/job-view/close':
+            try:
+                body = _read_json_body(self)
+            except Exception:
+                self.json_resp({'error': 'Invalid JSON'}, 400)
+                return
+            jid = body.get('job_id', '').strip()
+            viewer_id = body.get('viewer_id', '').strip()
+            if not jid or not viewer_id:
+                self.json_resp({'error': 'Missing job_id or viewer_id'}, 400)
+                return
+            ok, remaining = _close_job_viewer(jid, viewer_id)
+            if not ok:
+                self.json_resp({'ok': True, 'remaining_viewers': 0})
+                return
+            self.json_resp({'ok': True, 'remaining_viewers': remaining})
+
+        elif p == '/browse-folder':
             length = int(self.headers.get('Content-Length', 0))
             body = {}
             if length:
@@ -1967,6 +2135,9 @@ def main():
         server.serve_forever()
     except KeyboardInterrupt:
         print('\nServer stopped.')
+    finally:
+        server.server_close()
+        _cleanup_all_job_temps()
 
 
 if __name__ == '__main__':
