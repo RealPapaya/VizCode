@@ -1,0 +1,716 @@
+// @module viz_code_panel — Code panel: init, open/close, file loading, renderers
+// Owns: initCodePanel, openCodePanel, closeCodePanel, loadFileInPanel,
+//       renderFileContent, renderCode, renderImage, renderPDF, renderHexDump,
+//       jumpToFunc, jumpToLine, showFuncBar, hideFuncBar, navigateFunc,
+//       showCpLoading, showCpError, initResizer, initSidebarResizer,
+//       cpToggleMultiSnip, _cpSyncMultiSnipBtn, cpExitMultiSnip
+// Office rendering delegated to file_viewers/viz_office.js \n
+// ─── Code Panel ──────────────────────────────────────────────────────────────
+function initCodePanel() {
+    document.getElementById('cp-close').onclick = closeCodePanel;
+    const codeViewBtn = document.getElementById('cp-view-code');
+    const renderedViewBtn = document.getElementById('cp-view-rendered');
+    if (codeViewBtn) codeViewBtn.onclick = () => setCodePanelViewMode('code');
+    if (renderedViewBtn) renderedViewBtn.onclick = () => setCodePanelViewMode('markdown');
+
+    document.getElementById('code-toggle-btn').onclick = () => {
+        if (codeState.isOpen) {
+            closeCodePanel();
+        } else {
+            codeState.userClosed = false; // user wants panel open
+            // If we have a current file loaded, sync it
+            if (codeState.currentFile) {
+                _syncCodePanel(codeState.currentFile, codeState.currentFunc);
+            } else {
+                openCodePanel();
+            }
+        }
+    };
+
+    document.getElementById('graph-toggle-btn').onclick = () => {
+        const symActive = window._sv && window._sv.active;
+
+        if (symActive) {
+            // Structure is active → switch to Call Graph (mutual exclusion)
+            symViewClose();
+            if (state.level < 2 && typeof drillCurrentFileToL2 === 'function') {
+                // Was at L1: drill into Call Graph
+                drillCurrentFileToL2();
+            } else {
+                // Was already at L2: just restore #cy (symViewClose already did that),
+                // re-sync button states.
+                updateCallGraphBtn(state.activeFile || codeState.currentFile || null);
+            }
+            return;
+        }
+
+        // Toggle Call Graph ↔ L1
+        if (state.level === 2) {
+            restoreL1FromCallGraph();
+        } else {
+            drillCurrentFileToL2();
+        }
+    };
+
+    // Structure button: toggle symbol/structure view (mutual exclusion with Call Graph)
+    const structBtn = document.getElementById('struct-toggle-btn');
+    if (structBtn) {
+        structBtn.onclick = () => {
+            // Toggle off: Structure already active → close it
+            if (window._sv && window._sv.active) {
+                symViewClose();
+                return;
+            }
+            const fileRel = codeState.currentFile;
+            if (window.symViewOpen && fileRel && DATA && DATA.symbol_index) {
+                const hasSymbols = Object.values(DATA.symbol_index).some(s => s.file === fileRel);
+                if (hasSymbols) { symViewOpen(fileRel); return; }
+            }
+            if (window.svToggleStructView) svToggleStructView();
+        };
+    }
+
+    document.getElementById('cp-prev-func').onclick = () => navigateFunc(-1);
+    document.getElementById('cp-next-func').onclick = () => navigateFunc(1);
+
+    // Resizer drag
+    initResizer();
+    initSidebarResizer();
+}
+
+function isRenderedMarkdownSupported(ext, fname, langHint = '') {
+    const lowerName = (fname || '').toLowerCase();
+    return ext === '.md' || ext === '.mdx' || langHint === 'markdown' ||
+        lowerName === 'readme' || lowerName === 'changelog';
+}
+
+function setCodePanelViewMode(mode) {
+    const normalized = mode === 'markdown' ? 'markdown' : 'code';
+    if (codeState.viewMode === normalized) return;
+    codeState.viewMode = normalized;
+    syncCodePanelViewToggle();
+    if (codeState.currentData) {
+        renderFileContent(codeState.currentData, codeState.currentExt, codeState.currentName);
+    }
+}
+
+function syncCodePanelViewToggle(forceVisible = null) {
+    const toggle = document.getElementById('cp-view-toggle');
+    const codeBtn = document.getElementById('cp-view-code');
+    const renderedBtn = document.getElementById('cp-view-rendered');
+    if (!toggle || !codeBtn || !renderedBtn) return;
+
+    const supported = forceVisible !== null
+        ? !!forceVisible
+        : !!(codeState.currentData && isRenderedMarkdownSupported(codeState.currentExt, codeState.currentName, codeState.currentLangHint));
+
+    toggle.style.display = supported ? 'inline-flex' : 'none';
+    codeBtn.classList.toggle('active', !supported || codeState.viewMode !== 'markdown');
+    renderedBtn.classList.toggle('active', supported && codeState.viewMode === 'markdown');
+}
+
+function initResizer() {
+    const resizer = document.getElementById('resizer');
+    const panel = document.getElementById('code-panel');
+    if (!resizer || !panel) return;
+    let startX, startW;
+    resizer.addEventListener('mousedown', e => {
+        startX = e.clientX;
+        startW = panel.offsetWidth;
+        resizer.classList.add('dragging');
+        panel.style.transition = 'none';
+        document.getElementById('graph-wrap').style.pointerEvents = 'none';
+        document.addEventListener('mousemove', onDrag);
+        document.addEventListener('mouseup', stopDrag);
+        e.preventDefault();
+    });
+    function onDrag(e) {
+        const delta = startX - e.clientX;
+        const newW = Math.max(200, Math.min(1200, startW + delta));
+        panel.style.width = newW + 'px';
+        document.documentElement.style.setProperty('--code-panel', newW + 'px');
+        if (cy) cy.resize();
+    }
+    function stopDrag() {
+        resizer.classList.remove('dragging');
+        panel.style.transition = '';
+        document.getElementById('graph-wrap').style.pointerEvents = '';
+        document.removeEventListener('mousemove', onDrag);
+        document.removeEventListener('mouseup', stopDrag);
+        if (cy) cy.resize();
+    }
+}
+
+function initSidebarResizer() {
+    const resizer = document.getElementById('sidebar-resizer');
+    const panel = document.getElementById('sidebar');
+    if (!resizer || !panel) return;
+    let startX, startW;
+    resizer.addEventListener('mousedown', e => {
+        if (_sbCollapsed) return;
+        startX = e.clientX;
+        startW = panel.offsetWidth;
+        resizer.classList.add('dragging');
+        panel.style.transition = 'none';
+        document.getElementById('graph-wrap').style.pointerEvents = 'none';
+        document.addEventListener('mousemove', onDrag);
+        document.addEventListener('mouseup', stopDrag);
+        e.preventDefault();
+    });
+    function onDrag(e) {
+        const delta = e.clientX - startX; // drag right = wider panel
+        const newW = Math.max(150, Math.min(800, startW + delta));
+        panel.style.width = newW + 'px';
+        document.documentElement.style.setProperty('--sidebar', newW + 'px');
+        if (cy) cy.resize();
+    }
+    function stopDrag() {
+        resizer.classList.remove('dragging');
+        panel.style.transition = '';
+        document.getElementById('graph-wrap').style.pointerEvents = '';
+        document.removeEventListener('mousemove', onDrag);
+        document.removeEventListener('mouseup', stopDrag);
+        if (cy) cy.resize();
+    }
+}
+
+function openCodePanel() {
+    const panel = document.getElementById('code-panel');
+    panel.classList.add('open');
+    const codeBtn = document.getElementById('code-toggle-btn');
+    if (codeBtn) { codeBtn.disabled = false; codeBtn.classList.add('active'); }
+    codeState.isOpen = true;
+    codeState.userClosed = false;
+    const resizer = document.getElementById('resizer');
+    if (resizer) resizer.style.display = 'flex';
+    _startPanelResizeLoop(_PANEL_TRANSITION_MS);
+}
+
+function closeCodePanel() {
+    const panel = document.getElementById('code-panel');
+    panel.classList.remove('open');
+    document.getElementById('code-toggle-btn').classList.remove('active');
+    codeState.isOpen = false;
+    codeState.userClosed = true;
+    const resizer = document.getElementById('resizer');
+    if (resizer) resizer.style.display = 'none';
+    _startPanelResizeLoop(_PANEL_TRANSITION_MS);
+}
+
+// ─── Multi-snippet mode toggle (Structure View only) ─────────────────────────
+
+function cpToggleMultiSnip() {
+    codeState.multiSnip = !codeState.multiSnip;
+    _cpSyncMultiSnipBtn();
+    if (codeState.multiSnip) {
+        // Turned ON: immediately show snippets for current center symbol (if in centric mode)
+        if (window.symShowCurrentSnippets) symShowCurrentSnippets();
+    } else {
+        // Turned OFF: reload the current file (clear any snippets)
+        cpExitMultiSnip();
+    }
+}
+
+// Show the multi-snip button and sync its active state
+function _cpSyncMultiSnipBtn() {
+    const btn = document.getElementById('cp-multisnip-btn');
+    if (!btn) return;
+    btn.classList.toggle('active', !!codeState.multiSnip);
+    btn.title = codeState.multiSnip
+        ? 'Multi-snippet ON — click to switch back to full file view'
+        : 'Multi-snippet mode (Structure View only)';
+}
+
+// Called by symbol_view.js when Structure View opens: show the button
+window.cpEnableMultiSnipBtn = function() {
+    const btn = document.getElementById('cp-multisnip-btn');
+    if (btn) btn.style.display = '';
+    _cpSyncMultiSnipBtn();
+};
+
+// Called when leaving Structure View: hide button, force File mode
+window.cpDisableMultiSnipBtn = function() {
+    const btn = document.getElementById('cp-multisnip-btn');
+    if (btn) { btn.style.display = 'none'; btn.classList.remove('active'); }
+    cpExitMultiSnip();
+};
+
+// Restore full-file view for the current file
+function cpExitMultiSnip() {
+    codeState.multiSnip = false;
+    // Force re-fetch by resetting the currentFile sentinel
+    const file = codeState.currentFile === '__sym_snippet__' ? null : codeState.currentFile;
+    if (file && file !== '__sym_snippet__') {
+        codeState.currentFile = null;  // force reload
+        loadFileInPanel(file, null);
+    }
+}
+
+// Load a file into the code panel; optionally jump to a function
+async function loadFileInPanel(filePath, funcName) {
+    if (!filePath) return;
+    if (codeState.userClosed && !codeState.isOpen) return; // respect user close
+    openCodePanel();
+    const fname = filePath.split('/').pop();
+    const ext = fname.includes('.') ? '.' + fname.split('.').pop().toLowerCase() : '';
+
+    // Update header immediately
+    document.getElementById('cp-filename').textContent = fname;
+    document.getElementById('cp-filename').title = filePath;
+    document.getElementById('cp-ext-badge').textContent = ext.toUpperCase() || 'FILE';
+    document.getElementById('cp-ext-badge').style.background = extColor(ext);
+    document.getElementById('cp-ext-badge').style.color = '#000';
+    hideFuncBar();
+    showCpLoading(true);
+
+    if (!codeState.jobId) {
+        showCpError('No job ID — code preview only available via the local server (launch.bat).');
+        return;
+    }
+
+    if (filePath === codeState.currentFile) {
+        syncCodePanelViewToggle();
+        showCpLoading(false);
+        if (funcName) jumpToFunc(funcName);
+        if (state.level >= 1 && window.svUpdateStructureBtn) svUpdateStructureBtn(filePath, ext);
+        return;
+    }
+
+    codeState.currentData = null;
+    codeState.currentExt = ext;
+    codeState.currentName = fname;
+    codeState.currentLangHint = '';
+    codeState.viewMode = 'code';
+    syncCodePanelViewToggle(false);
+
+    try {
+        const url = `/file?job=${encodeURIComponent(codeState.jobId)}&path=${encodeURIComponent(filePath)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.error) { showCpError(T('fileLoadError', { error: data.error })); return; }
+        codeState.currentFile = filePath;
+        codeState.currentData = data;
+        codeState.currentExt = ext;
+        codeState.currentName = fname;
+        codeState.currentLangHint = data.lang_hint || '';
+        renderFileContent(data, ext, fname);
+        showCpLoading(false);
+        if (funcName) setTimeout(() => jumpToFunc(funcName), 80);
+        if (state.level >= 1 && window.svUpdateStructureBtn) svUpdateStructureBtn(filePath, ext);
+    } catch (e) {
+        showCpError(T('fetchError', { error: e.message }));
+    }
+}
+
+function showCpLoading(v) {
+    document.getElementById('cp-loading').classList.toggle('hidden', !v);
+    document.getElementById('cp-empty').style.display = 'none';
+    if (!v) document.getElementById('cp-code-wrap').style.display = '';
+    else document.getElementById('cp-code-wrap').style.display = 'none';
+}
+
+function showCpError(msg) {
+    document.getElementById('cp-loading').classList.add('hidden');
+    document.getElementById('cp-code-wrap').style.display = 'none';
+    syncCodePanelViewToggle(false);
+    const empty = document.getElementById('cp-empty');
+    empty.style.display = '';
+    empty.innerHTML = `<div class="cp-empty-icon">⚠</div><p>${msg}</p>`;
+}
+
+// ─── File Content Renderers ───────────────────────────────────────────────────
+// Top-level dispatcher: routes to the right renderer by content_type
+function renderFileContent(data, ext, fname) {
+    const ct = data.content_type || 'text';
+    const markdownSupported = ct === 'text' && isRenderedMarkdownSupported(ext, fname, data.lang_hint);
+    if (!markdownSupported) {
+        codeState.viewMode = 'code';
+    }
+    syncCodePanelViewToggle(markdownSupported);
+    if (ct === 'image') {
+        renderImage(data);
+    } else if (ct === 'binary') {
+        renderHexDump(data);
+    } else if (ct === 'pdf') {
+        renderPDF(data);
+    } else if (ct === 'office') {
+        renderOffice(data);
+    } else if (markdownSupported && codeState.viewMode === 'markdown') {
+        renderMarkdown(data.content || '', ext, fname, data.lang_hint);
+    } else {
+        // text ??use lang_hint from server if available, else derive from ext
+        renderCode(data.content || '', ext, fname, data.lang_hint);
+    }
+}
+
+// Render image files (jpg, png, bmp, gif, ico …)
+function renderImage(data) {
+    const wrap = document.getElementById('cp-code-wrap');
+    const src = `data:${data.mime};base64,${data.data}`;
+    const kb = data.size ? (data.size / 1024).toFixed(1) + ' KB' : '';
+    wrap.innerHTML = `
+<div style="display:flex;flex-direction:column;align-items:center;padding:20px;gap:12px;min-height:200px">
+  <img src="${src}" alt="${escapeHtml(data.path || '')}"
+       style="max-width:100%;max-height:calc(100vh - 180px);border-radius:4px;
+              border:1px solid var(--border);background:#111;object-fit:contain"
+       onerror="this.parentElement.innerHTML='<div style=\\'color:var(--muted)\\'>Failed to render image</div>'"
+  />
+  <div style="font-size:11px;color:var(--muted);font-family:var(--code-font)">${escapeHtml(data.path || '')} &nbsp;·&nbsp; ${escapeHtml(kb)}</div>
+</div>`;
+    wrap.style.display = '';
+    // Reset func-related state — no functions in images
+    codeState.funcLineMap = {};
+    codeState.funcList = [];
+}
+
+// Render binary files as a hex dump
+function renderHexDump(data) {
+    const wrap = document.getElementById('cp-code-wrap');
+    const lines = (data.content || '').split('\n');
+    const kb = data.size ? (data.size / 1024).toFixed(1) + ' KB' : '';
+    const trunc = data.truncated
+        ? `<div style="color:#f59e0b;font-size:11px;padding:8px 0">⚠ Showing first 8 KB of ${escapeHtml(kb)} file</div>`
+        : '';
+    const rows = lines.map(ln => {
+        // offset  |  hex bytes  |  ascii
+        const [addr, ...rest] = ln.split('  ');
+        const body = rest.join('  ');
+        const asciiIdx = body.lastIndexOf('|');
+        const hexPart = asciiIdx > 0 ? body.slice(0, asciiIdx) : body;
+        const asciiPart = asciiIdx > 0 ? body.slice(asciiIdx) : '';
+        return `<div class="hex-row"><span class="hex-addr">${escapeHtml(addr || '')}</span>` +
+            `<span class="hex-bytes">${escapeHtml(hexPart)}</span>` +
+            `<span class="hex-ascii">${escapeHtml(asciiPart)}</span></div>`;
+    }).join('');
+
+    wrap.innerHTML = `
+<div style="padding:12px">
+  ${trunc}
+  <pre class="hex-dump"><code>${rows}</code></pre>
+</div>`;
+    wrap.style.display = '';
+    codeState.funcLineMap = {};
+    codeState.funcList = [];
+}
+
+function renderCode(src, ext, fname, langHint) {
+    const lines = src.split('\n');
+    codeState.rawLines = lines;
+    const hlExt = {
+        // ── C / C++ / Systems ───────────────────────────────────────────────
+        '.c': 'c', '.cpp': 'cpp', '.cc': 'cpp', '.cxx': 'cpp',
+        '.h': 'cpp', '.hpp': 'cpp', '.hxx': 'cpp', '.hh': 'cpp',
+        '.cs': 'csharp',
+        '.vb': 'vbnet',
+        '.rs': 'rust',
+        '.zig': 'plaintext',
+        '.d': 'd',
+        // ── Assembly ─────────────────────────────────────────────────────────
+        '.asm': 'x86asm', '.s': 'x86asm', '.S': 'x86asm', '.nasm': 'x86asm',
+        '.mips': 'mipsasm',
+        // ── UEFI / Firmware ──────────────────────────────────────────────────
+        '.inf': 'ini', '.dec': 'ini', '.dsc': 'ini', '.fdf': 'ini',
+        '.sdl': 'ini', '.sd': 'ini', '.cif': 'ini', '.mak': 'makefile',
+        '.vfr': 'c', '.hfr': 'c', '.uni': 'plaintext', '.asl': 'c',
+        // ── Python ───────────────────────────────────────────────────────────
+        '.py': 'python', '.pyw': 'python', '.pyx': 'python',
+        '.ipynb': 'json',
+        // ── JavaScript / TypeScript ──────────────────────────────────────────
+        '.js': 'javascript', '.mjs': 'javascript', '.cjs': 'javascript',
+        '.jsx': 'javascript', '.ts': 'typescript', '.tsx': 'typescript',
+        '.graphql': 'graphql', '.gql': 'graphql',
+        // ── Web ──────────────────────────────────────────────────────────────
+        '.html': 'html', '.htm': 'html', '.xhtml': 'html',
+        '.css': 'css', '.scss': 'scss', '.sass': 'scss',
+        '.less': 'less', '.styl': 'stylus',
+        '.svg': 'xml',
+        // ── Go ───────────────────────────────────────────────────────────────
+        '.go': 'go',
+        // ── JVM / Mobile ─────────────────────────────────────────────────────
+        '.java': 'java',
+        '.kt': 'kotlin', '.kts': 'kotlin',
+        '.scala': 'scala', '.sc': 'scala',
+        '.groovy': 'groovy', '.gradle': 'groovy',
+        '.dart': 'dart',
+        '.swift': 'swift',
+        '.m': 'objectivec', '.mm': 'objectivec',
+        // ── Scripting ────────────────────────────────────────────────────────
+        '.rb': 'ruby', '.gemspec': 'ruby', '.rake': 'ruby',
+        '.php': 'php',
+        '.pl': 'perl', '.pm': 'perl',
+        '.lua': 'lua',
+        '.sh': 'bash', '.bash': 'bash', '.zsh': 'bash', '.fish': 'bash',
+        '.ksh': 'bash', '.tcsh': 'bash',
+        '.ps1': 'powershell', '.psm1': 'powershell', '.psd1': 'powershell',
+        '.bat': 'dos', '.cmd': 'dos',
+        '.awk': 'awk',
+        '.tcl': 'tcl',
+        '.r': 'r', '.R': 'r',
+        '.jl': 'julia',
+        '.ex': 'elixir', '.exs': 'elixir',
+        '.erl': 'erlang', '.hrl': 'erlang',
+        '.clj': 'clojure', '.cljs': 'clojure', '.cljc': 'clojure',
+        '.hs': 'haskell', '.lhs': 'haskell',
+        '.ml': 'ocaml', '.mli': 'ocaml',
+        '.fs': 'fsharp', '.fsi': 'fsharp', '.fsx': 'fsharp',
+        '.elm': 'elm',
+        '.nim': 'nim',
+        '.cr': 'crystal',
+        '.coffee': 'coffeescript',
+        '.lisp': 'lisp', '.lsp': 'lisp', '.el': 'lisp',
+        '.scm': 'scheme',
+        '.pas': 'delphi', '.dpr': 'delphi',
+        '.for': 'fortran', '.f90': 'fortran', '.f95': 'fortran', '.f': 'fortran',
+        '.vala': 'vala',
+        '.hx': 'haxe',
+        '.awk': 'awk',
+        // ── Hardware description ──────────────────────────────────────────────
+        '.v': 'verilog', '.sv': 'verilog', '.svh': 'verilog',
+        '.vhd': 'vhdl', '.vhdl': 'vhdl',
+        // ── Data / Config ────────────────────────────────────────────────────
+        '.json': 'json', '.jsonc': 'json', '.json5': 'json',
+        '.yaml': 'yaml', '.yml': 'yaml',
+        '.toml': 'ini',
+        '.ini': 'ini', '.cfg': 'ini', '.conf': 'ini',
+        '.properties': 'properties', '.env': 'properties',
+        '.xml': 'xml', '.xsl': 'xml', '.xsd': 'xml', '.plist': 'xml',
+        '.csv': 'plaintext', '.tsv': 'plaintext',
+        // ── Infrastructure / Cloud ───────────────────────────────────────────
+        '.tf': 'hcl', '.hcl': 'hcl',
+        '.proto': 'protobuf',
+        '.thrift': 'thrift',
+        // ── Build systems ────────────────────────────────────────────────────
+        '.cmake': 'cmake',
+        '.mk': 'makefile', '.mak': 'makefile',
+        '.bazel': 'python', '.bzl': 'python',
+        // ── Docs ─────────────────────────────────────────────────────────────
+        '.md': 'markdown', '.mdx': 'markdown',
+        '.rst': 'plaintext',
+        '.txt': 'plaintext',
+        '.tex': 'latex', '.ltx': 'latex',
+        // ── Database ─────────────────────────────────────────────────────────
+        '.sql': 'sql', '.psql': 'pgsql', '.pgsql': 'pgsql',
+        '.ddl': 'sql', '.dml': 'sql',
+        // ── Shader / GPU ─────────────────────────────────────────────────────
+        '.glsl': 'glsl', '.vert': 'glsl', '.frag': 'glsl',
+        '.hlsl': 'plaintext', '.wgsl': 'plaintext',
+        // ── Misc ─────────────────────────────────────────────────────────────
+        '.diff': 'diff', '.patch': 'diff',
+        '.vim': 'vim',
+        '.nix': 'nix',
+        '.sol': 'javascript',
+        '.feature': 'gherkin',
+        '.http': 'http',
+        '.log': 'plaintext', '.lock': 'plaintext',
+        '.editorconfig': 'ini',
+        '.gitignore': 'plaintext', '.gitattributes': 'plaintext',
+        '.dockerignore': 'plaintext', '.npmignore': 'plaintext',
+    };
+
+    // Special filename → hljs lang (files with no extension or fixed names)
+    const hlFilename = {
+        'dockerfile': 'dockerfile', 'Dockerfile': 'dockerfile',
+        'makefile': 'makefile', 'Makefile': 'makefile', 'GNUmakefile': 'makefile',
+        'jenkinsfile': 'groovy', 'Jenkinsfile': 'groovy',
+        'vagrantfile': 'ruby', 'Vagrantfile': 'ruby',
+        'gemfile': 'ruby', 'Gemfile': 'ruby',
+        'rakefile': 'ruby', 'Rakefile': 'ruby',
+        'brewfile': 'ruby', 'Brewfile': 'ruby',
+        'pipfile': 'ini', 'Pipfile': 'ini',
+        '.bashrc': 'bash', '.zshrc': 'bash', '.bash_profile': 'bash',
+        '.bash_aliases': 'bash', '.profile': 'bash',
+        'nginx.conf': 'nginx', 'httpd.conf': 'apache',
+        'CMakeLists.txt': 'cmake', 'cmakelists.txt': 'cmake',
+    };
+    // langHint from server takes priority (e.g. 'xml', 'python')
+    const lang = (langHint && langHint !== 'plaintext') ? langHint
+        : hlExt[ext] || hlFilename[fname] || 'plaintext';
+
+    // Build funcLineMap: scan for `funcName(` patterns
+    codeState.funcLineMap = {};
+    codeState.funcList = [];
+    const funcDefs = DATA.funcs_by_file[codeState.currentFile] || [];
+    funcDefs.forEach(f => {
+        const pattern = new RegExp('\\b' + escapeRe(f.label) + '\\s*\\(');
+        for (let i = 0; i < lines.length; i++) {
+            if (pattern.test(lines[i])) {
+                codeState.funcLineMap[f.label] = i;
+                codeState.funcList.push({ name: f.label, line: i });
+                break;
+            }
+        }
+    });
+
+    // Syntax-highlight with highlight.js if available
+    let highlightedLines;
+    if (window.hljs) {
+        try {
+            const result = hljs.highlight(src, { language: lang, ignoreIllegals: true });
+            highlightedLines = result.value.split('\n');
+        } catch (_) {
+            highlightedLines = lines.map(l => escapeHtml(l));
+        }
+    } else {
+        highlightedLines = lines.map(l => escapeHtml(l));
+    }
+
+    const wrap = document.getElementById('cp-code-wrap');
+
+    const lineDivs = highlightedLines.map((hl, i) =>
+        `<div class="code-line" id="cl-${i}"><span class="line-num">${i + 1}</span><span class="line-content">${hl}</span></div>`
+    ).join('');
+
+    wrap.innerHTML = `<pre><code class="hljs language-${lang}">${lineDivs}</code></pre>`;
+    wrap.style.display = '';
+    
+    wrap.onclick = (e) => {
+        // ── Detect clicked line (shared by Structure View + graph sync) ───────
+        const lineEl = e.target.closest('.code-line');
+        const clickedLine = (lineEl && lineEl.id.startsWith('cl-'))
+            ? parseInt(lineEl.id.slice(3), 10) : -1;
+
+        if (window._sv && window._sv.active && typeof window.svHighlightLine === 'function') {
+            if (clickedLine >= 0) window.svHighlightLine(clickedLine);
+        }
+
+        // ── Detect clicked word ───────────────────────────────────────────────
+        let range;
+        if (document.caretRangeFromPoint) {
+            range = document.caretRangeFromPoint(e.clientX, e.clientY);
+        } else if (document.caretPositionFromPoint) {
+            const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+            if (pos) { range = document.createRange(); range.setStart(pos.offsetNode, pos.offset); }
+        }
+
+        let clickedWord = null;
+        if (range) {
+            const rNode = range.startContainer;
+            if (rNode.nodeType === 3) { // Node.TEXT_NODE
+                const offset = range.startOffset;
+                const text = rNode.textContent;
+                let start = offset, end = offset;
+                // Adjust if clicking precisely around word boundaries
+                if (start > 0 && start === text.length && /[A-Za-z0-9_$#]/.test(text[start - 1])) {
+                    start--; end--;
+                } else if (start > 0 && !/[A-Za-z0-9_$#]/.test(text[start]) && /[A-Za-z0-9_$#]/.test(text[start - 1])) {
+                    start--; end--;
+                }
+                while (start > 0 && /[A-Za-z0-9_$#]/.test(text[start - 1])) start--;
+                while (end < text.length && /[A-Za-z0-9_$#]/.test(text[end])) end++;
+                if (start < end) {
+                    clickedWord = text.slice(start, end);
+                    if (window.svHighlightBadgeByName) svHighlightBadgeByName(clickedWord);
+                }
+            }
+        }
+
+        // ── Code → Graph sync ─────────────────────────────────────────────────
+        if (!window._sv?.active && window.cpSyncToGraph && clickedLine >= 0) {
+            window.cpSyncToGraph(clickedLine, clickedWord);
+        }
+    };
+
+    // ── Structure View hook ──────────────────────────────────────────────────
+    if (window.svAfterRenderCode) svAfterRenderCode(src, ext, fname);
+}
+
+function jumpToFunc(funcName, targetCallText = null) {
+    let lineIdx = codeState.funcLineMap[funcName];
+    if (lineIdx === undefined) return;
+
+    // Update func bar
+    const funcDefs = DATA.funcs_by_file[codeState.currentFile] || [];
+    const fDef = funcDefs.find(f => f.label === funcName);
+    if (fDef) {
+        showFuncBar(fDef);
+        codeState.currentFunc = funcName;
+        const idx = codeState.funcList.findIndex(f => f.name === funcName);
+        if (idx >= 0) codeState.funcIdx = idx;
+    }
+
+    // Highlight line
+    document.querySelectorAll('.code-line.fn-highlight').forEach(el => el.classList.remove('fn-highlight'));
+
+    let highlightIdx = lineIdx;
+    if (targetCallText && codeState.rawLines && codeState.rawLines.length) {
+        let nextStart = codeState.rawLines.length;
+        const sortedStarts = Object.values(codeState.funcLineMap).sort((a, b) => a - b);
+        const myStartIdx = sortedStarts.indexOf(lineIdx);
+        if (myStartIdx >= 0 && myStartIdx < sortedStarts.length - 1) {
+            nextStart = sortedStarts[myStartIdx + 1];
+        }
+
+        const targetPattern = new RegExp('\\b' + escapeRe(targetCallText) + '\\b');
+        for (let i = lineIdx; i < nextStart; i++) {
+            if (targetPattern.test(codeState.rawLines[i])) {
+                highlightIdx = i;
+                break;
+            }
+        }
+    }
+
+    const lineEl = document.getElementById(`cl-${highlightIdx}`);
+    if (lineEl) {
+        lineEl.classList.add('fn-highlight');
+        lineEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+}
+
+function jumpToLine(lineNo) {
+    const idx = lineNo - 1;   // lineNo is 1-based; cl-N ids are 0-based
+    document.querySelectorAll('.code-line.fn-highlight').forEach(el => el.classList.remove('fn-highlight'));
+    const el = document.getElementById(`cl-${idx}`);
+    if (el) {
+        el.classList.add('fn-highlight');
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+}
+
+function jumpToImport(targetLabel) {
+    if (!codeState.rawLines || !codeState.rawLines.length || !targetLabel) return;
+    document.querySelectorAll('.code-line.fn-highlight').forEach(el => el.classList.remove('fn-highlight'));
+    const base = targetLabel.replace(/\\/g, '/').split('/').pop().replace(/\.[^.]*$/, '');
+    if (!base) return;
+    const pattern = new RegExp(escapeRe(base), 'i');
+    for (let i = 0; i < codeState.rawLines.length; i++) {
+        if (pattern.test(codeState.rawLines[i])) {
+            const el = document.getElementById(`cl-${i}`);
+            if (el) {
+                el.classList.add('fn-highlight');
+                el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                return;
+            }
+        }
+    }
+}
+
+function showFuncBar(fDef) {
+    const bar = document.getElementById('cp-func-bar');
+    bar.classList.add('visible');
+    document.getElementById('cp-func-name').textContent = fDef.label + '()';
+    const badge = document.getElementById('cp-func-badge');
+    if (fDef.is_efiapi) {
+        badge.className = 'cp-func-badge cp-func-efiapi';
+        badge.textContent = T('functionBadgeEFIAPI');
+    } else if (fDef.is_public) {
+        badge.className = 'cp-func-badge cp-func-public';
+        badge.textContent = T('functionBadgePublic');
+    } else {
+        badge.className = 'cp-func-badge cp-func-private';
+        badge.textContent = T('functionBadgeStatic');
+    }
+}
+
+function hideFuncBar() {
+    document.getElementById('cp-func-bar').classList.remove('visible');
+    codeState.currentFunc = null;
+}
+
+function navigateFunc(dir) {
+    const list = codeState.funcList;
+    if (!list.length) return;
+    codeState.funcIdx = (codeState.funcIdx + dir + list.length) % list.length;
+    jumpToFunc(list[codeState.funcIdx].name);
+}
+
+

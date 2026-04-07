@@ -1,0 +1,69 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"d:/Google AI/CodeViz/.claude/hooks/check-python-syntax.py\"",
+            "statusMessage": "Checking Python syntax...",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"d:/Google AI/CodeViz/.claude/hooks/log-session.py\"",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"d:/Google AI/CodeViz/.claude/hooks/save-compact-summary.py\"",
+            "async": true
+          }
+        ]
+      }
+    ]
+  },
+  "autoMemoryEnabled": true,
+  "permissions": {
+    "allow": [
+      "Bash(curl -sI https://unpkg.com/graphology-layout-forceatlas2@0.10.1/dist/)",
+      "Bash(curl -sL https://unpkg.com/graphology-layout-forceatlas2@0.10.1/)",
+      "Bash(curl -sI https://esm.sh/sigma@3.0.2)",
+      "Bash(curl -sI https://esm.sh/graphology@0.26.0)",
+      "Bash(curl -sI https://esm.sh/graphology-layout-forceatlas2@0.10.1)",
+      "Bash(curl -sL \"https://esm.sh/sigma@3.0.2\")",
+      "Bash(curl -sL \"https://esm.sh/graphology@0.26.0\")",
+      "Bash(curl -sL \"https://esm.sh/graphology-layout-forceatlas2@0.10.1\")",
+      "Bash(curl -sI https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/worker.js)",
+      "Bash(curl -sI https://unpkg.com/graphology-layout-forceatlas2@0.10.1/webworker.js)",
+      "Bash(curl -sL https://unpkg.com/graphology-layout-forceatlas2@0.10.1/webworker.js)",
+      "Bash(curl -sL https://unpkg.com/graphology-layout-forceatlas2@0.10.1/worker.js)",
+      "Bash(curl -sL https://cdn.jsdelivr.net/npm/sigma@2.4.0/build/sigma.min.js)",
+      "Bash(curl -sL https://unpkg.com/sigma@2.4.0/package.json)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:d.get\\(k\\) for k in [''''main'''',''''module'''',''''browser'''',''''exports'''']}, indent=2\\)\\)\")",
+      "Bash(curl -sI https://cdn.jsdelivr.net/npm/sigma@2.4.0/build/sigma.min.js)",
+      "Bash(curl -sL https://esm.sh/graphology-layout-forceatlas2@0.10.1/worker)",
+      "Bash(curl -sI https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/index.js)",
+      "Bash(curl -sL https://unpkg.com/graphology-layout-forceatlas2@0.10.1/index.js)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''analyze_viz.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''analyze_viz.py: OK''\\)\")",
+      "Bash(curl -s \"https://cdn.jsdelivr.net/npm/sigma@3.0.2/dist/sigma.min.js\")"
+    ]
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true,
+    "context7@claude-plugins-official": true
+  }
+}
