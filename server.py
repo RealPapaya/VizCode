@@ -251,7 +251,9 @@ def _clone_git_repo(url: str, tmp_dir: str, jid: str):
     try:
         result = subprocess.run(
             ['git', 'clone', '--depth=1', url, tmp_dir],
-            capture_output=True, timeout=120,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=120,
         )
     except FileNotFoundError:
         raise RuntimeError('git is not installed or not in PATH')

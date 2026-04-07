@@ -26,7 +26,7 @@ VizCode is a local-first code visualization tool that scans your project and ren
 
 ## 🚀 Quick Start
 
-**Requirements:** Python 3.8+ · Windows (Linux/macOS support is partial)
+**Requirements:** Python 3.6+ on Windows. Linux/macOS support is partial.
 
 ```bash
 # 1. Clone
