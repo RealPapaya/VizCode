@@ -190,6 +190,13 @@ async function _galaxyFA2RunAsync(token) {
             _gGraph.setNodeAttribute(nodes[i].key, 'y', nodes[i].y);
         }
     };
+
+    // Sigma re-render throttle: FA2 still yields every ~16ms for UI responsiveness,
+    // but expensive Sigma redraws are rate-limited for large graphs.
+    // n < 1500 → every yield (~60fps); 1500-3000 → ~20fps; 3000-5000 → ~8fps; >5000 → ~5fps
+    const sigmaRefreshInterval = n > 5000 ? 200 : n > 3000 ? 120 : n > 1500 ? 50 : 0;
+    let lastSigmaRefresh = 0;
+
     let sliceStart = performance.now();
 
     for (let iter = 0; iter < maxIters; iter++) {
@@ -298,13 +305,17 @@ async function _galaxyFA2RunAsync(token) {
         const budgetMs = backgroundMode ? 5 : 14;
         const elapsed = performance.now() - sliceStart;
 
-        // Foreground: yield every budgetMs and sync EVERY frame for smooth animation
-        // Background: yield every budgetMs but only sync positions every BATCH iters
+        // Foreground: yield every budgetMs for UI responsiveness; Sigma refresh is
+        // rate-limited for large graphs so FA2 gets more CPU time between redraws.
+        // Background: yield every budgetMs but only sync positions every BATCH iters.
         if (elapsed >= budgetMs) {
             if (visible) {
-                // Smooth 60fps: flush positions + refresh on every yield
-                flushNodePositions();
-                if (n <= 30000) _gSig.refresh();
+                const now = performance.now();
+                if (sigmaRefreshInterval === 0 || now - lastSigmaRefresh >= sigmaRefreshInterval) {
+                    flushNodePositions();
+                    if (n <= 30000) _gSig.refresh();
+                    lastSigmaRefresh = now;
+                }
             } else if ((iter + 1) % BATCH === 0) {
                 // Background: periodic sync only
                 flushNodePositions();

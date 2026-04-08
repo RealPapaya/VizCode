@@ -35,6 +35,7 @@ let _gLastUserActionAt = 0;
 // Performance: cache graph+layout between open/close cycles
 let _gLayoutDone = false;
 let _gDataFingerprint = null;
+let _gAllowedMods = null;      // null = all modules; Set<string> = folder-filtered modules
 let _gDegreeCache = null;       // Map<nodeKey, degree> — built once after graph construction
 let _gNodeLabelCache = null;    // Map<nodeKey, lowerLabel> — for edge reducer search path
 let _gSearchLower = '';         // Cached lowercase search query — avoids per-node toLowerCase
@@ -58,6 +59,7 @@ const _G_CLASS_KINDS = new Set(['class', 'struct', 'interface', 'enum', 'typedef
 const _G_FUNCTION_KINDS = new Set(['function']);
 const _G_METHOD_KINDS = new Set(['method']);
 const _G_CODE_NODE_TYPES = new Set(['class', 'struct', 'interface', 'enum', 'typedef', 'function', 'method']);
+const _G_NODE_THRESHOLD = 5000;
 
 const _galaxyFilter = {
     nodeTypes: new Set(['folder', 'file', 'class', 'struct', 'interface', 'enum', 'typedef', 'function', 'method']),
@@ -492,6 +494,23 @@ async function openGalaxy() {
     if (typeof closeDashboard === 'function') closeDashboard();
     const container = document.getElementById('galaxy-container');
     if (!container) return;
+
+    // ── Folder-select gate: show picker when codebase is too large ────────────
+    const estTotal = _gEstimateTotalNodes(window.DATA);
+    if (estTotal > _G_NODE_THRESHOLD && _gAllowedMods === null) {
+        document.getElementById('cy').style.display = 'none';
+        const layoutSwitcher = document.getElementById('layout-switcher');
+        if (layoutSwitcher) layoutSwitcher.style.display = 'none';
+        container.classList.add('active');
+        const pathTree = _gBuildPathTree(window.DATA);
+        _galaxyShowFolderSelectTree(estTotal, pathTree, (selectedPaths) => {
+            _gAllowedMods = selectedPaths; // Set<string> of folder paths, or null (load all)
+            void openGalaxy();
+        });
+        return;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     document.getElementById('cy').style.display = 'none';
     const layoutSwitcher = document.getElementById('layout-switcher');
     if (layoutSwitcher) layoutSwitcher.style.display = 'none';
@@ -514,7 +533,7 @@ async function openGalaxy() {
         _gDataFingerprint = fp;
         _gLayoutDone = false;
         _gLayoutNeedsNoverlap = false;
-        _galaxyBuildGraph();
+        _galaxyBuildGraph(_gAllowedMods);
         _gBuildDegreeCache();
         _galaxyInitPositions();
     } else {
@@ -526,6 +545,8 @@ async function openGalaxy() {
         _gHopSet = null;
         if (_gTooltipEl) { _gTooltipEl.remove(); _gTooltipEl = null; }
     }
+
+    _gAllowedMods = null; // reset after use — next open will re-check threshold
 
     _gSearchLower = (_galaxyFilter.searchQuery || '').toLowerCase().trim();
     _galaxyInitSigma();
@@ -541,6 +562,9 @@ async function openGalaxy() {
 
 function closeGalaxy() {
     _gLayoutToken++; // cancel any in-flight async layout
+    // Remove folder-select overlay if user closes Galaxy while picker is open
+    document.getElementById('g-folder-select')?.remove();
+    _gAllowedMods = null;
     const container = document.getElementById('galaxy-container');
     if (container) container.classList.remove('active');
     document.getElementById('cy').style.display = '';
@@ -713,8 +737,391 @@ async function _galaxyPrecomputeAsync() {
     }
 }
 
+// ── Node count estimation ────────────────────────────────────────────────────
+
+function _gEstimateTotalNodes(data) {
+    const D = data || window.DATA || {};
+    let files = 0;
+    for (const arr of Object.values(D.files_by_module || {})) files += arr.length;
+    for (const arr of Object.values(D.other_files_by_module || {})) files += arr.length;
+    const symbols = Object.keys(D.symbol_index || {}).length;
+    return files + symbols + Math.ceil(files * 0.25);
+}
+
+// ── Hierarchical path tree builder ───────────────────────────────────────────
+// Returns root: { name, path, files, symbols, total, children: Map }
+
+function _gBuildPathTree(data) {
+    const D = data || window.DATA || {};
+    const fileSymbols = new Map();
+    for (const sym of Object.values(D.symbol_index || {})) {
+        const p = _gNormPath(sym.file);
+        fileSymbols.set(p, (fileSymbols.get(p) || 0) + 1);
+    }
+    const allFiles = [];
+    for (const arr of Object.values(D.files_by_module || {})) allFiles.push(...arr);
+    for (const arr of Object.values(D.other_files_by_module || {})) allFiles.push(...arr);
+
+    const root = { name: '', path: '', files: 0, symbols: 0, total: 0, children: new Map() };
+    const byPath = new Map([['', root]]);
+
+    function ensure(path) {
+        if (byPath.has(path)) return byPath.get(path);
+        const i = path.lastIndexOf('/');
+        const name = i < 0 ? path : path.slice(i + 1);
+        const parentPath = i < 0 ? '' : path.slice(0, i);
+        const parent = ensure(parentPath);
+        const n = { name, path, files: 0, symbols: 0, total: 0, children: new Map() };
+        parent.children.set(name, n);
+        byPath.set(path, n);
+        return n;
+    }
+
+    for (const file of allFiles) {
+        const norm = _gNormPath(file.path);
+        const syms = fileSymbols.get(norm) || 0;
+        const parts = norm.split('/');
+        let cur = '';
+        for (let i = 0; i < parts.length - 1; i++) {
+            cur = cur ? cur + '/' + parts[i] : parts[i];
+            const n = ensure(cur);
+            n.files++;
+            n.symbols += syms;
+        }
+        root.files++;
+        root.symbols += syms;
+    }
+
+    function calc(n) {
+        n.total = n.files + n.symbols + Math.ceil(n.files * 0.25);
+        for (const c of n.children.values()) calc(c);
+    }
+    calc(root);
+    return root;
+}
+
+// ── Explorer-style folder selector ───────────────────────────────────────────
+
+function _galaxyShowFolderSelectTree(totalCount, tree, onConfirm) {
+    const container = document.getElementById('galaxy-container');
+    if (!container) return;
+
+    const stale = document.getElementById('g-folder-select');
+    if (stale) stale.remove();
+
+    // ── Galaxy-fixed dark palette (independent of app theme) ─────────────────
+    const C = {
+        ovBg:    'rgba(6,6,16,0.94)',
+        dlgBg:   '#0d0d1f',
+        border:  '#252545',
+        listBg:  '#080818',
+        listBdr: '#1c1c38',
+        text:    '#dde4f2',
+        dim:     '#8a9ab8',
+        muted:   '#505870',
+        hover:   'rgba(255,255,255,0.05)',
+        accent:  '#6366f1',
+        btnBdr:  '#2a2a50',
+    };
+
+    const fmt = n => n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n);
+    const fmtFull = n => n.toLocaleString();
+
+    // ── Selection state ───────────────────────────────────────────────────────
+    const checkedPaths = new Set();
+    for (const child of tree.children.values()) checkedPaths.add(child.path);
+
+    function setSubtreeChecked(node, on) {
+        if (on) checkedPaths.add(node.path); else checkedPaths.delete(node.path);
+        for (const c of node.children.values()) setSubtreeChecked(c, on);
+    }
+
+    function checkState(node) {
+        if (checkedPaths.has(node.path)) return 'checked';
+        function anyDesc(n) {
+            for (const c of n.children.values())
+                if (checkedPaths.has(c.path) || anyDesc(c)) return true;
+            return false;
+        }
+        return anyDesc(node) ? 'indeterminate' : 'unchecked';
+    }
+
+    function countSelected() {
+        function walk(node, parentOn) {
+            if (parentOn) return 0;
+            if (checkedPaths.has(node.path)) return node.total;
+            let s = 0;
+            for (const c of node.children.values()) s += walk(c, false);
+            return s;
+        }
+        return walk(tree, false);
+    }
+
+    // ── DOM tree builder ──────────────────────────────────────────────────────
+    const cbByPath  = new Map(); // path → <input>
+    const exByPath  = new Map(); // path → { kidsEl, chev } for expand/collapse all
+
+    function buildRow(node, depth) {
+        const hasKids = node.children.size > 0;
+        const wrapper = document.createElement('div');
+
+        const row = document.createElement('div');
+        row.style.cssText = `display:flex;align-items:center;gap:5px;` +
+            `padding:4px 6px 4px ${depth * 14 + 4}px;border-radius:5px;` +
+            `transition:background 0.12s;user-select:none;cursor:pointer`;
+        row.onmouseenter = () => { row.style.background = C.hover; };
+        row.onmouseleave = () => { row.style.background = ''; };
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.style.cssText = `width:13px;height:13px;flex-shrink:0;cursor:pointer;accent-color:${C.accent}`;
+        cbByPath.set(node.path, cb);
+
+        const chev = document.createElement('span');
+        chev.style.cssText = `width:12px;text-align:center;flex-shrink:0;font-size:9px;` +
+            `color:${C.dim};transition:transform 0.15s;line-height:1`;
+        chev.textContent = hasKids ? '▶' : '';
+
+        const icon = document.createElement('span');
+        icon.style.cssText = 'font-size:12px;flex-shrink:0;line-height:1';
+        icon.textContent = '📁';
+
+        const label = document.createElement('span');
+        label.textContent = node.name;
+        label.style.cssText = `flex:1;font-size:13px;color:${C.text};` +
+            'overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+
+        const cnt = document.createElement('span');
+        cnt.style.cssText = `font-size:11px;color:${C.muted};white-space:nowrap;flex-shrink:0`;
+        cnt.textContent = `${fmt(node.files)} files · ${fmt(node.symbols)} sym`;
+
+        row.append(cb, chev, icon, label, cnt);
+        wrapper.appendChild(row);
+
+        let kidsEl = null;
+        if (hasKids) {
+            kidsEl = document.createElement('div');
+            kidsEl.style.display = 'none'; // all collapsed by default
+            const sorted = [...node.children.values()].sort((a, b) => b.total - a.total);
+            for (const c of sorted) kidsEl.appendChild(buildRow(c, depth + 1));
+            wrapper.appendChild(kidsEl);
+            exByPath.set(node.path, { kidsEl, chev });
+        }
+
+        cb.addEventListener('change', (e) => {
+            e.stopPropagation();
+            setSubtreeChecked(node, cb.checked);
+            syncCheckboxes();
+            updateFooter();
+        });
+
+        row.addEventListener('click', (e) => {
+            if (e.target === cb) return;
+            if (!hasKids) return;
+            const open = kidsEl.style.display !== 'none';
+            kidsEl.style.display = open ? 'none' : '';
+            chev.style.transform = open ? '' : 'rotate(90deg)';
+        });
+
+        return wrapper;
+    }
+
+    function syncCheckboxes() {
+        for (const [path, cbEl] of cbByPath) {
+            const n = _gPathTreeFind(tree, path);
+            if (!n) continue;
+            const s = checkState(n);
+            cbEl.checked = s === 'checked';
+            cbEl.indeterminate = s === 'indeterminate';
+        }
+    }
+
+    // ── Overlay ───────────────────────────────────────────────────────────────
+    const overlay = document.createElement('div');
+    overlay.id = 'g-folder-select';
+    overlay.style.cssText = `position:absolute;inset:0;z-index:20;` +
+        `background:${C.ovBg};display:flex;align-items:center;justify-content:center`;
+
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `background:${C.dlgBg};border:1px solid ${C.border};` +
+        `border-radius:12px;padding:20px 20px 16px;width:540px;max-width:94vw;max-height:90vh;` +
+        `display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.85)`;
+
+    // Header
+    const hdr = document.createElement('div');
+    hdr.style.marginBottom = '14px';
+    hdr.innerHTML =
+        `<div style="font-size:15px;font-weight:600;color:${C.text};margin-bottom:5px">` +
+        `Codebase too large ` +
+        `<span style="font-weight:400;color:${C.dim}">(≈ ${fmtFull(totalCount)} nodes)</span></div>` +
+        `<div style="font-size:12px;color:${C.dim};line-height:1.5">` +
+        `Galaxy renders best under ${fmtFull(_G_NODE_THRESHOLD)} nodes. ` +
+        `Navigate the folder tree and check what to include.</div>`;
+
+    // Toolbar: selection controls left, expand controls right
+    const toolbar = document.createElement('div');
+    toolbar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;' +
+        'margin-bottom:6px;flex-shrink:0';
+
+    function mkTextBtn(txt) {
+        const b = document.createElement('button');
+        b.textContent = txt;
+        b.style.cssText = `font-size:11px;color:${C.dim};background:none;border:none;` +
+            'cursor:pointer;padding:2px 7px;border-radius:4px;transition:color 0.1s';
+        b.onmouseenter = () => { b.style.color = C.text; };
+        b.onmouseleave = () => { b.style.color = C.dim; };
+        return b;
+    }
+
+    const leftGroup = document.createElement('div');
+    leftGroup.style.cssText = 'display:flex;gap:2px;align-items:center';
+    const lbl = document.createElement('span');
+    lbl.textContent = 'Select:';
+    lbl.style.cssText = `font-size:11px;color:${C.muted};margin-right:2px`;
+    const btnAll  = mkTextBtn('All');
+    const btnNone = mkTextBtn('None');
+    leftGroup.append(lbl, btnAll, btnNone);
+
+    const rightGroup = document.createElement('div');
+    rightGroup.style.cssText = 'display:flex;gap:2px;align-items:center';
+    const lbl2 = document.createElement('span');
+    lbl2.textContent = 'Tree:';
+    lbl2.style.cssText = `font-size:11px;color:${C.muted};margin-right:2px`;
+    const btnExpand   = mkTextBtn('▼ Expand All');
+    const btnCollapse = mkTextBtn('▶ Collapse All');
+    rightGroup.append(lbl2, btnExpand, btnCollapse);
+
+    toolbar.append(leftGroup, rightGroup);
+
+    // Tree list
+    const treeEl = document.createElement('div');
+    treeEl.style.cssText = `flex:1;overflow-y:auto;background:${C.listBg};` +
+        `border:1px solid ${C.listBdr};border-radius:7px;padding:4px;` +
+        'min-height:100px;max-height:340px';
+    const sortedRoots = [...tree.children.values()].sort((a, b) => b.total - a.total);
+    for (const child of sortedRoots) treeEl.appendChild(buildRow(child, 0));
+
+    // Footer
+    const footer = document.createElement('div');
+    footer.style.cssText = 'display:flex;align-items:center;justify-content:space-between;' +
+        'margin-top:12px;margin-bottom:14px;flex-shrink:0;min-height:20px';
+    const countEl = document.createElement('span');
+    countEl.style.fontSize = '12px';
+    const hintEl = document.createElement('span');
+    hintEl.style.cssText = 'font-size:11px;font-weight:500';
+    footer.append(countEl, hintEl);
+
+    // Action buttons
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;flex-shrink:0';
+
+    const loadAllBtn = document.createElement('button');
+    loadAllBtn.textContent = 'Load All Anyway';
+    loadAllBtn.style.cssText = `font-size:12px;color:${C.dim};background:none;` +
+        `border:1px solid ${C.btnBdr};border-radius:6px;padding:6px 14px;cursor:pointer;` +
+        'transition:border-color 0.15s,color 0.15s';
+    loadAllBtn.onmouseenter = () => {
+        loadAllBtn.style.borderColor = C.dim;
+        loadAllBtn.style.color = C.text;
+    };
+    loadAllBtn.onmouseleave = () => {
+        loadAllBtn.style.borderColor = C.btnBdr;
+        loadAllBtn.style.color = C.dim;
+    };
+
+    const loadBtn = document.createElement('button');
+    loadBtn.textContent = 'Load Selected';
+    loadBtn.style.cssText = 'font-size:13px;font-weight:600;color:#fff;background:#4f46e5;' +
+        'border:none;border-radius:6px;padding:7px 18px;cursor:pointer;transition:background 0.15s';
+    loadBtn.onmouseenter = () => { loadBtn.style.background = '#4338ca'; };
+    loadBtn.onmouseleave = () => { loadBtn.style.background = '#4f46e5'; };
+    btnRow.append(loadAllBtn, loadBtn);
+
+    dialog.append(hdr, toolbar, treeEl, footer, btnRow);
+    overlay.appendChild(dialog);
+    container.appendChild(overlay);
+
+    // ── Updaters ──────────────────────────────────────────────────────────────
+    function updateFooter() {
+        const total = countSelected();
+        const clr = total <= _G_NODE_THRESHOLD ? '#10b981' :
+            total <= _G_NODE_THRESHOLD * 1.6 ? '#f59e0b' : '#ef4444';
+        countEl.innerHTML =
+            `<span style="color:${C.dim}">Selected: </span>` +
+            `<strong style="color:${clr}">${fmtFull(total)}</strong>` +
+            `<span style="color:${C.dim}"> nodes</span>`;
+        if (total <= _G_NODE_THRESHOLD) {
+            hintEl.textContent = '';
+        } else if (total <= _G_NODE_THRESHOLD * 1.6) {
+            hintEl.style.color = '#f59e0b';
+            hintEl.textContent = '⚠ May be slow';
+        } else {
+            hintEl.style.color = '#ef4444';
+            hintEl.textContent = '⚠ Very slow — fewer folders recommended';
+        }
+        const hasAny = checkedPaths.size > 0;
+        loadBtn.disabled = !hasAny;
+        loadBtn.style.opacity = hasAny ? '1' : '0.4';
+        loadBtn.style.cursor = hasAny ? 'pointer' : 'not-allowed';
+    }
+
+    // ── Event handlers ────────────────────────────────────────────────────────
+    btnAll.addEventListener('click', () => {
+        for (const child of tree.children.values()) setSubtreeChecked(child, true);
+        syncCheckboxes();
+        updateFooter();
+    });
+    btnNone.addEventListener('click', () => {
+        checkedPaths.clear();
+        syncCheckboxes();
+        updateFooter();
+    });
+    btnExpand.addEventListener('click', () => {
+        for (const { kidsEl, chev } of exByPath.values()) {
+            kidsEl.style.display = '';
+            chev.style.transform = 'rotate(90deg)';
+        }
+    });
+    btnCollapse.addEventListener('click', () => {
+        for (const { kidsEl, chev } of exByPath.values()) {
+            kidsEl.style.display = 'none';
+            chev.style.transform = '';
+        }
+    });
+
+    loadBtn.addEventListener('click', () => {
+        const result = new Set();
+        function collect(node, parentOn) {
+            if (parentOn) return;
+            if (checkedPaths.has(node.path)) { result.add(node.path); return; }
+            for (const c of node.children.values()) collect(c, false);
+        }
+        collect(tree, false);
+        overlay.remove();
+        onConfirm(result.size > 0 ? result : null);
+    });
+    loadAllBtn.addEventListener('click', () => { overlay.remove(); onConfirm(null); });
+
+    // ── Initial render ────────────────────────────────────────────────────────
+    syncCheckboxes();
+    updateFooter();
+}
+
+// Helper: find a tree node by path (used by syncCheckboxes)
+function _gPathTreeFind(tree, path) {
+    if (tree.path === path) return tree;
+    const parts = path.split('/');
+    let cur = tree;
+    for (const part of parts) {
+        cur = cur.children.get(part);
+        if (!cur) return null;
+    }
+    return cur;
+}
+
 function scheduleGalaxyPrecompute() {
     if (!window.DATA || _gPrecomputeQueued || _gLayoutDone || _gLayoutRunning) return;
+    if (_gEstimateTotalNodes(window.DATA) > _G_NODE_THRESHOLD) return; // too large; user must select folders first
     if (_gPrecomputeHandle) return;
     _galaxyInstallBackgroundInputHooks();
 

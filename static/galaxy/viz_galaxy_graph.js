@@ -175,7 +175,7 @@ function _gBuildDegreeCache() {
 
 // ── Main graph builder ────────────────────────────────────────────────────────
 
-function _galaxyBuildGraph() {
+function _galaxyBuildGraph(allowedMods) {
     const Graph = window.graphology;
     if (!Graph) {
         console.error('[galaxy] graphology not loaded');
@@ -186,7 +186,28 @@ function _galaxyBuildGraph() {
 
     const D = window.DATA || {};
     _gApplyThemeTypeColors();
-    const allFiles = _gAllFiles();
+
+    // ── Path-prefix filter: build allowed file path set ─────────────────────
+    // allowedMods is a Set of folder paths (any depth). A file is included if
+    // its normalized path starts with any of the selected folder paths.
+    const pathFilter = allowedMods instanceof Set ? allowedMods : null;
+    let allowedFilePaths = null;
+    if (pathFilter) {
+        allowedFilePaths = new Set();
+        for (const file of _gAllFiles()) {
+            const norm = _gNormPath(file.path);
+            for (const prefix of pathFilter) {
+                if (!prefix || norm === prefix || norm.startsWith(prefix + '/')) {
+                    allowedFilePaths.add(norm);
+                    break;
+                }
+            }
+        }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    let allFiles = _gAllFiles();
+    if (allowedFilePaths) allFiles = allFiles.filter(f => allowedFilePaths.has(_gNormPath(f.path)));
     const symbolIndex = D.symbol_index || {};
     const symbolEdges = D.symbol_edges || [];
     const communityMap = D.communities || {};
@@ -341,6 +362,7 @@ function _galaxyBuildGraph() {
     symbols.forEach(sym => {
         if (!_G_CLASS_KINDS.has(sym.kind)) return;
         const filePath = _gNormPath(sym.file || '');
+        if (allowedFilePaths && !allowedFilePaths.has(filePath)) return;
         const nodeType = sym.kind;
         const nodeKey = `g-${nodeType}:${sym.id}`;
         const _cColor = _gNodeTypeColor(nodeType, sym.kind, sym.is_public);
@@ -391,6 +413,7 @@ function _galaxyBuildGraph() {
     symbols.forEach(sym => {
         if (!_G_FUNCTION_KINDS.has(sym.kind) && !_G_METHOD_KINDS.has(sym.kind)) return;
         const filePath = _gNormPath(sym.file || '');
+        if (allowedFilePaths && !allowedFilePaths.has(filePath)) return;
         const nodeType = _G_METHOD_KINDS.has(sym.kind) ? 'method' : 'function';
         const idxKey = `${filePath}::${sym.name || ''}`;
         const nodeKey = `g-${nodeType}:${sym.id}`;
