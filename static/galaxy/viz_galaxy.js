@@ -608,24 +608,31 @@ async function _galaxyLayoutAsync() {
 
     let runPromise = null;
     runPromise = (async () => {
-        try {
+                try {
             if (shouldRunFA2) {
                 await _galaxyFA2RunAsync(myToken);
                 if (_gLayoutToken !== myToken) return; // cancelled (galaxy closed)
                 _gLayoutDone = true;
             }
-            if (_galaxyIsBackgroundPriority()) {
-                _gLayoutNeedsNoverlap = true;
-            } else if (shouldRunFA2 || _gLayoutNeedsNoverlap) {
-                _galaxyNoverlapPass();
-                _gLayoutNeedsNoverlap = false;
-            }
+                        // Noverlap disabled — FA2 result is the final layout (overlaps are acceptable)
+            // if (_galaxyIsBackgroundPriority()) {
+            //     _gLayoutNeedsNoverlap = true;
+            // } else if (shouldRunFA2 || _gLayoutNeedsNoverlap) {
+            //     await _galaxyNoverlapPassAsync(myToken);
+            //     if (_gLayoutToken !== myToken) return; // cancelled (galaxy closed)
+            //     _gLayoutNeedsNoverlap = false;
+            // }
+            _gLayoutNeedsNoverlap = false; // Always false since Noverlap is disabled
             if (_gSig) _gSig.refresh();
             if (_gLayoutDone) _gPrecomputePending = false;
         } finally {
             if (_gLayoutPromise === runPromise) {
                 _gLayoutRunning = false;
                 _gLayoutPromise = null;
+                // Always clear _gPrecomputePending when layout finishes or is cancelled
+                if (_gLayoutDone && !_gLayoutNeedsNoverlap) {
+                    _gPrecomputePending = false;
+                }
                 _galaxySyncButtonComputing();
                 _galaxyHideLayoutBadge();
             }

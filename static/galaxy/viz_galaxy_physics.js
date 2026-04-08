@@ -56,10 +56,10 @@ function _galaxyFA2ConvergenceSettings(nodeCount) {
 
 // ── Noverlap settings for final overlap removal ──────────────────────────────
 const _G_NOVERLAP = {
-    maxIterations: 60,
-    ratio: 1.5,
-    margin: 60,
-    expansion: 1.8,
+    maxIterations: 80,     // More iterations for gentler movement
+    ratio: 1.2,            // Reduced from 1.5 — less aggressive sizing
+    margin: 40,            // Reduced from 60 — tighter spacing
+    expansion: 1.4,        // Reduced from 1.8 — gentler push force
     gridSize: 100,
 };
 
@@ -328,7 +328,7 @@ async function _galaxyFA2RunAsync(token) {
 
 // ── Noverlap: post-FA2 overlap removal ──────────────────────────────────────
 
-function _galaxyNoverlapPass() {
+async function _galaxyNoverlapPassAsync(token) {
     if (!_gGraph || _gGraph.order === 0) return;
     const S = _G_NOVERLAP;
     const nodes = [];
@@ -341,6 +341,10 @@ function _galaxyNoverlapPass() {
     });
     const n = nodes.length;
     if (n < 2) return;
+
+        let sliceStart = performance.now();
+    const visible = !!_gSig;
+    const RENDER_EVERY = 1; // Render every iteration for smooth animation
 
     for (let iter = 0; iter < S.maxIterations; iter++) {
         let moved = 0;
@@ -378,9 +382,32 @@ function _galaxyNoverlapPass() {
                 }
             }
         }
+
+        // Progressive rendering: update every RENDER_EVERY iterations, on last iteration, or when converged
+        const shouldRender = (iter % RENDER_EVERY === 0) || (iter === S.maxIterations - 1) || (moved === 0);
+
+        if (visible && shouldRender) {
+            // Write current positions back to graph
+            for (let i = 0; i < n; i++) {
+                _gGraph.setNodeAttribute(nodes[i].key, 'x', nodes[i].x);
+                _gGraph.setNodeAttribute(nodes[i].key, 'y', nodes[i].y);
+            }
+
+            // Refresh Sigma rendering (same threshold as FA2)
+            if (n <= 30000) _gSig.refresh();
+
+            // Check if cancelled
+            if (_gLayoutToken !== token) return;
+
+            // Yield control to browser for smooth animation
+            await new Promise(r => requestAnimationFrame(r));
+            sliceStart = performance.now();
+        }
+
         if (moved === 0) break;
     }
 
+    // Final position write-back (ensure all positions are committed)
     for (let i = 0; i < n; i++) {
         _gGraph.setNodeAttribute(nodes[i].key, 'x', nodes[i].x);
         _gGraph.setNodeAttribute(nodes[i].key, 'y', nodes[i].y);
