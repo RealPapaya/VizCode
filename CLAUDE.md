@@ -2,10 +2,8 @@
 
 ## Collaboration Rules
 
-- **Never commit automatically.** Only run `git commit` when the user explicitly says "commit".
 - **Ask before assuming.** If requirements are unclear — especially scope, file targets, or expected behaviour — ask first.
 - **Respond in Traditional Chinese (繁體中文)** unless the user writes in English first.
-- **Never read or search inside `CodeViz-master/`** unless the user explicitly names it. It is a reference-only C++ project, not part of the active codebase.
 
 ## Project Overview
 
