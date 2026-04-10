@@ -54,6 +54,33 @@ except ImportError as _pe:
     _BIOS_EXTENSIONS = set()
     _console_print(f'[WARN] Could not load language parsers: {_pe}', file=sys.stderr)
 
+import parse_memo
+
+# ─── Parser-fingerprint cache (populated lazily in scan_file) ─────────────────
+# Maps a parser callable to the SHA-256 of its source file. Built once per
+# process; editing a parser source file changes the hash and auto-invalidates
+# all cached results for the file types that parser handles.
+_parser_fingerprints: dict = {}
+
+
+def _get_parser_fn(ext: str):
+    """Return the parser callable responsible for *ext* (used as part of the
+    cache key so that editing a parser auto-invalidates cached entries).
+    Returns None when parsers aren't loaded (C-like fallback path)."""
+    if not _PARSERS_LOADED:
+        return None
+    if ext in _BIOS_EXTENSIONS:
+        return scan_bios
+    if ext == '.py':
+        return scan_python
+    if ext in ('.js', '.mjs', '.cjs', '.jsx'):
+        return scan_js
+    if ext in ('.ts', '.tsx'):
+        return scan_ts
+    if ext == '.go':
+        return scan_go
+    return scan_common  # generic fallback for all other recognized extensions
+
 # ─── Constants ───────────────────────────────────────────────────────────────
 SKIP_DIRS  = {
     # BIOS / build
@@ -516,93 +543,115 @@ KNOWN_SYS_FUNCS: Dict[str, str] = {
 # ─── All BIOS/UEFI/AMI/C parsers → parsers/bios_parser.py ──────────────────────
 
 # ─── scan_file ────────────────────────────────────────────────────────────────
-def scan_file(filepath: str, root: str):
+def scan_file(filepath: str, root: str, _memo: dict | None = None):
     """
     Returns (includes_or_refs, funcdefs, funccalls, bios_extra_dict, func_calls_by_func, symbol_defs)
     bios_extra_dict varies by file type; None for C/H/ASM.
     symbol_defs is a list of {kind, name, line, end_line, bases, parent, is_public} — may be [] for BIOS/C.
+
+    _memo: optional in-memory cache dict from parse_memo.open_memo().  When
+           provided, results are looked up before parsing and stored afterward.
+           Pass None to disable caching (default, backward-compatible).
     """
+    fp_path = Path(filepath)
     try:
-        src = Path(filepath).read_text(encoding='utf-8', errors='replace')
+        file_bytes = fp_path.read_bytes()
     except Exception:
         return [], [], [], None, [], []
 
-    ext = Path(filepath).suffix.lower()
+    ext = fp_path.suffix.lower()
+
+    # ── Cache lookup ──────────────────────────────────────────────────────────
+    if _memo is not None:
+        try:
+            rel = fp_path.relative_to(root).as_posix()
+        except ValueError:
+            rel = filepath.replace('\\', '/')
+        file_sha = parse_memo.digest_bytes(file_bytes)
+        parser_fn = _get_parser_fn(ext)
+        p_sha = _parser_fingerprints.get(parser_fn)
+        if p_sha is None:
+            p_sha = parse_memo.parser_fingerprint(parser_fn)
+            _parser_fingerprints[parser_fn] = p_sha
+        hit = parse_memo.lookup_entry(_memo, rel, file_sha, p_sha)
+        if hit is not None:
+            return hit
+    else:
+        rel = file_sha = p_sha = None
+
+    try:
+        src = file_bytes.decode('utf-8', errors='replace')
+    except Exception:
+        src = ''
+
+    # ── Parser dispatch (single exit point for cache-write) ──────────────────
+    raw = None
 
     # ── BIOS / UEFI / AMI / C / ASM ──────────────────────────────────────────
     if ext in _BIOS_EXTENSIONS and _PARSERS_LOADED:
-        result = scan_bios(src, ext)
-        # bios_parser returns 5-tuple — pad with empty symbol_defs
-        if len(result) == 5:
-            return (*result, [])
-        return result
+        raw = scan_bios(src, ext)
 
     # ── Python ───────────────────────────────────────────────────────────────
-    if ext == '.py' and _PARSERS_LOADED:
-        result = scan_python(src)
-        if len(result) == 5:
-            return (*result, [])
-        return result
+    elif ext == '.py' and _PARSERS_LOADED:
+        raw = scan_python(src)
 
     # ── JavaScript / TypeScript ───────────────────────────────────────────────
-    if ext in ('.js', '.mjs', '.cjs', '.jsx') and _PARSERS_LOADED:
-        result = scan_js(src)
-        if len(result) == 5:
-            return (*result, [])
-        return result
+    elif ext in ('.js', '.mjs', '.cjs', '.jsx') and _PARSERS_LOADED:
+        raw = scan_js(src)
 
-    if ext in ('.ts', '.tsx') and _PARSERS_LOADED:
-        result = scan_ts(src)
-        if len(result) == 5:
-            return (*result, [])
-        return result
+    elif ext in ('.ts', '.tsx') and _PARSERS_LOADED:
+        raw = scan_ts(src)
 
     # ── Go ────────────────────────────────────────────────────────────────────
-    if ext == '.go' and _PARSERS_LOADED:
-        result = scan_go(src)
-        if len(result) == 5:
-            return (*result, [])
-        return result
+    elif ext == '.go' and _PARSERS_LOADED:
+        raw = scan_go(src)
 
     # ── Common fallback for any remaining recognized extension ────────────────
-    if _PARSERS_LOADED:
-        result = scan_common(src, ext)
-        if len(result) == 5:
-            return (*result, [])
-        return result
+    elif _PARSERS_LOADED:
+        raw = scan_common(src, ext)
 
-    # Final safety net: .c, .cpp, .h, .hpp → C-like analysis
-    clean = strip_comments(src)
-    masked = mask_string_literals(clean)
-    includes = RE_INCLUDE.findall(clean)
+    if raw is not None:
+        # All pluggable parsers: pad 5-tuple to 6-tuple if needed
+        result = (*raw, []) if len(raw) == 5 else tuple(raw)
+    else:
+        # Final safety net: .c, .cpp, .h, .hpp → C-like analysis
+        clean = strip_comments(src)
+        masked = mask_string_literals(clean)
+        includes = RE_INCLUDE.findall(clean)
 
-    funcdefs, funccalls, func_calls_by_func = [], [], []
-    for m in RE_FUNCDEF.finditer(clean):
-        is_efiapi = bool(m.group(1))
-        name = m.group(2)
-        if name in C_KEYWORDS or len(name) < 2:
-            continue
-        line_before = clean[:m.start()].rstrip()
-        is_static = bool(RE_STATIC.search(line_before.split('\n')[-1] if '\n' in line_before else line_before))
-        funcdefs.append({'label': name, 'is_efiapi': is_efiapi, 'is_static': is_static})
+        funcdefs, funccalls, func_calls_by_func = [], [], []
+        for m in RE_FUNCDEF.finditer(clean):
+            is_efiapi = bool(m.group(1))
+            name = m.group(2)
+            if name in C_KEYWORDS or len(name) < 2:
+                continue
+            line_before = clean[:m.start()].rstrip()
+            is_static = bool(RE_STATIC.search(line_before.split('\n')[-1] if '\n' in line_before else line_before))
+            funcdefs.append({'label': name, 'is_efiapi': is_efiapi, 'is_static': is_static})
 
-        open_idx = m.end() - 1  # regex ends at '{'
-        close_idx = find_matching_brace(masked, open_idx)
-        body = masked[open_idx + 1:close_idx] if close_idx > open_idx else ''
-        calls = []
-        if body:
-            for cm in RE_FUNCCALL.finditer(body):
-                cname = cm.group(1)
-                if cname not in C_KEYWORDS and len(cname) >= 2:
-                    calls.append(cname)
-        func_calls_by_func.append(calls)
+            open_idx = m.end() - 1  # regex ends at '{'
+            close_idx = find_matching_brace(masked, open_idx)
+            body = masked[open_idx + 1:close_idx] if close_idx > open_idx else ''
+            calls = []
+            if body:
+                for cm in RE_FUNCCALL.finditer(body):
+                    cname = cm.group(1)
+                    if cname not in C_KEYWORDS and len(cname) >= 2:
+                        calls.append(cname)
+            func_calls_by_func.append(calls)
 
-    for m in RE_FUNCCALL.finditer(clean):
-        name = m.group(1)
-        if name not in C_KEYWORDS and len(name) >= 2:
-            funccalls.append(name)
+        for m in RE_FUNCCALL.finditer(clean):
+            name = m.group(1)
+            if name not in C_KEYWORDS and len(name) >= 2:
+                funccalls.append(name)
 
-    return includes, funcdefs, funccalls, None, func_calls_by_func, []
+        result = (includes, funcdefs, funccalls, None, func_calls_by_func, [])
+
+    # ── Cache write ───────────────────────────────────────────────────────────
+    if _memo is not None and rel is not None:
+        parse_memo.record_entry(_memo, rel, file_sha, p_sha, result)
+
+    return result
 
 
 # ─── get_module ───────────────────────────────────────────────────────────────
@@ -723,6 +772,9 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
 
     file_func_calls = {}
 
+    # ── Open per-file parse cache ─────────────────────────────────────────────
+    _memo = parse_memo.open_memo(Path(root))
+
     for i, fp in enumerate(all_files):
         if (i + 1) % 20 == 0 or (i + 1) == total:
             pct = _stage_pct('analysis', ((i + 1) / total) if total else 1.0, ease_power=0.72)
@@ -737,7 +789,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                 source_files_total=total,
             )
         rel = os.path.relpath(fp, root).replace('\\', '/')
-        inc, defs, calls, extra, func_calls_by_func, sym_defs = scan_file(fp, root)
+        inc, defs, calls, extra, func_calls_by_func, sym_defs = scan_file(fp, root, _memo=_memo)
         ext = Path(fp).suffix.lower()
         bios_meta = {}
         if extra and 'meta' in extra:
@@ -757,6 +809,12 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         file_func_calls[rel] = func_calls_by_func
         file_extra[rel]  = extra
         file_symdefs[rel] = sym_defs
+
+    # ── Persist parse cache (only the parser-output layer is stored) ──────────
+    try:
+        parse_memo.flush_memo(_memo, Path(root))
+    except Exception:
+        pass  # cache write failures are non-fatal
 
     # ── Phase X: Collect ALL other files + count skipped dirs + total dirs ───────
     # Other files are not analysed for deps but shown in UI for full codebase picture.
