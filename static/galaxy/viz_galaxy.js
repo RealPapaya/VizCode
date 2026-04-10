@@ -297,6 +297,39 @@ function _gUpdateHopSet() {
         _gHopSet = _gNodesWithinHops(_gPinned, _galaxyFilter.depthHops);
     } else {
         _gHopSet = null;
+        // If no pinned node, reset depth to 0
+        if (!_gPinned && _galaxyFilter.depthHops > 0) {
+            _galaxyFilter.depthHops = 0;
+        }
+    }
+}
+
+function _gUpdateDepthFilterState() {
+    const depthSlider = document.getElementById('gf-depth-slider');
+    const depthWrap = depthSlider?.parentElement;
+    const depthLabel = depthWrap?.querySelector('.gf-slider-label');
+    
+    if (!depthSlider || !depthLabel) return;
+    
+    const hasPinned = !!_gPinned;
+    depthSlider.disabled = !hasPinned;
+    
+    if (depthWrap) {
+        if (hasPinned) {
+            depthWrap.classList.remove('disabled');
+        } else {
+            depthWrap.classList.add('disabled');
+        }
+    }
+    
+    // Update label text
+    if (!hasPinned) {
+        depthLabel.innerHTML = '<em style="color:#475569">Pin a node to enable</em>';
+    } else {
+        const depthH = _galaxyFilter.depthHops;
+        depthLabel.innerHTML = depthH === 0
+            ? 'Off — show all nodes'
+            : `<strong class="gf-deg-val">${depthH}</strong> hop${depthH !== 1 ? 's' : ''} from pinned`;
     }
 }
 
@@ -353,8 +386,9 @@ function _galaxyBuildFilterPanel() {
         `<button class="flt-action" data-gf-edge-action="all">${typeof T === 'function' ? T('selectAll') : 'All'}</button>` +
         `<button class="flt-action" data-gf-edge-action="none">${typeof T === 'function' ? T('selectNone') : 'None'}</button>`;
 
-    const minDeg = _galaxyFilter.minDegree;
+        const minDeg = _galaxyFilter.minDegree;
     const depthH = _galaxyFilter.depthHops;
+    const depthDisabled = !_gPinned;  // Disable depth filter when no pinned node
     wrap.innerHTML =
         `<div style="padding:4px 0 6px">${searchHtml}</div>` +
         `${hdr('Node Types', ntActions)}<div style="padding:4px 0 8px">${nodeRows}</div>` +
@@ -363,9 +397,9 @@ function _galaxyBuildFilterPanel() {
         `<input type="range" class="gf-slider" id="gf-mindeg-slider" min="0" max="20" step="1" value="${minDeg}">` +
         `<div class="gf-slider-label">Show nodes with <strong class="gf-deg-val" id="gf-deg-val">${minDeg}</strong> connection${minDeg !== 1 ? 's' : ''}</div>` +
         `</div></div>` +
-        `${hdr('Depth Filter')}<div style="padding:4px 0 8px"><div class="gf-slider-wrap">` +
-        `<input type="range" class="gf-slider" id="gf-depth-slider" min="0" max="5" step="1" value="${depthH}">` +
-        `<div class="gf-slider-label">${depthH === 0 ? 'Off — show all nodes' : `<strong class="gf-deg-val" id="gf-depth-val">${depthH}</strong> hop${depthH !== 1 ? 's' : ''} from pinned`}</div>` +
+        `${hdr('Depth Filter')}<div style="padding:4px 0 8px"><div class="gf-slider-wrap${depthDisabled ? ' disabled' : ''}">` +
+        `<input type="range" class="gf-slider" id="gf-depth-slider" min="0" max="5" step="1" value="${depthH}"${depthDisabled ? ' disabled' : ''}>` +
+        `<div class="gf-slider-label">${depthDisabled ? '<em style="color:#475569">Pin a node to enable</em>' : (depthH === 0 ? 'Off — show all nodes' : `<strong class="gf-deg-val" id="gf-depth-val">${depthH}</strong> hop${depthH !== 1 ? 's' : ''} from pinned`)}</div>` +
         `</div></div>` +
         `${hdr('Display')}<div style="padding:4px 0 8px">` +
         `<div class="nl-row gf-row${_gCommunityColors ? ' active' : ''}" id="gf-community-toggle" style="--nl-col:#8b5cf6;cursor:pointer">` +
@@ -1248,7 +1282,7 @@ function _galaxyInitSigma() {
         if (_gSig) _gSig.refresh();
     });
 
-    _gSig.on('clickNode', ({ node }) => {
+        _gSig.on('clickNode', ({ node }) => {
         if (_gPinned === node) {
             _gPinned = null;
             _gNeighborSet = null;
@@ -1260,6 +1294,7 @@ function _galaxyInitSigma() {
             _gUpdateHopSet();
             _galaxyShowIsolateBtn();
         }
+        _gUpdateDepthFilterState();  // Update depth filter state based on pin status
         if (_gSig) {
             const _cam = _gSig.getCamera();
             _cam.animate({ ratio: _cam.ratio * 1.0001 }, { duration: 50 });
@@ -1272,12 +1307,13 @@ function _galaxyInitSigma() {
         _galaxyNavigate(node);
     });
 
-    _gSig.on('clickStage', () => {
+        _gSig.on('clickStage', () => {
         if (_gPinned) {
             _gPinned = null;
             _gNeighborSet = null;
             _gHopSet = null;
             _galaxyHideIsolateBtn();
+            _gUpdateDepthFilterState();  // Update depth filter state based on pin status
             if (_gSig) _gSig.refresh();
         }
     });
@@ -1389,10 +1425,12 @@ function _galaxyNodeReducer(node, data) {
         return data;
     }
 
-    // Selection mode (pinned node)
+        // Selection mode (pinned node)
     if (active) {
         const isActiveNode = node === active;
         const isNeighbor = _gNeighborSet && _gNeighborSet.has(node);
+        const inHopRange = _gHopSet && _gHopSet.has(node);
+        
         if (isActiveNode) {
             data.size = baseSize * 1.8;
             data.forceLabel = true;
@@ -1404,6 +1442,14 @@ function _galaxyNodeReducer(node, data) {
             data.size = baseSize * 1.3;
             data.forceLabel = true;
             data.zIndex = 3;
+            return data;
+        }
+                // Highlight nodes within hop range (for depth filter > 1)
+        if (inHopRange && _gHopSet.size > (_gNeighborSet ? _gNeighborSet.size : 0) + 1) {
+            data.size = baseSize * 1.2;
+            // Keep original color (no brightening)
+            data.forceLabel = false;
+            data.zIndex = 2;
             return data;
         }
         if (q && matchesSearch) {
@@ -1424,7 +1470,7 @@ function _galaxyNodeReducer(node, data) {
         return data;
     }
 
-    // Search-only mode
+        // Search-only mode
     if (q) {
         if (!matchesSearch) {
             data.color = data._colorFog || data.color;  // pre-computed blend 0.15
@@ -1432,19 +1478,19 @@ function _galaxyNodeReducer(node, data) {
             data.zIndex = 0;
             return data;
         }
-        data.color = data._colorBright || data.color;  // pre-computed brighten 1.4x
+        // Keep original color (no brightening)
         data.size = baseSize * 1.3;
         data.forceLabel = true;
         data.zIndex = 2;
         return data;
     }
 
-    // Hover highlight mode (no pinned, no search, no highlight active)
+        // Hover highlight mode (no pinned, no search, no highlight active)
     if (_gHoveredNode && !active && !hasHighlight && !hasBlast && !q) {
         const isHovered = node === _gHoveredNode;
         const isHoverNeighbor = _gHoverNeighborSet && _gHoverNeighborSet.has(node);
         if (isHovered) {
-            data.color = data._colorBright || data.color;
+            // Keep original color (no brightening)
             data.size = baseSize * 1.8;
             data.highlighted = true;
             data.forceLabel = true;
@@ -1525,12 +1571,23 @@ function _galaxyEdgeReducer(edge, data) {
         return data;
     }
 
-    // Selection mode
+        // Selection mode
     if (active) {
+        const srcInHopRange = _gHopSet && _gHopSet.has(src);
+        const tgtInHopRange = _gHopSet && _gHopSet.has(tgt);
+        
+                // Direct connection to pinned node
         if (src === active || tgt === active) {
             data.size = Math.max((data.size || 1) * 4, 3);
-            data.color = data._colorBright || data.color;
+            // Keep original color (no brightening)
             data.zIndex = 10;
+            return data;
+        }
+                // Edge between two nodes within hop range (for depth filter > 1)
+        if (_gHopSet && srcInHopRange && tgtInHopRange) {
+            data.size = Math.max((data.size || 1) * 2, 1.5);
+            // Keep original color (no brightening)
+            data.zIndex = 5;
             return data;
         }
         // Isolate mode: hide non-connected edges entirely
@@ -1555,10 +1612,10 @@ function _galaxyEdgeReducer(edge, data) {
         }
     }
 
-    // Hover highlight — connected edges get brightened, others dim
+        // Hover highlight — connected edges get brightened, others dim
     if (_gHoveredNode && !active && !hasHighlight && !hasBlast) {
         if (src === _gHoveredNode || tgt === _gHoveredNode) {
-            data.color = data._colorBright || data.color;
+            // Keep original color (no brightening)
             data.size = Math.max((data.size || 1) * 4, 3);
             data.zIndex = 10;
             return data;
