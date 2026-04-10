@@ -193,21 +193,27 @@ FILE_TYPE_MAP = {
 # ─── Edge type definitions ───────────────────────────────────────────────────
 # 每種 edge type 決定前端的線條樣式
 EDGE_TYPES = {
-    'include':       {'label': 'Include',            'color': '#c084fc', 'style': 'solid'},
-    'sources':       {'label': 'Sources',     'color': '#ffd700', 'style': 'solid'},
-    'package':       {'label': 'Package',     'color': '#00d4ff', 'style': 'dashed'},
-    'library':       {'label': 'Library',     'color': '#a78bfa', 'style': 'dashed'},
-    'elink':         {'label': 'ELINK',       'color': '#ff6b35', 'style': 'dotted'},
-    'cif_own':       {'label': 'owns',        'color': '#34d399', 'style': 'solid'},
-    'component':     {'label': 'Component',   'color': '#60a5fa', 'style': 'solid'},
-    'depex':         {'label': 'Depex',       'color': '#f472b6', 'style': 'dotted'},
-    'guid_ref':      {'label': 'GUID',        'color': '#fb923c', 'style': 'dashed'},
-    'str_ref':       {'label': 'Strings',     'color': '#e879f9', 'style': 'dashed'},
-    'asl_include':   {'label': 'ASL',         'color': '#818cf8', 'style': 'solid'},
-    'callback_ref':  {'label': 'Callback',    'color': '#f87171', 'style': 'dotted'},
-    'hii_pkg':       {'label': 'HII-Pkg',     'color': '#94a3b8', 'style': 'solid'},
+    # ── File-level dependency edges (kind = 'import') ──────────────────────
+    'include':       {'label': 'Include',   'color': '#c084fc', 'style': 'solid',  'kind': 'import'},
+    'sources':       {'label': 'Sources',   'color': '#ffd700', 'style': 'solid',  'kind': 'import'},
+    'package':       {'label': 'Package',   'color': '#00d4ff', 'style': 'dashed', 'kind': 'import'},
+    'library':       {'label': 'Library',   'color': '#a78bfa', 'style': 'dashed', 'kind': 'import'},
+    'elink':         {'label': 'ELINK',     'color': '#ff6b35', 'style': 'dotted', 'kind': 'import'},
+    'cif_own':       {'label': 'owns',      'color': '#34d399', 'style': 'solid',  'kind': 'import'},
+    'component':     {'label': 'Component', 'color': '#60a5fa', 'style': 'solid',  'kind': 'import'},
+    'depex':         {'label': 'Depex',     'color': '#f472b6', 'style': 'dotted', 'kind': 'import'},
+    'guid_ref':      {'label': 'GUID',      'color': '#fb923c', 'style': 'dashed', 'kind': 'import'},
+    'str_ref':       {'label': 'Strings',   'color': '#e879f9', 'style': 'dashed', 'kind': 'import'},
+    'asl_include':   {'label': 'ASL',       'color': '#818cf8', 'style': 'solid',  'kind': 'import'},
+    'callback_ref':  {'label': 'Callback',  'color': '#f87171', 'style': 'dotted', 'kind': 'import'},
+    'hii_pkg':       {'label': 'HII-Pkg',   'color': '#94a3b8', 'style': 'solid',  'kind': 'import'},
     # ── Universal import edge (all analysed languages) ─────────────────────
-    'import':        {'label': 'Import',      'color': '#10b981', 'style': 'dashed'},
+    'import':        {'label': 'Import',    'color': '#10b981', 'style': 'solid',  'kind': 'import'},
+    # ── Semantic kind edges ─────────────────────────────────────────────────
+    'call':          {'label': 'Call',      'color': '#38bdf8', 'style': 'solid',  'kind': 'call'},
+    'inherit':       {'label': 'Inherit',   'color': '#818cf8', 'style': 'solid',  'kind': 'inherit'},
+    # ── AI-inferred edge (B1, dashed by design) ─────────────────────────────
+    'inferred':      {'label': 'Inferred',  'color': '#94a3b8', 'style': 'dashed', 'kind': 'inferred'},
 }
 
 # C_KEYWORDS now lives in parsers/bios_parser.py
@@ -1260,7 +1266,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                 if key not in seen_edge:
                     seen_edge.add(key)
                     edges.append({'s': caller_idx, 't': callee_idx,
-                                  'p': int(d['is_static'])})
+                                  'p': int(d['is_static']), 'type': 'call'})
         func_edges_by_file[rel] = edges
 
     resolved_func_edges = sum(len(v) for v in func_edges_by_file.values())
@@ -1301,6 +1307,9 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             _sym_name_to_ids[sym['name']].append(sid)
             _file_sym_key[(rel, sym['name'])] = sid
 
+    # kind mapping for symbol edge types → A2 unified vocabulary
+    _SYMBOL_KIND = {'inheritance': 'inherit', 'implements': 'inherit', 'override': 'inherit', 'call': 'call'}
+
     # Inheritance / implements edges
     for sid, sym in symbol_index.items():
         for base_name in sym.get('bases', []):
@@ -1309,7 +1318,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             if tgt and tgt != sid:
                 tgt_kind = symbol_index[tgt].get('kind', '') if tgt in symbol_index else ''
                 edge_type = 'implements' if tgt_kind == 'interface' else 'inheritance'
-                symbol_edges.append({'from': sid, 'to': tgt, 'type': edge_type})
+                symbol_edges.append({'from': sid, 'to': tgt, 'type': edge_type, 'kind': _SYMBOL_KIND[edge_type]})
 
     # Override edges (child method overrides parent class method of same name)
     _class_methods: dict = defaultdict(set)
@@ -1336,7 +1345,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                         base_method_id = candidate_id
                         break
             if base_method_id and base_method_id != sid:
-                symbol_edges.append({'from': sid, 'to': base_method_id, 'type': 'override'})
+                symbol_edges.append({'from': sid, 'to': base_method_id, 'type': 'override', 'kind': 'inherit'})
 
     # Call edges (cross-file using func_name lookup)
     for rel, func_list in funcs_by_file.items():
@@ -1353,7 +1362,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                                  if _sym_name_to_ids[callee_name] else None))
                 if callee_id and callee_id != caller_id and callee_id not in seen_callee:
                     seen_callee.add(callee_id)
-                    symbol_edges.append({'from': caller_id, 'to': callee_id, 'type': 'call'})
+                    symbol_edges.append({'from': caller_id, 'to': callee_id, 'type': 'call', 'kind': 'call'})
 
     # ── Phase G: Community Detection (Louvain) ─────────────────────────────────
     communities: dict = {}
@@ -1458,7 +1467,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         for mod in all_modules
     ]
     module_edges = [
-        {'s': a, 't': b, 'weight': w}
+        {'s': a, 't': b, 'weight': w, 'kind': 'import'}
         for (a, b), w in module_edge_counts.items()
     ]
 

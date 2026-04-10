@@ -102,7 +102,8 @@ function renderL2Flowchart(fileRel, focusFuncName = null) {
                         data: {
                             id: `ie-${i}-${calleeIdx}`,
                             source: `fn-${i}`, target: `fn-${calleeIdx}`,
-                            w: EDGE_WIDTH.callInternal, ec: '#38bdf8', es: EDGE_STYLE_INTERNAL, el: '',
+                            w: EDGE_WIDTH.callInternal, ec: edgeTypeStyle('call').color, es: EDGE_STYLE_INTERNAL,
+                            el: '', kind: 'call',
                             tt: `${funcs[i].label} → ${callee}`,
                         }
                     });
@@ -129,10 +130,12 @@ function renderL2Flowchart(fileRel, focusFuncName = null) {
         }
     } else {
         legacyEdges.forEach((e, idx) => {
+            const leStyle = edgeTypeStyle(e.type || 'call');
             els.push({
                 data: {
                     id: `le-${idx}`, source: `fn-${e.s}`, target: `fn-${e.t}`,
-                    w: EDGE_WIDTH.callInternal, ec: '#38bdf8', es: EDGE_STYLE_INTERNAL, el: '', tt: 'Call'
+                    w: EDGE_WIDTH.callInternal, ec: leStyle.color, es: EDGE_STYLE_INTERNAL,
+                    el: '', kind: leStyle.kind || 'call', tt: leStyle.label || 'Call'
                 }
             });
         });

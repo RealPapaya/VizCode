@@ -407,6 +407,8 @@ function _symBuildCyStyle() {
             selector: 'edge[?isBundled]',
             style: { 'opacity': 0.95, 'text-opacity': 1 },
         },
+        // ── A2: inferred edges (B1 will produce these — dashed by design) ──
+        { selector: 'edge[kind="inferred"]', style: { 'line-style': 'dashed', 'opacity': 0.55 } },
         { selector: 'node:selected', style: { 'border-color': text, 'border-width': 2 } },
         { selector: 'edge:selected', style: { 'overlay-color': _SYM_WARM, 'overlay-opacity': 0.2, 'overlay-padding': 4 } },
         // Non-interactive structural nodes: suppress pointer events and hover overlay

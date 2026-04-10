@@ -469,8 +469,11 @@ function showTooltip(e) {
             html += `</div>`;
         }
     } else {
-        // Edge tooltip
-        html = escapeHtml(d.tt).replace(/\n/g, '<br>');
+        // Edge tooltip — show text + semantic kind badge
+        const kindBadge = d.kind
+            ? `<span style="font-size:10px;color:#94a3b8;margin-left:6px;opacity:0.8">[${escapeHtml(d.kind)}]</span>`
+            : '';
+        html = `<div>${escapeHtml(d.tt).replace(/\n/g, '<br>')}${kindBadge}</div>`;
     }
 
     const tip = document.getElementById('tooltip');

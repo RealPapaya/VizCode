@@ -215,21 +215,27 @@ const FILE_TYPE_SHAPE = {
 
 // ─── Edge type → color + style ───────────────────────────────────────────────
 const EDGE_TYPE_STYLE = {
-    'include': { color: '#c084fc', style: 'solid', label: 'Include' },
-    'sources': { color: '#ffd700', style: 'solid', label: 'Sources' },
-    'package': { color: '#dfa745', style: 'solid', label: 'Package' },
-    'library': { color: '#a78bfa', style: 'solid', label: 'Library' },
-    'elink': { color: '#ff6b35', style: 'solid', label: 'ELINK' },
-    'cif_own': { color: '#34d399', style: 'solid', label: 'Owns' },
-    'component': { color: '#60a5fa', style: 'solid', label: 'Component' },
-    'depex': { color: '#f472b6', style: 'solid', label: 'Depex' },
-    'guid_ref': { color: '#fb923c', style: 'solid', label: 'GUID' },
-    'str_ref': { color: '#e879f9', style: 'solid', label: 'Strings' },
-    'asl_include': { color: '#818cf8', style: 'solid', label: 'ASL' },
-    'callback_ref': { color: '#f87171', style: 'solid', label: 'Callback' },
-    'hii_pkg': { color: '#94a3b8', style: 'solid', label: 'HII-Pkg' },
+    // ── File-level dependency edges (kind = 'import') ─────────────────────
+    'include':      { color: '#c084fc', style: 'solid',  label: 'Include',   kind: 'import' },
+    'sources':      { color: '#ffd700', style: 'solid',  label: 'Sources',   kind: 'import' },
+    'package':      { color: '#dfa745', style: 'solid',  label: 'Package',   kind: 'import' },
+    'library':      { color: '#a78bfa', style: 'solid',  label: 'Library',   kind: 'import' },
+    'elink':        { color: '#ff6b35', style: 'solid',  label: 'ELINK',     kind: 'import' },
+    'cif_own':      { color: '#34d399', style: 'solid',  label: 'Owns',      kind: 'import' },
+    'component':    { color: '#60a5fa', style: 'solid',  label: 'Component', kind: 'import' },
+    'depex':        { color: '#f472b6', style: 'solid',  label: 'Depex',     kind: 'import' },
+    'guid_ref':     { color: '#fb923c', style: 'solid',  label: 'GUID',      kind: 'import' },
+    'str_ref':      { color: '#e879f9', style: 'solid',  label: 'Strings',   kind: 'import' },
+    'asl_include':  { color: '#818cf8', style: 'solid',  label: 'ASL',       kind: 'import' },
+    'callback_ref': { color: '#f87171', style: 'solid',  label: 'Callback',  kind: 'import' },
+    'hii_pkg':      { color: '#94a3b8', style: 'solid',  label: 'HII-Pkg',   kind: 'import' },
     // ── Universal import (all analysed languages) ─────────────────────────
-    'import': { color: '#10b981', style: 'solid', label: 'Import' },
+    'import':       { color: '#10b981', style: 'solid',  label: 'Import',    kind: 'import' },
+    // ── Semantic kind edges ───────────────────────────────────────────────
+    'call':         { color: '#38bdf8', style: 'solid',  label: 'Call',      kind: 'call'   },
+    'inherit':      { color: '#818cf8', style: 'solid',  label: 'Inherit',   kind: 'inherit'},
+    // ── AI-inferred edge (B1, dashed by design) ───────────────────────────
+    'inferred':     { color: '#94a3b8', style: 'dashed', label: 'Inferred',  kind: 'inferred'},
 };
 
 const EDGE_STYLE_INTERNAL = 'solid';
@@ -348,6 +354,13 @@ function fileNodeData(f, modColor) {
 
 function edgeTypeStyle(type) {
     return EDGE_TYPE_STYLE[type] || EDGE_TYPE_STYLE['include'];
+}
+
+// Returns line-style and opacity override for a given semantic kind.
+// 'inferred' edges (future B1) are visually distinguished with dashed lines.
+function kindStyle(kind) {
+    if (kind === 'inferred') return { lineStyle: 'dashed', opacity: 0.55 };
+    return { lineStyle: 'solid', opacity: 0.75 };
 }
 
 // ─── Other/Binary file node (not deeply analysed) ────────────────────────────
