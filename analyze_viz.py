@@ -1476,12 +1476,160 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
 
     total_all_files = total_project_files
 
-    # Count by file type for stats
+            # Count by file type for stats
     type_counts = defaultdict(int)
     for meta in file_meta.values():
         type_counts[meta['file_type']] += 1
 
     file_to_module = {rel: meta['module'] for rel, meta in file_meta.items()}
+
+    # ─── Advanced Health Metrics (Dashboard enhancements) ────────────────────
+    # Build ID to path mapping for edge analysis
+    id_to_rel = {i: rel for rel, i in rel_to_id.items()}
+    
+    # Coupling Hotspots: files that are imported the most
+    file_import_counts = defaultdict(int)
+    for edges_list in file_edges_by_module.values():
+        for edge in edges_list:
+            tgt_path = id_to_rel.get(edge['t'])
+            if tgt_path:
+                file_import_counts[tgt_path] += 1
+    
+    top_imported_files = sorted(
+        file_import_counts.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )[:5]
+    
+    # God File candidates: files calling the most functions
+    file_call_counts = defaultdict(int)
+    for rel, calls in file_calls.items():
+        file_call_counts[rel] = len(calls)
+    
+    top_caller_files = sorted(
+        file_call_counts.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )[:5]
+    
+    # Dead Code Detection
+    all_defined_funcs = set()
+    for rel, defs in file_defs.items():
+        for d in defs:
+            all_defined_funcs.add((rel, d['label']))
+    
+    all_called_funcs = set()
+    for rel, calls in file_calls.items():
+        for call in calls:
+            if call in func_name_to_file:
+                target_file = func_name_to_file[call]
+                all_called_funcs.add((target_file, call))
+    
+        uncalled_funcs = all_defined_funcs - all_called_funcs
+    uncalled_func_count = len(uncalled_funcs)
+    
+    # Files never imported
+    all_file_paths = set(file_meta.keys())
+    imported_files = set()
+    for edges_list in file_edges_by_module.values():
+        for edge in edges_list:
+            tgt_path = id_to_rel.get(edge['t'])
+            if tgt_path:
+                imported_files.add(tgt_path)
+    
+    unimported_files = all_file_paths - imported_files
+    unimported_file_count = len(unimported_files)
+    
+    # Circular Dependencies Detection (简化版 - Tarjan's algorithm)
+    def detect_cycles(graph):
+        """Detect strongly connected components using Tarjan's algorithm."""
+        index_counter = [0]
+        stack = []
+        lowlinks = {}
+        index = {}
+        on_stack = defaultdict(bool)
+        sccs = []
+        
+        def strongconnect(node):
+            index[node] = index_counter[0]
+            lowlinks[node] = index_counter[0]
+            index_counter[0] += 1
+            stack.append(node)
+            on_stack[node] = True
+            
+            for successor in graph.get(node, []):
+                if successor not in index:
+                    strongconnect(successor)
+                    lowlinks[node] = min(lowlinks[node], lowlinks[successor])
+                elif on_stack[successor]:
+                    lowlinks[node] = min(lowlinks[node], index[successor])
+            
+            if lowlinks[node] == index[node]:
+                component = []
+                while True:
+                    w = stack.pop()
+                    on_stack[w] = False
+                    component.append(w)
+                    if w == node:
+                        break
+                if len(component) > 1:
+                    sccs.append(component)
+        
+        for node in graph:
+            if node not in index:
+                strongconnect(node)
+        
+                return sccs
+    
+    # Build file dependency graph (using paths, not IDs)
+    file_dep_graph = defaultdict(list)
+    for edges_list in file_edges_by_module.values():
+        for edge in edges_list:
+            src_path = id_to_rel.get(edge['s'])
+            tgt_path = id_to_rel.get(edge['t'])
+            if src_path and tgt_path:
+                file_dep_graph[src_path].append(tgt_path)
+    
+    circular_deps = detect_cycles(file_dep_graph)
+    circular_dep_count = len(circular_deps)
+    
+    # Get top circular dependency groups by size
+    top_circular_deps = sorted(circular_deps, key=len, reverse=True)[:3]
+    
+    # Entry Points (root files - not imported by anyone)
+        entry_points = [f for f in all_file_paths if f not in imported_files]
+    entry_point_count = len(entry_points)
+    
+    # Isolated files (neither import nor are imported)
+    files_with_edges = set()
+    for edges_list in file_edges_by_module.values():
+        for edge in edges_list:
+            src_path = id_to_rel.get(edge['s'])
+            tgt_path = id_to_rel.get(edge['t'])
+            if src_path:
+                files_with_edges.add(src_path)
+            if tgt_path:
+                files_with_edges.add(tgt_path)
+    
+    isolated_files = all_file_paths - files_with_edges
+    isolated_file_count = len(isolated_files)
+    
+    # Complexity metrics
+    all_func_lines = []
+    for rel, funcs in funcs_by_file.items():
+        for func in funcs:
+            if 'end_line' in func and 'line' in func:
+                func_length = func['end_line'] - func['line']
+                all_func_lines.append((rel, func['label'], func_length))
+    
+    avg_func_length = sum(l for _, _, l in all_func_lines) / len(all_func_lines) if all_func_lines else 0
+    longest_funcs = sorted(all_func_lines, key=lambda x: x[2], reverse=True)[:10]
+    
+    # Language distribution
+    lang_stats = defaultdict(int)
+    for meta in file_meta.values():
+        ext = meta['ext']
+        lang_stats[ext] += 1
 
     _cb(
         100,
@@ -1521,7 +1669,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         'project_type':         project_type,
         'symbol_index':         symbol_index,
         'symbol_edges':         symbol_edges,
-        'communities':          communities,
+                'communities':          communities,
         'community_stats':      community_stats,
         'stats': {
             # ── Analysed (shown in graph) ──
@@ -1542,6 +1690,24 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             'type_counts':        dict(type_counts),
             'root':               root.replace('\\', '/'),
             'project_type':       project_type,
+            # ── Health Metrics (Dashboard) ──
+            'top_imported_files': [
+                {'file': f, 'count': c} for f, c in top_imported_files
+            ],
+            'top_caller_files': [
+                {'file': f, 'count': c} for f, c in top_caller_files
+            ],
+            'uncalled_functions': uncalled_func_count,
+            'unimported_files': unimported_file_count,
+            'circular_dependencies': circular_dep_count,
+            'top_circular_deps': [[f for f in cycle] for cycle in top_circular_deps],
+            'entry_points': entry_point_count,
+            'isolated_files': isolated_file_count,
+            'avg_func_length': round(avg_func_length, 1),
+            'longest_functions': [
+                {'file': f, 'name': n, 'lines': l} for f, n, l in longest_funcs
+            ],
+            'language_distribution': dict(lang_stats),
         }
     }
 

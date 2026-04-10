@@ -84,20 +84,103 @@ function _buildDashboardDOM() {
       </div>
     </div>
 
-    <!-- ── Row 4: Module Size Treemap ── -->
+        <!-- ── Row 4: Module Size Treemap ── -->
     <div class="dash-section-label">${T('dashModuleSizeMap')}</div>
     <div class="dash-card" style="margin-bottom:16px">
       <div class="dash-card-title"><span class="dash-card-title-dot" style="background:#60a5fa"></span>Module Footprint — proportional to total file size</div>
       <div class="dash-treemap" id="dash-treemap" style="min-height:120px"></div>
     </div>
 
+    <!-- ── Row 5: Health Metrics ── -->
+    <div class="dash-section-label">🏥 Architecture Health</div>
+    <div class="dash-grid dash-grid-2" style="margin-bottom:16px">
+      <div class="dash-card">
+        <div class="dash-card-title"><span class="dash-card-title-dot" style="background:#f87171"></span>Coupling Hotspots</div>
+        <div class="dash-list" id="list-coupling"></div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-card-title"><span class="dash-card-title-dot" style="background:#fbbf24"></span>God File Candidates</div>
+        <div class="dash-list" id="list-god-files"></div>
+      </div>
+    </div>
+
+    <!-- ── Row 6: Dead Code & Issues ── -->
+    <div class="dash-grid dash-grid-3" style="margin-bottom:16px">
+      <div class="dash-card">
+        <div class="dash-card-title"><span class="dash-card-title-dot" style="background:#94a3b8"></span>Dead Code</div>
+        <div class="dash-stat-value" style="color:#94a3b8;font-size:32px;text-align:center;margin:20px 0" id="stat-dead-funcs">0</div>
+        <div class="dash-stat-sub" style="text-align:center">Uncalled Functions</div>
+        <div class="dash-stat-value" style="color:#94a3b8;font-size:32px;text-align:center;margin:20px 0 10px" id="stat-unimported">0</div>
+        <div class="dash-stat-sub" style="text-align:center">Unimported Files</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-card-title"><span class="dash-card-title-dot" style="background:#fb923c"></span>Circular Dependencies</div>
+        <div class="dash-stat-value" style="color:#fb923c;font-size:40px;text-align:center;margin:24px 0" id="stat-circular">0</div>
+        <div class="dash-stat-sub" style="text-align:center">Dependency Cycles</div>
+        <div class="dash-list" id="list-circular" style="margin-top:12px"></div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-card-title"><span class="dash-card-title-dot" style="background:#34d399"></span>Entry Points</div>
+        <div class="dash-stat-value" style="color:#34d399;font-size:32px;text-align:center;margin:20px 0" id="stat-entry">0</div>
+        <div class="dash-stat-sub" style="text-align:center">Root Files</div>
+        <div class="dash-stat-value" style="color:#64748b;font-size:32px;text-align:center;margin:20px 0 10px" id="stat-isolated">0</div>
+        <div class="dash-stat-sub" style="text-align:center">Isolated Files</div>
+      </div>
+    </div>
+
+    <!-- ── Row 7: Complexity Metrics ── -->
+    <div class="dash-section-label">📏 Complexity Metrics</div>
+    <div class="dash-grid dash-grid-2" style="margin-bottom:16px">
+      <div class="dash-card">
+        <div class="dash-card-title"><span class="dash-card-title-dot" style="background:#a78bfa"></span>Function Complexity</div>
+        <div class="dash-stat-value" style="color:#a78bfa;font-size:32px;text-align:center;margin:16px 0" id="stat-avg-func">0</div>
+        <div class="dash-stat-sub" style="text-align:center">Average Function Length (lines)</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-card-title"><span class="dash-card-title-dot" style="background:#f472b6"></span>Longest Functions</div>
+        <div class="dash-list" id="list-longest-funcs"></div>
+      </div>
+    </div>
+
+        <!-- ── Row 8: Language Distribution ── -->
+    <div class="dash-section-label">🌐 Language Distribution</div>
+    <div class="dash-card" style="margin-bottom:16px">
+      <div class="dash-card-title"><span class="dash-card-title-dot" style="background:#60a5fa"></span>File Extensions Breakdown</div>
+      <div class="dash-chart-wrap" style="min-height:220px"><canvas id="chart-lang-dist"></canvas></div>
+    </div>
+
+    <!-- ── Row 9: Quick Actions ── -->
+    <div class="dash-section-label">⚡ Quick Actions</div>
+    <div class="dash-grid dash-grid-3" style="margin-bottom:24px">
+      <button class="dash-action-btn" id="dash-btn-complex" style="--btn-accent:#f472b6">
+        <div class="dash-action-icon">🔍</div>
+        <div class="dash-action-title">Most Complex</div>
+        <div class="dash-action-desc">Jump to longest function</div>
+      </button>
+      <button class="dash-action-btn" id="dash-btn-circular" style="--btn-accent:#fb923c">
+        <div class="dash-action-icon">🔁</div>
+        <div class="dash-action-title">Circular Deps</div>
+        <div class="dash-action-desc">Show dependency cycles</div>
+      </button>
+      <button class="dash-action-btn" id="dash-btn-dead-code" style="--btn-accent:#94a3b8">
+        <div class="dash-action-icon">🧟</div>
+        <div class="dash-action-title">Dead Code</div>
+        <div class="dash-action-desc">List uncalled functions</div>
+      </button>
+    </div>
+
   </div>
 </div>`;
     document.body.appendChild(overlay);
 
-    document.getElementById('dashboard-close').addEventListener('click', closeDashboard);
+        document.getElementById('dashboard-close').addEventListener('click', closeDashboard);
     overlay.addEventListener('click', e => { if (e.target === overlay) closeDashboard(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && overlay.style.display !== 'none') closeDashboard(); });
+    
+    // Quick action buttons
+    document.getElementById('dash-btn-complex')?.addEventListener('click', _jumpToMostComplex);
+    document.getElementById('dash-btn-circular')?.addEventListener('click', _showCircularDeps);
+    document.getElementById('dash-btn-dead-code')?.addEventListener('click', _showDeadCode);
 }
 
 // ── Entry points ──────────────────────────────────────────────────────────────
@@ -158,6 +241,19 @@ function _buildStatStrip() {
     const edges = _allEdges();
     const estLOC = Math.round(totalSize / 40);
 
+    // Health indicator badge
+    const deadCode = (s.uncalled_functions || 0) + (s.unimported_files || 0);
+    const circularDeps = s.circular_dependencies || 0;
+    let healthBadge = '🟢';
+    let healthText = 'Healthy';
+    if (circularDeps > 5 || deadCode > 50) {
+        healthBadge = '🔴';
+        healthText = 'Needs Attention';
+    } else if (circularDeps > 0 || deadCode > 20) {
+        healthBadge = '🟡';
+        healthText = 'Fair';
+    }
+
     const cards = [
         {
             label: T('dashStatFiles'),
@@ -178,10 +274,10 @@ function _buildStatStrip() {
             accent: '#34d399',
         },
         {
-            label: 'Dependency Edges',
-            value: _fmtNum(edges.length),
-            sub: T('dashStatSizeSub', { count: s.modules || 0 }),
-            accent: '#fb923c',
+            label: `${healthBadge} Code Health`,
+            value: healthText,
+            sub: `${circularDeps} cycles, ${deadCode} dead code items`,
+            accent: circularDeps > 5 || deadCode > 50 ? '#f87171' : (circularDeps > 0 || deadCode > 20 ? '#fbbf24' : '#34d399'),
         },
     ];
 
@@ -423,14 +519,211 @@ function _renderDashboard() {
     _buildLargestFiles();
     _buildMostFunctions();
     _buildTreemap();
+    
+    // New health metrics
+    _buildCouplingHotspots();
+    _buildGodFiles();
+    _buildDeadCodeStats();
+    _buildCircularDepsStats();
+    _buildComplexityStats();
+    _buildLongestFunctions();
 
     if (typeof Chart === 'undefined') {
         _fillChartPlaceholders();
         return;
     }
 
-    _chartFileTypes();
+        _chartFileTypes();
     _chartFilesPerMod();
     _chartFuncsPerMod();
     _chartEdgeTypes();
+    _chartLanguageDistribution();
+}
+
+// ── Health Metrics Builders ──────────────────────────────────────────
+function _buildCouplingHotspots() {
+    const el = document.getElementById('list-coupling');
+    if (!el) return;
+    const items = DATA.stats?.top_imported_files || [];
+    const max = items[0]?.count || 1;
+    el.innerHTML = items.map((item, i) => `
+<div class="dash-list-row" data-tip="${item.file}">
+  <span class="dash-list-rank">${i + 1}</span>
+  <span class="dash-list-name">${item.file.split('/').pop()}</span>
+  <div class="dash-list-bar" style="width:${Math.round(item.count / max * 60)}px;background:#f87171"></div>
+  <span class="dash-list-val" style="color:#f87171">${item.count} imports</span>
+</div>`).join('') || `<div class="dash-empty">✅ No high-coupling files</div>`;
+}
+
+function _buildGodFiles() {
+    const el = document.getElementById('list-god-files');
+    if (!el) return;
+    const items = DATA.stats?.top_caller_files || [];
+    const max = items[0]?.count || 1;
+    el.innerHTML = items.map((item, i) => `
+<div class="dash-list-row" data-tip="${item.file}">
+  <span class="dash-list-rank">${i + 1}</span>
+  <span class="dash-list-name">${item.file.split('/').pop()}</span>
+  <div class="dash-list-bar" style="width:${Math.round(item.count / max * 60)}px;background:#fbbf24"></div>
+  <span class="dash-list-val" style="color:#fbbf24">${item.count} calls</span>
+</div>`).join('') || `<div class="dash-empty">✅ No god file detected</div>`;
+}
+
+function _buildDeadCodeStats() {
+    const deadFuncs = DATA.stats?.uncalled_functions || 0;
+    const unimported = DATA.stats?.unimported_files || 0;
+    
+    const dfEl = document.getElementById('stat-dead-funcs');
+    if (dfEl) dfEl.textContent = _fmtNum(deadFuncs);
+    
+    const uiEl = document.getElementById('stat-unimported');
+    if (uiEl) uiEl.textContent = _fmtNum(unimported);
+}
+
+function _buildCircularDepsStats() {
+    const circCount = DATA.stats?.circular_dependencies || 0;
+    const topCycles = DATA.stats?.top_circular_deps || [];
+    
+    const cEl = document.getElementById('stat-circular');
+    if (cEl) cEl.textContent = circCount;
+    
+    const el = document.getElementById('list-circular');
+    if (!el) return;
+    
+    if (topCycles.length === 0) {
+        el.innerHTML = '<div class="dash-empty">✅ No circular dependencies</div>';
+        return;
+    }
+    
+    el.innerHTML = topCycles.map((cycle, i) => `
+<div class="dash-list-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+  <div style="display:flex;align-items:center;gap:6px;width:100%">
+    <span class="dash-list-rank">${i + 1}</span>
+    <span style="font-size:11px;color:#fb923c;font-weight:600">${cycle.length} files</span>
+  </div>
+  <div style="font-size:10px;color:var(--muted);margin-left:24px;line-height:1.4">
+    ${cycle.slice(0, 3).map(f => f.split('/').pop()).join(' → ')}
+    ${cycle.length > 3 ? ` → +${cycle.length - 3} more` : ''}
+  </div>
+</div>`).join('');
+}
+
+function _buildComplexityStats() {
+    const avgLen = DATA.stats?.avg_func_length || 0;
+    const entryPts = DATA.stats?.entry_points || 0;
+    const isolated = DATA.stats?.isolated_files || 0;
+    
+    const afEl = document.getElementById('stat-avg-func');
+    if (afEl) afEl.textContent = avgLen.toFixed(1);
+    
+    const epEl = document.getElementById('stat-entry');
+    if (epEl) epEl.textContent = _fmtNum(entryPts);
+    
+    const isoEl = document.getElementById('stat-isolated');
+    if (isoEl) isoEl.textContent = _fmtNum(isolated);
+}
+
+function _buildLongestFunctions() {
+    const el = document.getElementById('list-longest-funcs');
+    if (!el) return;
+    const items = (DATA.stats?.longest_functions || []).slice(0, 8);
+    const max = items[0]?.lines || 1;
+    el.innerHTML = items.map((item, i) => `
+<div class="dash-list-row" data-tip="${item.file}">
+  <span class="dash-list-rank">${i + 1}</span>
+  <span class="dash-list-name">${item.name}</span>
+  <div class="dash-list-bar" style="width:${Math.round(item.lines / max * 60)}px;background:#f472b6"></div>
+  <span class="dash-list-val" style="color:#f472b6">${item.lines} lines</span>
+</div>`).join('') || `<div class="dash-empty">✅ No complex functions</div>`;
+}
+
+function _chartLanguageDistribution() {
+    const langDist = DATA.stats?.language_distribution || {};
+    const sorted = Object.entries(langDist).sort((a, b) => b[1] - a[1]).slice(0, 12);
+    const labels = sorted.map(([ext]) => ext || 'unknown');
+    const vals = sorted.map(([, count]) => count);
+    const colors = sorted.map((_, i) => DASH_PALETTE[i % DASH_PALETTE.length]);
+
+    _mkChart('chart-lang-dist', 'bar', {
+        labels,
+        datasets: [{
+            label: 'Files',
+            data: vals,
+            backgroundColor: colors.map(c => c + '99'),
+            borderColor: colors,
+            borderWidth: 1.5,
+            borderRadius: 4,
+        }],
+    }, {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { grid: { color: '#1a253588' }, ticks: { color: '#64748b' } },
+                        y: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11, family: 'JetBrains Mono, monospace' } } },
+        },
+    });
+}
+
+// ── Quick Action Handlers ───────────────────────────────────────
+function _jumpToMostComplex() {
+    const longest = DATA.stats?.longest_functions?.[0];
+    if (!longest) {
+        showToast('✅ No complex functions found', 'success');
+        return;
+    }
+    
+    closeDashboard();
+    
+    // Find the file node and focus on it
+    const files = _flatFiles();
+    const targetFile = files.find(f => f.path === longest.file);
+    if (targetFile && typeof drillFile === 'function') {
+        drillFile(targetFile);
+        // Open code panel to show the function
+        if (typeof openCodePanel === 'function') {
+            setTimeout(() => {
+                openCodePanel(targetFile, longest.name);
+            }, 300);
+        }
+    }
+    
+    showToast(`🔍 Jumped to ${longest.name} (${longest.lines} lines)`, 'info');
+}
+
+function _showCircularDeps() {
+    const cycles = DATA.stats?.top_circular_deps || [];
+    if (cycles.length === 0) {
+        showToast('✅ No circular dependencies found', 'success');
+        return;
+    }
+    
+    const totalCycles = DATA.stats?.circular_dependencies || 0;
+    const message = `Found ${totalCycles} circular ${totalCycles === 1 ? 'dependency' : 'dependencies'}\n\nLargest cycle involves ${cycles[0].length} files:\n${cycles[0].slice(0, 4).map(f => '• ' + f.split('/').pop()).join('\n')}${cycles[0].length > 4 ? `\n• +${cycles[0].length - 4} more...` : ''}`;
+    
+    // Show in modal or toast
+    if (typeof showModal === 'function') {
+        showModal('🔁 Circular Dependencies', message);
+    } else {
+        alert(message);
+    }
+}
+
+function _showDeadCode() {
+    const uncalledFuncs = DATA.stats?.uncalled_functions || 0;
+    const unimportedFiles = DATA.stats?.unimported_files || 0;
+    
+    if (uncalledFuncs === 0 && unimportedFiles === 0) {
+        showToast('✅ No dead code detected', 'success');
+        return;
+    }
+    
+    const message = `Dead Code Analysis:\n\n🧟 ${uncalledFuncs} uncalled function${uncalledFuncs !== 1 ? 's' : ''}\n📄 ${unimportedFiles} unimported file${unimportedFiles !== 1 ? 's' : ''}\n\nConsider reviewing these for potential cleanup opportunities.`;
+    
+    if (typeof showModal === 'function') {
+        showModal('🧟 Dead Code Report', message);
+    } else {
+        alert(message);
+    }
 }
