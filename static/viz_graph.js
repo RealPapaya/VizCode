@@ -1487,16 +1487,23 @@ function renderFilesFlat(modId, files, subPath) {
     });
     edges.forEach((e, i) => {
         const es = edgeTypeStyle(e.type);
-        els.push({
-            data: {
-                id: `fe${i}`,
-                source: `f${e.s}`, target: `f${e.t}`,
-                w: EDGE_WIDTH.fileInternal,
-                ec: es.color, es: EDGE_STYLE_INTERNAL, el: es.label,
-                edgeLabel: depMapState.showEdgeTypeLabels ? es.label : '',
-                etype: e.type || 'include',
-            }
-        });
+        const isInferred = e.type === 'inferred';
+        const edgeData = {
+            id: `fe${i}`,
+            source: `f${e.s}`, target: `f${e.t}`,
+            w: EDGE_WIDTH.fileInternal,
+            ec: es.color,
+            es: isInferred ? 'dashed' : EDGE_STYLE_INTERNAL,
+            el: es.label,
+            edgeLabel: depMapState.showEdgeTypeLabels ? es.label : '',
+            etype: e.type || 'include',
+        };
+        if (isInferred) {
+            const conf = typeof e.confidence === 'number' ? e.confidence.toFixed(2) : '?';
+            const reason = e.reason || '';
+            edgeData.tt = `Inferred (AI)\nconfidence: ${conf}` + (reason ? `\nreason: ${reason}` : '');
+        }
+        els.push({ data: edgeData });
     });
 
     // ─── External modules (if toggle is ON) ──────────────────────────────────
