@@ -1,31 +1,74 @@
-# VizCode Enhancement Roadmap — AI Layer & Agent Integration
+# VizCode Enhancement Roadmap — Claude Code Skill & MCP Integration
 
-> 日期：2026-04-10
-> 版本：v0.1（內部規劃文件）
-> 範圍：持久化快取 · AI 語意增強（選配）· MCP Agent 整合
-
----
-
-## 背景與動機
-
-VizCode 目前的核心優勢明確：零依賴、符號級精確度、L0/L1/L2 三層互動導航、Symbol View、BIOS/EDK2 特殊支援。這些是純 AST 靜態分析能做到最好的地方，不需要改。
-
-但有兩個問題在大型 repo 上會逐漸變成痛點：
-
-1. **每次 scan 都是全量重建**：101 個檔案的 repo 改了一個函數，整個圖要重跑。
-2. **AST 邊沒有語意分層**：`import` 和「這個模組在架構上負責 X」是不同層次的資訊，目前全部混在一起，也無法讓 AI agent 查詢圖譜。
-
-本文件規劃兩條平行開發線，解決這兩個問題，同時不破壞現有的零依賴特性。
+> 日期：2026-04-13
+> 版本：v0.3（內部規劃文件）
+> 範圍：移除獨立 API 路徑 · Claude Code Skill · MCP Agent 整合
 
 ---
 
-## 現有架構快照
+## 本次最重要的事：移除獨立 API 路徑
+
+B1 實作完成後，經過評估決定移除透過獨立 Anthropic API key 呼叫 LLM 的整條路徑。原因：
+
+1. 使用者需要自備 API key、設環境變數、自行承擔 token 費用，門檻過高
+2. 有 Claude Code 訂閱的使用者不需要額外 API key，借用 Claude Code 自身的 context 即可
+3. 兩條路並存會讓使用介面複雜，與「操作極簡化」的設計原則衝突
+
+**需要刪除的內容：**
+
+| 檔案 | 刪除內容 |
+|------|---------|
+| `semantic_enricher.py` | 所有 `_call_llm` / `_build_prompt` / API 呼叫邏輯，保留模組架構供 skill 模式填入結果 |
+| `vizcode.py` | `--ai` / `--ai-threshold` / `--ai-model` / `--include-tests` 這四個 flag |
+| `analyze_viz.py` | `ai_opts` 參數、`semantic` 進度階段（96–99%）、`meta.semantic_stats` |
+| `server.py` | `/analyze` 接收 `ai_opts` 的部分、`_run_analysis_thread` 夾帶 `ai_opts` |
+
+**保留的內容：**
+
+| 檔案 | 保留原因 |
+|------|---------|
+| `parse_memo.py` | A1 快取，與 AI 無關，繼續使用 |
+| `EDGE_TYPES['inferred']` | 前端虛線樣式已就緒，B2 skill 模式會寫入推斷邊 |
+| `semantic_enricher.py` 模組骨架 | B2 skill 把語意分析結果格式化後透過此模組寫入快取 |
+| `.local/semantic_cache.json` schema | B2 寫入格式不變，B3 MCP server 直接讀取 |
+
+---
+
+## 使用模式總覽
+
+VizCode 支援兩個介面、四種使用情境：
+
+**不在 Claude 底下（現有）**
+
+| 啟動方式 | 瀏覽器 | AI 語意 | MCP | 目標使用者 |
+|----------|--------|---------|-----|------------|
+| `launch.bat` | ✓ | ✗ | ✗ | 想自己視覺化讀懂 codebase |
+
+**Claude Code 底下（新增）**
+
+| 指令 | 瀏覽器 | AI 語意 | MCP | 目標使用者 |
+|------|--------|---------|-----|------------|
+| `/vizcode --parse` | ✓ | ✗ | ✗ | 在 Claude 環境但只想自己看圖 |
+| `/vizcode --ai` | ✗ | ✓ | ✓ | 讓 AI 理解 codebase，省後續 token |
+| `/vizcode` | ✓ | ✓ | ✓ | 自己看 + AI 同時理解 |
+
+**設計原則：**
+- `/vizcode --parse` 與 `launch.bat` 行為完全一致，分析完自動開瀏覽器
+- `/vizcode --ai` 不開瀏覽器，語意分析結果寫入快取供 MCP server 使用
+- `/vizcode`（預設）兩者都做，自動開瀏覽器 + 啟動 MCP server
+- 所有指令操作極簡，無需額外參數，不需要 API key
+
+---
+
+## 現有架構快照（清除 API 路徑後）
 
 ```
-vizcode.py          ← TUI 入口
-server.py           ← HTTP server (:7777)
-analyze_viz.py      ← 核心掃描引擎
+vizcode.py          ← TUI 入口（移除 --ai 相關 flag）
+server.py           ← HTTP server (:7777)（移除 ai_opts）
+analyze_viz.py      ← 核心掃描引擎（移除 semantic 階段）
 detector.py         ← 專案類型偵測
+parse_memo.py       ← 檔案層快取（A1，保留）
+semantic_enricher.py← 語意快取寫入模組（清除 API 呼叫，保留架構）
 parsers/
   python_parser.py
   js_parser.py
@@ -34,173 +77,180 @@ parsers/
   common_parser.py  ← 50+ 語言 fallback
 static/
   viz.js / viz.css
-  viz_graph.js      ← Cytoscape 圖引擎
+  viz_graph.js      ← Cytoscape 圖引擎（inferred 邊虛線已支援）
   viz_search.js
   viz_galaxy.js     ← WebGL Galaxy View
   symbol_view.js
+.local/
+  scan_cache.json   ← parser 層快取（A1）
+  semantic_cache.json← 語意快取（由 B2 skill 寫入）
 ```
-
-目前的分析結果是單次計算後注入 HTML，無持久狀態，無法跨 session 查詢。
 
 ---
 
-## 線 A｜持久化快取 + 邊分類
+## 線 B（續）｜Claude Code Skill + MCP
 
-### A1 — `graph_store.py`
+### B2 — Claude Code Skill
 
-在 `analyze_viz.py` 完成掃描後，把結果序列化成 `vizcode-out/scan_cache.json`。
+新增 `.claude/skills/vizcode/SKILL.md`，定義 `/vizcode` 的觸發行為。
 
-**快取結構（每個檔案一個 entry）：**
+**三條執行路徑：**
 
-```json
-{
-  "version": 1,
-  "scanned_at": "2026-04-10T08:00:00Z",
-  "files": {
-    "analyze_viz.py": {
-      "sha256": "a3f9...",
-      "nodes": [...],
-      "edges": [...]
-    }
-  }
-}
+```
+/vizcode --parse
+    └─▶ python vizcode.py <path>
+          └─▶ 純 AST 掃描 → 寫入 scan_cache.json → 開瀏覽器
+
+/vizcode --ai
+    └─▶ python vizcode.py <path> --scan-only
+          └─▶ 純 AST 掃描 → 寫入 scan_cache.json
+    └─▶ Claude Code 讀取 scan_cache.json
+          └─▶ 分析模組語意角色與關聯
+          └─▶ 透過 semantic_enricher.write_cache() 寫入 semantic_cache.json
+    └─▶ python mcp_server.py（背景啟動）
+    └─▶ 不開瀏覽器
+
+/vizcode（預設）
+    └─▶ 同 --ai 路徑
+    └─▶ 額外開瀏覽器（瀏覽器顯示靜態邊 + 推斷邊虛線）
 ```
 
-重跑時的邏輯：
+**新增 `vizcode.py` 的 `--scan-only` flag：**
+
+只做 AST 掃描並寫入 `scan_cache.json`，不觸發任何 LLM 呼叫，不開瀏覽器。供 SKILL.md 在語意分析前呼叫。
+
+**SKILL.md 核心內容：**
+
+```markdown
+## 觸發條件
+使用者輸入 /vizcode、/vizcode --parse、或 /vizcode --ai
+
+## --parse 模式
+1. 執行 python vizcode.py <path>
+2. 回報：分析完成，瀏覽器已開啟 http://localhost:7777
+
+## --ai 模式
+1. 執行 python vizcode.py <path> --scan-only
+2. 讀取 .local/scan_cache.json，取得每個模組的 imports / funcdefs / extras
+3. 針對每個模組分析：這個模組負責什麼、與哪些模組有語意關聯、關聯的理由
+4. 呼叫 semantic_enricher.write_cache() 寫入推斷邊（含 confidence）
+5. 執行 python mcp_server.py（背景）
+6. 回報統計：靜態邊 N 條，推斷邊 N 條，MCP server 已就緒
+
+## 預設模式（無 flag）
+同 --ai 模式，最後額外開瀏覽器
+
+## 快取判斷
+semantic_cache.json 存在且模組 hash 未變時，跳過語意分析直接使用快取
+```
+
+**`semantic_enricher.py` 保留的介面：**
+
+API 呼叫邏輯全部刪除，只保留讀寫快取的函式供 SKILL.md 使用：
 
 ```python
-for file in project_files:
-    current_hash = sha256(file)
-    if cache.get(file) and cache[file]["sha256"] == current_hash:
-        reuse_cached(file)
-    else:
-        rescan(file)
-        update_cache(file, current_hash)
+def write_cache(project_root, inferred_edges: list[dict]) -> None:
+    """
+    inferred_edges 格式：
+    [
+      {
+        "source": "analyze_viz.py",
+        "target": "python_parser.py",
+        "confidence": 0.88,
+        "reason": "analyze_viz 呼叫 python_parser 做 AST 提取，語意上是編排者與執行者的關係"
+      },
+      ...
+    ]
+    寫入 .local/semantic_cache.json
+    """
+
+def read_cache(project_root) -> list[dict]:
+    """讀取現有推斷邊，供 MCP server 和瀏覽器使用"""
+
+def is_cache_valid(project_root, scan_cache: dict) -> bool:
+    """比對 semantic_cache 的模組 hash 與 scan_cache，判斷是否需要重新分析"""
 ```
-
-對 `testproject/` 這類目錄，`detector.py` 應標記為 `role: "test_fixture"`，讓後續分析可以選擇性跳過或降權。這解決了「demo 程式碼污染主圖」的問題。
-
-### A2 — 邊分類標籤
-
-目前所有邊在圖裡地位相同。加入 `kind` 欄位：
-
-| kind | 含義 | 來源 |
-|------|------|------|
-| `import` | 靜態 import/include，100% 確定 | AST |
-| `call` | 函數呼叫，靜態可見 | AST |
-| `inherit` | 繼承關係 | AST |
-| `inferred` | AI 推斷的語意關係 | LLM（選配） |
-
-前端在 L1/L2 View 用顏色和線型區分：實線 = 靜態確定，虛線 = 推斷。Tooltip 顯示依據。
 
 ---
 
-## 線 B｜AI 語意層（選配）
+### B3 — MCP stdio server
 
-### B1 — `semantic_enricher.py`
+新增 `mcp_server.py`，實作 MCP 協議的 stdio transport。
 
-**設計原則：AI 是增強層，不是核心依賴。**
+**自動啟動：**
 
-```
-python vizcode.py              # 純 AST，零成本，現有行為不變
-python vizcode.py --ai         # 啟用語意增強，需要 LLM API key
-```
+`/vizcode` 和 `/vizcode --ai` 完成後，SKILL.md 在背景執行：
 
-啟用後的流程：
-
-```
-AST 掃描完成
-    ↓
-semantic_enricher.py 接手
-    ↓
-對每個模組的 docstring + 函數簽名批次送 LLM
-    ↓
-LLM 回傳：「這個模組負責 X，與 Y 有語意關聯」
-    ↓
-寫入 scan_cache.json，kind = "inferred"，附 confidence score
-    ↓
-低於門檻（預設 0.7）的邊不寫入
+```bash
+python mcp_server.py --scan .local/scan_cache.json --sem .local/semantic_cache.json
 ```
 
-LLM 呼叫用批次模式，同一個 session 內不重複呼叫已快取的模組。每次分析結束後報告：
+若 port 已佔用，跳過啟動直接使用現有 server。
 
-```
-[VizCode] AI 語意分析完成
-  靜態邊：1,204 條
-  推斷邊：87 條（confidence ≥ 0.7）
-  略過：23 條（低於門檻）
-  LLM 呼叫：14 次（快取命中：61 個模組）
-```
-
-**需要特別過濾的輸入類型：**
-
-- SVG icon 檔案（純圖形，無語意可提取）→ 直接跳過，只記 `type: "asset"`
-- 自動生成的程式碼（lock files, build artifacts）→ `detector.py` 標記後略過
-- `test_fixture` 角色的目錄 → 預設不送入語意分析，除非加 `--include-tests`
-
-### B2 — MCP stdio server
-
-新增 `mcp_server.py`，實作 MCP 協議的 stdio transport，讓 Claude Code 等 agent 可以直接查詢 VizCode 的圖譜。
-
-**暴露三個 tool：**
+**三個 tool：**
 
 ```python
 vizcode_query(question: str) -> str
-# 自然語言問圖譜結構
-# 範例："什麼模組依賴 build_graph？"
+# 回傳摘要子圖，格式：
+# 模組名 → 關係類型 → 模組名（confidence）
+# reason: ...
+# 不回傳 raw funcdefs / funccalls 內容
 
 vizcode_path(source: str, target: str) -> list[str]
-# 兩個符號之間的最短依賴路徑
-# 範例：vizcode_path("server.py", "python_parser.py")
+# 只回傳路徑上的模組名列表
+# 範例：["server.py", "analyze_viz.py", "python_parser.py"]
+# 不帶任何 payload
 
 vizcode_explain(symbol: str) -> str
-# 解釋某個符號在整個 codebase 中的角色
-# 範例：vizcode_explain("analyze_viz.scan_file")
+# 回傳：該模組角色摘要（一段話）+ 直接相連模組名
+# 不回傳完整 funcdefs / funccalls 原始內容
 ```
 
-啟動方式：
+**自動注入 CLAUDE.md：**
 
-```bash
-python mcp_server.py --cache vizcode-out/scan_cache.json
-```
-
-Claude Code 的 `CLAUDE.md` 加入：
+安裝 skill 時，同步在專案的 `CLAUDE.md` 加入：
 
 ```markdown
-## VizCode MCP
-當需要理解這個 repo 的結構時，優先使用 vizcode_query / vizcode_path / vizcode_explain，
-而不是直接讀原始碼。
+## VizCode
+當需要理解這個 repo 的結構時，優先使用 MCP tool vizcode_query / vizcode_path / vizcode_explain，
+而不是直接讀原始碼。這可以大幅減少 token 消耗。
+禁止直接讀取 scan_cache.json 或 semantic_cache.json 原始檔案。
 ```
-
-這樣 agent 在做 code review 或架構分析時，可以用一次 tool call 取得結構資訊，而不是消耗大量 context 讀原始碼。
 
 ---
 
-## 開發順序與時程估算
+## 開發順序
 
 ```
-Week 1-2   A1  graph_store.py + 增量快取邏輯
-Week 2-3   A2  邊分類標籤 + 前端顏色區分
-Week 3-5   B1  semantic_enricher.py（--ai 模式）
-Week 5-6   B2  mcp_server.py
+已完成   A1  parse_memo.py（per-file 快取）
+已完成   A2  邊分類標籤（import/call/inherit/inferred）
+已完成   B1  semantic_enricher.py（API 版，現在清除 API 部分）
+
+下一步
+  Step 1  清除 API 路徑（見本文件第一節）
+  Step 2  B2  SKILL.md + --scan-only flag + semantic_enricher 保留介面
+  Step 3  B3  mcp_server.py（三個 tool + 自動啟動）
 ```
 
-A1 是所有後續功能的地基，必須先做。B2 的查詢品質取決於 B1 的語意邊品質，所以 B1 先於 B2。
+Step 1 必須先做，確保清除乾淨後再疊加 B2/B3，避免兩條路徑的邏輯互相干擾。
 
 ---
 
 ## 不做的事（刻意邊界）
 
-- **跨內容類型**（PDF、圖片）：VizCode 是 code-first 工具，不試圖處理非程式碼內容
-- **社群偵測**：Louvain/Leiden 在異質圖上碎片化嚴重，先觀察 A2 的邊分類能否提供足夠的結構洞察
-- **獨立知識圖報告**：輸出格式保持以視覺化為主，不做純文字的分析報告
+- **獨立 API key 模式**：已移除，不再支援
+- **跨內容類型**（PDF、圖片、影片）：VizCode 是 code-first 工具
+- **社群偵測**：待 B3 完成後評估語意邊品質再決定
+- **多平台支援**（Cursor、Codex 等）：先專注 Claude Code
 
 ---
 
-## VizCode 的不可取代優勢（需要持續強化）
+## VizCode 的不可取代優勢
 
 1. **符號級精確度**：完整的 L2 call-flow，有 `source_location`，可以直接跳到原始碼
-2. **互動式導航**：點擊展開、drill-down、history back/forward，這是靜態圖報告做不到的
-3. **Symbol View**：以符號為中心的 ego graph，是本工具獨有的分析視角
+2. **互動式導航**：點擊展開、drill-down、history back/forward，靜態圖報告做不到
+3. **Symbol View**：以符號為中心的 ego graph，本工具獨有
 4. **BIOS/EDK2 支援**：特殊 domain 優勢，持續維護
-5. **零成本核心**：不啟用 `--ai` 的情況下，完全不依賴 LLM，本地離線可用
+5. **零成本核心**：`launch.bat` 和 `/vizcode --parse` 完全不依賴 LLM，離線可用
+6. **Token 節省**：`/vizcode --ai` 讓 Claude Code 一次理解整個 codebase，後續對話大幅減少 context 消耗
+7. **無需 API key**：只需要 Claude Code 訂閱，零額外設定
