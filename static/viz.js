@@ -269,6 +269,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
                 // Sidebar tabs, edge filter, legend, and stats
                 initSidebarTabs();
+                updateFilterTabEnabled();
                 buildEdgeFilter();
                 buildNodeLegend();
                 updateSidebarStats();

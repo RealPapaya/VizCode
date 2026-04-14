@@ -1114,6 +1114,12 @@ body {
     background: color-mix(in srgb, var(--accent) 7%, transparent)
 }
 
+.sb-tab:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none
+}
+
 #sb-collapse-btn {
     flex-shrink: 0;
     background: transparent;
@@ -1412,6 +1418,10 @@ body {
 
 .ef-row:not(.active) .ef-indicator {
     opacity: 0;
+}
+
+.ef-row:not(.active) .nl-shape {
+    opacity: 0.2;
 }
 
 .ef-row:not(.active) .ef-label {

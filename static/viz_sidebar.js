@@ -30,6 +30,18 @@ function _applySidebarTab() {
     if (filt) filt.style.display  = _sbActiveTab === 'filters'  ? '' : 'none';
 }
 
+// Disable the Filters tab at L0 (module overview) where filters have no content.
+function updateFilterTabEnabled() {
+    const filterTab = document.querySelector('.sb-tab[data-tab="filters"]');
+    if (!filterTab) return;
+    const isL0 = (typeof state !== 'undefined' && state.level === 0);
+    filterTab.disabled = isL0;
+    if (isL0 && _sbActiveTab === 'filters') {
+        _sbActiveTab = 'explorer';
+        _applySidebarTab();
+    }
+}
+
 const _SB_ICON_CLOSE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></svg>';
 const _SB_ICON_OPEN  = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="m16 15 3-3-3-3"/></svg>';
 
@@ -149,6 +161,31 @@ let nlFilterCollapsed = false;
 let _sbCollapsed = false;
 let _sbActiveTab = 'explorer';
 const edgeActiveFilter = new Set(Object.keys(EDGE_TYPE_STYLE));
+
+// ─── L2 (Call Flow) filter state ─────────────────────────────────────────────
+const L2_NODE_FILTER_DEFS = [
+    { key: 'func',      label: 'Current File',  color: '#60a5fa', types: ['func'] },
+    { key: 'external',  label: 'External',      color: '#64748b', types: ['ext_group', 'ext_func', 'drill_group', 'drilled_func'] },
+    { key: 'ambiguous', label: 'Ambiguous',     color: '#a78bfa', types: ['potential_func'] },
+    { key: 'system',    label: 'System API',    color: '#34d399', types: ['sys_group', 'sys_func'] },
+];
+const L2_EDGE_FILTER_DEFS = [
+    { key: 'call_internal', label: 'Internal Calls',  color: '#38bdf8', style: 'solid' },
+    { key: 'call_ext',      label: 'External Calls',  color: '#94a3b8', style: 'dashed' },
+    { key: 'call_potential',label: 'Ambiguous',        color: '#a78bfa', style: 'dashed' },
+    { key: 'call_sys',      label: 'System API',       color: '#34d399', style: 'solid' },
+];
+const l2NodeFilter = new Set(L2_NODE_FILTER_DEFS.map(d => d.key));
+const l2EdgeFilter = new Set(L2_EDGE_FILTER_DEFS.map(d => d.key));
+let l2NodeFilterCollapsed = false;
+let l2EdgeFilterCollapsed = false;
+
+function resetL2Filters() {
+    l2NodeFilter.clear();
+    L2_NODE_FILTER_DEFS.forEach(d => l2NodeFilter.add(d.key));
+    l2EdgeFilter.clear();
+    L2_EDGE_FILTER_DEFS.forEach(d => l2EdgeFilter.add(d.key));
+}
 
 // ─── Filter section header helper ─────────────────────────────────────────────
 function _filterSectionHdr(label, collapsed, actions = '') {
@@ -291,21 +328,63 @@ function buildFtFilter(modId = null, subDir = null) {
 }
 
 // ─── Edge type filter ─────────────────────────────────────────────────────────
-// L1: interactive toggle rows; L2: informational call-flow legend; L0: placeholder.
+// L1: interactive toggle rows; L2: interactive call-flow edge filter; L0: placeholder.
 function buildEdgeFilter() {
     const wrap = document.getElementById('edge-filter');
     if (!wrap) return;
 
-    // L2: informational call-flow distance legend (no toggles)
+    // L2: interactive edge-kind filter
     if (state.level === 2) {
-        let html = '<div class="ef-section-label">Call Flow</div>';
-        L2_LEGEND_ITEMS.forEach(item => {
-            html += `<div class="nl-row" style="--nl-col:${item.color}">` +
-                `<div class="nl-icon-bg"><span class="ef-indicator">` + _edgeLine(item.color, item.style) + `</span></div>` +
-                `<span class="nl-label" style="color:${item.color}">${item.label}</span>` +
+        const presentKinds = new Set();
+        if (cy) cy.edges().forEach(e => { const k = e.data('l2kind'); if (k) presentKinds.add(k); });
+
+        const visible = L2_EDGE_FILTER_DEFS.filter(d => presentKinds.has(d.key));
+        if (!visible.length) { wrap.innerHTML = ''; return; }
+
+        const actionsHtml =
+            `<button class="flt-action" data-l2e-action="all">${typeof T === 'function' ? T('selectAll') : 'All'}</button>` +
+            `<button class="flt-action" data-l2e-action="none">${typeof T === 'function' ? T('selectNone') : 'None'}</button>`;
+        const bodyDisplay = l2EdgeFilterCollapsed ? 'none' : 'block';
+        let rowsHtml = '';
+        visible.forEach(d => {
+            const isActive = l2EdgeFilter.has(d.key);
+            rowsHtml += `<div class="ef-row${isActive ? ' active' : ''}" data-l2e="${d.key}" style="--ef-col:${d.color}">` +
+                `<div class="ef-icon-bg"><span class="ef-indicator">` + _edgeLine(d.color, d.style) + `</span></div>` +
+                `<span class="ef-label">${d.label}</span>` +
                 `</div>`;
         });
-        wrap.innerHTML = html;
+        wrap.innerHTML =
+            _filterSectionHdr('Edge Types', l2EdgeFilterCollapsed, actionsHtml) +
+            `<div class="l2e-filter-body" style="display:${bodyDisplay}; padding:4px 0 2px;">` +
+            rowsHtml + `</div>`;
+
+        wrap.querySelector('.flt-section-hdr').addEventListener('click', () => {
+            l2EdgeFilterCollapsed = !l2EdgeFilterCollapsed;
+            wrap.querySelector('.l2e-filter-body').style.display = l2EdgeFilterCollapsed ? 'none' : 'block';
+            wrap.querySelector('.flt-chevron').style.transform = l2EdgeFilterCollapsed ? 'rotate(-90deg)' : '';
+        });
+        wrap.querySelectorAll('[data-l2e]').forEach(row => {
+            row.addEventListener('click', e => {
+                e.stopPropagation();
+                const k = row.dataset.l2e;
+                if (l2EdgeFilter.has(k)) l2EdgeFilter.delete(k); else l2EdgeFilter.add(k);
+                row.classList.toggle('active', l2EdgeFilter.has(k));
+                applyL2Filter();
+            });
+        });
+        wrap.querySelectorAll('[data-l2e-action]').forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                if (btn.dataset.l2eAction === 'all') {
+                    visible.forEach(d => l2EdgeFilter.add(d.key));
+                    wrap.querySelectorAll('[data-l2e]').forEach(r => r.classList.add('active'));
+                } else {
+                    l2EdgeFilter.clear();
+                    wrap.querySelectorAll('[data-l2e]').forEach(r => r.classList.remove('active'));
+                }
+                applyL2Filter();
+            });
+        });
         return;
     }
 
@@ -397,6 +476,30 @@ function applyEdgeFilter() {
     });
 }
 
+// ─── L2 filter application ────────────────────────────────────────────────────
+function applyL2Filter() {
+    if (!cy || state.level !== 2) return;
+    // Build set of hidden _t values from node filter
+    const hiddenTypes = new Set();
+    L2_NODE_FILTER_DEFS.forEach(d => {
+        if (!l2NodeFilter.has(d.key)) d.types.forEach(t => hiddenTypes.add(t));
+    });
+    cy.batch(() => {
+        cy.nodes().forEach(node => {
+            const t = node.data('_t');
+            node.style('display', hiddenTypes.has(t) ? 'none' : 'element');
+        });
+        cy.edges().forEach(edge => {
+            const k = edge.data('l2kind');
+            const edgeOk = !k || l2EdgeFilter.has(k);
+            // Also hide edges whose source or target node is hidden
+            const srcHidden = hiddenTypes.has(edge.source().data('_t'));
+            const tgtHidden = hiddenTypes.has(edge.target().data('_t'));
+            edge.style('display', edgeOk && !srcHidden && !tgtHidden ? 'element' : 'none');
+        });
+    });
+}
+
 // ─── Node shape legend (informational) ───────────────────────────────────────
 // L1: shows file-type shapes present in current view (from LEGEND_NODES).
 // L2: shows call-flow node type legend. L0: hidden.
@@ -412,17 +515,59 @@ function buildNodeLegend() {
     const wrap = document.getElementById('node-legend');
     if (!wrap) return;
 
-    // L2: call-flow node types
+    // L2: interactive node-type filter
     if (state.level === 2) {
-        const items = _L2_NODE_TYPES.filter(n => n.label !== 'Unresolved');
-        let html = '<div class="ef-section-label">Node Types</div>';
-        items.forEach(n => {
-            html += `<div class="nl-row" style="--nl-col:${n.color}">` +
-                `<div class="nl-icon-bg"><span class="nl-shape" style="color:${n.color}">${n.shape}</span></div>` +
-                `<span class="nl-label" style="color:${n.color}">${n.label}</span>` +
+        // Detect which _t types are actually present
+        const presentTypes = new Set();
+        if (cy) cy.nodes().forEach(n => { const t = n.data('_t'); if (t) presentTypes.add(t); });
+
+        const visible = L2_NODE_FILTER_DEFS.filter(d => d.types.some(t => presentTypes.has(t)));
+        if (!visible.length) { wrap.innerHTML = ''; return; }
+
+        const actionsHtml =
+            `<button class="flt-action" data-l2n-action="all">${typeof T === 'function' ? T('selectAll') : 'All'}</button>` +
+            `<button class="flt-action" data-l2n-action="none">${typeof T === 'function' ? T('selectNone') : 'None'}</button>`;
+        const bodyDisplay = l2NodeFilterCollapsed ? 'none' : 'block';
+        let rowsHtml = '';
+        visible.forEach(d => {
+            const isActive = l2NodeFilter.has(d.key);
+            rowsHtml += `<div class="ef-row${isActive ? ' active' : ''}" data-l2n="${d.key}" style="--ef-col:${d.color}">` +
+                `<div class="ef-icon-bg"><span class="nl-shape" style="color:${d.color}">▣</span></div>` +
+                `<span class="ef-label">${d.label}</span>` +
                 `</div>`;
         });
-        wrap.innerHTML = html;
+        wrap.innerHTML =
+            _filterSectionHdr('Node Types', l2NodeFilterCollapsed, actionsHtml) +
+            `<div class="l2n-filter-body" style="display:${bodyDisplay}; padding:4px 0 2px;">` +
+            rowsHtml + `</div>`;
+
+        wrap.querySelector('.flt-section-hdr').addEventListener('click', () => {
+            l2NodeFilterCollapsed = !l2NodeFilterCollapsed;
+            wrap.querySelector('.l2n-filter-body').style.display = l2NodeFilterCollapsed ? 'none' : 'block';
+            wrap.querySelector('.flt-chevron').style.transform = l2NodeFilterCollapsed ? 'rotate(-90deg)' : '';
+        });
+        wrap.querySelectorAll('[data-l2n]').forEach(row => {
+            row.addEventListener('click', e => {
+                e.stopPropagation();
+                const k = row.dataset.l2n;
+                if (l2NodeFilter.has(k)) l2NodeFilter.delete(k); else l2NodeFilter.add(k);
+                row.classList.toggle('active', l2NodeFilter.has(k));
+                applyL2Filter();
+            });
+        });
+        wrap.querySelectorAll('[data-l2n-action]').forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                if (btn.dataset.l2nAction === 'all') {
+                    visible.forEach(d => l2NodeFilter.add(d.key));
+                    wrap.querySelectorAll('[data-l2n]').forEach(r => r.classList.add('active'));
+                } else {
+                    l2NodeFilter.clear();
+                    wrap.querySelectorAll('[data-l2n]').forEach(r => r.classList.remove('active'));
+                }
+                applyL2Filter();
+            });
+        });
         return;
     }
 
@@ -452,13 +597,13 @@ function buildNodeLegend() {
     const isSimpleLegend = _shapeMode === 'simple';
     const sectionLabel = isSimpleLegend ? 'Node Colors' : 'Node Shapes';
     let rowsHtml = '';
-        active.forEach(n => {
-            const shapeChar = isSimpleLegend ? '●' : n.shape;
-            rowsHtml += `<div class="nl-row" style="--nl-col:${n.color}">` +
-                `<div class="nl-icon-bg"><span class="nl-shape" style="color:${n.color}">${shapeChar}</span></div>` +
-                `<span class="nl-label" style="color:${n.color}">${n.label}</span>` +
-                `</div>`;
-        });
+    active.forEach(n => {
+        const shapeChar = isSimpleLegend ? '●' : n.shape;
+        rowsHtml += `<div class="nl-row" style="--nl-col:${n.color}">` +
+            `<div class="nl-icon-bg"><span class="nl-shape" style="color:${n.color}">${shapeChar}</span></div>` +
+            `<span class="nl-label" style="color:${n.color}">${n.label}</span>` +
+            `</div>`;
+    });
 
     const bodyDisplay = nlFilterCollapsed ? 'none' : 'block';
     wrap.innerHTML =

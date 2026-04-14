@@ -716,6 +716,7 @@ function resetL2State(fileRel) {
     l2State.externalModules = [];
     l2State._sysMap = null;
     l2State._funcs = null;
+    if (window.resetL2Filters) resetL2Filters();
 }
 
 function resetL2History() {

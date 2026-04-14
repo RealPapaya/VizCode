@@ -103,7 +103,7 @@ function renderL2Flowchart(fileRel, focusFuncName = null) {
                             id: `ie-${i}-${calleeIdx}`,
                             source: `fn-${i}`, target: `fn-${calleeIdx}`,
                             w: EDGE_WIDTH.callInternal, ec: edgeTypeStyle('call').color, es: EDGE_STYLE_INTERNAL,
-                            el: '', kind: 'call',
+                            el: '', kind: 'call', l2kind: 'call_internal',
                             tt: `${funcs[i].label} → ${callee}`,
                         }
                     });
@@ -135,7 +135,7 @@ function renderL2Flowchart(fileRel, focusFuncName = null) {
                 data: {
                     id: `le-${idx}`, source: `fn-${e.s}`, target: `fn-${e.t}`,
                     w: EDGE_WIDTH.callInternal, ec: leStyle.color, es: EDGE_STYLE_INTERNAL,
-                    el: '', kind: leStyle.kind || 'call', tt: leStyle.label || 'Call'
+                    el: '', kind: leStyle.kind || 'call', l2kind: 'call_internal', tt: leStyle.label || 'Call'
                 }
             });
         });
@@ -184,6 +184,7 @@ function renderL2Flowchart(fileRel, focusFuncName = null) {
                         id: `exte-${modId}-${callerIdx}`,
                         source: `fn-${callerIdx}`, target: modId,
                         w: Math.min(2.6, EDGE_WIDTH.callExternal + count * 0.3), ec, es: EDGE_STYLE_EXTERNAL, el: 'ext',
+                        l2kind: 'call_ext',
                         tt: `${funcs[callerIdx].label} → ${modName} (${count})`,
                     }
                 });
@@ -214,6 +215,7 @@ function renderL2Flowchart(fileRel, focusFuncName = null) {
                             id: `extc-${modId}-${callerIdx}-${_hashId(funcName)}`,
                             source: `fn-${callerIdx}`, target: fnId,
                             w: EDGE_WIDTH.callExternal, ec: fnEc, es: EDGE_STYLE_EXTERNAL, el: 'ext',
+                            l2kind: 'call_ext',
                             tt: `${funcs[callerIdx].label} → ${funcName}`,
                         }
                     });
@@ -247,6 +249,7 @@ function renderL2Flowchart(fileRel, focusFuncName = null) {
                     id: `pote-${slug}-${callerIdx}`,
                     source: `fn-${callerIdx}`, target: potId,
                     w: EDGE_WIDTH.callExternal, ec, es: EDGE_STYLE_EXTERNAL, el: 'ext',
+                    l2kind: 'call_potential',
                     tt: `${funcs[callerIdx].label} → ${callee} (ambiguous)`,
                 }
             });
@@ -308,7 +311,7 @@ function renderL2Flowchart(fileRel, focusFuncName = null) {
                         id: `syse-${catSlug}-${callerIdx}`,
                         source: `fn-${callerIdx}`, target: groupId,
                         w: Math.min(3, 1 + count / 3), ec: style.color,
-                        es: 'solid', el: '',
+                        es: 'solid', el: '', l2kind: 'call_sys',
                         tt: `→ ${catName} (${count} call${count !== 1 ? 's' : ''})`,
                     }
                 });
@@ -332,7 +335,7 @@ function renderL2Flowchart(fileRel, focusFuncName = null) {
                         data: {
                             id: `sysfne-${catSlug}-${callerIdx}-${_hashId(funcName)}`,
                             source: `fn-${callerIdx}`, target: fnId,
-                            w: 1.5, ec: style.color, es: 'solid', el: '',
+                            w: 1.5, ec: style.color, es: 'solid', el: '', l2kind: 'call_sys',
                             tt: `${funcs[callerIdx].label} → ${funcName}`,
                         }
                     });
@@ -587,6 +590,7 @@ function drillDownExtFunc(node) {
                 id: `drille-${_hashId(nodeId)}-${_hashId(callee)}`,
                 source: nodeId, target: childId,
                 w: EDGE_WIDTH.drillExternal, ec: ec || '#64748b', es: EDGE_STYLE_EXTERNAL, el: '',
+                l2kind: 'call_ext',
                 tt: `${funcName} → ${callee}`,
             }
         });
@@ -1285,6 +1289,7 @@ function loadLevel0() {
     buildNodeLegend();
     updateBreadcrumb(); setSidebarActive(null);
     setL1ToolbarVisible(false);
+    if (window.updateFilterTabEnabled) updateFilterTabEnabled();
     // Reset L1 nav history when returning to module overview
     depMapState.navHistory = [];
     depMapState.navHistoryIdx = -1;
@@ -1398,6 +1403,7 @@ function drillToModule(modId, opts) {
         depMapState.pendingFocusFile = opts.focusFile;
     }
     setL1ToolbarVisible(true);
+    if (window.updateFilterTabEnabled) updateFilterTabEnabled();
     updateDepMapExtToggle();
     const allFiles = DATA.files_by_module[modId] || [];
     const allOther = (DATA.other_files_by_module || {})[modId] || [];
@@ -1920,6 +1926,7 @@ function restoreL1FromCallGraph() {
     state.history = prevHistory.filter(h => h.level < 2);
 
     setL1ToolbarVisible(true);
+    if (window.updateFilterTabEnabled) updateFilterTabEnabled();
     const ftWrap = document.getElementById('ft-filter');
     if (ftWrap) ftWrap.style.display = '';
 
@@ -1972,6 +1979,7 @@ function drillToFile(fileRel) {
     clearSelection();
     updateBreadcrumb();
     setL1ToolbarVisible(false);
+    if (window.updateFilterTabEnabled) updateFilterTabEnabled();
     const ftWrap = document.getElementById('ft-filter');
     if (ftWrap) ftWrap.style.display = 'none';
 

@@ -1866,8 +1866,8 @@ HTML_SKELETON = """\
     </div>
     <div id="sb-body-filters" class="sb-body" style="display:none">
       <div id="ft-filter"></div>
-      <div id="edge-filter"></div>
       <div id="node-legend"></div>
+      <div id="edge-filter"></div>
     </div>
     <div id="sb-footer">
       <span id="sb-stat-nodes">&#x2013;</span>
