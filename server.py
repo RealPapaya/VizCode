@@ -512,6 +512,29 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.html_error(f'Failed to render HTML: {e}')
 
+        elif p == '/report':
+            # C4: Serve .local/vizcode_report.md for the active job
+            jid = qs.get('job', [''])[0]
+            with JOBS_LOCK:
+                job = JOBS.get(jid, {})
+            root = job.get('root', '')
+            report_path = os.path.join(root, '.local', 'vizcode_report.md') if root else ''
+            if report_path and os.path.isfile(report_path):
+                try:
+                    with open(report_path, encoding='utf-8') as _fh:
+                        content = _fh.read()
+                    body = content.encode('utf-8')
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'text/markdown; charset=utf-8')
+                    self.send_header('Content-Length', len(body))
+                    self.send_header('Cache-Control', 'no-cache')
+                    self.end_headers()
+                    self.wfile.write(body)
+                except Exception as _e:
+                    self.json_resp({'error': str(_e)}, code=500)
+            else:
+                self.json_resp({'error': 'report not found'}, code=404)
+
         elif p == '/file':
             # Serve raw source file content for the code panel
             jid = qs.get('job', [''])[0]

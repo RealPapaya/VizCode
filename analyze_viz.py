@@ -14,7 +14,7 @@ Backward compatible: still importable as analyze_bios (server.py alias).
 
 import os, re, json, sys, argparse
 from pathlib import Path
-from collections import defaultdict
+from collections import defaultdict, Counter
 from typing import Dict
 
 def _console_safe(text, stream=None):
@@ -1439,6 +1439,20 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     except Exception:
         pass
 
+    # ── C3: Map each file → its dominant community ────────────────────────────
+    file_community: dict = {}
+    try:
+        _votes: dict = defaultdict(list)
+        for _sid, _cid in communities.items():
+            if _sid in symbol_index:
+                _votes[symbol_index[_sid]['file']].append(_cid)
+        file_community = {
+            _f: Counter(_vs).most_common(1)[0][0]
+            for _f, _vs in _votes.items() if _vs
+        }
+    except Exception:
+        pass
+
     _cb(
         _stage_pct('finalize', 0.72),
         'Assembling output...',
@@ -1652,27 +1666,28 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         project_type=project_type,
     )
     _console_print()
-    return {
-        'modules':              modules,
-        'module_edges':         module_edges,
-        'files_by_module':      dict(files_by_module),
-        'file_edges_by_module': dict(file_edges_by_module),
+    _result = {
+        'modules':               modules,
+        'module_edges':          module_edges,
+        'files_by_module':       dict(files_by_module),
+        'file_edges_by_module':  dict(file_edges_by_module),
         'other_files_by_module': dict(other_files_by_module),
-        'funcs_by_file':        funcs_by_file,
-        'func_edges_by_file':   func_edges_by_file,
-        'func_calls_by_file':   func_calls_by_file,
-        'func_name_to_file':    func_name_to_file,
-        'func_name_to_files':   {k: v for k, v in func_name_to_files.items() if len(v) > 1},
-        'func_name_ambiguous':  sorted(func_name_ambiguous),
-        'file_to_module':       file_to_module,
+        'funcs_by_file':         funcs_by_file,
+        'func_edges_by_file':    func_edges_by_file,
+        'func_calls_by_file':    func_calls_by_file,
+        'func_name_to_file':     func_name_to_file,
+        'func_name_to_files':    {k: v for k, v in func_name_to_files.items() if len(v) > 1},
+        'func_name_ambiguous':   sorted(func_name_ambiguous),
+        'file_to_module':        file_to_module,
         'func_known_categories': KNOWN_SYS_FUNCS,
-        'edge_types':           EDGE_TYPES,
-        'project_type':         project_type,
-        'symbol_index':         symbol_index,
-        'symbol_edges':         symbol_edges,
-        'meta':                 {},
-                'communities':          communities,
-        'community_stats':      community_stats,
+        'edge_types':            EDGE_TYPES,
+        'project_type':          project_type,
+        'symbol_index':          symbol_index,
+        'symbol_edges':          symbol_edges,
+        'meta':                  {},
+        'communities':           communities,
+        'community_stats':       community_stats,
+        'file_community':        file_community,
         'stats': {
             # ── Analysed (shown in graph) ──
             'files':              total,          # SCAN_EXT files actually analysed
@@ -1710,8 +1725,18 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                 {'file': f, 'name': n, 'lines': l} for f, n, l in longest_funcs
             ],
             'language_distribution': dict(lang_stats),
+            # ── C1/C2: Graph Intelligence (analytics_helpers) ──
+            'hotspot_nodes':          [],
+            'surprising_connections': [],
         }
     }
+    try:
+        from analytics_helpers import hotspot_nodes, surprising_connections
+        _result['stats']['hotspot_nodes']          = hotspot_nodes(_result)
+        _result['stats']['surprising_connections'] = surprising_connections(_result)
+    except Exception:
+        pass
+    return _result
 
 
 # ─── HTML Skeleton (CSS/JS loaded from static/) ───────────────────────────────

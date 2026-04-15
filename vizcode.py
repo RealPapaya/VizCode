@@ -1061,12 +1061,20 @@ def _run_scan_only(path: str) -> None:
 
     data = build_graph(root, progress_cb=_progress)
 
-    nodes = data.get("nodes", [])
-    edges = data.get("edges", [])
+    modules = data.get('modules', [])
     print(
-        f"[vizcode] Done — {len(nodes)} modules, {len(edges)} edges. "
+        f"[vizcode] Done — {len(modules)} modules. "
         f"scan_cache.json updated."
     )
+
+    # C4: auto-generate Markdown report
+    try:
+        from analytics_helpers import generate_report
+        report_path = os.path.join(root, '.local', 'vizcode_report.md')
+        generate_report(data, report_path)
+        print(f"[vizcode] Report → {report_path}")
+    except Exception as _e:
+        print(f"[vizcode] Report skipped: {_e}")
 
 
 def main():

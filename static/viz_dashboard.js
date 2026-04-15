@@ -149,7 +149,24 @@ function _buildDashboardDOM() {
       <div class="dash-chart-wrap" style="min-height:220px"><canvas id="chart-lang-dist"></canvas></div>
     </div>
 
-    <!-- ── Row 9: Quick Actions ── -->
+    <!-- ── Row 9: Graph Intelligence ── -->
+    <div class="dash-section-label">🔮 Graph Intelligence</div>
+    <div class="dash-grid dash-grid-2" style="margin-bottom:16px">
+      <div class="dash-card">
+        <div class="dash-card-title"><span class="dash-card-title-dot" style="background:#60a5fa"></span>熱點節點 <span class="dash-card-sub" style="font-size:11px;color:#64748b;font-weight:400">top callee symbols</span></div>
+        <div class="dash-list" id="list-hotspot"></div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-card-title"><span class="dash-card-title-dot" style="background:#f472b6"></span>跨界連結 <span class="dash-card-sub" style="font-size:11px;color:#64748b;font-weight:400">surprising connections</span></div>
+        <div class="dash-list" id="list-surprising"></div>
+      </div>
+    </div>
+    <div class="dash-card" style="margin-bottom:16px">
+      <div class="dash-card-title"><span class="dash-card-title-dot" style="background:#a78bfa"></span>社群結構 <span class="dash-card-sub" style="font-size:11px;color:#64748b;font-weight:400">Louvain communities</span></div>
+      <div id="list-communities" style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 0"></div>
+    </div>
+
+    <!-- ── Row 10: Quick Actions ── -->
     <div class="dash-section-label">⚡ Quick Actions</div>
     <div class="dash-grid dash-grid-3" style="margin-bottom:24px">
       <button class="dash-action-btn" id="dash-btn-complex" style="--btn-accent:#f472b6">
@@ -528,6 +545,11 @@ function _renderDashboard() {
     _buildComplexityStats();
     _buildLongestFunctions();
 
+    // Graph Intelligence (C1/C2/C3)
+    _buildHotspotNodes();
+    _buildSurprisingConnections();
+    _buildCommunityStructure();
+
     if (typeof Chart === 'undefined') {
         _fillChartPlaceholders();
         return;
@@ -667,6 +689,71 @@ function _chartLanguageDistribution() {
 }
 
 // ── Quick Action Handlers ───────────────────────────────────────
+// ── C1: Hotspot Nodes ─────────────────────────────────────────────────────────
+function _buildHotspotNodes() {
+    const el = document.getElementById('list-hotspot');
+    if (!el) return;
+    const items = DATA.stats?.hotspot_nodes || [];
+    const max = items[0]?.degree || 1;
+    el.innerHTML = items.map((item, i) => {
+        const short = item.file.replace(/\\/g, '/').split('/').pop();
+        return `<div class="dash-list-row" style="cursor:pointer" data-file="${item.file}"
+            onclick="_jumpToHotspot('${item.file.replace(/'/g, "\\'")}')">
+  <span class="dash-list-rank">${i + 1}</span>
+  <span class="dash-list-name" title="${item.file}">${item.label}<span style="color:#64748b;font-size:11px;margin-left:4px">${short}</span></span>
+  <div class="dash-list-bar" style="width:${Math.round(item.degree / max * 60)}px;background:#60a5fa"></div>
+  <span class="dash-list-val" style="color:#60a5fa">${item.degree}</span>
+</div>`;
+    }).join('') || `<div class="dash-empty">No hotspot symbols</div>`;
+}
+
+function _jumpToHotspot(filePath) {
+    closeDashboard();
+    const files = _flatFiles();
+    const target = files.find(f => f.path === filePath || f.path.replace(/\\/g, '/') === filePath.replace(/\\/g, '/'));
+    if (target && typeof drillFile === 'function') drillFile(target);
+}
+
+// ── C2: Surprising Connections ────────────────────────────────────────────────
+function _buildSurprisingConnections() {
+    const el = document.getElementById('list-surprising');
+    if (!el) return;
+    const items = DATA.stats?.surprising_connections || [];
+    el.innerHTML = items.map(item => {
+        const srcShort = item.source.replace(/\\/g, '/').split('/').pop();
+        const tgtShort = item.target.replace(/\\/g, '/').split('/').pop();
+        return `<div class="dash-list-row" style="flex-direction:column;align-items:flex-start;gap:2px;padding:6px 8px">
+  <div style="display:flex;align-items:center;gap:6px;width:100%">
+    <span style="color:#f472b6;font-size:11px;font-weight:600">${srcShort}</span>
+    <span style="color:#64748b">→</span>
+    <span style="color:#f472b6;font-size:11px;font-weight:600">${tgtShort}</span>
+    <span style="margin-left:auto;background:#1e293b;border-radius:4px;padding:1px 6px;font-size:11px;color:#f472b6">score ${item.score}</span>
+  </div>
+  <div style="color:#64748b;font-size:11px">${item.reason}</div>
+</div>`;
+    }).join('') || `<div class="dash-empty">No surprising connections</div>`;
+}
+
+// ── C3: Community Structure ───────────────────────────────────────────────────
+function _buildCommunityStructure() {
+    const el = document.getElementById('list-communities');
+    if (!el) return;
+    const communities = DATA.community_stats || [];
+    if (!communities.length) {
+        el.innerHTML = `<div class="dash-empty">No communities detected</div>`;
+        return;
+    }
+    const sorted = [...communities].sort((a, b) => b.size - a.size);
+    el.innerHTML = sorted.map(c => {
+        const color = DASH_PALETTE[c.id % DASH_PALETTE.length];
+        return `<div style="display:flex;align-items:center;gap:6px;background:#0f1a2e;border-radius:6px;padding:4px 8px;border:1px solid ${color}22">
+  <span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></span>
+  <span style="font-size:12px;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px" title="${c.label}">${c.label}</span>
+  <span style="font-size:11px;color:#64748b;margin-left:auto;white-space:nowrap">${c.size} nodes</span>
+</div>`;
+    }).join('');
+}
+
 function _jumpToMostComplex() {
     const longest = DATA.stats?.longest_functions?.[0];
     if (!longest) {
