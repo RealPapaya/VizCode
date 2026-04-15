@@ -81,6 +81,9 @@ _EXT_TO_LANG = {
     '.hs': 'haskell', '.ml': 'ocaml', '.mli': 'ocaml',
     '.elm': 'elm', '.sql': 'sql', '.graphql': 'graphql', '.gql': 'graphql',
     '.proto': 'protobuf', '.fsx': 'fsharp',
+    # ── CSS / stylesheet family ──────────────────────────────────────────────
+    '.css': 'css', '.scss': 'scss', '.sass': 'sass', '.less': 'less',
+    '.styl': 'stylus',
 }
 
 # ─── Comment stripping ────────────────────────────────────────────────────────
@@ -389,6 +392,15 @@ _LANG_IMPORT_PATTERNS = [
         r'''import\s+(?:public\s+)?["']([^"']+)["']''',
         re.MULTILINE)),
 
+    # ── CSS / SCSS / SASS / LESS / Stylus ────────────────────────────────────
+    # CSS:    @import "other.css";  /  @import url("other.css");
+    # SCSS:   @use "module";  /  @forward "module";  /  @import "partial";
+    # LESS:   @import "mixin";
+    # Stylus: @import "file"  /  @require "file"
+    ({'css', 'scss', 'sass', 'less', 'stylus'}, re.compile(
+        r'''@(?:import|use|forward|require)\s+(?:url\s*\(\s*)?['"]([^'"]+)['"]''',
+        re.MULTILINE)),
+
     # ── Universal fallback (applied to unknown languages) ─────────────────────
     # from X import  /  import X
     (None, re.compile(
@@ -416,7 +428,8 @@ _LANG_IMPORT_PATTERNS = [
 _KNOWN_FILE_EXTS = re.compile(
     r'\.(rb|py|sh|bash|zsh|jl|r|lua|dart|hrl|erl|ex|exs|ts|js|jsx|tsx'
     r'|php|pl|pm|cr|nim|zig|sql|proto|graphql|gql|elm|hs|ml|mli'
-    r'|java|kt|kts|scala|groovy|cs|vb|fs|fsx|swift|m|mm|d|go|rs)$',
+    r'|java|kt|kts|scala|groovy|cs|vb|fs|fsx|swift|m|mm|d|go|rs'
+    r'|css|scss|sass|less|styl)$',
     re.IGNORECASE
 )
 
