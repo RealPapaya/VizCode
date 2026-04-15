@@ -7,9 +7,13 @@ API call logic has been removed; the cache is now populated by the
 Claude Code skill (B2) which writes inferred edges via write_cache().
 
 Kept interface:
-  write_cache(project_root, inferred_edges) -> None
-  read_cache(project_root)                  -> list[dict]
-  is_cache_valid(project_root, scan_cache)  -> bool
+  write_cache(project_root, inferred_edges, scan_cache=None) -> None
+  read_cache(project_root)                                   -> list[dict]
+  is_cache_valid(project_root, scan_cache)                   -> bool
+
+CLI usage (called by SKILL.md):
+  python semantic_enricher.py write <project_root> < edges.json
+  python semantic_enricher.py check <project_root> < scan_cache.json
 """
 
 import hashlib
@@ -56,7 +60,7 @@ def _flush_raw(data: dict, project_root: Path) -> None:
 
 # ─── Public API ──────────────────────────────────────────────────────────────
 
-def write_cache(project_root, inferred_edges: list) -> None:
+def write_cache(project_root, inferred_edges: list, scan_cache: dict = None) -> None:
     """
     Write inferred edges to .local/semantic_cache.json.
 
@@ -70,6 +74,9 @@ def write_cache(project_root, inferred_edges: list) -> None:
       },
       ...
     ]
+
+    If scan_cache is provided, stores its SHA-256 hash so is_cache_valid()
+    can detect when the underlying scan results have changed.
     """
     project_root = Path(project_root)
     data = _load_raw(project_root)
@@ -83,6 +90,10 @@ def write_cache(project_root, inferred_edges: list) -> None:
         for e in inferred_edges
         if e.get("source") and e.get("target")
     ]
+    if scan_cache is not None:
+        data["scan_hash"] = hashlib.sha256(
+            json.dumps(scan_cache, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        ).hexdigest()
     _flush_raw(data, project_root)
 
 
@@ -113,3 +124,47 @@ def is_cache_valid(project_root, scan_cache: dict) -> bool:
         json.dumps(scan_cache, sort_keys=True, ensure_ascii=False).encode("utf-8")
     ).hexdigest()
     return stored_hash == current_hash
+
+
+# ─── CLI entry point (used by SKILL.md) ──────────────────────────────────────
+
+def _cli():
+    """
+    Commands:
+      write <project_root>  — read JSON edges from stdin, write semantic_cache.json
+      check <project_root>  — read scan_cache JSON from stdin, print valid/stale
+    """
+    import sys
+    args = sys.argv[1:]
+    if len(args) < 2:
+        print("Usage: semantic_enricher.py <write|check> <project_root>", file=sys.stderr)
+        sys.exit(1)
+
+    cmd, root = args[0], args[1]
+    try:
+        payload = json.loads(sys.stdin.read())
+    except Exception as e:
+        print(f"Error reading stdin JSON: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if cmd == "write":
+        if not isinstance(payload, list):
+            print("Error: stdin must be a JSON array of edge objects", file=sys.stderr)
+            sys.exit(1)
+        write_cache(root, payload)
+        print(f"Written {len(payload)} inferred edge(s) to {Path(root) / '.local' / _SEM_FILENAME}")
+
+    elif cmd == "check":
+        if not isinstance(payload, dict):
+            print("Error: stdin must be a JSON object (scan_cache)", file=sys.stderr)
+            sys.exit(1)
+        valid = is_cache_valid(root, payload)
+        print("valid" if valid else "stale")
+
+    else:
+        print(f"Unknown command: {cmd}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    _cli()

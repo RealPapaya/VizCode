@@ -1036,14 +1036,55 @@ def _parse_cli_args():
     import argparse
     parser = argparse.ArgumentParser(prog="vizcode", add_help=True)
     parser.add_argument("path", nargs="?", help="Project root directory")
+    parser.add_argument(
+        "--scan-only", action="store_true",
+        help="AST scan only: write scan_cache.json and exit, no browser, no TUI",
+    )
     return parser.parse_args()
 
 
+# ─── Scan-only mode (called by SKILL.md) ────────────────────────────────────
+
+def _run_scan_only(path: str) -> None:
+    """Run AST scan without TUI or browser, print progress to stdout."""
+    from analyze_viz import build_graph
+
+    root = str(Path(path).resolve())
+    print(f"[vizcode] Scanning {root} …")
+
+    stats = {}
+
+    def _progress(pct, msg, extra=None, **kwargs):
+        print(f"[{pct:3d}%] {msg}")
+        if extra:
+            stats.update(extra)
+
+    data = build_graph(root, progress_cb=_progress)
+
+    nodes = data.get("nodes", [])
+    edges = data.get("edges", [])
+    print(
+        f"[vizcode] Done — {len(nodes)} modules, {len(edges)} edges. "
+        f"scan_cache.json updated."
+    )
+
+
 def main():
+    args = _parse_cli_args()
+
+    # --scan-only: bypass TUI completely, print to stdout, exit
+    if args.scan_only:
+        if not args.path:
+            print("Error: --scan-only requires a path argument", file=sys.stderr)
+            sys.exit(1)
+        if not Path(args.path).is_dir():
+            print(f"Error: not a directory: {args.path}", file=sys.stderr)
+            sys.exit(1)
+        _run_scan_only(args.path)
+        return
+
     # One-time TUI init: clear scrollback + draw fixed header
     _tui.startup()
-
-    args = _parse_cli_args()
 
     if args.path:
         path = args.path

@@ -21,6 +21,7 @@ VizCode is a local-first code visualization tool that scans your project and ren
 - **Live search** — streaming fuzzy search across all symbols and file contents
 - **Dual language UI** — English / 繁體中文 toggle built-in
 - **Dark mode + themes** — multiple color themes out of the box
+- **Claude Code integration** — `/vizcode` skill + MCP server lets Claude understand your codebase without reading raw files, saving significant context
 
 ---
 
@@ -41,12 +42,24 @@ python vizcode.py   # Any platform
 
 A browser window opens at `http://localhost:7777`. Enter the path to your project and click **Analyze**.
 
+### Claude Code
+
+If you use Claude Code, VizCode ships with a `/vizcode` skill and an MCP server:
+
+```
+/vizcode --parse   # AST scan + open browser (same as launch.bat)
+/vizcode --ai      # AST scan → Claude semantic analysis → MCP tools ready
+/vizcode           # both
+```
+
+No API key required — the skill runs inside Claude Code using your existing subscription. The MCP server exposes three tools (`vizcode_query`, `vizcode_path`, `vizcode_explain`) that let Claude navigate your codebase without reading raw source files.
+
 ---
 
 ## 🗺️ How It Works
 
 ```
-launch.bat
+launch.bat  (or /vizcode --parse)
   └─▶ vizcode.py          (TUI — pick a directory)
         └─▶ server.py     (HTTP server on :7777)
               └─▶ analyze_viz.py   (scan → build graph JSON)
@@ -54,9 +67,17 @@ launch.bat
                     └─▶ parsers/*.py       (per-language AST extraction)
                               ↓
                     browser ← launcher.html + inlined JS/CSS
+
+/vizcode --ai  (Claude Code skill)
+  └─▶ vizcode.py --scan-only     (AST scan, no browser)
+        └─▶ .local/scan_cache.json
+  └─▶ Claude reads scan_cache → infers semantic relationships
+        └─▶ semantic_enricher.py  (writes .local/semantic_cache.json)
+  └─▶ mcp_server.py              (MCP stdio server, managed by Claude Code)
+        └─▶ vizcode_query / vizcode_path / vizcode_explain
 ```
 
-The entire analysis result is a single self-contained JSON object injected into the HTML — no database, no state files.
+The browser graph shows static edges (imports, calls). The MCP server also exposes inferred edges — semantic relationships Claude derived from the code structure.
 
 ---
 
@@ -76,10 +97,12 @@ The entire analysis result is a single self-contained JSON object injected into 
 
 ```
 VizCode/
-├── vizcode.py           # TUI entry point
+├── vizcode.py           # TUI entry point  (--scan-only for headless scan)
 ├── server.py            # HTTP server + API endpoints
 ├── analyze_viz.py       # Core analysis engine
 ├── detector.py          # Project type detection
+├── semantic_enricher.py # Semantic cache I/O (read/write .local/semantic_cache.json)
+├── mcp_server.py        # MCP stdio server (vizcode_query/path/explain)
 ├── parsers/
 │   ├── python_parser.py
 │   ├── js_parser.py
@@ -94,6 +117,10 @@ VizCode/
 │   ├── symbol_view.js            # Symbol-Centric Graph
 │   ├── trail_layouter.js         # Sugiyama layout engine
 │   └── ...
+├── .mcp.json            # MCP server declaration for Claude Code
+├── .local/
+│   ├── scan_cache.json  # Per-file AST cache
+│   └── semantic_cache.json  # AI-inferred edges (written by /vizcode --ai)
 └── launch.bat           # One-click launcher (Windows)
 ```
 
