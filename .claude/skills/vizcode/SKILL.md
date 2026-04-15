@@ -137,3 +137,18 @@ semantic_cache.json exists AND cache is valid (check command outputs "valid")
 - Do NOT read `scan_cache.json` or `semantic_cache.json` raw files in future conversations — use the MCP tools instead (`vizcode_query`, `vizcode_path`, `vizcode_explain`)
 - The MCP server is registered in `.claude/settings.json`; it starts automatically when Claude Code connects to it
 - If `mcp_server.py` is not yet registered, inform the user and point them to Step E in the setup guide
+
+## Context Shortcut（節省 token）
+
+每次 `--scan-only` 或 `--parse` 完成後，`<PROJECT_PATH>/.local/vizcode_report.md` 會自動更新。
+
+**在進行深度分析前，優先呼叫 `vizcode_report()` MCP 工具**取得整體結構概覽（模組依賴樹、核心節點、健康指標），而不是逐一讀取原始碼檔案。
+
+| 需求 | 建議做法 |
+|------|---------|
+| 了解整體架構 | `vizcode_report()` — 一次取得所有概覽 |
+| 找哪個模組負責 X | `vizcode_query(question)` |
+| 追蹤 A→B 呼叫鏈 | `vizcode_path(source, target)` |
+| 深入了解某模組 | `vizcode_explain(symbol)` |
+
+這個工具組合可以替代讀取 10+ 個原始碼檔案，大幅節省 context window 用量。

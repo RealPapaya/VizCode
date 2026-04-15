@@ -13,6 +13,7 @@ Tools exposed:
     vizcode_query(question)       — keyword-match modules + semantic edges
     vizcode_path(source, target)  — shortest dependency path (BFS)
     vizcode_explain(symbol)       — module role + direct connections
+    vizcode_report()              — full Markdown codebase report (token-saving overview)
 """
 
 import argparse
@@ -302,12 +303,35 @@ TOOLS = [
             "required": ["symbol"],
         },
     },
+    {
+        "name": "vizcode_report",
+        "description": (
+            "Return the full codebase Markdown report: scan overview, module dependency tree, "
+            "hotspot nodes, surprising connections, health metrics. "
+            "Call this first before deeper analysis to orient yourself and save context tokens."
+        ),
+        "inputSchema": {"type": "object", "properties": {}, "required": []},
+    },
 ]
+
+
+# ─── C4: Report tool ─────────────────────────────────────────────────────────
+
+def _tool_report(report_path: str) -> str:
+    """Return the contents of vizcode_report.md, or a hint if it is missing."""
+    p = Path(report_path)
+    if p.is_file():
+        return p.read_text(encoding='utf-8')
+    return (
+        "vizcode_report.md not found.\n"
+        "Run `/vizcode --parse` (or `python vizcode.py <path> --scan-only`) "
+        "to generate the report first."
+    )
 
 
 # ─── Server loop ──────────────────────────────────────────────────────────────
 
-def _serve(scan_path: str, sem_path: str) -> None:
+def _serve(scan_path: str, sem_path: str, report_path: str) -> None:
     scan = _load_json(scan_path)
     sem  = _load_json(sem_path)
     modules, edges, adj = _build_index(scan, sem)
@@ -353,6 +377,8 @@ def _serve(scan_path: str, sem_path: str) -> None:
                 text = _tool_path(args.get("source", ""), args.get("target", ""), modules, adj)
             elif name == "vizcode_explain":
                 text = _tool_explain(args.get("symbol", ""), modules, edges)
+            elif name == "vizcode_report":
+                text = _tool_report(report_path)
             else:
                 _send_message(stdout, _err(req_id, -32601, f"Unknown tool: {name}"))
                 continue
@@ -374,8 +400,11 @@ def main():
                         help="Path to scan_cache.json")
     parser.add_argument("--sem", default=".local/semantic_cache.json",
                         help="Path to semantic_cache.json")
+    parser.add_argument("--report", default="",
+                        help="Path to vizcode_report.md (default: derived from --scan)")
     args = parser.parse_args()
-    _serve(args.scan, args.sem)
+    report_path = args.report or args.scan.replace("scan_cache.json", "vizcode_report.md")
+    _serve(args.scan, args.sem, report_path)
 
 
 if __name__ == "__main__":

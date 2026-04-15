@@ -210,12 +210,50 @@ def _report_health(stats: dict) -> list:
     return lines
 
 
+def _report_module_tree(data: dict) -> list:
+    """Generate a module dependency table from module_edges and modules."""
+    modules      = data.get('modules', [])
+    module_edges = data.get('module_edges', [])
+
+    lines = ['\n## Module Dependency Tree\n']
+    if not modules:
+        lines.append('No modules detected.')
+        return lines
+
+    # id → label map
+    id_to_label: dict = {m['id']: m.get('label', str(m['id'])) for m in modules}
+
+    # label → set of labels it imports
+    imports_map: dict = {}
+    for m in modules:
+        imports_map[m.get('label', str(m['id']))] = []
+    for edge in module_edges:
+        src_label = id_to_label.get(edge.get('s', ''), '')
+        tgt_label = id_to_label.get(edge.get('t', ''), '')
+        if src_label and tgt_label and src_label in imports_map:
+            imports_map[src_label].append(tgt_label)
+
+    # file count per module label
+    files_by_module = data.get('files_by_module', {})
+    file_count: dict = {label: len(files_by_module.get(label, []))
+                        for label in imports_map}
+
+    lines.append('| Module | Files | Imports |')
+    lines.append('|--------|-------|---------|')
+    for m in sorted(modules, key=lambda x: -file_count.get(x.get('label', ''), 0)):
+        label   = m.get('label', str(m['id']))
+        n_files = file_count.get(label, 0)
+        deps    = ', '.join(imports_map.get(label, [])) or '—'
+        lines.append(f'| `{label}` | {n_files} | {deps} |')
+    return lines
+
+
 def generate_report(data: dict, output_path: str) -> None:
     """
     Write a Markdown codebase report to output_path.
 
     Sections: scan overview, community structure, core nodes top 10,
-    surprising connections top 5, health metrics.
+    surprising connections top 5, health metrics, module dependency tree.
     """
     stats           = data.get('stats', {})
     community_stats = data.get('community_stats', [])
@@ -229,6 +267,7 @@ def generate_report(data: dict, output_path: str) -> None:
     lines += _report_hotspots(hotspots)
     lines += _report_connections(connections)
     lines += _report_health(stats)
+    lines += _report_module_tree(data)
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     with open(output_path, 'w', encoding='utf-8') as fh:
