@@ -19,7 +19,8 @@
       "Bash(python -c ':*)",
       "Bash(python /tmp/test_parser.py)",
       "Bash(python -c \"import sys; sys.path.insert\\(0,'.'\\); exec\\(open\\('/tmp/test_parser.py'\\).read\\(\\)\\)\")",
-      "Bash(python _test_parser.py)"
+      "Bash(python _test_parser.py)",
+      "Bash(python:*)"
     ]
   }
 }

@@ -37,6 +37,7 @@
     ]
   },
   "autoMemoryEnabled": true,
+  "enableAllProjectMcpServers": true,
   "permissions": {
     "allow": [
       "Bash(curl -sI https://unpkg.com/graphology-layout-forceatlas2@0.10.1/dist/)",
