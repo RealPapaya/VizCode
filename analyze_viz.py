@@ -667,15 +667,13 @@ def get_module(rel_path: str) -> str:
 
 
 # ─── build_graph ─────────────────────────────────────────────────────────────
-def build_graph(root_dir: str, progress_cb=None, include_build=False, include_dirs=None,
-                ai_opts=None) -> dict:
+def build_graph(root_dir: str, progress_cb=None, include_build=False, include_dirs=None) -> dict:
     stage_flow = [
         ('scan', 'Scan source files'),
         ('detect', 'Detect project type'),
         ('analysis', 'Analyze source files'),
         ('node', 'Build nodes and indexes'),
         ('edge', 'Resolve dependencies and calls'),
-        ('semantic', 'AI semantic enrichment'),
         ('finalize', 'Finalize output'),
     ]
     stage_meta = {
@@ -687,8 +685,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         'detect': (18, 26),
         'analysis': (26, 84),
         'node': (84, 90),
-        'edge': (90, 96),
-        'semantic': (96, 99),
+        'edge': (90, 99),
         'finalize': (99, 100),
     }
 
@@ -1479,21 +1476,6 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
 
     total_all_files = total_project_files
 
-    # ─── AI semantic enrichment (optional, --ai) ─────────────────────────────
-    semantic_stats = None
-    if ai_opts and ai_opts.get('enabled'):
-        _cb(_stage_pct('semantic', 0.0), 'Starting AI semantic enrichment...', stage='semantic')
-        try:
-            from semantic_enricher import enrich as _enrich
-            _pre_data = {
-                'files_by_module':      files_by_module,
-                'file_edges_by_module': file_edges_by_module,
-                'funcs_by_file':        funcs_by_file,
-            }
-            semantic_stats = _enrich(_pre_data, Path(root), ai_opts, progress_cb=_cb)
-        except Exception as _exc:
-            semantic_stats = {'error': f'semantic_enricher failed: {_exc}'}
-        _cb(_stage_pct('semantic', 1.0), 'AI enrichment complete', stage='semantic')
 
     # Count by file type for stats
     type_counts = defaultdict(int)
@@ -1688,7 +1670,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         'project_type':         project_type,
         'symbol_index':         symbol_index,
         'symbol_edges':         symbol_edges,
-        'meta':                 {'semantic_stats': semantic_stats} if semantic_stats else {},
+        'meta':                 {},
                 'communities':          communities,
         'community_stats':      community_stats,
         'stats': {
@@ -2056,27 +2038,15 @@ def main():
                         help='Include build output directories (Build/build/DEBUG/RELEASE)')
     parser.add_argument('--include-dir', action='append', default=[],
                         help='Directory name to include even if normally skipped (repeatable)')
-    parser.add_argument('--ai', action='store_true',
-                        help='Enable AI semantic enrichment (requires ANTHROPIC_API_KEY)')
-    parser.add_argument('--ai-threshold', type=float, default=0.7)
-    parser.add_argument('--ai-model', default='claude-sonnet-4-6')
-    parser.add_argument('--include-tests', action='store_true')
     args = parser.parse_args()
 
     if not os.path.isdir(args.root):
         _console_print(f'Error: "{args.root}" is not a directory', file=sys.stderr)
         sys.exit(1)
 
-    ai_opts = None
-    if args.ai:
-        ai_opts = {
-            'enabled': True, 'threshold': args.ai_threshold,
-            'model': args.ai_model, 'include_tests': args.include_tests,
-        }
-
     _console_print(f'VIZCODE V4 — analyzing: {args.root}')
     data = build_graph(args.root, include_build=args.include_build,
-                       include_dirs=args.include_dir, ai_opts=ai_opts)
+                       include_dirs=args.include_dir)
 
     pt = data.get('project_type', {})
     s = data['stats']
