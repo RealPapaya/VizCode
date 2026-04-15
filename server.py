@@ -285,7 +285,7 @@ def _close_job_viewer(jid: str, viewer_id: str):
     return True, remaining
 
 
-def _run_analysis_thread(jid: str, root: str, pre_fn=None, ai_opts=None):
+def _run_analysis_thread(jid: str, root: str, pre_fn=None):
     """Background thread: optionally run pre_fn(tmp_dir) then build_graph(root)."""
     import importlib
 
@@ -311,16 +311,14 @@ def _run_analysis_thread(jid: str, root: str, pre_fn=None, ai_opts=None):
                         JOBS[jid].update(kwargs)
 
             importlib.reload(analyze_bios)
-            graph_data = analyze_bios.build_graph(root_to_use, progress_cb=cb, ai_opts=ai_opts)
+            graph_data = analyze_bios.build_graph(root_to_use, progress_cb=cb)
 
             s = graph_data['stats']
-            sem_stats = (graph_data.get('meta') or {}).get('semantic_stats')
             with JOBS_LOCK:
                 JOBS[jid].update({
                     'pct': 100, 'done': True,
                     'msg': f"Done! {s.get('total_all_files', s['files'])} files, {s['functions']} functions",
                     'data': graph_data,
-                    'semantic_stats': sem_stats,
                     'stats': {k: (sorted(s[k]) if isinstance(s[k], (set, frozenset)) else s[k])
                               for k in (
                         'files', 'modules', 'functions', 'calls',
@@ -513,6 +511,29 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
             except Exception as e:
                 self.html_error(f'Failed to render HTML: {e}')
+
+        elif p == '/report':
+            # C4: Serve .local/vizcode_report.md for the active job
+            jid = qs.get('job', [''])[0]
+            with JOBS_LOCK:
+                job = JOBS.get(jid, {})
+            root = job.get('root', '')
+            report_path = os.path.join(root, '.local', 'vizcode_report.md') if root else ''
+            if report_path and os.path.isfile(report_path):
+                try:
+                    with open(report_path, encoding='utf-8') as _fh:
+                        content = _fh.read()
+                    body = content.encode('utf-8')
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'text/markdown; charset=utf-8')
+                    self.send_header('Content-Length', len(body))
+                    self.send_header('Cache-Control', 'no-cache')
+                    self.end_headers()
+                    self.wfile.write(body)
+                except Exception as _e:
+                    self.json_resp({'error': str(_e)}, code=500)
+            else:
+                self.json_resp({'error': 'report not found'}, code=404)
 
         elif p == '/file':
             # Serve raw source file content for the code panel
@@ -2001,12 +2022,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.json_resp({'error': f'Path not found or not a directory: {root}'}, 400)
                 return
 
-            ai_opts = body.get('ai_opts') if isinstance(body.get('ai_opts'), dict) else None
             jid = str(uuid.uuid4())[:8]
             with JOBS_LOCK:
                 JOBS[jid] = _make_job_dict(root)
-            _run_analysis_thread(jid, root, ai_opts=ai_opts)
-            print(f'[START] Job {jid}: {root}' + (' [AI]' if ai_opts else ''))
+            _run_analysis_thread(jid, root)
+            print(f'[START] Job {jid}: {root}')
             self.json_resp({'job_id': jid})
 
         elif p == '/upload-zip':

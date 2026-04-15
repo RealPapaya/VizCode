@@ -459,12 +459,9 @@ def stop_server():
         _server_proc = None
 
 # ─── Analysis ─────────────────────────────────────────────────────────────────
-def trigger_analysis(path: str, ai_opts: Optional[dict] = None) -> Optional[str]:
+def trigger_analysis(path: str) -> Optional[str]:
     try:
-        body = {"path": path}
-        if ai_opts and ai_opts.get("enabled"):
-            body["ai_opts"] = ai_opts
-        payload = json.dumps(body).encode()
+        payload = json.dumps({"path": path}).encode()
         req = urllib.request.Request(
             f"{BASE_URL}/analyze", data=payload,
             headers={"Content-Type": "application/json"},
@@ -542,8 +539,8 @@ def _run_analysis(label: str, trigger_fn, save_fn=None):
 
     _run_progress_loop(job_id)
 
-def run_analysis_with_progress(path: str, ai_opts: Optional[dict] = None):
-    _run_analysis(path, trigger_fn=lambda: trigger_analysis(path, ai_opts),
+def run_analysis_with_progress(path: str):
+    _run_analysis(path, trigger_fn=lambda: trigger_analysis(path),
                   save_fn=lambda: save_history(path))
 
 def _run_progress_loop(job_id: str):
@@ -839,16 +836,6 @@ def _run_progress_loop(job_id: str):
         r = tui._bottom + 1
         tui._at(r, f"  {green('✓')} Done!  Opening browser…"); r += 1
         tui._at(r, f"  {dim(result_url)}"); r += 1
-        sem = job.get('semantic_stats') if isinstance(job.get('semantic_stats'), dict) else None
-        if sem:
-            r += 1
-            tui._at(r, f"  {cyan('✦')} {bold('AI 語意分析')}"); r += 1
-            if sem.get('error'):
-                tui._at(r, f"    {dim(sem['error'])}"); r += 1
-            else:
-                tui._at(r, f"    靜態邊：{sem.get('static_edges', 0)} 條"); r += 1
-                tui._at(r, f"    推斷邊：{sem.get('inferred_kept', 0)} 條（略過 {sem.get('inferred_dropped', 0)}）"); r += 1
-                tui._at(r, f"    LLM 呼叫：{sem.get('llm_calls', 0)} 次（快取命中：{sem.get('cache_hits', 0)} 檔）"); r += 1
         tui._bottom = r
         tui.flush()
         time.sleep(0.4)
@@ -1049,39 +1036,68 @@ def _parse_cli_args():
     import argparse
     parser = argparse.ArgumentParser(prog="vizcode", add_help=True)
     parser.add_argument("path", nargs="?", help="Project root directory")
-    parser.add_argument("--ai", action="store_true",
-                        help="Enable optional AI semantic enrichment (requires ANTHROPIC_API_KEY)")
-    parser.add_argument("--ai-threshold", type=float, default=0.7,
-                        help="Minimum confidence for inferred edges (default: 0.7)")
-    parser.add_argument("--ai-model", default="claude-sonnet-4-6",
-                        help="Anthropic model id (default: claude-sonnet-4-6)")
-    parser.add_argument("--include-tests", action="store_true",
-                        help="Include test_fixture files in AI enrichment input")
+    parser.add_argument(
+        "--scan-only", action="store_true",
+        help="AST scan only: write scan_cache.json and exit, no browser, no TUI",
+    )
     return parser.parse_args()
 
 
-def _ai_opts_from_args(args) -> Optional[dict]:
-    if not getattr(args, "ai", False):
-        return None
-    return {
-        "enabled":       True,
-        "threshold":     args.ai_threshold,
-        "model":         args.ai_model,
-        "include_tests": args.include_tests,
-    }
+# ─── Scan-only mode (called by SKILL.md) ────────────────────────────────────
+
+def _run_scan_only(path: str) -> None:
+    """Run AST scan without TUI or browser, print progress to stdout."""
+    from analyze_viz import build_graph
+
+    root = str(Path(path).resolve())
+    print(f"[vizcode] Scanning {root} …")
+
+    stats = {}
+
+    def _progress(pct, msg, extra=None, **kwargs):
+        print(f"[{pct:3d}%] {msg}")
+        if extra:
+            stats.update(extra)
+
+    data = build_graph(root, progress_cb=_progress)
+
+    modules = data.get('modules', [])
+    print(
+        f"[vizcode] Done — {len(modules)} modules. "
+        f"scan_cache.json updated."
+    )
+
+    # C4: auto-generate Markdown report
+    try:
+        from analytics_helpers import generate_report
+        report_path = os.path.join(root, '.local', 'vizcode_report.md')
+        generate_report(data, report_path)
+        print(f"[vizcode] Report → {report_path}")
+    except Exception as _e:
+        print(f"[vizcode] Report skipped: {_e}")
 
 
 def main():
+    args = _parse_cli_args()
+
+    # --scan-only: bypass TUI completely, print to stdout, exit
+    if args.scan_only:
+        if not args.path:
+            print("Error: --scan-only requires a path argument", file=sys.stderr)
+            sys.exit(1)
+        if not Path(args.path).is_dir():
+            print(f"Error: not a directory: {args.path}", file=sys.stderr)
+            sys.exit(1)
+        _run_scan_only(args.path)
+        return
+
     # One-time TUI init: clear scrollback + draw fixed header
     _tui.startup()
-
-    args = _parse_cli_args()
-    ai_opts = _ai_opts_from_args(args)
 
     if args.path:
         path = args.path
         if Path(path).is_dir():
-            run_analysis_with_progress(str(Path(path).resolve()), ai_opts=ai_opts)
+            run_analysis_with_progress(str(Path(path).resolve()))
             _press_enter()
         else:
             _tui.show_text([f"  {red('✗')} Not a directory: {path}"])

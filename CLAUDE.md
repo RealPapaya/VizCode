@@ -85,3 +85,17 @@ Pure text transformers — no imports from `analyze_viz.py`. Wrap all I/O in `tr
 3. Update `detector.py`.
 4. Update `static/viz_constants.js`: `extColor()`, `FILE_TYPE_SHAPE`.
 5. Update `static/viz_sidebar.js`: `FT_GROUPS`.
+
+## VizCode MCP Tools
+
+When you need to understand this repo's structure, prefer the MCP tools over reading source files directly — they save significant context.
+
+| Tool | Use when |
+|------|----------|
+| `vizcode_query(question)` | Finding which modules handle a feature |
+| `vizcode_path(source, target)` | Understanding call chain between two files |
+| `vizcode_explain(symbol)` | Getting a module's role + connections |
+
+**禁止**直接讀取 `.local/scan_cache.json` 或 `.local/semantic_cache.json` 原始檔案。
+
+MCP tools require `/vizcode --ai` to have been run first (populates `semantic_cache.json`).

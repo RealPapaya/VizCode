@@ -14,7 +14,7 @@ Backward compatible: still importable as analyze_bios (server.py alias).
 
 import os, re, json, sys, argparse
 from pathlib import Path
-from collections import defaultdict
+from collections import defaultdict, Counter
 from typing import Dict
 
 def _console_safe(text, stream=None):
@@ -667,15 +667,13 @@ def get_module(rel_path: str) -> str:
 
 
 # ─── build_graph ─────────────────────────────────────────────────────────────
-def build_graph(root_dir: str, progress_cb=None, include_build=False, include_dirs=None,
-                ai_opts=None) -> dict:
+def build_graph(root_dir: str, progress_cb=None, include_build=False, include_dirs=None) -> dict:
     stage_flow = [
         ('scan', 'Scan source files'),
         ('detect', 'Detect project type'),
         ('analysis', 'Analyze source files'),
         ('node', 'Build nodes and indexes'),
         ('edge', 'Resolve dependencies and calls'),
-        ('semantic', 'AI semantic enrichment'),
         ('finalize', 'Finalize output'),
     ]
     stage_meta = {
@@ -687,8 +685,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         'detect': (18, 26),
         'analysis': (26, 84),
         'node': (84, 90),
-        'edge': (90, 96),
-        'semantic': (96, 99),
+        'edge': (90, 99),
         'finalize': (99, 100),
     }
 
@@ -1442,6 +1439,20 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     except Exception:
         pass
 
+    # ── C3: Map each file → its dominant community ────────────────────────────
+    file_community: dict = {}
+    try:
+        _votes: dict = defaultdict(list)
+        for _sid, _cid in communities.items():
+            if _sid in symbol_index:
+                _votes[symbol_index[_sid]['file']].append(_cid)
+        file_community = {
+            _f: Counter(_vs).most_common(1)[0][0]
+            for _f, _vs in _votes.items() if _vs
+        }
+    except Exception:
+        pass
+
     _cb(
         _stage_pct('finalize', 0.72),
         'Assembling output...',
@@ -1479,21 +1490,6 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
 
     total_all_files = total_project_files
 
-    # ─── AI semantic enrichment (optional, --ai) ─────────────────────────────
-    semantic_stats = None
-    if ai_opts and ai_opts.get('enabled'):
-        _cb(_stage_pct('semantic', 0.0), 'Starting AI semantic enrichment...', stage='semantic')
-        try:
-            from semantic_enricher import enrich as _enrich
-            _pre_data = {
-                'files_by_module':      files_by_module,
-                'file_edges_by_module': file_edges_by_module,
-                'funcs_by_file':        funcs_by_file,
-            }
-            semantic_stats = _enrich(_pre_data, Path(root), ai_opts, progress_cb=_cb)
-        except Exception as _exc:
-            semantic_stats = {'error': f'semantic_enricher failed: {_exc}'}
-        _cb(_stage_pct('semantic', 1.0), 'AI enrichment complete', stage='semantic')
 
     # Count by file type for stats
     type_counts = defaultdict(int)
@@ -1670,27 +1666,28 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         project_type=project_type,
     )
     _console_print()
-    return {
-        'modules':              modules,
-        'module_edges':         module_edges,
-        'files_by_module':      dict(files_by_module),
-        'file_edges_by_module': dict(file_edges_by_module),
+    _result = {
+        'modules':               modules,
+        'module_edges':          module_edges,
+        'files_by_module':       dict(files_by_module),
+        'file_edges_by_module':  dict(file_edges_by_module),
         'other_files_by_module': dict(other_files_by_module),
-        'funcs_by_file':        funcs_by_file,
-        'func_edges_by_file':   func_edges_by_file,
-        'func_calls_by_file':   func_calls_by_file,
-        'func_name_to_file':    func_name_to_file,
-        'func_name_to_files':   {k: v for k, v in func_name_to_files.items() if len(v) > 1},
-        'func_name_ambiguous':  sorted(func_name_ambiguous),
-        'file_to_module':       file_to_module,
+        'funcs_by_file':         funcs_by_file,
+        'func_edges_by_file':    func_edges_by_file,
+        'func_calls_by_file':    func_calls_by_file,
+        'func_name_to_file':     func_name_to_file,
+        'func_name_to_files':    {k: v for k, v in func_name_to_files.items() if len(v) > 1},
+        'func_name_ambiguous':   sorted(func_name_ambiguous),
+        'file_to_module':        file_to_module,
         'func_known_categories': KNOWN_SYS_FUNCS,
-        'edge_types':           EDGE_TYPES,
-        'project_type':         project_type,
-        'symbol_index':         symbol_index,
-        'symbol_edges':         symbol_edges,
-        'meta':                 {'semantic_stats': semantic_stats} if semantic_stats else {},
-                'communities':          communities,
-        'community_stats':      community_stats,
+        'edge_types':            EDGE_TYPES,
+        'project_type':          project_type,
+        'symbol_index':          symbol_index,
+        'symbol_edges':          symbol_edges,
+        'meta':                  {},
+        'communities':           communities,
+        'community_stats':       community_stats,
+        'file_community':        file_community,
         'stats': {
             # ── Analysed (shown in graph) ──
             'files':              total,          # SCAN_EXT files actually analysed
@@ -1728,8 +1725,18 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                 {'file': f, 'name': n, 'lines': l} for f, n, l in longest_funcs
             ],
             'language_distribution': dict(lang_stats),
+            # ── C1/C2: Graph Intelligence (analytics_helpers) ──
+            'hotspot_nodes':          [],
+            'surprising_connections': [],
         }
     }
+    try:
+        from analytics_helpers import hotspot_nodes, surprising_connections
+        _result['stats']['hotspot_nodes']          = hotspot_nodes(_result)
+        _result['stats']['surprising_connections'] = surprising_connections(_result)
+    except Exception:
+        pass
+    return _result
 
 
 # ─── HTML Skeleton (CSS/JS loaded from static/) ───────────────────────────────
@@ -2056,27 +2063,15 @@ def main():
                         help='Include build output directories (Build/build/DEBUG/RELEASE)')
     parser.add_argument('--include-dir', action='append', default=[],
                         help='Directory name to include even if normally skipped (repeatable)')
-    parser.add_argument('--ai', action='store_true',
-                        help='Enable AI semantic enrichment (requires ANTHROPIC_API_KEY)')
-    parser.add_argument('--ai-threshold', type=float, default=0.7)
-    parser.add_argument('--ai-model', default='claude-sonnet-4-6')
-    parser.add_argument('--include-tests', action='store_true')
     args = parser.parse_args()
 
     if not os.path.isdir(args.root):
         _console_print(f'Error: "{args.root}" is not a directory', file=sys.stderr)
         sys.exit(1)
 
-    ai_opts = None
-    if args.ai:
-        ai_opts = {
-            'enabled': True, 'threshold': args.ai_threshold,
-            'model': args.ai_model, 'include_tests': args.include_tests,
-        }
-
     _console_print(f'VIZCODE V4 — analyzing: {args.root}')
     data = build_graph(args.root, include_build=args.include_build,
-                       include_dirs=args.include_dir, ai_opts=ai_opts)
+                       include_dirs=args.include_dir)
 
     pt = data.get('project_type', {})
     s = data['stats']

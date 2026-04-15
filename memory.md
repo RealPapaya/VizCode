@@ -25,10 +25,29 @@
   - **👉 觸發**: `vizcode.py`
 - 🐍 **`vizcode.py`** (後端)
   - **用途**: 互動式終端機介面 (TUI)，供使用者選擇歷史紀錄與目錄。
+  - **🆕 `--scan-only` flag**: 純 AST 掃描模式，不開瀏覽器、不顯示 TUI，由 `/vizcode` skill 呼叫。
   - **👉 觸發**: 以子程序 (Subprocess) 啟動 `server.py`
 - 🌐 **`server.py`** (後端)
   - **用途**: HTTP 伺服器 (Port 7777)，負責處理網頁請求與 `/analyze` 背景任務。
   - **👉 觸發**: 載入 `analyze_viz.py` 進行分析，發送 `launcher.html` 給瀏覽器。
+- 🤖 **`mcp_server.py`** (後端)
+  - **用途**: MCP stdio server (JSON-RPC 2.0, Content-Length framing)。提供 3 個工具：`vizcode_query`、`vizcode_path`、`vizcode_explain`。
+  - **👉 觸發**: 由 Claude Code 根據 `.mcp.json` 自動管理生命週期；讀取 `.local/scan_cache.json` 與 `.local/semantic_cache.json`。
+- 🧠 **`semantic_enricher.py`** (後端)
+  - **用途**: `.local/semantic_cache.json` 的讀寫介面。API 呼叫邏輯已移除，快取由 `/vizcode --ai` skill 填入。
+  - **CLI 模式**: `python semantic_enricher.py write <root> < edges.json` / `check <root> < scan_cache.json`。
+  - **👉 觸發**: 由 SKILL.md (`/vizcode`) 呼叫以寫入語意推斷邊。
+
+### 🟣 Claude Code Skill & MCP (B2/B3)
+- 📋 **`.claude/skills/vizcode/SKILL.md`** (Skill)
+  - **用途**: 定義 `/vizcode`、`/vizcode --parse`、`/vizcode --ai` 三條執行路徑。
+  - `--parse`: 純 AST 掃描 + 開瀏覽器；`--ai`: 掃描 → Claude 語意分析 → 寫入快取；預設: 兩者皆做。
+- 📄 **`.mcp.json`** (設定)
+  - **用途**: 向 Claude Code 宣告 `vizcode` MCP server。`enableAllProjectMcpServers: true`（在 `.claude/settings.json`）讓 Claude Code 自動核准。
+- 📁 **`.local/scan_cache.json`** (快取)
+  - **用途**: Parser 層快取（A1）。`entries[filename] → {file_sha, parser_sha, payload: {imports, funcdefs, funccalls}}`。
+- 📁 **`.local/semantic_cache.json`** (快取)
+  - **用途**: 語意推斷邊快取（B2）。`edges[{source, target, confidence, reason}]`；由 `/vizcode --ai` 填入，MCP server 讀取。
 
 ### 🔴 核心分析引擎 (Backend Analysis)
 - 🧠 **`analyze_viz.py`** (後端)
@@ -124,6 +143,12 @@
 
 ### 情境 5：修改終端機操作畫面 (CLI/TUI)
 - 修改 **`vizcode.py`** 裡面的 `TUI` 類別 (包含 Banner、動畫、按鍵回應)。
+
+### 情境 6：修改 Claude Code Skill 或 MCP 工具
+- **Skill 邏輯** → `.claude/skills/vizcode/SKILL.md`（Claude 讀取這份文件決定如何執行 `/vizcode`）
+- **MCP tools 實作** → `mcp_server.py`（`_tool_query / _tool_path / _tool_explain`）
+- **語意快取 I/O** → `semantic_enricher.py`（`write_cache / read_cache / is_cache_valid`）
+- **MCP server 宣告** → `.mcp.json`（新增/移除工具後需同步更新 `TOOLS` 清單與 JSON Schema）
 
 ---
 
