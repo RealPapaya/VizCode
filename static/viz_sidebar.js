@@ -758,13 +758,125 @@ function buildFullTreeRows(container, node, depth) {
             `<span class="file-icon">${_iconFile()}</span>` +
             `<span class="file-name" data-tip="${f.path}">${label}</span>`;
 
-        row.addEventListener('click', e => {
+                row.addEventListener('click', e => {
             e.stopPropagation();
+            
+            // Auto-enable the file type filter for this file
             const ft = f.file_type || 'other';
-            if (ft === 'other' && !ftActiveFilter.has('other')) ftActiveFilter.add('other');
-            if (ft === 'binary' && !ftActiveFilter.has('binary')) ftActiveFilter.add('binary');
-            const modId = resolveModuleForFile(f.path);
-            if (modId) drillToModule(modId, { focusFile: f.path });
+            if (!ftActiveFilter.has(ft)) {
+                ftActiveFilter.add(ft);
+                // Rebuild file type filter UI to reflect the change
+                if (typeof buildFtFilter === 'function') {
+                    const modId = resolveModuleForFile(f.path);
+                    if (modId && state.level === 1) {
+                        buildFtFilter(modId, state.activeSubDir || null);
+                    }
+                }
+            }
+            
+            const modId = resolveModuleForFile(f.path) || '_root';
+            
+            // If file has a module, navigate to it in the graph
+            if (modId && modId !== '_root') {
+                drillToModule(modId, { focusFile: f.path });
+                
+                // Wait for graph to render, then select node and open code panel
+                setTimeout(() => {
+                    const nodeId = `f${f.id}`;
+                    const node = cy?.$id(nodeId);
+                    if (node && node.length) {
+                        // Select and center on the node
+                        cy.elements().unselect();
+                        node.select();
+                        cy.animate({ center: { eles: node }, duration: 300 });
+                    }
+                    
+                    // Always open code panel and update buttons
+                    if (typeof loadFileInPanel === 'function') {
+                        loadFileInPanel(f.path);
+                    }
+                    
+                    if (typeof updateCallGraphBtn === 'function') {
+                        updateCallGraphBtn(f.path);
+                    }
+                    
+                    if (window.svUpdateStructBtn && typeof window.svUpdateStructBtn === 'function') {
+                        const hasFuncs = (DATA.funcs_by_file && DATA.funcs_by_file[f.path]?.length > 0);
+                        const hasSyms = (DATA.file_symdefs && DATA.file_symdefs[f.path]?.length > 0);
+                        if (hasFuncs || hasSyms) {
+                            window.svUpdateStructBtn(true);
+                        }
+                    }
+                }, 100);
+                                                } else {
+                // File doesn't have a graph node (e.g., docs, note folders)
+                // Rerender the current level to apply the filter change
+                if (state.level === 1 && state.activeModule) {
+                    rerenderCurrentL1();
+                    // Rebuild filter UI to show the activated filter
+                    setTimeout(() => {
+                        if (typeof buildFtFilter === 'function') {
+                            buildFtFilter(state.activeModule, state.activeSubDir || null);
+                        }
+                    }, 50);
+                    
+                    // Wait for graph to render, then try to select and animate the node
+                    setTimeout(() => {
+                        const nodeId = `f${f.id}`;
+                        const node = cy?.$id(nodeId);
+                        if (node && node.length) {
+                            // Select and center on the node with animation
+                            cy.elements().unselect();
+                            node.select();
+                            
+                            if (typeof highlightNode === 'function') {
+                                highlightNode(node);
+                            }
+                            
+                            cy.animate({
+                                center: { eles: node },
+                                zoom: Math.max(cy.zoom(), 1.8),
+                            }, {
+                                duration: 700,
+                                easing: 'ease-in-out-cubic',
+                                complete: () => {
+                                    if (!cy.hasElementWithId(node.id())) return;
+                                    let count = 0;
+                                    const originalBc = node.data('bc');
+                                    const flashInterval = setInterval(() => {
+                                        count++;
+                                        if (!cy.hasElementWithId(node.id())) { clearInterval(flashInterval); return; }
+                                        node.style('border-color', count % 2 === 1 ? (typeof _tC === 'function' ? _tC('#ffffff', '#8c7851') : '#ffffff') : originalBc);
+                                        node.style('border-width', count % 2 === 1 ? 4 : 2);
+                                        if (count >= 6) {
+                                            clearInterval(flashInterval);
+                                            node.style('border-color', originalBc);
+                                            node.style('border-width', 2);
+                                        }
+                                    }, 200);
+                                }
+                            });
+                        }
+                    }, 150);
+                }
+                
+                // Open code panel directly
+                if (typeof loadFileInPanel === 'function') {
+                    loadFileInPanel(f.path);
+                }
+                
+                if (typeof updateCallGraphBtn === 'function') {
+                    updateCallGraphBtn(f.path);
+                }
+                
+                if (window.svUpdateStructBtn && typeof window.svUpdateStructBtn === 'function') {
+                    const hasFuncs = (DATA.funcs_by_file && DATA.funcs_by_file[f.path]?.length > 0);
+                    const hasSyms = (DATA.file_symdefs && DATA.file_symdefs[f.path]?.length > 0);
+                    if (hasFuncs || hasSyms) {
+                        window.svUpdateStructBtn(true);
+                    }
+                }
+            }
         });
 
         container.appendChild(row);
