@@ -28,12 +28,25 @@ Set `<PROJECT_PATH>` = the target codebase to scan (resolved to absolute path).
 
 ## --parse Mode
 
-Execute:
+### Step 1 — Generate Report
+
+First, run AST scan to generate `vizcode_report.md`:
+```bash
+python "<VIZCODE_ROOT>/vizcode.py" "<PROJECT_PATH>" --scan-only
+```
+
+Wait for completion. This writes:
+- `<PROJECT_PATH>/.local/scan_cache.json`
+- `<PROJECT_PATH>/.local/vizcode_report.md`
+
+### Step 2 — Open Browser
+
+Then launch the visualizer:
 ```bash
 python "<VIZCODE_ROOT>/vizcode.py" "<PROJECT_PATH>"
 ```
 
-Report: "分析完成，瀏覽器已開啟 http://localhost:7777"
+Report: "分析完成，report.md 已生成，瀏覽器已開啟 http://localhost:7777"
 
 ---
 
@@ -60,14 +73,28 @@ If the output is `valid`, skip Phase 3–4 and go straight to Phase 5 (the exist
 
 ### Phase 3 — Semantic Analysis
 
-Read `<PROJECT_PATH>/.local/scan_cache.json`.
+**原則：AST 能算出來的不要問 LLM。LLM 只補 AST 的盲點。**
 
-The `entries` field is a dict: `{ "filename" → { "payload": { "imports", "funcdefs", "funccalls" }, ... } }`.
+#### Step A — 用 AST 取得結構（不讀原始 JSON）
 
-For each module in `entries`:
-- What is this module's primary responsibility?
-- Which other modules does it have a **semantic** relationship with (beyond static imports)?
-- Why? What is the nature of that relationship?
+依序呼叫 MCP 工具取得結構化資料：
+
+1. **`vizcode_l0()`** — 取得全局模組分群 + AST 解析出的跨模組依賴邊
+2. **`vizcode_l1(module)`** — 對每個模組呼叫，取得模組內檔案清單 + import 邊
+
+這兩步已能建立所有**靜態可知的關聯**（import、include、呼叫鏈），不需要 LLM 判斷。
+
+> 如需深入特定檔案的函式呼叫關係，呼叫 `vizcode_l2(file)`。但 Phase 3 通常 L0+L1 已足夠。
+
+#### Step B — LLM 只推斷 AST 看不到的語意邊
+
+根據 Step A 取得的結構，**跳過**所有已有靜態邊的模組對。
+
+只針對以下情況推斷新的 semantic edge：
+- **Subprocess / runtime spawn**（如 `vizcode.py` 用 subprocess 啟動 `server.py`）
+- **共享資料檔案**（A 寫 cache，B 讀 cache，但兩者沒有 import 關係）
+- **Protocol/interface 關係**（A 實作 B 定義的介面，但無直接 import）
+- **協作管線**（A 產生資料、B 消費資料，透過非 import 手段傳遞）
 
 Produce a list of inferred edges. Each edge:
 ```json
@@ -80,10 +107,11 @@ Produce a list of inferred edges. Each edge:
 ```
 
 Rules:
-- Only create edges between modules that appear in `entries` (no external libraries)
+- Only create edges between modules that appear in `vizcode_l0()` output (no external libraries)
 - `confidence` range: 0.5–1.0 (below 0.5 is noise, omit it)
 - `reason` max 160 characters, in the same language as the user
 - Aim for 1–3 meaningful inferred edges per module pair, not exhaustive coverage
+- **不要**重複已被 L0/L1 捕捉到的靜態 import 邊
 
 ### Phase 4 — Write Semantic Cache
 
@@ -140,15 +168,19 @@ semantic_cache.json exists AND cache is valid (check command outputs "valid")
 
 ## Context Shortcut（節省 token）
 
-每次 `--scan-only` 或 `--parse` 完成後，`<PROJECT_PATH>/.local/vizcode_report.md` 會自動更新。
+**核心原則：AST 能算的不問 LLM。遵循 L0 → L1 → L2 由上而下策略。**
 
-**在進行深度分析前，優先呼叫 `vizcode_report()` MCP 工具**取得整體結構概覽（模組依賴樹、核心節點、健康指標），而不是逐一讀取原始碼檔案。
+| 層級 | 工具 | 何時用 | ~Token |
+|------|------|--------|--------|
+| L0 | `vizcode_l0()` | **第一步**：全局模組分群 + 跨模組依賴 | ~200 |
+| L1 | `vizcode_l1(module)` | 鎖定模組後展開檔案依賴圖 | ~150/模組 |
+| L2 | `vizcode_l2(file)` | 鎖定檔案後取得函式呼叫圖 | ~300-1200 |
 
-| 需求 | 建議做法 |
-|------|---------|
-| 了解整體架構 | `vizcode_report()` — 一次取得所有概覽 |
+| 其他需求 | 建議做法 |
+|----------|---------|
 | 找哪個模組負責 X | `vizcode_query(question)` |
 | 追蹤 A→B 呼叫鏈 | `vizcode_path(source, target)` |
-| 深入了解某模組 | `vizcode_explain(symbol)` |
+| 快速摘要某模組 | `vizcode_explain(symbol)` |
+| 整體健康報告 | `vizcode_report()` |
 
-這個工具組合可以替代讀取 10+ 個原始碼檔案，大幅節省 context window 用量。
+**禁止**直接讀取 `scan_cache.json` 或 `semantic_cache.json` 原始檔案。

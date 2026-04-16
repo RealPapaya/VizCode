@@ -210,6 +210,90 @@ def _report_health(stats: dict) -> list:
     return lines
 
 
+def _report_l0_l1(data: dict) -> list:
+    """Generate L0 (module overview) + L1 (per-module file list) sections."""
+    modules           = data.get('modules', [])
+    module_edges      = data.get('module_edges', [])
+    files_by_module   = data.get('files_by_module', {})
+    file_edges_by_mod = data.get('file_edges_by_module', {})
+
+    if not modules:
+        return []
+
+    # ── id lookup maps ────────────────────────────────────────────────────────
+    id_to_mod: dict = {m['id']: m.get('label', str(m['id'])) for m in modules}
+
+    mod_deps: dict = {m.get('label', str(m['id'])): [] for m in modules}
+    for e in module_edges:
+        src = id_to_mod.get(e.get('s', ''), '')
+        tgt = id_to_mod.get(e.get('t', ''), '')
+        if src and tgt and src in mod_deps:
+            mod_deps[src].append(tgt)
+
+    mod_func_counts: dict = {
+        label: sum(f.get('func_count', 0) for f in files)
+        for label, files in files_by_module.items()
+    }
+
+    # ── L0 ───────────────────────────────────────────────────────────────────
+    lines = ['\n## L0 — Module Overview\n']
+    lines.append('| Module | Files | Functions | Imports |')
+    lines.append('|--------|-------|-----------|---------|')
+    for m in sorted(modules, key=lambda x: -len(files_by_module.get(x.get('label', ''), []))):
+        label   = m.get('label', str(m['id']))
+        n_files = len(files_by_module.get(label, []))
+        n_funcs = mod_func_counts.get(label, 0)
+        deps    = ', '.join(f'`{d}`' for d in mod_deps.get(label, [])) or '—'
+        lines.append(f'| `{label}` | {n_files} | {n_funcs} | {deps} |')
+
+    lines.append('\n> 用 `vizcode_l1(module)` 取得模組內檔案依賴；`vizcode_l2(file)` 取得函式呼叫圖。\n')
+
+    # ── L1 ───────────────────────────────────────────────────────────────────
+    lines.append('\n## L1 — File Map\n')
+    for m in sorted(modules, key=lambda x: x.get('label', '')):
+        label = m.get('label', str(m['id']))
+        files = files_by_module.get(label, [])
+        if not files:
+            continue
+
+        lines.append(f'### `{label}` — {len(files)} files\n')
+        lines.append('| File | Type | Funcs | Size |')
+        lines.append('|------|------|-------|------|')
+
+        fid_to_label: dict = {f['id']: f.get('label', f.get('path', '?'))
+                              for f in files if 'id' in f}
+
+        for f in sorted(files, key=lambda x: x.get('label', '')):
+            flabel   = f.get('label', f.get('path', '?'))
+            ftype    = f.get('file_type', f.get('ext', '?'))
+            n_funcs  = f.get('func_count', 0)
+            size_kb  = f.get('size', 0) // 1024
+            size_str = f'{size_kb}KB' if size_kb > 0 else '<1KB'
+            lines.append(f'| `{flabel}` | {ftype} | {n_funcs} | {size_str} |')
+
+        edges = file_edges_by_mod.get(label, [])
+        if edges:
+            lines.append('')
+            shown: set = set()
+            for e in edges:
+                src_l = fid_to_label.get(e.get('s', ''), '')
+                tgt_l = fid_to_label.get(e.get('t', ''), '')
+                if src_l and tgt_l:
+                    key = (src_l, tgt_l)
+                    if key not in shown:
+                        shown.add(key)
+            if shown:
+                lines.append('Import edges:')
+                for src_l, tgt_l in sorted(shown)[:15]:
+                    lines.append(f'- `{src_l}` → `{tgt_l}`')
+                if len(shown) > 15:
+                    lines.append(f'- …+{len(shown) - 15} more')
+
+        lines.append('')
+
+    return lines
+
+
 def _report_module_tree(data: dict) -> list:
     """Generate a module dependency table from module_edges and modules."""
     modules      = data.get('modules', [])
@@ -263,11 +347,11 @@ def generate_report(data: dict, output_path: str) -> None:
 
     lines = ['# VizCode Report\n']
     lines += _report_overview(stats)
+    lines += _report_l0_l1(data)
     lines += _report_communities(community_stats)
     lines += _report_hotspots(hotspots)
     lines += _report_connections(connections)
     lines += _report_health(stats)
-    lines += _report_module_tree(data)
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     with open(output_path, 'w', encoding='utf-8') as fh:

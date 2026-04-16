@@ -88,13 +88,26 @@ Pure text transformers — no imports from `analyze_viz.py`. Wrap all I/O in `tr
 
 ## VizCode MCP Tools
 
-When you need to understand this repo's structure, prefer the MCP tools over reading source files directly — they save significant context.
+When you need to understand this repo's structure, prefer the MCP tools over reading source files directly — they save 96-99% of tokens vs reading raw source.
+
+### 階層式揭露策略 (Hierarchical Disclosure)
+
+**絕對禁止**一開始就讀取原始碼。遵循 L0 → L1 → L2 由上而下策略：
+
+| 層級 | Tool | 何時使用 | ~Token 成本 |
+|------|------|----------|------------|
+| L0 | `vizcode_l0()` | **第一步**：了解全專案模組分群與跨模組依賴 | ~200 |
+| L1 | `vizcode_l1(module)` | 鎖定模組後，展開其內部檔案依賴圖 | ~150 |
+| L2 | `vizcode_l2(file)` | 鎖定檔案後，取得函式呼叫圖與行號 | ~300-1200 |
+
+**其他工具：**
 
 | Tool | Use when |
 |------|----------|
-| `vizcode_query(question)` | Finding which modules handle a feature |
-| `vizcode_path(source, target)` | Understanding call chain between two files |
-| `vizcode_explain(symbol)` | Getting a module's role + connections |
+| `vizcode_query(question)` | 關鍵字搜尋模組與語意邊 |
+| `vizcode_path(source, target)` | 了解兩個檔案間的呼叫鏈 |
+| `vizcode_explain(symbol)` | 取得模組角色與連接（快速摘要） |
+| `vizcode_report()` | 取得完整 Markdown 報告（首次定向用） |
 
 **禁止**直接讀取 `.local/scan_cache.json` 或 `.local/semantic_cache.json` 原始檔案。
 
