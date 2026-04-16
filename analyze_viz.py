@@ -46,6 +46,7 @@ try:
     from parsers.python_parser import scan_python
     from parsers.js_parser     import scan_js, scan_ts
     from parsers.go_parser     import scan_go
+    from parsers.json_parser   import scan_json
     from parsers.common_parser import scan_common
     from detector              import detect_project_type, fmt_detection_banner
     _PARSERS_LOADED = True
@@ -74,11 +75,13 @@ def _get_parser_fn(ext: str):
     if ext == '.py':
         return scan_python
     if ext in ('.js', '.mjs', '.cjs', '.jsx'):
-        return scan_js
+                return scan_js
     if ext in ('.ts', '.tsx'):
         return scan_ts
     if ext == '.go':
         return scan_go
+    if ext == '.json':
+        return scan_json
     return scan_common  # generic fallback for all other recognized extensions
 
 # ─── Constants ───────────────────────────────────────────────────────────────
@@ -129,9 +132,13 @@ SCAN_EXT   = {
     '.rs', '.zig', '.d', '.nim', '.cr',
     # ── Functional ─────────────────────────────────────────────────────────
     '.ex', '.exs', '.erl', '.hrl',
-    '.clj', '.cljs', '.hs', '.ml', '.mli', '.elm',
+        '.clj', '.cljs', '.hs', '.ml', '.mli', '.elm',
     # ── Data / Schema ──────────────────────────────────────────────────────
     '.sql', '.graphql', '.gql', '.proto',
+    # ── Web / Styles ───────────────────────────────────────────────────────
+    '.css', '.scss', '.sass', '.less', '.styl',
+    # ── Config / Data ──────────────────────────────────────────────────────
+    '.json',
 }
 SKIP_EXT   = {'.veb','.lib','.obj','.efi','.rom','.bin','.log','.map'}
 
@@ -184,10 +191,15 @@ FILE_TYPE_MAP = {
     '.erl': 'erlang_source', '.hrl': 'erlang_source',
     '.clj': 'clojure_source', '.cljs': 'clojure_source',
     '.hs': 'haskell_source', '.ml': 'ocaml_source', '.mli': 'ocaml_source',
-    '.elm': 'elm_source',
+        '.elm': 'elm_source',
     # Data / Schema
     '.sql': 'sql_source', '.graphql': 'graphql_source', '.gql': 'graphql_source',
     '.proto': 'proto_source',
+    # Web / Styles
+    '.css': 'css_source', '.scss': 'scss_source', '.sass': 'sass_source',
+    '.less': 'less_source', '.styl': 'stylus_source',
+    # Config / Data
+    '.json': 'json_config',
 }
 
 # ─── Edge type definitions ───────────────────────────────────────────────────
@@ -611,6 +623,10 @@ def scan_file(filepath: str, root: str, _memo: dict | None = None):
     # ── Go ────────────────────────────────────────────────────────────────────
     elif ext == '.go' and _PARSERS_LOADED:
         raw = scan_go(src)
+
+    # ── JSON ──────────────────────────────────────────────────────────────────
+    elif ext == '.json' and _PARSERS_LOADED:
+        raw = scan_json(src, ext)
 
     # ── Common fallback for any remaining recognized extension ────────────────
     elif _PARSERS_LOADED:

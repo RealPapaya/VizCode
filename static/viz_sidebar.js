@@ -146,6 +146,13 @@ const FT_GROUPS = [
     { key: 'sql_source',     label: '.sql',        exts: ['.sql'],           group: 'data' },
     { key: 'graphql_source', label: '.graphql',    exts: ['.graphql', '.gql'], group: 'data' },
     { key: 'proto_source',   label: '.proto',      exts: ['.proto'],         group: 'data' },
+    // ── Web / Styles ──────────────────────────────────────────────────────────
+    { key: 'css_source',     label: '.css',        exts: ['.css'],           group: 'web' },
+    { key: 'scss_source',    label: '.scss/.sass', exts: ['.scss', '.sass'], group: 'web' },
+    { key: 'less_source',    label: '.less',       exts: ['.less'],          group: 'web' },
+    { key: 'stylus_source',  label: '.styl',       exts: ['.styl'],          group: 'web' },
+    // ── Config / Data ────────────────────────────────────────────────────────
+    { key: 'json_config',    label: '.json',       exts: ['.json'],          group: 'config' },
     // ── Unanalysed ────────────────────────────────────────────────────────────
     { key: 'other', label: 'Other', exts: [], isExtra: true },
     { key: 'binary', label: 'Binary', exts: [], isExtra: true },

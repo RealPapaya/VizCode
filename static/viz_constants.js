@@ -208,6 +208,14 @@ const FILE_TYPE_SHAPE = {
     'sql_source':      { sh: 'barrel', w: 165, h: 50 },         // SQL — database barrel
     'graphql_source':  { sh: 'concave-hexagon', w: 170, h: 50 },// GraphQL — API shape
     'proto_source':    { sh: 'round-tag', w: 165, h: 48 },      // Proto — message tag
+    // ── Web / Styles ──────────────────────────────────────────────────────────────
+    'css_source':      { sh: 'ellipse', w: 150, h: 46 },        // CSS — simple ellipse
+    'scss_source':     { sh: 'ellipse', w: 160, h: 48 },        // SCSS — enhanced CSS
+    'sass_source':     { sh: 'ellipse', w: 160, h: 48 },        // SASS — same as SCSS
+    'less_source':     { sh: 'ellipse', w: 155, h: 46 },        // LESS — CSS preprocessor
+    'stylus_source':   { sh: 'ellipse', w: 160, h: 46 },        // Stylus — flexible syntax
+    // ── Config / Data ──────────────────────────────────────────────────────────────
+    'json_config':     { sh: 'round-rectangle', w: 165, h: 48 }, // JSON — configuration file
     // Fallbacks
     'other': { sh: 'round-rectangle', w: 155, h: 46 },
     'binary': { sh: 'round-rectangle', w: 150, h: 42 },
@@ -308,10 +316,18 @@ const FILE_TYPE_FULL_NAME = {
     'haskell_source': 'Haskell Source',
     'ocaml_source':   'OCaml Source',
     'elm_source':     'Elm Source',
-    // Data / Schema
+        // Data / Schema
     'sql_source':     'SQL Source',
     'graphql_source': 'GraphQL Schema',
     'proto_source':   'Protocol Buffers',
+    // Web / Styles
+    'css_source':     'CSS Stylesheet',
+    'scss_source':    'SCSS Stylesheet',
+    'sass_source':    'Sass Stylesheet',
+    'less_source':    'LESS Stylesheet',
+    'stylus_source':  'Stylus Stylesheet',
+    // Config / Data
+    'json_config':    'JSON Configuration',
     // Fallbacks
     'other':        'File',
     'binary':       'Binary File',
