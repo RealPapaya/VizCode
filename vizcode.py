@@ -895,6 +895,56 @@ def prompt_path(msg: str) -> str:
 
 # ─── Actions ─────────────────────────────────────────────────────────────────
 
+
+def ask_generate_report() -> bool:
+    """Ask user if they want to generate AI report (vizcode_report.md)."""
+    tui = _tui
+    r = tui._bottom + 2
+    tui._at(r, ""); r += 1
+    tui._at(r, f"  {cyan('❯')} {bold('Generate AI Report?')}"); r += 1
+    tui._at(r, f"     {dim('Creates .local/vizcode_report.md — a structured summary')}"); r += 1
+    tui._at(r, f"     {dim('for AI assistants (Claude, ChatGPT, etc.) to understand')}"); r += 1
+    tui._at(r, ""); r += 1
+    tui._at(r, f"     {yellow('[Y]')} Yes, generate report  {dim('(recommended for AI analysis)')}"); r += 1
+    tui._at(r, f"     {yellow('[N]')} No, skip report       {dim('(faster, visualization only)')}"); r += 1
+    tui._at(r, ""); r += 1
+    tui._at(r, f"  {cyan('❯')} Press {yellow('Y')} or {yellow('N')}: ")
+    tui._bottom = r
+    tui.flush()
+
+    while True:
+        try:
+            key = _getch()
+            if key in ('y', 'Y'): return True
+            if key in ('n', 'N', 'ESC', '\x1b'): return False
+        except Exception:
+            return False
+
+
+def _generate_report_for_path(path: str) -> bool:
+    """Generate vizcode_report.md for the given path. Returns True on success."""
+    _tui.show_text(["", f"  {cyan('◉')} Generating AI report... (this may take a moment)"])
+    _tui.flush()
+    try:
+        from analyze_viz import build_graph
+        from analytics_helpers import generate_report as gen_report
+        
+        def _silent_progress(pct, msg, **kwargs):
+            pass  # Silent during background scan
+        
+        data = build_graph(path, progress_cb=_silent_progress)
+        report_path = os.path.join(path, '.local', 'vizcode_report.md')
+        gen_report(data, report_path)
+        
+        _tui.show_text(["", f"  {green('✓')} Report saved:", f"     {dim(report_path)}", ""])
+        time.sleep(1.2)
+        return True
+    except Exception as e:
+        _tui.show_text(["", f"  {red('✗')} Report generation failed:", f"     {dim(str(e))}", ""])
+        time.sleep(2.0)
+        return False
+
+
 def _action_analyze_local():
     path = prompt_path("Enter the project folder path:")
     if not path: return
@@ -902,6 +952,11 @@ def _action_analyze_local():
     if not p.is_dir():
         _tui.show_text(["", f"  {red('✗')} Not a valid directory:", f"  {dim(path)}"])
         time.sleep(1.5); return
+    
+    # Ask if user wants AI report
+    if ask_generate_report():
+        _generate_report_for_path(str(p.resolve()))
+    
     run_analysis_with_progress(str(p.resolve()))
     _press_enter()
 
@@ -958,6 +1013,11 @@ def action_recent():
     if not Path(path).is_dir():
         _tui.show_text(["", f"  {red('✗')} Directory no longer exists.", f"  {dim(path)}"])
         time.sleep(1.5); return
+    
+    # Ask if user wants AI report
+    if ask_generate_report():
+        _generate_report_for_path(path)
+    
     run_analysis_with_progress(path)
     _press_enter()
 

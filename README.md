@@ -40,19 +40,47 @@ launch.bat          # Windows
 python vizcode.py   # Any platform
 ```
 
-A browser window opens at `http://localhost:7777`. Enter the path to your project and click **Analyze**.
+A browser window opens at `http://localhost:7777`. You can optionally generate an AI report (`.local/vizcode_report.md`) before analysis for AI assistant consumption.
+
+---
 
 ### Claude Code
 
-If you use Claude Code, VizCode ships with a `/vizcode` skill and an MCP server:
+If you use Claude Code, VizCode includes a `/vizcode` skill that automatically generates the AI report:
 
 ```
-/vizcode --parse   # AST scan + open browser (same as launch.bat)
-/vizcode --ai      # AST scan → Claude semantic analysis → MCP tools ready
-/vizcode           # both
+/vizcode --parse   # Scan + generate report + open browser
+/vizcode --ai      # Scan + semantic analysis + report (no browser)
+/vizcode           # Full flow (scan + AI + report + browser)
 ```
 
 No API key required — the skill runs inside Claude Code using your existing subscription. The MCP server exposes three tools (`vizcode_query`, `vizcode_path`, `vizcode_explain`) that let Claude navigate your codebase without reading raw source files.
+
+---
+
+## 📊 Usage Modes
+
+| Mode | Command | Interactive | AI Report | Browser | Use Case |
+|------|---------|-------------|-----------|---------|----------|
+| **TUI (with prompt)** | `launch.bat` or `python vizcode.py` | ✅ | 🤷 *You choose* | ✅ | **Flexible** — asks if you want report |
+| **Direct scan** | `python vizcode.py <path>` | ✅ Progress only | ❌ | ✅ | Quick viz (no menu) |
+| **Headless** | `python vizcode.py <path> --scan-only` | ❌ | ✅ | ❌ | CI/CD, automation |
+| **Claude Parse** | `/vizcode --parse` | ❌ | ✅ | ✅ | AI analysis + viz |
+| **Claude AI** | `/vizcode --ai` | ❌ | ✅ | ❌ | AI semantic only |
+| **Claude Full** | `/vizcode` | ❌ | ✅ | ✅ | Complete workflow |
+
+### When to generate AI report?
+
+**Choose YES if:**
+- ✅ You plan to ask AI about the codebase
+- ✅ You want architectural insights (hotspots, communities, health)
+- ✅ You're documenting the project structure
+- ✅ First time analyzing a large codebase
+
+**Choose NO if:**
+- ⚡ You only need quick visualization
+- ⚡ You've already generated the report before
+- ⚡ You're in a hurry (report generation adds ~10-30 seconds)
 
 ---
 
