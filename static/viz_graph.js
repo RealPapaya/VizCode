@@ -1679,9 +1679,38 @@ function renderFilesFlat(modId, files, subPath) {
         const prevNodeIds = new Set(cy.nodes().map(n => n.id()));
         depMapState._prevNodeIds = prevNodeIds;
 
-        cy.elements().remove();
+                cy.elements().remove();
         cy.add(els);
         applyCyFont(getSavedFont());
+
+        // ── Show/hide empty-state overlay ─────────────────────────────────
+        const nodeCount = cy.nodes().length;
+        let emptyOverlay = document.getElementById('l1-empty-overlay');
+        if (nodeCount === 0) {
+            if (!emptyOverlay) {
+                emptyOverlay = document.createElement('div');
+                emptyOverlay.id = 'l1-empty-overlay';
+                emptyOverlay.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:999;background:var(--canvas-bg)';
+                emptyOverlay.innerHTML = `<div style="text-align:center;color:var(--muted);padding:80px 20px;max-width:500px">
+                    <div style="font-size:56px;margin-bottom:20px;opacity:0.6">📂</div>
+                    <div style="font-size:16px;font-weight:500;margin-bottom:12px;color:var(--text)">${T('noVisibleFiles') || 'No visible files'}</div>
+                    <div style="font-size:13px;line-height:1.7;opacity:0.8">
+                        ${T('noVisibleFilesHint') || 'Try adjusting the File Type filter in the sidebar, or check if this folder contains any source files.'}
+                    </div>
+                </div>`;
+                document.getElementById('cy')?.appendChild(emptyOverlay);
+            } else {
+                emptyOverlay.style.display = 'flex';
+            }
+            showLoading(false);
+            updateBreadcrumb();
+            buildEdgeFilter();
+            buildNodeLegend();
+            updateSidebarStats();
+            return;
+        } else if (emptyOverlay) {
+            emptyOverlay.style.display = 'none';
+        }
 
         // ── Two-pass layout ──────────────────────────────────────────────────────
         // Pass 1: dagre on ONLY the analysed nodes (no extra nodes yet positioned)
