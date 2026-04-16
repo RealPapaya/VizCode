@@ -207,6 +207,34 @@ def _report_health(stats: dict) -> list:
     lines.append(f"- Isolated files: {stats.get('isolated_files', 0)}")
     lines.append(f"- Uncalled functions: {stats.get('uncalled_functions', 0)}")
     lines.append(f"- Unimported files: {stats.get('unimported_files', 0)}")
+    lines.append(f"- Avg function length: {stats.get('avg_func_length', 0)} lines")
+
+    # ── Circular dependency chains ────────────────────────────────────────────
+    top_cycles = stats.get('top_circular_deps', [])
+    if top_cycles:
+        lines.append('\n**Circular Dependency Chains:**')
+        for cycle in top_cycles[:5]:
+            lines.append('- ' + ' → '.join(str(f) for f in cycle))
+
+    # ── Longest functions ─────────────────────────────────────────────────────
+    longest = stats.get('longest_functions', [])
+    if longest:
+        lines.append('\n**Longest Functions (complexity candidates):**')
+        for fn in longest[:10]:
+            fname  = fn.get('name', '?')
+            ffile  = os.path.basename(fn.get('file', '?'))
+            flines = fn.get('lines', 0)
+            lines.append(f'- `{fname}()` in `{ffile}` — {flines} lines')
+
+    # ── God files (most imported) ─────────────────────────────────────────────
+    top_imported = stats.get('top_imported_files', [])
+    if top_imported:
+        lines.append('\n**Most Imported Files (high coupling risk):**')
+        for entry in top_imported[:5]:
+            fpath = entry.get('file', '?')
+            count = entry.get('count', 0)
+            lines.append(f'- `{os.path.basename(fpath)}` — imported by {count} files')
+
     return lines
 
 
@@ -245,6 +273,24 @@ def _report_l0_l1(data: dict) -> list:
         n_funcs = mod_func_counts.get(label, 0)
         deps    = ', '.join(f'`{d}`' for d in mod_deps.get(label, [])) or '—'
         lines.append(f'| `{label}` | {n_files} | {n_funcs} | {deps} |')
+
+    # ── Entry points: code files with no inbound import edges ────────────────
+    all_tgt_ids: set = set()
+    for edge_list in file_edges_by_mod.values():
+        for e in edge_list:
+            all_tgt_ids.add(e.get('t'))
+    entry_files: list = []
+    for label, files in files_by_module.items():
+        for f in files:
+            # Only include files with actual functions (not data/config files)
+            if f.get('id') not in all_tgt_ids and f.get('func_count', 0) > 0:
+                entry_files.append(f.get('label', f.get('path', '?')))
+    if entry_files:
+        lines.append('\n**Entry Points (not imported by anyone):**')
+        for ef in sorted(entry_files)[:10]:
+            lines.append(f'- `{ef}`')
+        if len(entry_files) > 10:
+            lines.append(f'- …+{len(entry_files) - 10} more')
 
     lines.append('\n> 用 `vizcode_l1(module)` 取得模組內檔案依賴；`vizcode_l2(file)` 取得函式呼叫圖。\n')
 

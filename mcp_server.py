@@ -73,6 +73,25 @@ def _load_json(path: str) -> dict:
     return {}
 
 
+# ─── Import name extraction ──────────────────────────────────────────────────
+
+def _imp_name(imp) -> str:
+    """Normalise an import entry to a plain module-name string.
+
+    Handles three formats produced by different parsers:
+      str   — 'os', 'analyze_viz'
+      dict  — {'target': 'analyze_viz', ...}
+      list  — ['dependency', 'axios', 0]  (package.json parser)
+    """
+    if isinstance(imp, str):
+        return imp
+    if isinstance(imp, dict):
+        return imp.get("target", "")
+    if isinstance(imp, list) and len(imp) >= 2:
+        return str(imp[1])
+    return ""
+
+
 # ─── Index building ───────────────────────────────────────────────────────────
 
 def _build_index(scan: dict, sem: dict):
@@ -99,7 +118,7 @@ def _build_index(scan: dict, sem: dict):
     # Static import edges from scan_cache
     for src_name, m in modules.items():
         for imp in m["imports"]:
-            tgt = imp if isinstance(imp, str) else imp.get("target", "")
+            tgt = _imp_name(imp)
             if tgt and tgt in modules:
                 edges.append({"source": src_name, "target": tgt,
                                "kind": "import", "confidence": 1.0, "reason": ""})
@@ -173,7 +192,7 @@ def _tool_l0(modules: dict, mod_to_files: dict, stem_to_key: dict) -> str:
     for key, m in modules.items():
         src_mod = key.split("/")[0] if "/" in key else "."
         for imp in (m.get("imports") or []):
-            tgt_name = imp if isinstance(imp, str) else imp.get("target", "")
+            tgt_name = _imp_name(imp)
             if not tgt_name:
                 continue
             # Case A: import name is a known module directory (e.g. 'parsers')
@@ -208,6 +227,30 @@ def _tool_l0(modules: dict, mod_to_files: dict, stem_to_key: dict) -> str:
     else:
         lines.append("  (none resolved from imports)")
 
+    # ── entry points: files with no inbound imports ───────────────────────────
+    inbound: dict[str, int] = {k: 0 for k in modules}
+    for key, m in modules.items():
+        for imp in (m.get("imports") or []):
+            tgt_name = _imp_name(imp)
+            resolved = stem_to_key.get(tgt_name)
+            if resolved and resolved in inbound and resolved != key:
+                inbound[resolved] += 1
+
+    # Only show files that have actual code (funcdefs or imports), not data/config files
+    entry_pts = sorted(
+        k for k, cnt in inbound.items()
+        if cnt == 0
+        and (modules[k].get("funcdefs") or modules[k].get("imports"))
+    )
+    lines.extend(["", "Entry points (code files not imported by anyone):"])
+    if entry_pts:
+        for ep in entry_pts[:10]:
+            lines.append(f"  {ep}")
+        if len(entry_pts) > 10:
+            lines.append(f"  ...+{len(entry_pts) - 10} more")
+    else:
+        lines.append("  (none — all code files are imported)")
+
     return "\n".join(lines)
 
 
@@ -234,7 +277,7 @@ def _tool_l1(module: str, modules: dict, mod_to_files: dict, stem_to_key: dict) 
         m      = modules.get(f, {})
         f_base = os.path.basename(f)
         for imp in (m.get("imports") or []):
-            tgt_name = imp if isinstance(imp, str) else imp.get("target", "")
+            tgt_name = _imp_name(imp)
             if not tgt_name:
                 continue
             resolved = stem_to_key.get(tgt_name)
@@ -255,7 +298,15 @@ def _tool_l1(module: str, modules: dict, mod_to_files: dict, stem_to_key: dict) 
         "", "Files:",
     ]
     for f in files:
-        lines.append(f"  {f}")
+        m_data  = modules.get(f, {})
+        n_funcs = len(m_data.get("funcdefs", []) or [])
+        ext     = os.path.splitext(f)[1] or '?'
+        try:
+            sz       = os.path.getsize(f) // 1024
+            size_str = f"{sz}KB" if sz > 0 else "<1KB"
+        except OSError:
+            size_str = "?"
+        lines.append(f"  {f}  [{ext}, {n_funcs} funcs, {size_str}]")
 
     lines.extend(["", "Intra-module import edges:"])
     if intra:
@@ -295,6 +346,12 @@ def _tool_l2(file_key: str, modules: dict) -> str:
     func_calls = m.get("func_calls_by_func", []) or []
     symdefs    = m.get("symdefs", []) or []
 
+    # ── docstring lookup from extras ──────────────────────────────────────────
+    extras     = m.get("extras") or {}
+    docstrings: dict = {}
+    if isinstance(extras, dict):
+        docstrings = extras.get("docstrings") or {}
+
     # ── symdef lookup for line ranges ─────────────────────────────────────────
     sym_by_name: dict[str, dict] = {}
     for sd in symdefs:
@@ -331,6 +388,13 @@ def _tool_l2(file_key: str, modules: dict) -> str:
         suffix = f" -> {calls_str}" if calls_str else ""
         lines.append(f"  {vis}{label}() {line_range}{suffix}")
 
+        # Show docstring first line if available
+        doc = docstrings.get(label, "")
+        if doc:
+            first_line = doc.strip().split("\n")[0][:100]
+            if first_line:
+                lines.append(f"    # {first_line}")
+
     # ── non-function symbols (classes, methods) ───────────────────────────────
     non_funcs = [sd for sd in symdefs if sd.get("kind") != "function"]
     if non_funcs:
@@ -339,10 +403,121 @@ def _tool_l2(file_key: str, modules: dict) -> str:
             kind       = sd.get("kind", "?")
             name       = sd.get("name", "?")
             parent     = sd.get("parent")
+            bases      = sd.get("bases", []) or []
             line_r     = f"L{sd.get('line')}-{sd.get('end_line')}"
             pub        = "+" if sd.get("is_public") else ""
             parent_str = f"  (in {parent})" if parent else ""
-            lines.append(f"  {pub}{kind} {name} [{line_r}]{parent_str}")
+            bases_str  = f"({', '.join(bases)})" if bases else ""
+            lines.append(f"  {pub}{kind} {name}{bases_str} [{line_r}]{parent_str}")
+
+    return "\n".join(lines)
+
+
+def _tool_health(modules: dict, stem_to_key: dict) -> str:
+    """Health: god files, heavy files, dead code candidates, possible circular imports."""
+    # ── inbound count per file ────────────────────────────────────────────────
+    inbound: dict[str, int] = {k: 0 for k in modules}
+    file_imports: dict[str, set[str]] = {}
+    for key, m in modules.items():
+        resolved_set: set[str] = set()
+        for imp in (m.get("imports") or []):
+            tgt_name = _imp_name(imp)
+            resolved = stem_to_key.get(tgt_name)
+            if resolved and resolved != key and resolved in inbound:
+                inbound[resolved] += 1
+                resolved_set.add(resolved)
+        file_imports[key] = resolved_set
+
+    # ── god files (most imported) ─────────────────────────────────────────────
+    god_files = [(k, cnt) for k, cnt in sorted(inbound.items(), key=lambda x: -x[1])
+                 if cnt > 0][:5]
+
+    # ── heavy files (most functions) ──────────────────────────────────────────
+    heavy = [(k, len(m.get("funcdefs", []) or []))
+             for k, m in modules.items()]
+    heavy.sort(key=lambda x: -x[1])
+    heavy = [(k, n) for k, n in heavy if n > 0][:5]
+
+    # ── possible circular imports (direct A ↔ B pairs) ────────────────────────
+    cycles: list[tuple[str, str]] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    for a, a_imports in file_imports.items():
+        for b in a_imports:
+            if a in file_imports.get(b, set()):
+                pair = (min(a, b), max(a, b))
+                if pair not in seen_pairs:
+                    seen_pairs.add(pair)
+                    cycles.append(pair)
+
+    # ── dead function candidates ──────────────────────────────────────────────
+    all_calls: set[str] = set()
+    for m in modules.values():
+        for c in (m.get("funccalls") or []):
+            if isinstance(c, str):
+                all_calls.add(c)
+
+    _SKIP_PREFIXES = ("test_", "setup", "teardown", "__")
+    _SKIP_EXACT    = {"main", "__main__", "setUp", "setUpClass", "tearDown", "tearDownClass"}
+
+    dead_candidates: list[str] = []
+    seen_dead: set[str] = set()
+    for key, m in modules.items():
+        # Build a decorator lookup from symdefs
+        decorated: set[str] = set()
+        for sd in (m.get("symdefs") or []):
+            if sd.get("decorators"):
+                decorated.add(sd.get("name", ""))
+        for fd in (m.get("funcdefs") or []):
+            label = fd.get("label", "") if isinstance(fd, dict) else str(fd)
+            if not label:
+                continue
+            if label in _SKIP_EXACT:
+                continue
+            if any(label.startswith(p) for p in _SKIP_PREFIXES):
+                continue
+            if label in decorated:
+                continue
+            entry = f"{key}: {label}()"
+            if label not in all_calls and entry not in seen_dead:
+                seen_dead.add(entry)
+                dead_candidates.append(entry)
+
+    # ── format output ─────────────────────────────────────────────────────────
+    lines = ["=== Codebase Health ===", ""]
+
+    lines.append("God files (most imported — high coupling risk):")
+    if god_files:
+        for name, cnt in god_files:
+            lines.append(f"  {name}  ({cnt} inbound imports)")
+    else:
+        lines.append("  (none — no resolved import edges)")
+
+    lines.extend(["", "Heavy files (most functions — complexity candidates):"])
+    if heavy:
+        for name, cnt in heavy:
+            lines.append(f"  {name}  ({cnt} functions)")
+    else:
+        lines.append("  (none)")
+
+    lines.extend(["", "Possible circular imports (direct A \u21d4 B):"])
+    if cycles:
+        for a, b in sorted(cycles)[:10]:
+            lines.append(f"  {a}  <->  {b}")
+        if len(cycles) > 10:
+            lines.append(f"  ...+{len(cycles) - 10} more pairs")
+    else:
+        lines.append("  (none detected)")
+
+    lines.extend(["", f"Dead function candidates ({len(dead_candidates)} found):"])
+    lines.append("  Note: excludes __dunder__, test_*, decorated, and main functions.")
+    lines.append("  Still may include entry points or dynamically-called functions.")
+    if dead_candidates:
+        for dc in sorted(dead_candidates)[:20]:
+            lines.append(f"  {dc}")
+        if len(dead_candidates) > 20:
+            lines.append(f"  ...+{len(dead_candidates) - 20} more")
+    else:
+        lines.append("  (none — all functions appear to be called somewhere)")
 
     return "\n".join(lines)
 
@@ -568,7 +743,8 @@ TOOLS = [
         "description": (
             "Return the function call graph and symbol definitions for a single file. "
             "Shows every function, its line range, visibility (+public), "
-            "and what it calls. More detailed than vizcode_explain. "
+            "docstring first line (if available), and what it calls. "
+            "Also shows class inheritance. More detailed than vizcode_explain. "
             "Use vizcode_l1(module) to get exact file paths first. "
             "~300-1200 tokens depending on file size."
         ),
@@ -586,6 +762,20 @@ TOOLS = [
             },
             "required": ["file"],
         },
+    },
+    {
+        "name": "vizcode_health",
+        "description": (
+            "Return actionable codebase health metrics computed from AST data: "
+            "god files (most imported, high coupling risk), "
+            "heavy files (most functions, complexity candidates), "
+            "possible circular imports (direct A\u21d4B pairs), "
+            "and dead function candidates (defined but never called externally). "
+            "Dead code list excludes __dunder__, test_*, decorated, and main functions "
+            "but may still include entry points or dynamically-called functions. "
+            "~300 tokens. No parameters required."
+        ),
+        "inputSchema": {"type": "object", "properties": {}, "required": []},
     },
 ]
 
@@ -661,6 +851,8 @@ def _serve(scan_path: str, sem_path: str, report_path: str) -> None:
                 text = _tool_l1(args.get("module", "."), modules, mod_to_files, stem_to_key)
             elif name == "vizcode_l2":
                 text = _tool_l2(args.get("file", ""), modules)
+            elif name == "vizcode_health":
+                text = _tool_health(modules, stem_to_key)
             else:
                 _send_message(stdout, _err(req_id, -32601, f"Unknown tool: {name}"))
                 continue
