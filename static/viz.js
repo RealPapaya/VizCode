@@ -469,7 +469,10 @@ function showTooltip(e) {
 
             html += `</div>`;
         }
-    } else {
+        } else {
+        // Edge tooltip — skip for L2 (Call Flow)
+        if (state.level === 2) return;
+        
         // Edge tooltip — show text + semantic kind badge
         const kindBadge = d.kind
             ? `<span style="font-size:10px;color:#94a3b8;margin-left:6px;opacity:0.8">[${escapeHtml(d.kind)}]</span>`

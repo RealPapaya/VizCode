@@ -711,8 +711,14 @@ function initCy() {
     });
     cy.on('tap', 'node', e => onNodeTap(e.target));
     cy.on('tap', 'edge', e => onEdgeTap(e.target));
-    cy.on('mouseover', 'edge', e => { e.target.addClass('edge-hovered'); showTooltip(e); });
-    cy.on('mouseout', 'edge', e => { e.target.removeClass('edge-hovered'); scheduleHideTooltip(); });
+    cy.on('mouseover', 'edge', e => { 
+        e.target.addClass('edge-hovered'); 
+        if (state.level !== 2) showTooltip(e); 
+    });
+    cy.on('mouseout', 'edge', e => { 
+        e.target.removeClass('edge-hovered'); 
+        if (state.level !== 2) scheduleHideTooltip(); 
+    });
     cy.on('cxttap', 'node', e => onNodeRightClick(e, e.target));
     cy.on('mouseover', 'node', e => {
         const node = e.target;
