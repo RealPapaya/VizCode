@@ -732,7 +732,7 @@ function buildFullTreeRows(container, node, depth) {
             buildFullTreeRows(children, child, depth + 1);
         }
 
-        row.addEventListener('click', e => {
+                row.addEventListener('click', e => {
             e.stopPropagation();
             const arrow = row.querySelector('.tree-arrow');
             const iconEl = row.querySelector('.subdir-icon');
@@ -742,6 +742,9 @@ function buildFullTreeRows(container, node, depth) {
                 arrow?.classList.toggle('open', !isOpen);
                 if (iconEl) iconEl.innerHTML = isOpen ? _iconFolderClosed() : _iconFolderOpen();
             }
+            // Skip navigation in Galaxy mode - just expand/collapse
+            if (state?.galaxyActive) return;
+            
             if (isTop) {
                 drillToModule(modId);
             } else {
@@ -765,8 +768,14 @@ function buildFullTreeRows(container, node, depth) {
             `<span class="file-icon">${_iconFile()}</span>` +
             `<span class="file-name" data-tip="${f.path}">${label}</span>`;
 
-                row.addEventListener('click', e => {
+                                row.addEventListener('click', e => {
             e.stopPropagation();
+            
+            // Galaxy mode: highlight the node instead of navigating
+            if (state?.galaxyActive && typeof galaxyHighlightByPath === 'function') {
+                galaxyHighlightByPath(f.path);
+                return;
+            }
             
             // Auto-enable the file type filter for this file
             const ft = f.file_type || 'other';

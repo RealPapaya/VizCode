@@ -1887,3 +1887,46 @@ function _galaxyRefreshThemeColors() {
     if (state?.galaxyActive) _galaxyBuildFilterPanel();
     if (_gSig) _gSig.refresh();
 }
+
+// ── Public API: Highlight node from Explorer click ────────────────────────────
+
+function galaxyHighlightByPath(filePath) {
+    if (!state?.galaxyActive || !_gGraph) return false;
+    
+    // Find node with matching file path
+    let foundNode = null;
+    _gGraph.forEachNode((node, attrs) => {
+        if (attrs._file === filePath) {
+            foundNode = node;
+            return false; // break
+        }
+    });
+    
+    if (!foundNode) return false;
+    
+    // Highlight the node (same logic as clickNode)
+    if (_gPinned === foundNode) {
+        // Clicking same node - unpin
+        _gPinned = null;
+        _gNeighborSet = null;
+        _gHopSet = null;
+        _galaxyHideIsolateBtn();
+    } else {
+        // Pin this node
+        _gPinned = foundNode;
+        _buildGNeighborSet(foundNode);
+        _gUpdateHopSet();
+        _galaxyShowIsolateBtn();
+    }
+    
+    _gUpdateDepthFilterState();
+    if (_gSig) {
+        const _cam = _gSig.getCamera();
+        _cam.animate({ ratio: _cam.ratio * 1.0001 }, { duration: 50 });
+        _gSig.refresh();
+    }
+    
+    return true;
+}
+
+window.galaxyHighlightByPath = galaxyHighlightByPath;
