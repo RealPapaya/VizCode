@@ -12,7 +12,7 @@
 (function () {
     'use strict';
 
-    // ── State ─────────────────────────────────────────────────────────────────
+        // ── State ─────────────────────────────────────────────────────────────────
     let _isOpen   = false;
     let _isBusy   = false;   // waiting for AI response
     let _history  = [];      // [{role, content}] sent to server
@@ -21,6 +21,11 @@
 
     // ── DOM refs (populated in initChat) ─────────────────────────────────────
     let _btn, _panel, _msgs, _input, _sendBtn, _modal;
+
+    // ── Drag state ────────────────────────────────────────────────────────────
+    let _isDragging = false;
+    let _dragOffsetX = 0;
+    let _dragOffsetY = 0;
 
     // ── Markdown-lite renderer ────────────────────────────────────────────────
     // Handles: ``` code blocks, `inline code`, **bold**, *italic*
@@ -51,12 +56,12 @@
         return '<p>' + t + '</p>';
     }
 
-    // ── Panel open / close ───────────────────────────────────────────────────
+        // ── Panel open / close ───────────────────────────────────────────────────
     function _open() {
         _isOpen = true;
         _panel.classList.add('open');
         _btn.classList.add('active');
-        _btn.textContent = '✕';
+        _updateButtonIcon();
         setTimeout(() => _input.focus(), 220);
     }
 
@@ -64,7 +69,14 @@
         _isOpen = false;
         _panel.classList.remove('open');
         _btn.classList.remove('active');
-        _btn.textContent = '💬';
+        _updateButtonIcon();
+    }
+
+    function _updateButtonIcon() {
+        const svg = _isOpen
+            ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
+            : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
+        _btn.innerHTML = svg;
     }
 
     function toggleChatPanel() {
@@ -350,6 +362,124 @@
         return true;
     }
 
+            // ── Dragging ──────────────────────────────────────────────────────────────
+    function _initDrag() {
+        const header = document.getElementById('chat-header');
+        if (!header) return;
+
+        header.addEventListener('mousedown', (e) => {
+            if (e.target.closest('button') || e.target.closest('.chat-cfg-btn')) return;
+            _isDragging = true;
+            const rect = _panel.getBoundingClientRect();
+            _dragOffsetX = e.clientX - rect.left;
+            _dragOffsetY = e.clientY - rect.top;
+            header.style.cursor = 'grabbing';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!_isDragging) return;
+            const x = e.clientX - _dragOffsetX;
+            const y = e.clientY - _dragOffsetY;
+            _panel.style.left = Math.max(0, Math.min(x, window.innerWidth - _panel.offsetWidth)) + 'px';
+            _panel.style.top = Math.max(0, Math.min(y, window.innerHeight - _panel.offsetHeight)) + 'px';
+            _panel.style.right = 'auto';
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (_isDragging) {
+                _isDragging = false;
+                header.style.cursor = 'move';
+            }
+        });
+    }
+
+        // ── Resizing (8-direction) ────────────────────────────────────────────────
+    function _initResize() {
+        let isResizing = false;
+        let resizeDirection = null;
+        let startX, startY, startWidth, startHeight, startLeft, startTop;
+
+        // Create resize handles
+        const directions = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+        directions.forEach(dir => {
+            const handle = document.createElement('div');
+            handle.className = `chat-resize-handle ${dir}`;
+            handle.dataset.direction = dir;
+            _panel.appendChild(handle);
+
+            handle.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                resizeDirection = dir;
+                startX = e.clientX;
+                startY = e.clientY;
+                const rect = _panel.getBoundingClientRect();
+                startWidth = rect.width;
+                startHeight = rect.height;
+                startLeft = rect.left;
+                startTop = rect.top;
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            const minW = 320;
+            const minH = 400;
+            const maxW = window.innerWidth * 0.9;
+            const maxH = window.innerHeight - 140;
+
+            let newWidth = startWidth;
+            let newHeight = startHeight;
+            let newLeft = startLeft;
+            let newTop = startTop;
+
+            // Handle horizontal resizing
+            if (resizeDirection.includes('e')) {
+                newWidth = Math.max(minW, Math.min(startWidth + dx, maxW));
+            } else if (resizeDirection.includes('w')) {
+                const proposedWidth = startWidth - dx;
+                if (proposedWidth >= minW) {
+                    newWidth = proposedWidth;
+                    newLeft = startLeft + dx;
+                }
+            }
+
+            // Handle vertical resizing
+            if (resizeDirection.includes('s')) {
+                newHeight = Math.max(minH, Math.min(startHeight + dy, maxH));
+            } else if (resizeDirection.includes('n')) {
+                const proposedHeight = startHeight - dy;
+                if (proposedHeight >= minH) {
+                    newHeight = proposedHeight;
+                    newTop = startTop + dy;
+                }
+            }
+
+            // Apply new dimensions
+            _panel.style.width = newWidth + 'px';
+            _panel.style.height = newHeight + 'px';
+            
+            // Update position if resizing from left or top
+            if (resizeDirection.includes('w') || resizeDirection.includes('n')) {
+                _panel.style.left = Math.max(0, Math.min(newLeft, window.innerWidth - newWidth)) + 'px';
+                _panel.style.top = Math.max(0, Math.min(newTop, window.innerHeight - newHeight)) + 'px';
+                _panel.style.right = 'auto';
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                resizeDirection = null;
+            }
+        });
+    }
+
     // ── Attach events ─────────────────────────────────────────────────────────
     function _attachEvents() {
         _btn.addEventListener('click', toggleChatPanel);
@@ -399,6 +529,10 @@
                 toggleChatPanel();
             }
         });
+
+                // Initialize dragging and resizing
+        _initDrag();
+        _initResize();
     }
 
     // ── Check if configured ───────────────────────────────────────────────────
@@ -425,9 +559,10 @@
         } catch (_) {}
     }
 
-    // ── Public init ───────────────────────────────────────────────────────────
+        // ── Public init ───────────────────────────────────────────────────────────
     function initChat() {
         if (!_buildDOM()) return;   // HTML elements not present (launcher page)
+        _updateButtonIcon();
         _attachEvents();
         _checkConfig();
     }

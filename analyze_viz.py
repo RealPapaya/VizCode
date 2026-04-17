@@ -1935,6 +1935,8 @@ HTML_SKELETON = """\
     <div id="sv-view"></div>
     <div id="sym-view"></div>
     <div id="loading"><div class="spinner"></div><span id="loading-msg" data-i18n="loading">Loading...</span><button id="loading-cancel-btn" onclick="cancelRender()" data-i18n="cancelRender">✕ Cancel</button></div>
+    <!-- VizBridge Chat Button (inside graph-wrap) -->
+    <button id="chat-btn" title="VizCode AI (Alt+C)"></button>
   </div>
   <!-- Resizer handle -->
   <div id="resizer" style="display:none"></div>
@@ -1991,7 +1993,6 @@ HTML_SKELETON = """\
 <div id="tooltip"></div>
 
 <!-- VizBridge Chat Panel -->
-<button id="chat-btn" title="VizCode AI (Alt+C)">💬</button>
 <div id="chat-panel">
   <div id="chat-header">
     <span id="chat-header-title">VizCode AI</span>

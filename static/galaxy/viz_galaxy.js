@@ -526,6 +526,15 @@ async function openGalaxy() {
         return;
     }
     if (typeof closeDashboard === 'function') closeDashboard();
+    
+    // Hide AI chat button in Galaxy mode
+    const chatBtn = document.getElementById('chat-btn');
+    const chatPanel = document.getElementById('chat-panel');
+    if (chatBtn) chatBtn.style.display = 'none';
+    if (chatPanel && chatPanel.classList.contains('open')) {
+        chatPanel.classList.remove('open');
+    }
+    
     const container = document.getElementById('galaxy-container');
     if (!container) return;
 
@@ -604,6 +613,11 @@ function closeGalaxy() {
     document.getElementById('cy').style.display = '';
     const layoutSwitcher = document.getElementById('layout-switcher');
     if (layoutSwitcher) layoutSwitcher.style.display = '';
+    
+    // Show AI chat button when leaving Galaxy mode
+    const chatBtn = document.getElementById('chat-btn');
+    if (chatBtn) chatBtn.style.display = 'flex';
+    
     state.galaxyActive = false;
     _galaxySyncButtonComputing();
     _galaxyHideLayoutBadge();

@@ -203,6 +203,15 @@ function _buildDashboardDOM() {
 // ── Entry points ──────────────────────────────────────────────────────────────
 function openDashboard() {
     if (state.galaxyActive && typeof closeGalaxy === 'function') closeGalaxy();
+    
+    // Close AI chat window and hide button when entering Dashboard mode
+    const chatBtn = document.getElementById('chat-btn');
+    const chatPanel = document.getElementById('chat-panel');
+    if (chatBtn) chatBtn.style.display = 'none';
+    if (chatPanel && chatPanel.classList.contains('open')) {
+        chatPanel.classList.remove('open');
+    }
+    
     _buildDashboardDOM();
     _applyChartDefaults();
     const overlay = document.getElementById('dashboard-overlay');
@@ -215,6 +224,11 @@ function openDashboard() {
 function closeDashboard() {
     const overlay = document.getElementById('dashboard-overlay');
     if (overlay) overlay.style.display = 'none';
+    
+    // Show AI chat button when leaving Dashboard mode
+    const chatBtn = document.getElementById('chat-btn');
+    if (chatBtn) chatBtn.style.display = 'flex';
+    
     if (typeof syncTopbarModeButtons === 'function') syncTopbarModeButtons();
 }
 
