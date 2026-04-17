@@ -1127,12 +1127,13 @@ def _run_scan_only(path: str) -> None:
         f"scan_cache.json updated."
     )
 
-    # C4: auto-generate Markdown report
+    # C4: auto-generate hierarchical report tree
     try:
         from analytics_helpers import generate_report
         report_path = os.path.join(root, '.local', 'vizcode_report.md')
         generate_report(data, report_path)
-        print(f"[vizcode] Report → {report_path}")
+        local_dir = os.path.join(root, '.local')
+        print(f"[vizcode] Report tree → {local_dir}/INDEX.md  L1/  L2/")
     except Exception as _e:
         print(f"[vizcode] Report skipped: {_e}")
 

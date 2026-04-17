@@ -86,7 +86,28 @@ Pure text transformers — no imports from `analyze_viz.py`. Wrap all I/O in `tr
 4. Update `static/viz_constants.js`: `extColor()`, `FILE_TYPE_SHAPE`.
 5. Update `static/viz_sidebar.js`: `FT_GROUPS`.
 
-## VizCode MCP Tools
+## 靜態報告導航（無 MCP 時）
+
+掃描後（`--scan-only` 或 `--parse`）生成分層報告樹，**永遠從 INDEX.md 開始**：
+
+```
+.local/
+  INDEX.md              ← L0：永遠 ~100-200 行，從這裡開始
+  L1/<module>.md        ← 模組內 file map（按需讀取）
+  L1/<module>/<sub>.md  ← 大模組子目錄（超過 50 個檔案時）
+  L2/<module>/<file>.md ← 函式呼叫圖（按需讀取）
+```
+
+**導航策略：**
+1. Read `.local/INDEX.md` → 看到模組結構 + health summary
+2. Read `.local/L1/<module>.md` → 鎖定模組，看到檔案清單
+3. Read `.local/L2/<module>/<file>.md` → 看到函式呼叫圖 + docstring
+
+**禁止**直接讀取 `.local/scan_cache.json`、`.local/semantic_cache.json`、或任何原始碼。
+
+---
+
+## VizCode MCP Tools（MCP Server 在線時）
 
 When you need to understand this repo's structure, prefer the MCP tools over reading source files directly — they save 96-99% of tokens vs reading raw source.
 
@@ -107,7 +128,8 @@ When you need to understand this repo's structure, prefer the MCP tools over rea
 | `vizcode_query(question)` | 關鍵字搜尋模組與語意邊 |
 | `vizcode_path(source, target)` | 了解兩個檔案間的呼叫鏈 |
 | `vizcode_explain(symbol)` | 取得模組角色與連接（快速摘要） |
-| `vizcode_report()` | 取得完整 Markdown 報告（首次定向用） |
+| `vizcode_health()` | 取得 dead code / god files / circular imports |
+| `vizcode_report()` | 取得 INDEX.md 內容（= `.local/INDEX.md`） |
 
 **禁止**直接讀取 `.local/scan_cache.json` 或 `.local/semantic_cache.json` 原始檔案。
 
