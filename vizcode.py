@@ -1100,6 +1100,10 @@ def _parse_cli_args():
         "--scan-only", action="store_true",
         help="AST scan only: write scan_cache.json and exit, no browser, no TUI",
     )
+    parser.add_argument(
+        "--chat", action="store_true",
+        help="Start AI chat REPL for the given project (no browser, no TUI)",
+    )
     return parser.parse_args()
 
 
@@ -1150,6 +1154,19 @@ def main():
             print(f"Error: not a directory: {args.path}", file=sys.stderr)
             sys.exit(1)
         _run_scan_only(args.path)
+        return
+
+    # --chat: terminal AI chat REPL, no TUI, no browser
+    if args.chat:
+        if not args.path:
+            print("Error: --chat requires a path argument", file=sys.stderr)
+            print("Usage: python vizcode.py <project_path> --chat", file=sys.stderr)
+            sys.exit(1)
+        if not Path(args.path).is_dir():
+            print(f"Error: not a directory: {args.path}", file=sys.stderr)
+            sys.exit(1)
+        from ai.chat_cli import run_chat
+        run_chat(args.path)
         return
 
     # One-time TUI init: clear scrollback + draw fixed header
