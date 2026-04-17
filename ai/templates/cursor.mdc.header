@@ -1,0 +1,6 @@
+---
+description: VizCode codebase analysis. Use vizcode MCP tools to explore code structure via L0→L1→L2 hierarchical disclosure strategy.
+globs:
+alwaysApply: false
+---
+

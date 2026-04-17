@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "vizcode": {
+      "command": "python",
+      "args": [
+        "./mcp_server.py",
+        "--scan", "./.local/scan_cache.json",
+        "--sem",  "./.local/semantic_cache.json"
+      ]
+    }
+  }
+}
