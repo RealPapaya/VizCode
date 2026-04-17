@@ -4,6 +4,9 @@
 .vizcode_server.log
 .result_*.html
 
+# AI provider config (contains API keys — never commit)
+ai/config.json
+
 # Python cache / generated files
 __pycache__/
 parsers/__pycache__/

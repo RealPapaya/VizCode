@@ -1928,6 +1928,14 @@ class Handler(BaseHTTPRequestHandler):
                             for k, v in JOBS.items()]
             self.json_resp([{'id': k, **v} for k, v in snapshot])
 
+        elif p == '/chat-config':
+            # ── VizBridge: return current AI provider config (keys masked) ──
+            try:
+                from ai.vizbridge import masked_config
+                self.json_resp(masked_config())
+            except Exception as e:
+                self.json_resp({'error': str(e)}, 500)
+
         else:
             self.json_resp({'error': 'Not found'}, 404)
 
@@ -2102,6 +2110,76 @@ class Handler(BaseHTTPRequestHandler):
 
         elif p == '/cancel':
             self.json_resp({'ok': True})
+
+        elif p == '/chat-config':
+            # ── VizBridge: save AI provider config ───────────────────────────
+            length = int(self.headers.get('Content-Length', 0))
+            try:
+                body = json.loads(self.rfile.read(length).decode('utf-8'))
+                from ai.vizbridge import save_config
+                save_config(body)
+                self.json_resp({'ok': True})
+            except Exception as e:
+                self.json_resp({'error': str(e)}, 500)
+
+        elif p == '/chat-stream':
+            # ── VizBridge: SSE streaming chat ─────────────────────────────────
+            length = int(self.headers.get('Content-Length', 0))
+            try:
+                body = json.loads(self.rfile.read(length).decode('utf-8'))
+            except Exception as e:
+                self.json_resp({'error': f'Bad request: {e}'}, 400)
+                return
+
+            job_id  = body.get('job_id', '')
+            history = body.get('history', [])
+            if not history:
+                self.json_resp({'error': 'No messages provided'}, 400)
+                return
+
+            # Resolve project root from active job
+            with JOBS_LOCK:
+                job = JOBS.get(job_id, {})
+            project_root = job.get('root', '')
+            if not project_root:
+                # Fallback: use the most recently completed job
+                with JOBS_LOCK:
+                    recent = [(v.get('started', 0), v.get('root', ''))
+                              for v in JOBS.values() if v.get('root')]
+                if recent:
+                    project_root = sorted(recent, reverse=True)[0][1]
+            if not project_root:
+                self.json_resp({'error': 'No active job / project root found'}, 400)
+                return
+
+            # ── SSE headers ──────────────────────────────────────────────────
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream; charset=utf-8')
+            self.send_header('Cache-Control', 'no-cache')
+            self.send_header('Connection', 'keep-alive')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('X-Accel-Buffering', 'no')
+            self.end_headers()
+
+            def _sse(obj):
+                try:
+                    line = 'data: ' + json.dumps(obj, ensure_ascii=False) + '\n\n'
+                    self.wfile.write(line.encode('utf-8'))
+                    self.wfile.flush()
+                    return True
+                except (BrokenPipeError, ConnectionResetError, OSError):
+                    return False
+
+            try:
+                from ai.vizbridge import VizBridge
+                vb = VizBridge(project_root)
+                for event in vb.stream_response(history):
+                    if not _sse(event):
+                        break  # client disconnected
+            except ImportError:
+                _sse({'type': 'error', 'message': 'VizBridge not available — check ai/ directory'})
+            except Exception as e:
+                _sse({'type': 'error', 'message': str(e)})
 
         else:
             self.json_resp({'error': 'Not found'}, 404)

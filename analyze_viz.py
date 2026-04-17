@@ -1990,6 +1990,48 @@ HTML_SKELETON = """\
 </div>
 <div id="tooltip"></div>
 
+<!-- VizBridge Chat Panel -->
+<button id="chat-btn" title="VizCode AI (Alt+C)">💬</button>
+<div id="chat-panel">
+  <div id="chat-header">
+    <span id="chat-header-title">VizCode AI</span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button id="chat-cfg-btn" title="Settings" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 5px;border-radius:4px">⚙</button>
+      <button id="chat-close">✕</button>
+    </div>
+  </div>
+  <div id="chat-messages"></div>
+  <div id="chat-input-row">
+    <textarea id="chat-input" rows="1" placeholder="Ask about this codebase… (Enter to send)"></textarea>
+    <button id="chat-send">➤</button>
+  </div>
+</div>
+<div id="chat-config-modal" class="hidden">
+  <div id="chat-config-box">
+    <h3>AI Chat Setup</h3>
+    <p>Choose a provider and enter your API key to enable VizCode AI.</p>
+    <div class="chat-cfg-row">
+      <label>Provider</label>
+      <select id="chat-cfg-provider">
+        <option value="anthropic">Anthropic (Claude)</option>
+        <option value="openai" disabled>OpenAI — coming soon</option>
+        <option value="gemini" disabled>Gemini — coming soon</option>
+        <option value="ollama" disabled>Ollama (local) — coming soon</option>
+      </select>
+    </div>
+    <div class="chat-cfg-row">
+      <label>Anthropic API Key</label>
+      <input type="password" id="chat-cfg-anthropic-key" placeholder="sk-ant-..." autocomplete="off" />
+    </div>
+    <div class="chat-cfg-row">
+      <label>Model</label>
+      <input type="text" id="chat-cfg-anthropic-model" placeholder="claude-sonnet-4-6" />
+    </div>
+    <button id="chat-config-save">Save</button>
+    <button id="chat-config-cancel">Cancel</button>
+  </div>
+</div>
+
 <!-- Data embedded as JSON text — parsed by JSON.parse(), not JS engine (10x faster) -->
 <script type="application/json" id="viz-data">{DATA}</script>
 <script>(function(){{
@@ -2012,7 +2054,7 @@ HTML_TEMPLATE = HTML_SKELETON
 def build_html(data: dict, job_id: str = None) -> str:
     """Read shared static assets and embed them inline into the HTML skeleton."""
     base = Path(__file__).parent / 'static'
-    css_assets = [base / 'viz.css', base / 'themes.css', base / 'symbol_view.css']
+    css_assets = [base / 'viz.css', base / 'themes.css', base / 'symbol_view.css', base / 'viz_chat.css']
     js_assets = [
         base / 'i18n.js',
         base / 'viz_utils.js',
@@ -2032,6 +2074,7 @@ def build_html(data: dict, job_id: str = None) -> str:
         base / 'galaxy' / 'viz_galaxy_physics.js',   # FA2 physics (BH, FA2, Noverlap)
         base / 'galaxy' / 'viz_galaxy_graph.js',     # graph building + initial positions
         base / 'viz_layout.js',
+        base / 'viz_chat.js',
         base / 'viz.js',              # boot — must be last of viz_* files
         base / 'trail_layouter.js',
         base / 'symbol_view.js',

@@ -274,6 +274,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 buildNodeLegend();
                 updateSidebarStats();
                 if (typeof scheduleGalaxyPrecompute === 'function') scheduleGalaxyPrecompute();
+                // Chat panel init (VizBridge)
+                if (typeof initChat === 'function') initChat();
 
                 // Ensure Canvas redraws after Google Fonts are fully loaded
                 document.fonts.ready.then(() => {
