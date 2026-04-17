@@ -527,9 +527,11 @@ async function openGalaxy() {
     }
     if (typeof closeDashboard === 'function') closeDashboard();
     
-    // Hide AI chat button in Galaxy mode
+    // Hide breadcrumb and AI chat in Galaxy mode
+    const breadcrumb = document.getElementById('breadcrumb');
     const chatBtn = document.getElementById('chat-btn');
     const chatPanel = document.getElementById('chat-panel');
+    if (breadcrumb) breadcrumb.style.display = 'none';
     if (chatBtn) chatBtn.style.display = 'none';
     if (chatPanel && chatPanel.classList.contains('open')) {
         chatPanel.classList.remove('open');
@@ -614,8 +616,10 @@ function closeGalaxy() {
     const layoutSwitcher = document.getElementById('layout-switcher');
     if (layoutSwitcher) layoutSwitcher.style.display = '';
     
-    // Show AI chat button when leaving Galaxy mode
+    // Show breadcrumb and AI chat button when leaving Galaxy mode
+    const breadcrumb = document.getElementById('breadcrumb');
     const chatBtn = document.getElementById('chat-btn');
+    if (breadcrumb) breadcrumb.style.display = '';
     if (chatBtn) chatBtn.style.display = 'flex';
     
     state.galaxyActive = false;

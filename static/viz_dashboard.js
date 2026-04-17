@@ -32,15 +32,9 @@ function _buildDashboardDOM() {
 
     const overlay = document.createElement('div');
     overlay.id = 'dashboard-overlay';
-    overlay.innerHTML = `
+                overlay.innerHTML = `
 <div id="dashboard-panel">
-  <div id="dashboard-header">
-    <span class="dash-logo-text">VIZCODE</span>
-    <span class="dash-logo-sep">|</span>
-    <span class="dash-logo-sub">📊 Analytics Dashboard</span>
-    <button id="dashboard-close" data-tip="${T('dashClose')}">✕</button>
-  </div>
-  <div id="dashboard-scroll">
+  <div id="dashboard-scroll" style="padding-top:0">
 
     <!-- ── Stat Strip ── -->
     <div class="dash-stat-strip" id="dash-stat-strip"></div>
@@ -190,7 +184,7 @@ function _buildDashboardDOM() {
 </div>`;
     document.body.appendChild(overlay);
 
-        document.getElementById('dashboard-close').addEventListener('click', closeDashboard);
+            // Allow ESC key and backdrop click to close
     overlay.addEventListener('click', e => { if (e.target === overlay) closeDashboard(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && overlay.style.display !== 'none') closeDashboard(); });
     
@@ -204,9 +198,11 @@ function _buildDashboardDOM() {
 function openDashboard() {
     if (state.galaxyActive && typeof closeGalaxy === 'function') closeGalaxy();
     
-    // Close AI chat window and hide button when entering Dashboard mode
+    // Hide breadcrumb and AI chat when entering Dashboard mode
+    const breadcrumb = document.getElementById('breadcrumb');
     const chatBtn = document.getElementById('chat-btn');
     const chatPanel = document.getElementById('chat-panel');
+    if (breadcrumb) breadcrumb.style.display = 'none';
     if (chatBtn) chatBtn.style.display = 'none';
     if (chatPanel && chatPanel.classList.contains('open')) {
         chatPanel.classList.remove('open');
@@ -225,8 +221,10 @@ function closeDashboard() {
     const overlay = document.getElementById('dashboard-overlay');
     if (overlay) overlay.style.display = 'none';
     
-    // Show AI chat button when leaving Dashboard mode
+    // Show breadcrumb and AI chat button when leaving Dashboard mode
+    const breadcrumb = document.getElementById('breadcrumb');
     const chatBtn = document.getElementById('chat-btn');
+    if (breadcrumb) breadcrumb.style.display = '';
     if (chatBtn) chatBtn.style.display = 'flex';
     
     if (typeof syncTopbarModeButtons === 'function') syncTopbarModeButtons();
