@@ -13,10 +13,9 @@
     'use strict';
 
     // ── State ─────────────────────────────────────────────────────────────────
-    let _isOpen       = false;
-    let _isBusy       = false;       // waiting for AI response
-    let _eventSource  = null;        // active SSE connection
-    let _history      = [];          // [{role, content}] sent to server
+    let _isOpen   = false;
+    let _isBusy   = false;   // waiting for AI response
+    let _history  = [];      // [{role, content}] sent to server
     let _streamBubble = null;        // DOM element currently streaming into
     let _streamText   = '';          // accumulated text for current stream bubble
 
@@ -275,6 +274,13 @@
     }
 
     // ── Config modal ──────────────────────────────────────────────────────────
+
+    function _updateProviderSections(provider) {
+        document.querySelectorAll('.chat-cfg-section').forEach(function (sec) {
+            sec.style.display = (sec.dataset.provider === provider) ? '' : 'none';
+        });
+    }
+
     async function _openConfigModal() {
         let cfg = {};
         try {
@@ -282,9 +288,18 @@
             if (r.ok) cfg = await r.json();
         } catch (_) {}
 
-        document.getElementById('chat-cfg-provider').value       = cfg.provider || 'anthropic';
-        document.getElementById('chat-cfg-anthropic-key').value  = cfg.anthropic_api_key || '';
-        document.getElementById('chat-cfg-anthropic-model').value = cfg.anthropic_model || 'claude-sonnet-4-6';
+        const provider = cfg.provider || 'anthropic';
+        document.getElementById('chat-cfg-provider').value          = provider;
+        document.getElementById('chat-cfg-anthropic-key').value     = cfg.anthropic_api_key || '';
+        document.getElementById('chat-cfg-anthropic-model').value   = cfg.anthropic_model || 'claude-sonnet-4-6';
+        document.getElementById('chat-cfg-openai-key').value        = cfg.openai_api_key || '';
+        document.getElementById('chat-cfg-openai-model').value      = cfg.openai_model || 'gpt-4o';
+        document.getElementById('chat-cfg-openai-base-url').value   = cfg.openai_base_url || '';
+        document.getElementById('chat-cfg-gemini-key').value        = cfg.gemini_api_key || '';
+        document.getElementById('chat-cfg-gemini-model').value      = cfg.gemini_model || 'gemini-2.0-flash';
+        document.getElementById('chat-cfg-ollama-url').value        = cfg.ollama_url || 'http://localhost:11434';
+        document.getElementById('chat-cfg-ollama-model').value      = cfg.ollama_model || 'llama3.1';
+        _updateProviderSections(provider);
         _modal.classList.remove('hidden');
     }
 
@@ -293,10 +308,18 @@
     }
 
     async function _saveConfig() {
+        const provider = document.getElementById('chat-cfg-provider').value;
         const cfg = {
-            provider:          document.getElementById('chat-cfg-provider').value,
-            anthropic_api_key: document.getElementById('chat-cfg-anthropic-key').value.trim(),
-            anthropic_model:   document.getElementById('chat-cfg-anthropic-model').value.trim(),
+            provider,
+            anthropic_api_key:  document.getElementById('chat-cfg-anthropic-key').value.trim(),
+            anthropic_model:    document.getElementById('chat-cfg-anthropic-model').value.trim() || 'claude-sonnet-4-6',
+            openai_api_key:     document.getElementById('chat-cfg-openai-key').value.trim(),
+            openai_model:       document.getElementById('chat-cfg-openai-model').value.trim() || 'gpt-4o',
+            openai_base_url:    document.getElementById('chat-cfg-openai-base-url').value.trim(),
+            gemini_api_key:     document.getElementById('chat-cfg-gemini-key').value.trim(),
+            gemini_model:       document.getElementById('chat-cfg-gemini-model').value.trim() || 'gemini-2.0-flash',
+            ollama_url:         document.getElementById('chat-cfg-ollama-url').value.trim() || 'http://localhost:11434',
+            ollama_model:       document.getElementById('chat-cfg-ollama-model').value.trim() || 'llama3.1',
         };
         try {
             await fetch('/chat-config', {
@@ -305,7 +328,7 @@
                 body:    JSON.stringify(cfg),
             });
             _closeConfigModal();
-            _appendMsg('sys', 'AI provider saved.');
+            _appendMsg('sys', `AI provider saved: ${provider}`);
         } catch (e) {
             alert('Failed to save config: ' + e.message);
         }
@@ -351,6 +374,14 @@
         // Config button in header
         const cfgBtn = document.getElementById('chat-cfg-btn');
         if (cfgBtn) cfgBtn.addEventListener('click', _openConfigModal);
+
+        // Provider selector — show/hide relevant fields
+        const providerSelect = document.getElementById('chat-cfg-provider');
+        if (providerSelect) {
+            providerSelect.addEventListener('change', function () {
+                _updateProviderSections(this.value);
+            });
+        }
 
         // Modal buttons
         document.getElementById('chat-config-save').addEventListener('click', _saveConfig);

@@ -54,15 +54,17 @@ from mcp_server import (
 _CONFIG_PATH = _HERE / "config.json"
 
 _DEFAULTS: dict = {
-    "provider":           "anthropic",
-    "anthropic_api_key":  "",
-    "anthropic_model":    "claude-sonnet-4-6",
-    "openai_api_key":     "",
-    "openai_model":       "gpt-4o",
-    "gemini_api_key":     "",
-    "gemini_model":       "gemini-2.0-flash",
-    "ollama_url":         "http://localhost:11434",
-    "ollama_model":       "llama3.1",
+    "provider":            "anthropic",
+    "anthropic_api_key":   "",
+    "anthropic_model":     "claude-sonnet-4-6",
+    "openai_api_key":      "",
+    "openai_model":        "gpt-4o",
+    "openai_base_url":     "",
+    "openai_api_version":  "",
+    "gemini_api_key":      "",
+    "gemini_model":        "gemini-2.0-flash",
+    "ollama_url":          "http://localhost:11434",
+    "ollama_model":        "llama3.1",
 }
 
 
@@ -135,11 +137,39 @@ class ProviderRouter:
                 model=self._cfg.get("anthropic_model", "claude-sonnet-4-6"),
             )
 
-        # Phase 2 providers — stubs that give a friendly error until implemented
-        if provider in ("openai", "gemini", "ollama"):
-            raise ValueError(
-                f"Provider '{provider}' is not yet implemented. "
-                "Currently only 'anthropic' is supported."
+        if provider == "openai":
+            from ai.providers.openai_provider import OpenAIProvider
+            key = self._cfg.get("openai_api_key", "")
+            if not key:
+                raise ValueError(
+                    "OpenAI API key not configured. "
+                    "Set OPENAI_API_KEY or save via the chat settings panel."
+                )
+            return OpenAIProvider(
+                api_key=key,
+                model=self._cfg.get("openai_model", "gpt-4o"),
+                base_url=self._cfg.get("openai_base_url", ""),
+                api_version=self._cfg.get("openai_api_version", ""),
+            )
+
+        if provider == "gemini":
+            from ai.providers.gemini_provider import GeminiProvider
+            key = self._cfg.get("gemini_api_key", "")
+            if not key:
+                raise ValueError(
+                    "Gemini API key not configured. "
+                    "Set GEMINI_API_KEY or save via the chat settings panel."
+                )
+            return GeminiProvider(
+                api_key=key,
+                model=self._cfg.get("gemini_model", "gemini-2.0-flash"),
+            )
+
+        if provider == "ollama":
+            from ai.providers.ollama_provider import OllamaProvider
+            return OllamaProvider(
+                url=self._cfg.get("ollama_url", "http://localhost:11434"),
+                model=self._cfg.get("ollama_model", "llama3.1"),
             )
 
         raise ValueError(f"Unknown provider: {provider!r}")

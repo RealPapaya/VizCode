@@ -2009,23 +2009,63 @@ HTML_SKELETON = """\
 <div id="chat-config-modal" class="hidden">
   <div id="chat-config-box">
     <h3>AI Chat Setup</h3>
-    <p>Choose a provider and enter your API key to enable VizCode AI.</p>
+    <p>Choose a provider and enter your credentials to enable VizCode AI.</p>
     <div class="chat-cfg-row">
       <label>Provider</label>
       <select id="chat-cfg-provider">
         <option value="anthropic">Anthropic (Claude)</option>
-        <option value="openai" disabled>OpenAI — coming soon</option>
-        <option value="gemini" disabled>Gemini — coming soon</option>
-        <option value="ollama" disabled>Ollama (local) — coming soon</option>
+        <option value="openai">OpenAI / Azure</option>
+        <option value="gemini">Google Gemini</option>
+        <option value="ollama">Ollama (local)</option>
       </select>
     </div>
-    <div class="chat-cfg-row">
-      <label>Anthropic API Key</label>
-      <input type="password" id="chat-cfg-anthropic-key" placeholder="sk-ant-..." autocomplete="off" />
+    <!-- Anthropic fields -->
+    <div class="chat-cfg-section" data-provider="anthropic">
+      <div class="chat-cfg-row">
+        <label>API Key</label>
+        <input type="password" id="chat-cfg-anthropic-key" placeholder="sk-ant-..." autocomplete="off" />
+      </div>
+      <div class="chat-cfg-row">
+        <label>Model</label>
+        <input type="text" id="chat-cfg-anthropic-model" placeholder="claude-sonnet-4-6" />
+      </div>
     </div>
-    <div class="chat-cfg-row">
-      <label>Model</label>
-      <input type="text" id="chat-cfg-anthropic-model" placeholder="claude-sonnet-4-6" />
+    <!-- OpenAI fields -->
+    <div class="chat-cfg-section" data-provider="openai" style="display:none">
+      <div class="chat-cfg-row">
+        <label>API Key</label>
+        <input type="password" id="chat-cfg-openai-key" placeholder="sk-..." autocomplete="off" />
+      </div>
+      <div class="chat-cfg-row">
+        <label>Model</label>
+        <input type="text" id="chat-cfg-openai-model" placeholder="gpt-4o" />
+      </div>
+      <div class="chat-cfg-row">
+        <label>Base URL <span style="font-weight:400;opacity:.6">(Azure / proxy)</span></label>
+        <input type="text" id="chat-cfg-openai-base-url" placeholder="https://api.openai.com/v1/chat/completions" />
+      </div>
+    </div>
+    <!-- Gemini fields -->
+    <div class="chat-cfg-section" data-provider="gemini" style="display:none">
+      <div class="chat-cfg-row">
+        <label>API Key</label>
+        <input type="password" id="chat-cfg-gemini-key" placeholder="AIza..." autocomplete="off" />
+      </div>
+      <div class="chat-cfg-row">
+        <label>Model</label>
+        <input type="text" id="chat-cfg-gemini-model" placeholder="gemini-2.0-flash" />
+      </div>
+    </div>
+    <!-- Ollama fields -->
+    <div class="chat-cfg-section" data-provider="ollama" style="display:none">
+      <div class="chat-cfg-row">
+        <label>Ollama URL</label>
+        <input type="text" id="chat-cfg-ollama-url" placeholder="http://localhost:11434" />
+      </div>
+      <div class="chat-cfg-row">
+        <label>Model</label>
+        <input type="text" id="chat-cfg-ollama-model" placeholder="llama3.1" />
+      </div>
     </div>
     <button id="chat-config-save">Save</button>
     <button id="chat-config-cancel">Cancel</button>
