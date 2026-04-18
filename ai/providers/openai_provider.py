@@ -97,7 +97,7 @@ class OpenAIProvider(BaseProvider):
         # Accumulate tool call deltas: {index: {id, name, arguments_buf}}
         tool_calls: dict[int, dict] = {}
 
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
             buf = b""
             while True:
                 chunk = resp.read(4096)

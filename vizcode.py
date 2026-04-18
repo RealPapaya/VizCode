@@ -1104,6 +1104,10 @@ def _parse_cli_args():
         "--chat", action="store_true",
         help="Start AI chat REPL for the given project (no browser, no TUI)",
     )
+    parser.add_argument(
+        "--ai", metavar="QUESTION",
+        help="Ask VizCode AI one question and exit (non-interactive, no TUI/browser)",
+    )
     return parser.parse_args()
 
 
@@ -1168,6 +1172,18 @@ def main():
         from ai.chat_cli import run_chat
         run_chat(args.path)
         return
+
+    # --ai: one-shot AI question, print answer and exit
+    if args.ai:
+        if not args.path:
+            print("Error: --ai requires a path argument", file=sys.stderr)
+            print('Usage: python vizcode.py <project_path> --ai "QUESTION"', file=sys.stderr)
+            sys.exit(1)
+        if not Path(args.path).is_dir():
+            print(f"Error: not a directory: {args.path}", file=sys.stderr)
+            sys.exit(1)
+        from ai.chat_cli import run_oneshot
+        sys.exit(run_oneshot(args.path, args.ai))
 
     # One-time TUI init: clear scrollback + draw fixed header
     _tui.startup()

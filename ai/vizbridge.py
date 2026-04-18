@@ -49,6 +49,13 @@ from mcp_server import (
     TOOLS as MCP_TOOL_SCHEMAS,
 )
 
+# Canvas-driving tools (web UI only — emit ui_action SSE events)
+from ai.ui_tools import (
+    UI_TOOL_SCHEMAS,
+    UI_TOOL_NAMES,
+    dispatch as ui_dispatch,
+)
+
 # ─── Config ───────────────────────────────────────────────────────────────────
 
 _CONFIG_PATH = _HERE / "config.json"
@@ -231,8 +238,8 @@ class ToolRegistry:
 
     @staticmethod
     def definitions() -> list[dict]:
-        """Return tool schemas (Anthropic input_schema format)."""
-        return MCP_TOOL_SCHEMAS
+        """Return merged analysis + UI tool schemas (MCP inputSchema style)."""
+        return list(MCP_TOOL_SCHEMAS) + list(UI_TOOL_SCHEMAS)
 
 
 # ─── ContextInjector ──────────────────────────────────────────────────────────
@@ -267,17 +274,28 @@ class ContextInjector:
             f"Current project: **{root_name}**\n"
             f"- Files: {n_files} | Functions: {n_funcs}\n"
             f"- Languages: {top_langs or 'unknown'}\n\n"
-            f"You have access to 8 tools to explore this codebase. "
-            f"Use them hierarchically:\n"
+            f"You have two kinds of tools:\n\n"
+            f"**Analysis tools** (read-only, hierarchical):\n"
             f"1. `vizcode_l0()` — understand overall module structure first\n"
             f"2. `vizcode_l1(module)` — drill into a specific module\n"
-            f"3. `vizcode_l2(file)` — see function call graph for a specific file\n\n"
+            f"3. `vizcode_l2(file)` — see function call graph for a specific file\n"
+            f"   Plus: `vizcode_query`, `vizcode_path`, `vizcode_explain`, "
+            f"`vizcode_health`, `vizcode_report`.\n\n"
+            f"**Canvas tools** (drive the visualizer — web UI only):\n"
+            f"- `vizcode_ui_goto_l0/l1/l2` — switch the user's canvas view\n"
+            f"- `vizcode_ui_highlight_node(node_id)` — highlight a single node\n"
+            f"- `vizcode_ui_highlight_path(source, target)` — highlight a path\n\n"
             f"Rules:\n"
-            f"- ALWAYS start with `vizcode_l0()` for broad codebase questions\n"
-            f"- Generate Mermaid flowcharts (```mermaid) when asked to visualize flows\n"
-            f"- Focus on architecture, dependencies, and call flows\n"
-            f"- Do NOT read raw source files — use the tools instead\n"
-            f"- Be concise; the user can see the graph while chatting"
+            f"- ALWAYS start with `vizcode_l0()` for broad codebase questions.\n"
+            f"- When the user asks to 'see / show / open / go to / highlight' "
+            f"something, call the matching `vizcode_ui_*` tool so the canvas "
+            f"actually moves — do NOT just describe what they would see.\n"
+            f"- Do NOT call canvas tools for pure Q&A (e.g. 'which module is biggest?').\n"
+            f"- Generate Mermaid flowcharts (```mermaid) when asked to visualize flows "
+            f"that aren't already shown on the canvas (the chat panel renders them inline).\n"
+            f"- Focus on architecture, dependencies, and call flows.\n"
+            f"- Do NOT read raw source files — use the tools instead.\n"
+            f"- Be concise; the user can see the graph while chatting."
         )
 
 
@@ -310,6 +328,7 @@ class VizBridge:
         Yields event dicts:
           {"type": "delta",     "text": "..."}
           {"type": "tool_call", "name": "...", "result": "..."}
+          {"type": "ui_action", "action": "...", "args": {...}}
           {"type": "done"}
           {"type": "error",     "message": "..."}
         """
@@ -366,7 +385,17 @@ class VizBridge:
 
             # Execute tools and append results
             for tc in pending_tool_calls:
-                result = self._tools.call(tc["name"], tc["input"])
+                if tc["name"] in UI_TOOL_NAMES:
+                    ui = ui_dispatch(tc["name"], tc["input"] or {})
+                    yield {
+                        "type":   "ui_action",
+                        "action": ui["action"],
+                        "args":   ui["args"],
+                    }
+                    result = ui["message"]
+                else:
+                    result = self._tools.call(tc["name"], tc["input"])
+
                 yield {
                     "type":   "tool_call",
                     "name":   tc["name"],

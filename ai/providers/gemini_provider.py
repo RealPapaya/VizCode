@@ -83,7 +83,7 @@ class GeminiProvider(BaseProvider):
             },
         )
 
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
             buf = b""
             while True:
                 chunk = resp.read(4096)

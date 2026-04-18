@@ -90,6 +90,16 @@ def _print_tool_call(name: str, tool_input: dict) -> None:
     print(f"  {_cyan('🔍')} {_dim(name + args_str)}", flush=True)
 
 
+def _print_ui_action(action: str, args: dict) -> None:
+    """Canvas-action notification (no canvas in CLI, but log the intent)."""
+    if args:
+        first = next(iter(args.values()), "")
+        tail = f" {first}" if isinstance(first, str) else ""
+    else:
+        tail = ""
+    print(f"  {_green('→')} {_dim('canvas:')} {_green(action + tail)}", flush=True)
+
+
 def _stream_response(vb, messages: list) -> str:
     """
     Drive one VizBridge turn, printing events to stdout.
@@ -112,6 +122,9 @@ def _stream_response(vb, messages: list) -> str:
 
         elif ev_type == "tool_call":
             _print_tool_call(ev.get("name", ""), ev.get("input", {}))
+
+        elif ev_type == "ui_action":
+            _print_ui_action(ev.get("action", ""), ev.get("args", {}))
 
         elif ev_type == "error":
             msg = ev.get("message", "unknown error")
@@ -160,6 +173,23 @@ def _get_user_input(prompt: str) -> str | None:
 
 # ─── Main entry point ──────────────────────────────────────────────────────────
 
+def _check_api_key(cfg: dict) -> bool:
+    """Return True if a key for the selected provider is configured.
+    Prints a red error on stderr and returns False otherwise."""
+    provider = cfg.get("provider", "anthropic")
+    if provider == "ollama":
+        return True
+    key_field = f"{provider}_api_key"
+    if cfg.get(key_field):
+        return True
+    print(file=sys.stderr)
+    print(_red(f"  ✗ No API key configured for provider '{provider}'."), file=sys.stderr)
+    print(_dim(f"  Set {key_field.upper()} environment variable,"), file=sys.stderr)
+    print(_dim("  or run: python vizcode.py <path> (then use Web Chat → ⚙ settings)"), file=sys.stderr)
+    print(file=sys.stderr)
+    return False
+
+
 def run_chat(project_root: str) -> None:
     """
     Start the interactive terminal chat REPL.
@@ -175,16 +205,7 @@ def run_chat(project_root: str) -> None:
         sys.exit(1)
 
     cfg = load_config()
-
-    # Pre-flight check: is an API key set?
-    provider = cfg.get("provider", "anthropic")
-    key_field = f"{provider}_api_key"
-    if provider != "ollama" and not cfg.get(key_field):
-        print()
-        print(_red(f"  ✗ No API key configured for provider '{provider}'."))
-        print(_dim(f"  Set {key_field.upper()} environment variable,"))
-        print(_dim(f"  or run: python vizcode.py <path> (then use Web Chat → ⚙ settings)"))
-        print()
+    if not _check_api_key(cfg):
         sys.exit(1)
 
     _print_header(root, cfg)
@@ -231,3 +252,34 @@ def run_chat(project_root: str) -> None:
         # Append assistant turn to history (only if we got text)
         if assistant_text:
             history.append({"role": "assistant", "content": assistant_text})
+
+
+# ─── One-shot query mode ─────────────────────────────────────────────────────
+
+def run_oneshot(project_root: str, question: str) -> int:
+    """
+    Ask VizCode AI a single question and print the answer.
+    Returns a process exit code (0 = ok, 1 = error / no key).
+
+    Usage (from vizcode.py):
+        python vizcode.py <path> --ai "找出最複雜的模組"
+    """
+    root = str(Path(project_root).resolve())
+    q    = (question or "").strip()
+    if not q:
+        print(_red("Error: empty question"), file=sys.stderr)
+        return 1
+
+    try:
+        from ai.vizbridge import load_config, VizBridge
+    except ImportError as e:
+        print(_red(f"Error: VizBridge not available — {e}"), file=sys.stderr)
+        return 1
+
+    cfg = load_config()
+    if not _check_api_key(cfg):
+        return 1
+
+    vb  = VizBridge(root)
+    out = _stream_response(vb, [{"role": "user", "content": q}])
+    return 0 if out else 1

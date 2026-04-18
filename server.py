@@ -9,7 +9,7 @@ Usage: python server.py [port]   (default port 7777)
 
 import sys, os, json, threading, uuid, time
 import zipfile, tarfile, tempfile, shutil, subprocess, io
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from urllib.request import urlopen, Request
@@ -2224,7 +2224,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     threading.Thread(target=_reap_loop, daemon=True, name='temp-reaper').start()
     port = int(sys.argv[1]) if len(sys.argv) > 1 else PORT
-    server = HTTPServer(('127.0.0.1', port), Handler)
+    server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
     url = f'http://localhost:{port}'
     print('-----------------------------------------')
     print(f'  VIZCODE V4 -> {url}')

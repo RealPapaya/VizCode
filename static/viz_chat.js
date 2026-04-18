@@ -28,30 +28,47 @@
     let _dragOffsetY = 0;
 
     // ── Markdown-lite renderer ────────────────────────────────────────────────
-    // Handles: ``` code blocks, `inline code`, **bold**, *italic*
+    // Handles: ```mermaid blocks, ``` code blocks, `inline code`, **bold**, *italic*
+    //
+    // Mermaid blocks are extracted BEFORE HTML escaping so their raw syntax is
+    // preserved verbatim inside .chat-mermaid divs.  _renderPendingMermaid()
+    // renders them asynchronously once mermaid.min.js is loaded.
     function _renderMarkdown(text) {
-        // Escape HTML first
-        let t = text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
+        // 1. Extract mermaid fences first, replace with sentinel placeholders
+        const mermaidBlocks = [];
+        let t = text.replace(/```mermaid\n?([\s\S]*?)```/g, function (_, code) {
+            const idx = mermaidBlocks.length;
+            mermaidBlocks.push(code.trim());
+            return '\x00MM' + idx + '\x00';
+        });
 
-        // Fenced code blocks (```lang\n...\n```)
+        // 2. Escape HTML
+        t = t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        // 3. Other fenced code blocks (```lang\n...\n```)
         t = t.replace(/```(\w*)\n?([\s\S]*?)```/g, function (_, lang, code) {
             const cls = lang ? ` class="language-${lang}"` : '';
             return `<pre><code${cls}>${code.trimEnd()}</code></pre>`;
         });
 
-        // Inline code
+        // 4. Inline code
         t = t.replace(/`([^`\n]+)`/g, '<code>$1</code>');
 
-        // Bold
+        // 5. Bold
         t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 
-        // Italic (single *)
+        // 6. Italic (single *)
         t = t.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>');
 
-        // Paragraphs (double newline)
+        // 7. Substitute mermaid placeholders back with .mermaid divs.
+        //    The div textContent is the raw mermaid source (browser decodes entities).
+        t = t.replace(/\x00MM(\d+)\x00/g, function (_, idx) {
+            const src = mermaidBlocks[Number(idx)] || '';
+            const esc = src.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return `<div class="chat-mermaid mermaid">${esc}</div>`;
+        });
+
+        // 8. Paragraphs (double newline)
         t = t.replace(/\n{2,}/g, '</p><p>');
         return '<p>' + t + '</p>';
     }
@@ -148,9 +165,10 @@
     }
 
     function _finaliseStreamBubble() {
-        // Already rendered — nothing to do
         _streamBubble = null;
         _streamText   = '';
+        // Any ```mermaid blocks in the finished bubble get rendered now.
+        _triggerMermaidIfNeeded();
     }
 
     function _scrollBottom() {
@@ -159,6 +177,162 @@
 
     function _escHtml(s) {
         return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ── Mermaid: lazy-load from CDN, render on demand ─────────────────────────
+    const MERMAID_CDN = 'https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js';
+    let _mermaidLoading = null;
+
+    function _ensureMermaid() {
+        if (window.mermaid && window.mermaid.run) return Promise.resolve();
+        if (_mermaidLoading) return _mermaidLoading;
+        _mermaidLoading = new Promise(function (resolve, reject) {
+            const s = document.createElement('script');
+            s.src   = MERMAID_CDN;
+            s.async = true;
+            s.onload = function () {
+                try {
+                    window.mermaid.initialize({
+                        startOnLoad:   false,
+                        theme:         'dark',
+                        securityLevel: 'loose',
+                    });
+                } catch (_) {}
+                resolve();
+            };
+            s.onerror = function () { reject(new Error('mermaid script load failed')); };
+            document.head.appendChild(s);
+        });
+        return _mermaidLoading;
+    }
+
+    function _renderPendingMermaid() {
+        if (!window.mermaid || !window.mermaid.run) return;
+        const nodes = _msgs.querySelectorAll('.chat-mermaid:not([data-rendered])');
+        if (!nodes.length) return;
+        nodes.forEach(function (n) { n.setAttribute('data-rendered', '1'); });
+        window.mermaid.run({ nodes: Array.from(nodes) }).then(function () {
+            _scrollBottom();
+        }).catch(function (e) {
+            nodes.forEach(function (n) {
+                if (!n.querySelector('svg')) {
+                    n.innerHTML =
+                        `<pre style="color:var(--red,#f87171);font-size:11px;margin:0">`
+                        + `[mermaid error] ${_escHtml(String(e && e.message || e))}</pre>`;
+                }
+            });
+        });
+    }
+
+    function _triggerMermaidIfNeeded() {
+        if (!_msgs.querySelector('.chat-mermaid:not([data-rendered])')) return;
+        _ensureMermaid().then(_renderPendingMermaid).catch(function () {
+            // CDN blocked — leave mermaid blocks as pre-formatted text
+            _msgs.querySelectorAll('.chat-mermaid:not([data-rendered])').forEach(function (n) {
+                n.setAttribute('data-rendered', '1');
+                n.classList.add('chat-mermaid-fallback');
+            });
+        });
+    }
+
+    // ── Canvas action dispatch (invoked on SSE `ui_action` events) ────────────
+    function _appendUiActionBadge(action, args) {
+        const div = document.createElement('div');
+        div.className = 'chat-ui-action';
+        const val = args && Object.keys(args).length
+            ? ' ' + Object.values(args).map(function (v) { return String(v); }).join(' → ')
+            : '';
+        div.textContent = '→ canvas: ' + action + val;
+        _msgs.appendChild(div);
+        _scrollBottom();
+    }
+
+    function _dispatchUiAction(action, args) {
+        args = args || {};
+        const toast = (typeof window.showToast === 'function')
+            ? window.showToast
+            : function () {};
+
+        try {
+            switch (action) {
+                case 'goto_l0':
+                    if (typeof window.loadLevel0 === 'function') {
+                        window.loadLevel0();
+                        toast('AI: switched to L0 overview', 'info');
+                    }
+                    break;
+
+                case 'goto_l1': {
+                    const mod = args.module || '';
+                    if (mod && typeof window.drillToModule === 'function') {
+                        window.drillToModule(mod);
+                        toast('AI: opened module ' + mod, 'info');
+                    }
+                    break;
+                }
+
+                case 'goto_l2': {
+                    const f = args.file || '';
+                    if (f && typeof window.drillToFile === 'function') {
+                        window.drillToFile(f);
+                        toast('AI: opened ' + f, 'info');
+                    }
+                    break;
+                }
+
+                case 'highlight_node':
+                    _highlightNodeById(args.node_id || '');
+                    break;
+
+                case 'highlight_path':
+                    _highlightPath(args.source || '', args.target || '');
+                    break;
+
+                case 'noop':
+                    break;
+
+                default:
+                    console.warn('[VizBridge] unknown ui_action:', action);
+            }
+        } catch (err) {
+            console.error('[VizBridge] ui_action dispatch failed:', err);
+        }
+
+        _appendUiActionBadge(action, args);
+    }
+
+    function _highlightNodeById(id) {
+        if (!id || !window.cy) return;
+        const el = window.cy.getElementById(id);
+        if (el && el.length && typeof window.highlightNode === 'function') {
+            window.highlightNode(el);
+        } else if (window.cy.$id) {
+            // Fallback: label match (L0/L1 nodes are indexed by file path, not label)
+            const byLabel = window.cy.nodes().filter(function (n) {
+                return n.data('label') === id || n.data('id') === id;
+            });
+            if (byLabel.length && typeof window.highlightNode === 'function') {
+                window.highlightNode(byLabel[0]);
+            }
+        }
+    }
+
+    function _highlightPath(src, tgt) {
+        if (!src || !tgt || !window.cy) return;
+        const cy = window.cy;
+        const s = cy.getElementById(src);
+        const t = cy.getElementById(tgt);
+        if (!s || !s.length || !t || !t.length) return;
+        try {
+            const dj   = cy.elements().dijkstra({ root: s, directed: false });
+            const path = dj.pathTo(t);
+            if (!path || !path.length) return;
+            // Reuse the existing .hl class already defined in CY_STYLE.
+            cy.elements().removeClass('hl');
+            path.addClass('hl');
+        } catch (e) {
+            console.warn('[VizBridge] highlight_path failed:', e);
+        }
     }
 
     // ── Send message ─────────────────────────────────────────────────────────
@@ -249,6 +423,9 @@
 
         } else if (ev.type === 'tool_call') {
             _appendToolBadge(ev.name, ev.result || '');
+
+        } else if (ev.type === 'ui_action') {
+            _dispatchUiAction(ev.action, ev.args || {});
 
         } else if (ev.type === 'done') {
             // handled in finishTurn after stream ends

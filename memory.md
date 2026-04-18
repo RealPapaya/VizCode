@@ -38,6 +38,18 @@
   - **CLI 模式**: `python semantic_enricher.py write <root> < edges.json` / `check <root> < scan_cache.json`。
   - **👉 觸發**: 由 SKILL.md (`/vizcode`) 呼叫以寫入語意推斷邊。
 
+### 🤖 AI 整合層 VIZBRIDGE (Web Chat + CLI AI)
+> AI 層**共用同一份邏輯**：Web UI 的對話面板與 CLI 的 `--chat` / `--ai` 都走 `ai/vizbridge.py`。零 pip dependency（四家 provider 皆用 `urllib`）。
+- 🧠 **`ai/vizbridge.py`** — 核心引擎：`VizBridge.stream_response()` 驅動 tool-use 迴圈；`ProviderRouter` 分派到四家 provider；`ToolRegistry` 合併 MCP 資料工具與 UI canvas 工具。
+- 💬 **`ai/chat_cli.py`** — 終端機 REPL (`--chat` 互動模式) 與一次性查詢 (`--ai "question"`) 入口。共用 `_stream_response()` pretty-printer。
+- 🎨 **`ai/ui_tools.py`** — **畫布驅動工具**（VizBridge 專用，不暴露給 MCP）：`vizcode_ui_goto_l0 / _l1 / _l2`、`vizcode_ui_highlight_node`、`vizcode_ui_highlight_path`。回傳 `{action, args, message}` 給前端 dispatch。
+- 🌐 **`ai/providers/`** — Anthropic / OpenAI / Gemini / Ollama 四家 provider wrapper（全部 `urllib`，zero pip）。
+- 📦 **`ai/install.py`** — 部署 IDE rules（Cursor / Windsurf / Gemini / Copilot）。
+- 🔑 **`ai/config.json`** — API keys（gitignored）。由 Web UI 的 `/chat-config` GET/POST 與設定 modal 維護。
+- **Web UI 入口**: `static/viz_chat.js` + `static/viz_chat.css`（draggable / resizable 面板、markdown-lite、mermaid inline 渲染、tool badges、SSE 串流）。
+- **SSE event contract** (`/chat-stream`): `delta | tool_call | ui_action | done | error`。`ui_action` 由前端 `_dispatchUiAction()` 轉派到 `loadLevel0 / drillToModule / drillToFile / highlightNode / cytoscape dijkstra`。
+- **Mermaid 渲染**: chat 泡泡內 ` ```mermaid ` code fence 於訊息 finalise 時 lazy-load CDN 並 inline 渲染為 SVG（不另開視窗）。
+
 ### 🟣 Claude Code Skill & MCP (B2/B3)
 - 📋 **`.claude/skills/vizcode/SKILL.md`** (Skill)
   - **用途**: 定義 `/vizcode`、`/vizcode --parse`、`/vizcode --ai` 三條執行路徑。

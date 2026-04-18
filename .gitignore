@@ -1,19 +1,22 @@
-﻿# Local runtime data
-.local/
-.vizcode_history.json
-.vizcode_server.log
-.result_*.html
+# ── Python ─────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
 
-# AI provider config (contains API keys — never commit)
+# ── VizCode caches & local state ────────────────────────────────────────────
+.local/
+*.log
+
+# ── AI secrets (API keys live here — NEVER commit) ──────────────────────────
 ai/config.json
 
-# Python cache / generated files
-__pycache__/
-parsers/__pycache__/
-*.py[cod]
-
-# Local debug / temporary files
-server_import_trace.log
-server_manual.log
-_debug_*.py
-_debug_*.out
+# ── OS / IDE ────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+*.iml

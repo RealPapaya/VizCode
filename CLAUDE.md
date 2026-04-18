@@ -12,7 +12,9 @@
 ## Running the App
 
 ```bash
-python vizcode.py   # CLI + TUI
+python vizcode.py                       # CLI + TUI → browser at :7777
+python vizcode.py <path> --chat         # Terminal AI REPL (no browser)
+python vizcode.py <path> --ai "Q"       # One-shot AI query, prints answer, exits
 # or
 launch.bat
 ```
@@ -20,6 +22,8 @@ launch.bat
 `http://localhost:7777` in Chrome. No build step. Hard-refresh: `Ctrl+Shift+R`.
 
 Kill port if occupied: `netstat -ano | findstr :7777` → `taskkill /PID <PID> /F`
+
+AI flags (`--chat` / `--ai`) require an API key for the selected provider in `ai/config.json` (or the matching `{PROVIDER}_API_KEY` env var). Web Chat is the same engine — configurable via the ⚙ settings modal in the floating chat panel.
 
 ## Testing / Verification
 
@@ -46,6 +50,7 @@ Full frontend file list, load order, global state, and API endpoints → see [do
 | `parsers/python_parser.py` | Python parser |
 | `parsers/js_parser.py` | JS/TS/JSX/TSX parser |
 | `parsers/go_parser.py` | Go parser |
+| `ai/vizbridge.py` | AI chat orchestrator. Shared by web chat (`/chat-stream` SSE) and CLI (`--chat` / `--ai`). Drives the canvas via `ai/ui_tools.py`. |
 
 ### Navigation Levels
 

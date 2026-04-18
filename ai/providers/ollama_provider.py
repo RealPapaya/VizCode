@@ -77,7 +77,7 @@ class OllamaProvider(BaseProvider):
             headers={"Content-Type": "application/json"},
         )
 
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=120) as resp:
             for line in resp:
                 line = line.strip()
                 if not line:

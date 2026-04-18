@@ -91,7 +91,7 @@ class AnthropicProvider(BaseProvider):
         tool_block: dict | None = None
         tool_input_buf: str = ""
 
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
             buf = b""
             while True:
                 chunk = resp.read(4096)
