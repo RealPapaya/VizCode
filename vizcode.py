@@ -899,24 +899,41 @@ def prompt_path(msg: str) -> str:
 def ask_generate_report() -> bool:
     """Ask user if they want to generate AI report (vizcode_report.md)."""
     tui = _tui
-    r = tui._bottom + 2
-    tui._at(r, ""); r += 1
-    tui._at(r, f"  {cyan('❯')} {bold('Generate AI Report?')}"); r += 1
-    tui._at(r, f"     {dim('Creates .local/vizcode_report.md — a structured summary')}"); r += 1
-    tui._at(r, f"     {dim('for AI assistants (Claude, ChatGPT, etc.) to understand')}"); r += 1
-    tui._at(r, ""); r += 1
-    tui._at(r, f"     {yellow('[Y]')} Yes, generate report  {dim('(recommended for AI analysis)')}"); r += 1
-    tui._at(r, f"     {yellow('[N]')} No, skip report       {dim('(faster, visualization only)')}"); r += 1
-    tui._at(r, ""); r += 1
-    tui._at(r, f"  {cyan('❯')} Press {yellow('Y')} or {yellow('N')}: ")
-    tui._bottom = r
-    tui.flush()
+    start_r = tui._bottom + 2
+    sel = 0
+
+    def draw(selected: int):
+        r = start_r
+        tui._at(r, ""); r += 1
+        tui._at(r, f"  {cyan('❯')} {bold('Generate AI Report?')}"); r += 1
+        tui._at(r, f"     {dim('Creates .local/vizcode_report.md — a structured summary')}"); r += 1
+        tui._at(r, f"     {dim('for AI assistants (Claude, ChatGPT, etc.) to understand')}"); r += 1
+        tui._at(r, ""); r += 1
+
+        if selected == 0:
+            tui._at(r, f"   {orange('▶')} {orange(bold('Yes, generate report'))}  {dim('(recommended for AI analysis)')}"); r += 1
+            tui._at(r, f"     {dim('No, skip report       (faster, visualization only)')}"); r += 1
+        else:
+            tui._at(r, f"     {dim('Yes, generate report  (recommended for AI analysis)')}"); r += 1
+            tui._at(r, f"   {orange('▶')} {orange(bold('No, skip report'))}       {dim('(faster, visualization only)')}"); r += 1
+
+        tui._at(r, ""); r += 1
+        tui._at(r, f"  {dim('↑↓ move   Enter select')}                                  ")
+        tui._bottom = r
+        tui.flush()
+
+    draw(sel)
 
     while True:
         try:
             key = _getch()
-            if key in ('y', 'Y'): return True
-            if key in ('n', 'N', 'ESC', '\x1b'): return False
+            if key in ('UP', 'DOWN'):
+                sel = 1 if sel == 0 else 0
+                draw(sel)
+            elif key == 'ENTER':
+                return sel == 0
+            elif key in ('ESC', '\x1b', 'q', 'Q'):
+                return False
         except Exception:
             return False
 
