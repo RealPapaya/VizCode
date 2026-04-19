@@ -79,7 +79,7 @@ _DEFAULTS: dict = {
     "grok_model":          "grok-4.20",
     "gemini_api_key":      "",
     "gemini_model":        "gemini-2.0-flash",
-    "ollama_url":          "http://localhost:11434",
+    "ollama_url":          "",
     "ollama_model":        "llama3.1",
 }
 
@@ -168,6 +168,7 @@ def masked_config() -> dict:
         out[f"{key}_present"] = bool(val)
     out["key_store_dir"] = str(_KEYS_PATH.parent)
     out["key_store_file"] = str(_KEYS_PATH)
+    out["ollama_url_present"] = bool(cfg.get("ollama_url"))
     return out
 
 

@@ -343,6 +343,9 @@
             launcherOpenVisualization: 'Open Visualization →',
             launcherDoneLabel: 'Done!',
             launcherDoneStatus: 'done',
+            chatAiStatusNone: 'Not Configured — set up in settings',
+            chatAiStatusApplied: 'Configured — not yet verified',
+            chatAiStatusInteracted: 'Verified — successful interaction',
         },
         'zh-tw': {
             visualizerPageTitle: 'VIZCODE — {{root}}',
@@ -682,6 +685,9 @@
             launcherOpenVisualization: '開啟視覺化成果 →',
             launcherDoneLabel: '完成！',
             launcherDoneStatus: '完成',
+            chatAiStatusNone: '尚未設定 — 請至設定頁面配置',
+            chatAiStatusApplied: '已設定 — 尚未驗證通訊',
+            chatAiStatusInteracted: '已驗證 — 成功通訊紀錄',
         },
     };
 

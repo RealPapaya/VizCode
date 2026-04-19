@@ -484,12 +484,19 @@
         });
     }
 
+    function _getStatusTitle(isApplied, isInteracted) {
+        const i18n = window._i18n;
+        if (isInteracted) return i18n ? i18n.t('chatAiStatusInteracted') : 'Verified';
+        if (isApplied) return i18n ? i18n.t('chatAiStatusApplied') : 'Applied';
+        return i18n ? i18n.t('chatAiStatusNone') : 'Not Configured';
+    }
+
     function _providerHasAppliedKey(provider, cfg) {
         if (provider === 'anthropic') return !!cfg.anthropic_api_key_present;
         if (provider === 'openai') return !!cfg.openai_api_key_present;
         if (provider === 'grok') return !!cfg.grok_api_key_present;
         if (provider === 'gemini') return !!cfg.gemini_api_key_present;
-        if (provider === 'ollama') return true; // always "ready" if selected
+        if (provider === 'ollama') return !!cfg.ollama_url_present;
         return false;
     }
 
@@ -527,6 +534,7 @@
             const isInteracted = active && _providerHasInteracted(active.value);
             status.classList.toggle('applied', isApplied && !isInteracted);
             status.classList.toggle('interacted', isApplied && isInteracted);
+            status.title = _getStatusTitle(isApplied, isInteracted);
         }
         if (!optionsWrap) return;
         optionsWrap.innerHTML = '';
@@ -546,6 +554,7 @@
             const dot = document.createElement('span');
             dot.className = 'chat-cfg-provider-status' + 
                 (isApplied && isInteracted ? ' interacted' : (isApplied ? ' applied' : ''));
+            dot.title = _getStatusTitle(isApplied, isInteracted);
             main.appendChild(dot);
 
             const text = document.createElement('span');
@@ -649,7 +658,7 @@
         document.getElementById('chat-cfg-grok-model').value        = cfg.grok_model || 'grok-4.20';
         document.getElementById('chat-cfg-gemini-key').value        = '';
         document.getElementById('chat-cfg-gemini-model').value      = cfg.gemini_model || 'gemini-2.0-flash';
-        document.getElementById('chat-cfg-ollama-url').value        = cfg.ollama_url || 'http://localhost:11434';
+        document.getElementById('chat-cfg-ollama-url').value        = cfg.ollama_url || '';
         document.getElementById('chat-cfg-ollama-model').value      = cfg.ollama_model || 'llama3.1';
         _setKeyStatus('chat-cfg-anthropic-key-status', 'anthropic_api_key', cfg);
         _setKeyStatus('chat-cfg-openai-key-status', 'openai_api_key', cfg);
