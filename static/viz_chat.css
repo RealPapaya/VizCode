@@ -470,6 +470,10 @@
     flex-shrink: 0;
 }
 .chat-cfg-provider-status.applied {
+    background: #eab308;
+    box-shadow: 0 0 0 4px rgba(234, 179, 8, 0.12);
+}
+.chat-cfg-provider-status.interacted {
     background: #22c55e;
     box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12);
 }
@@ -489,9 +493,12 @@
     color: var(--text);
 }
 .chat-cfg-key-meta strong {
-    color: #22c55e;
+    color: #eab308;
     font-weight: 600;
     margin-right: 6px;
+}
+.chat-cfg-key-meta.interacted strong {
+    color: #22c55e;
 }
 #chat-config-save {
     background: var(--accent);

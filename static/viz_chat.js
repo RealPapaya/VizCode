@@ -8,6 +8,7 @@
 //
 // Public API (called from viz.js):
 //   initChat()          — build DOM, attach events
+//
 
 (function () {
     'use strict';
@@ -18,6 +19,7 @@
     let _history  = [];      // [{role, content}] sent to server
     let _streamBubble = null;        // DOM element currently streaming into
     let _streamText   = '';          // accumulated text for current stream bubble
+    let _currentChatProvider = null; // provider name for the current turn
 
     // ── DOM refs (populated in initChat) ─────────────────────────────────────
     let _btn, _panel, _msgs, _input, _sendBtn, _modal;
@@ -376,6 +378,7 @@
 
     // ── SSE reader (ReadableStream) ───────────────────────────────────────────
     function _readSSE(readableStream) {
+        _currentChatProvider = null; // reset for this turn
         const reader  = readableStream.getReader();
         const decoder = new TextDecoder();
         let buf = '';
@@ -422,6 +425,9 @@
             _appendStreamDelta(ev.text);
             assistantContent.push({ type: 'text_fragment', text: ev.text });
 
+        } else if (ev.type === 'provider') {
+            _currentChatProvider = ev.name;
+
         } else if (ev.type === 'tool_call') {
             _appendToolBadge(ev.name, ev.result || '');
 
@@ -452,6 +458,13 @@
             .join('');
         if (fullText) {
             _history.push({ role: 'assistant', content: fullText });
+            if (_currentChatProvider) {
+                try {
+                    const s = JSON.parse(localStorage.getItem('vizcode_ai_interactions') || '{}');
+                    s[_currentChatProvider] = true;
+                    localStorage.setItem('vizcode_ai_interactions', JSON.stringify(s));
+                } catch (_) { }
+            }
         }
 
         _setBusy(false);
@@ -476,7 +489,15 @@
         if (provider === 'openai') return !!cfg.openai_api_key_present;
         if (provider === 'grok') return !!cfg.grok_api_key_present;
         if (provider === 'gemini') return !!cfg.gemini_api_key_present;
-        return provider === 'ollama';
+        if (provider === 'ollama') return true; // always "ready" if selected
+        return false;
+    }
+
+    function _providerHasInteracted(provider) {
+        try {
+            const s = JSON.parse(localStorage.getItem('vizcode_ai_interactions') || '{}');
+            return !!s[provider];
+        } catch (_) { return false; }
     }
 
     function _setChatProviderDropdownOpen(dropdown, open) {
@@ -501,7 +522,12 @@
         const optionsWrap = dropdown.querySelector('.chat-cfg-provider-options');
         const active = sel.options[sel.selectedIndex] || sel.options[0];
         if (label) label.textContent = active ? active.textContent.trim() : '';
-        if (status) status.classList.toggle('applied', !!(active && _providerHasAppliedKey(active.value, cfg || _chatCfgSnapshot)));
+        if (status) {
+            const isApplied = active && _providerHasAppliedKey(active.value, cfg || _chatCfgSnapshot);
+            const isInteracted = active && _providerHasInteracted(active.value);
+            status.classList.toggle('applied', isApplied && !isInteracted);
+            status.classList.toggle('interacted', isApplied && isInteracted);
+        }
         if (!optionsWrap) return;
         optionsWrap.innerHTML = '';
 
@@ -515,8 +541,11 @@
             const main = document.createElement('span');
             main.className = 'chat-cfg-provider-option-main';
 
+            const isApplied = _providerHasAppliedKey(opt.value, cfg || _chatCfgSnapshot);
+            const isInteracted = _providerHasInteracted(opt.value);
             const dot = document.createElement('span');
-            dot.className = 'chat-cfg-provider-status' + (_providerHasAppliedKey(opt.value, cfg || _chatCfgSnapshot) ? ' applied' : '');
+            dot.className = 'chat-cfg-provider-status' + 
+                (isApplied && isInteracted ? ' interacted' : (isApplied ? ' applied' : ''));
             main.appendChild(dot);
 
             const text = document.createElement('span');
@@ -597,6 +626,7 @@
         } else {
             el.textContent = 'No stored key';
             el.classList.remove('present');
+            el.classList.remove('interacted');
         }
     }
 
@@ -625,6 +655,13 @@
         _setKeyStatus('chat-cfg-openai-key-status', 'openai_api_key', cfg);
         _setKeyStatus('chat-cfg-grok-key-status', 'grok_api_key', cfg);
         _setKeyStatus('chat-cfg-gemini-key-status', 'gemini_api_key', cfg);
+
+        // Update key status "Active" color based on interaction
+        ['anthropic', 'openai', 'grok', 'gemini'].forEach(p => {
+            const el = document.getElementById(`chat-cfg-${p}-key-status`);
+            if (el && _providerHasInteracted(p)) el.classList.add('interacted');
+            else if (el) el.classList.remove('interacted');
+        });
         document.querySelectorAll('[data-open-key-folder]').forEach(btn => {
             const keyDir = cfg.key_store_dir || '.local';
             btn.title = `Open key folder: ${keyDir}`;
@@ -889,7 +926,6 @@
             if (!hasKey) {
                 _btn.title = 'AI Chat — click to set up';
                 // Override open to show config first
-                const origOpen = _open;
                 const setupAndOpen = function () {
                     origOpen();
                     _openConfigModal();

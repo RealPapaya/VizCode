@@ -392,6 +392,7 @@ class VizBridge:
 
         Yields event dicts:
           {"type": "delta",     "text": "..."}
+          {"type": "provider",  "name": "..."}
           {"type": "tool_call", "name": "...", "result": "..."}
           {"type": "ui_action", "action": "...", "args": {...}}
           {"type": "done"}
@@ -399,6 +400,7 @@ class VizBridge:
         """
         try:
             provider = ProviderRouter(self._cfg).get_provider()
+            yield {"type": "provider", "name": self._cfg.get("provider")}
         except ValueError as e:
             yield {"type": "error", "message": str(e)}
             return
