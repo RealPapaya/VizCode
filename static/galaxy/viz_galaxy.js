@@ -505,8 +505,14 @@ function _galaxyBuildFilterPanel() {
         });
     }
 
-    const filterTab = document.querySelector('.sb-tab[data-tab="filters"]');
-    if (filterTab) filterTab.click();
+    if (typeof updateFilterTabEnabled === 'function') updateFilterTabEnabled();
+    if (typeof _applySidebarTab === 'function') {
+        _sbActiveTab = 'filters';
+        _applySidebarTab();
+    } else {
+        const filterTab = document.querySelector('.sb-tab[data-tab="filters"]');
+        if (filterTab) filterTab.click();
+    }
 }
 
 function _galaxyRestoreFilterPanel() {
@@ -562,6 +568,7 @@ async function openGalaxy() {
     container.classList.add('active');
     state.galaxyActive = true;
     _gBackgroundPrecomputeMode = false;
+    if (typeof updateFilterTabEnabled === 'function') updateFilterTabEnabled();
 
     const fp = _gComputeDataFingerprint();
     const dataChanged = fp !== _gDataFingerprint;
@@ -635,6 +642,7 @@ function closeGalaxy() {
     if (_gTooltipEl) { _gTooltipEl.remove(); _gTooltipEl = null; }
 
     _galaxyRestoreFilterPanel();
+    if (typeof updateFilterTabEnabled === 'function') updateFilterTabEnabled();
     if (typeof clearSidebarGalaxyExplorerHighlight === 'function') clearSidebarGalaxyExplorerHighlight();
     if (typeof syncTopbarModeButtons === 'function') syncTopbarModeButtons();
     if (typeof refreshGraphZoomControls === 'function') refreshGraphZoomControls();
@@ -1226,49 +1234,10 @@ function _galaxyInitSigma() {
         maxCameraRatio: 50,
         nodeReducer: _galaxyNodeReducer,
         edgeReducer: _galaxyEdgeReducer,
-        // CodeViz-style hover: dark background pill + glow ring
+        // Galaxy hover keeps only the detailed DOM tooltip; Sigma hover draws
+        // just a glow ring so we don't show a second file-name tooltip.
         defaultDrawNodeHover: (context, data, settings) => {
-            const label = data.label;
-            if (!label) return;
-
-            const size = settings.labelSize || 11;
-            const font = settings.labelFont || 'JetBrains Mono, monospace';
-            const weight = '500';
-
-            context.font = `${weight} ${size}px ${font}`;
-            const textWidth = context.measureText(label).width;
-
             const nodeSize = data.size || 8;
-            const x = data.x;
-            const y = data.y - nodeSize - 10;
-            const paddingX = 8;
-            const paddingY = 5;
-            const height = size + paddingY * 2;
-            const width = textWidth + paddingX * 2;
-            const radius = 4;
-
-            // Dark background pill
-            context.fillStyle = _tC('#060a10', '#f5efe8');
-            context.beginPath();
-            if (context.roundRect) {
-                context.roundRect(x - width / 2, y - height / 2, width, height, radius);
-            } else {
-                context.rect(x - width / 2, y - height / 2, width, height);
-            }
-            context.fill();
-
-            // Border matching node color
-            context.strokeStyle = data.color || '#6366f1';
-            context.lineWidth = 2;
-            context.stroke();
-
-            // Label text — light
-            context.fillStyle = _tC('#f5f5f7', '#020826');
-            context.textAlign = 'center';
-            context.textBaseline = 'middle';
-            context.fillText(label, x, y);
-
-            // Glow ring around the node
             context.beginPath();
             context.arc(data.x, data.y, nodeSize + 4, 0, Math.PI * 2);
             context.strokeStyle = data.color || '#6366f1';

@@ -35,8 +35,10 @@ function updateFilterTabEnabled() {
     const filterTab = document.querySelector('.sb-tab[data-tab="filters"]');
     if (!filterTab) return;
     const isL0 = (typeof state !== 'undefined' && state.level === 0);
-    filterTab.disabled = isL0;
-    if (isL0 && _sbActiveTab === 'filters') {
+    const isGalaxy = (typeof state !== 'undefined' && !!state.galaxyActive);
+    const shouldDisable = isL0 && !isGalaxy;
+    filterTab.disabled = shouldDisable;
+    if (shouldDisable && _sbActiveTab === 'filters') {
         _sbActiveTab = 'explorer';
         _applySidebarTab();
     }
