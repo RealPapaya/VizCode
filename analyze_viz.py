@@ -2016,6 +2016,7 @@ HTML_SKELETON = """\
       <select id="chat-cfg-provider">
         <option value="anthropic">Anthropic (Claude)</option>
         <option value="openai">OpenAI / Azure</option>
+        <option value="grok">xAI Grok</option>
         <option value="gemini">Google Gemini</option>
         <option value="ollama">Ollama (local)</option>
       </select>
@@ -2023,8 +2024,17 @@ HTML_SKELETON = """\
     <!-- Anthropic fields -->
     <div class="chat-cfg-section" data-provider="anthropic">
       <div class="chat-cfg-row">
-        <label>API Key</label>
-        <input type="password" id="chat-cfg-anthropic-key" placeholder="sk-ant-..." autocomplete="off" />
+        <div class="chat-cfg-label-row">
+          <label>API Key</label>
+          <button type="button" class="chat-cfg-folder-btn" data-open-key-folder title="Open local key folder" aria-label="Open local key folder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 7.5a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <path d="M3 10h18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="chat-cfg-key-meta" id="chat-cfg-anthropic-key-status"></div>
+        <input type="password" id="chat-cfg-anthropic-key" placeholder="Leave blank to keep stored key" autocomplete="off" />
       </div>
       <div class="chat-cfg-row">
         <label>Model</label>
@@ -2034,8 +2044,17 @@ HTML_SKELETON = """\
     <!-- OpenAI fields -->
     <div class="chat-cfg-section" data-provider="openai" style="display:none">
       <div class="chat-cfg-row">
-        <label>API Key</label>
-        <input type="password" id="chat-cfg-openai-key" placeholder="sk-..." autocomplete="off" />
+        <div class="chat-cfg-label-row">
+          <label>API Key</label>
+          <button type="button" class="chat-cfg-folder-btn" data-open-key-folder title="Open local key folder" aria-label="Open local key folder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 7.5a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <path d="M3 10h18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="chat-cfg-key-meta" id="chat-cfg-openai-key-status"></div>
+        <input type="password" id="chat-cfg-openai-key" placeholder="Leave blank to keep stored key" autocomplete="off" />
       </div>
       <div class="chat-cfg-row">
         <label>Model</label>
@@ -2046,11 +2065,40 @@ HTML_SKELETON = """\
         <input type="text" id="chat-cfg-openai-base-url" placeholder="https://api.openai.com/v1/chat/completions" />
       </div>
     </div>
+    <!-- Grok fields -->
+    <div class="chat-cfg-section" data-provider="grok" style="display:none">
+      <div class="chat-cfg-row">
+        <div class="chat-cfg-label-row">
+          <label>API Key</label>
+          <button type="button" class="chat-cfg-folder-btn" data-open-key-folder title="Open local key folder" aria-label="Open local key folder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 7.5a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <path d="M3 10h18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="chat-cfg-key-meta" id="chat-cfg-grok-key-status"></div>
+        <input type="password" id="chat-cfg-grok-key" placeholder="Leave blank to keep stored key" autocomplete="off" />
+      </div>
+      <div class="chat-cfg-row">
+        <label>Model</label>
+        <input type="text" id="chat-cfg-grok-model" placeholder="grok-4.20" />
+      </div>
+    </div>
     <!-- Gemini fields -->
     <div class="chat-cfg-section" data-provider="gemini" style="display:none">
       <div class="chat-cfg-row">
-        <label>API Key</label>
-        <input type="password" id="chat-cfg-gemini-key" placeholder="AIza..." autocomplete="off" />
+        <div class="chat-cfg-label-row">
+          <label>API Key</label>
+          <button type="button" class="chat-cfg-folder-btn" data-open-key-folder title="Open local key folder" aria-label="Open local key folder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 7.5a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <path d="M3 10h18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="chat-cfg-key-meta" id="chat-cfg-gemini-key-status"></div>
+        <input type="password" id="chat-cfg-gemini-key" placeholder="Leave blank to keep stored key" autocomplete="off" />
       </div>
       <div class="chat-cfg-row">
         <label>Model</label>

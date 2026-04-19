@@ -59,6 +59,13 @@ from ai.ui_tools import (
 # ─── Config ───────────────────────────────────────────────────────────────────
 
 _CONFIG_PATH = _HERE / "config.json"
+_KEYS_PATH = _ROOT / ".local" / "ai_keys.json"
+_SECRET_FIELDS = (
+    "anthropic_api_key",
+    "openai_api_key",
+    "grok_api_key",
+    "gemini_api_key",
+)
 
 _DEFAULTS: dict = {
     "provider":            "anthropic",
@@ -68,6 +75,8 @@ _DEFAULTS: dict = {
     "openai_model":        "gpt-4o",
     "openai_base_url":     "",
     "openai_api_version":  "",
+    "grok_api_key":        "",
+    "grok_model":          "grok-4.20",
     "gemini_api_key":      "",
     "gemini_model":        "gemini-2.0-flash",
     "ollama_url":          "http://localhost:11434",
@@ -75,47 +84,90 @@ _DEFAULTS: dict = {
 }
 
 
+def _read_json_file(path: Path) -> dict:
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _write_json_file(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(data, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+def _mask_secret(val: str) -> str:
+    if not val:
+        return ""
+    if len(val) > 8:
+        return val[:4] + "****" + val[-4:]
+    return "****"
+
+
 def load_config() -> dict:
-    """Merge ai/config.json with defaults.  Returns a copy."""
+    """Merge defaults, ai/config.json, and persisted keys. Returns a copy."""
     cfg = dict(_DEFAULTS)
-    if _CONFIG_PATH.is_file():
-        try:
-            cfg.update(json.loads(_CONFIG_PATH.read_text(encoding="utf-8")))
-        except Exception:
-            pass
+    cfg.update(_read_json_file(_CONFIG_PATH))
+    cfg.update(_read_json_file(_KEYS_PATH))
     # Environment variable overrides
     if os.environ.get("ANTHROPIC_API_KEY"):
         cfg["anthropic_api_key"] = os.environ["ANTHROPIC_API_KEY"]
         cfg.setdefault("provider", "anthropic")
     if os.environ.get("OPENAI_API_KEY"):
         cfg["openai_api_key"] = os.environ["OPENAI_API_KEY"]
+    if os.environ.get("XAI_API_KEY"):
+        cfg["grok_api_key"] = os.environ["XAI_API_KEY"]
     if os.environ.get("GEMINI_API_KEY"):
         cfg["gemini_api_key"] = os.environ["GEMINI_API_KEY"]
     return cfg
 
 
 def save_config(updates: dict) -> None:
-    """Merge updates into ai/config.json (creates file if absent)."""
-    cfg = load_config()
-    cfg.update(updates)
-    # Strip fields that equal defaults to keep file minimal
-    to_write = {k: v for k, v in cfg.items() if v != _DEFAULTS.get(k, "")}
-    _CONFIG_PATH.write_text(
-        json.dumps(to_write, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    """Persist non-secret config to ai/config.json and secrets to .local."""
+    disk_cfg = _read_json_file(_CONFIG_PATH)
+    key_cfg = _read_json_file(_KEYS_PATH)
+
+    # Migrate any legacy key fields still stored in ai/config.json.
+    for key in _SECRET_FIELDS:
+        legacy = disk_cfg.pop(key, "")
+        if legacy and not key_cfg.get(key):
+            key_cfg[key] = legacy
+
+    for key, val in updates.items():
+        if key in _SECRET_FIELDS:
+            raw = str(val or "").strip()
+            if not raw or "****" in raw:
+                continue
+            key_cfg[key] = raw
+            continue
+        disk_cfg[key] = val
+
+    cfg_to_write = {
+        k: v for k, v in disk_cfg.items()
+        if k not in _SECRET_FIELDS and v != _DEFAULTS.get(k, "")
+    }
+    keys_to_write = {k: v for k, v in key_cfg.items() if v}
+
+    _write_json_file(_CONFIG_PATH, cfg_to_write)
+    _write_json_file(_KEYS_PATH, keys_to_write)
 
 
 def masked_config() -> dict:
     """Return config safe to expose to the browser (mask API keys)."""
     cfg = load_config()
     out = dict(cfg)
-    for key in ("anthropic_api_key", "openai_api_key", "gemini_api_key"):
+    for key in _SECRET_FIELDS:
         val = cfg.get(key, "")
-        if val and len(val) > 8:
-            out[key] = val[:4] + "****" + val[-4:]
-        elif val:
-            out[key] = "****"
+        out[key] = _mask_secret(val)
+        out[f"{key}_present"] = bool(val)
+    out["key_store_dir"] = str(_KEYS_PATH.parent)
+    out["key_store_file"] = str(_KEYS_PATH)
     return out
 
 
@@ -170,6 +222,19 @@ class ProviderRouter:
             return GeminiProvider(
                 api_key=key,
                 model=self._cfg.get("gemini_model", "gemini-2.0-flash"),
+            )
+
+        if provider == "grok":
+            from ai.providers.grok_provider import GrokProvider
+            key = self._cfg.get("grok_api_key", "")
+            if not key:
+                raise ValueError(
+                    "Grok API key not configured. "
+                    "Set XAI_API_KEY or save via the chat settings panel."
+                )
+            return GrokProvider(
+                api_key=key,
+                model=self._cfg.get("grok_model", "grok-4.20"),
             )
 
         if provider == "ollama":

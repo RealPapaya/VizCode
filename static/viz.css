@@ -1324,6 +1324,16 @@ body {
     border-color: var(--accent)
 }
 
+.chat-cfg-key-meta {
+    margin: 2px 0 6px;
+    font-size: 11px;
+    color: var(--muted);
+}
+
+.chat-cfg-key-meta.present {
+    color: var(--accent);
+}
+
 /* Body padding for all sections */
 #ft-filter-body,
 .ef-filter-body,

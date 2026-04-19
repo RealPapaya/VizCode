@@ -283,10 +283,10 @@
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 24px;
-    width: 320px;
+    width: 360px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
 }
 #chat-config-box h3 {
     font-size: 14px;
@@ -303,7 +303,12 @@
 .chat-cfg-row {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 8px;
+}
+.chat-cfg-section {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
 }
 .chat-cfg-row label {
     font-size: 11.5px;
@@ -324,6 +329,170 @@
 }
 .chat-cfg-row select:focus,
 .chat-cfg-row input:focus { border-color: var(--accent); }
+.chat-cfg-row select {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+.chat-cfg-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+.chat-cfg-folder-btn {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--panel2);
+    color: var(--muted);
+    cursor: pointer;
+    transition: border-color .15s, color .15s, background .15s, transform .15s;
+}
+.chat-cfg-folder-btn svg {
+    width: 12px;
+    height: 12px;
+}
+.chat-cfg-folder-btn:hover {
+    color: var(--text);
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, var(--panel2));
+}
+.chat-cfg-folder-btn:active {
+    transform: translateY(1px);
+}
+.chat-cfg-provider-dd {
+    position: relative;
+    width: 100%;
+}
+.chat-cfg-provider-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 10px;
+    border-radius: 8px;
+    outline: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color .15s, background .15s;
+}
+.chat-cfg-provider-trigger:hover,
+.chat-cfg-provider-dd[data-open="true"] .chat-cfg-provider-trigger {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 7%, var(--bg));
+}
+.chat-cfg-provider-value {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+    text-align: left;
+}
+.chat-cfg-provider-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.chat-cfg-provider-chevron {
+    color: var(--accent);
+    font-size: 12px;
+    transition: transform .18s ease;
+}
+.chat-cfg-provider-menu {
+    display: none;
+    pointer-events: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 30;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+    padding: 6px;
+    max-height: 240px;
+    overflow: auto;
+}
+.chat-cfg-provider-options {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.chat-cfg-provider-option {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    padding: 9px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: inherit;
+    text-align: left;
+    transition: background .15s ease, color .15s ease;
+}
+.chat-cfg-provider-option:hover,
+.chat-cfg-provider-option[data-selected="true"] {
+    background: color-mix(in srgb, var(--accent) 14%, var(--panel2));
+    color: var(--text);
+}
+.chat-cfg-provider-option-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+}
+.chat-cfg-provider-status {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.28);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+    flex-shrink: 0;
+}
+.chat-cfg-provider-status.applied {
+    background: #22c55e;
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12);
+}
+.chat-cfg-provider-check {
+    color: var(--accent);
+    font-size: 12px;
+    min-width: 12px;
+    text-align: right;
+}
+.chat-cfg-key-meta {
+    margin: 0;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.45;
+}
+.chat-cfg-key-meta.present {
+    color: var(--text);
+}
+.chat-cfg-key-meta strong {
+    color: #22c55e;
+    font-weight: 600;
+    margin-right: 6px;
+}
 #chat-config-save {
     background: var(--accent);
     color: #fff;

@@ -65,6 +65,18 @@ def _browse_for_folder(start_dir: str = '') -> str:
         except Exception:
             pass
 
+
+def _open_folder_in_explorer(path: str) -> None:
+    if not path or not os.path.isdir(path):
+        raise RuntimeError(f'Folder not found: {path}')
+    if sys.platform.startswith('win'):
+        os.startfile(path)
+        return
+    if sys.platform == 'darwin':
+        subprocess.Popen(['open', path])
+        return
+    subprocess.Popen(['xdg-open', path])
+
 # ─── Search index constants ──────────────────────────────────────────────────
 _SI_SKIP_DIRS = {
     'Build','build','.git','__pycache__','node_modules','.next','dist',
@@ -2119,6 +2131,15 @@ class Handler(BaseHTTPRequestHandler):
                 from ai.vizbridge import save_config
                 save_config(body)
                 self.json_resp({'ok': True})
+            except Exception as e:
+                self.json_resp({'error': str(e)}, 500)
+
+        elif p == '/open-key-folder':
+            try:
+                from ai.vizbridge import masked_config
+                key_dir = masked_config().get('key_store_dir', '')
+                _open_folder_in_explorer(key_dir)
+                self.json_resp({'ok': True, 'path': key_dir})
             except Exception as e:
                 self.json_resp({'error': str(e)}, 500)
 
