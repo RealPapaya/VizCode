@@ -88,6 +88,7 @@ SPINNER_FRAMES = ["|", "/", "-", "\\"] if IS_WIN else \
                  ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
 
 ANALYSIS_STAGES = [
+    ('report',   'Generate AI report'),
     ('scan',     'Scan source files'),
     ('detect',   'Detect project type'),
     ('analysis', 'Analyze source files'),
@@ -349,12 +350,18 @@ class TUI:
             t = f"  Project Type: {dim('Detecting…')}"
         self._set('project_type', t)
 
-    def upd_stages(self, cur: int, done: bool, error: bool, fi: int):
+    def upd_stages(self, cur: int, done: bool, error: bool, fi: int, skip_report=True):
         f = SPINNER_FRAMES[fi % len(SPINNER_FRAMES)]
-        for i, (_, label) in enumerate(ANALYSIS_STAGES):
-            if done or i < cur:      marker, text = green('✓'), label
-            elif i == cur:           marker = red('✗') if error else cyan(f); text = bold(label)
-            else:                    marker, text = dim('○'), dim(label)
+        for i, (stage_key, label) in enumerate(ANALYSIS_STAGES):
+            # Skip report stage display if skip_report=True
+            if skip_report and stage_key == 'report':
+                marker, text = green('✓'), label  # Always show as completed
+            elif done or i < cur:      
+                marker, text = green('✓'), label
+            elif i == cur:           
+                marker = red('✗') if error else cyan(f); text = bold(label)
+            else:                    
+                marker, text = dim('○'), dim(label)
             self._set(f'stage_{i}', f"  {marker} {text}")
 
     def upd_error(self, err: Optional[str]):
@@ -514,7 +521,7 @@ def poll_job(job_id: str) -> dict:
             return json.loads(r.read())
     except: return {}
 
-def _run_analysis(label: str, trigger_fn, save_fn=None):
+def _run_analysis(label: str, trigger_fn, save_fn=None, skip_report_stage=True, report_path=None):
     """Shared core: start server → call trigger_fn() → run animation loop."""
     tui = _tui
     tui.show_analysis(label)
@@ -529,6 +536,49 @@ def _run_analysis(label: str, trigger_fn, save_fn=None):
         tui.flush()
         return
 
+        # Generate AI report if requested (before starting analysis)
+    if not skip_report_stage and report_path:
+        import threading
+        report_done = threading.Event()
+        report_error = [None]
+        
+        def _generate_report_thread():
+            try:
+                import sys, io
+                old_stdout = sys.stdout
+                old_stderr = sys.stderr
+                sys.stdout = io.StringIO()
+                sys.stderr = io.StringIO()
+                
+                from analyze_viz import build_graph
+                from analytics_helpers import generate_report as gen_report
+                
+                data = build_graph(report_path, progress_cb=lambda *args, **kwargs: None)
+                report_file = os.path.join(report_path, '.local', 'vizcode_report.md')
+                gen_report(data, report_file)
+                
+                sys.stdout = old_stdout
+                sys.stderr = old_stderr
+            except Exception as e:
+                sys.stdout = old_stdout
+                sys.stderr = old_stderr
+                report_error[0] = e
+            finally:
+                report_done.set()
+        
+        report_thread = threading.Thread(target=_generate_report_thread, daemon=True)
+        report_thread.start()
+        
+        frame_idx = 0
+        while not report_done.is_set():
+            tui.upd_title(frame_idx, "Generating AI Report")
+            tui.upd_stages(0, False, False, frame_idx, skip_report=False)
+            tui.flush()
+            frame_idx += 1
+            time.sleep(1.0 / FPS)
+        
+        report_thread.join(timeout=1.0)
+
     tui.upd_title(0, "Analyzing Project"); tui.flush()
 
     job_id = trigger_fn()
@@ -537,13 +587,15 @@ def _run_analysis(label: str, trigger_fn, save_fn=None):
     if save_fn:
         save_fn()
 
-    _run_progress_loop(job_id)
+    _run_progress_loop(job_id, skip_report_stage=skip_report_stage)
 
-def run_analysis_with_progress(path: str):
+def run_analysis_with_progress(path: str, generate_report=False):
     _run_analysis(path, trigger_fn=lambda: trigger_analysis(path),
-                  save_fn=lambda: save_history(path))
+                  save_fn=lambda: save_history(path), 
+                  skip_report_stage=not generate_report,
+                  report_path=path if generate_report else None)
 
-def _run_progress_loop(job_id: str):
+def _run_progress_loop(job_id: str, skip_report_stage=True):
     """Animation + polling loop for any in-progress job."""
     tui = _tui
 
@@ -559,7 +611,7 @@ def _run_progress_loop(job_id: str):
     }
 
     frame_idx   = 0
-    stage_floor = 0
+    stage_floor = 0 if skip_report_stage else 1  # Start from stage 1 (scan) if report is shown
 
     # Background poll thread
     # HTTP poll runs in a daemon thread so the 30-fps loop is never blocked.
@@ -815,7 +867,7 @@ def _run_progress_loop(job_id: str):
             virt_edges    = int(virt_edges),
         )
         tui.upd_project_type(job.get('project_type') or {})
-        tui.upd_stages(current_idx, done, bool(error), frame_idx)
+        tui.upd_stages(current_idx, done, bool(error), frame_idx, skip_report=skip_report_stage)
         tui.upd_error(error)
         tui.flush()
 
@@ -1002,14 +1054,12 @@ def _action_analyze_local():
         _tui.show_text(["", f"  {red('✗')} Not a valid directory:", f"  {dim(path)}"])
         time.sleep(1.5); return
     
-    # Ask if user wants AI report
+            # Ask if user wants AI report
     report_choice = ask_generate_report()
     if report_choice is None:
         return  # User chose back, return to main menu
-    if report_choice:
-        _generate_report_for_path(str(p.resolve()))
     
-    run_analysis_with_progress(str(p.resolve()))
+    run_analysis_with_progress(str(p.resolve()), generate_report=report_choice)
     _press_enter()
 
 def _action_analyze_git():
@@ -1066,14 +1116,12 @@ def action_recent():
         _tui.show_text(["", f"  {red('✗')} Directory no longer exists.", f"  {dim(path)}"])
         time.sleep(1.5); return
     
-    # Ask if user wants AI report
+            # Ask if user wants AI report
     report_choice = ask_generate_report()
     if report_choice is None:
         return  # User chose back, return to main menu
-    if report_choice:
-        _generate_report_for_path(path)
     
-    run_analysis_with_progress(path)
+    run_analysis_with_progress(path, generate_report=report_choice)
     _press_enter()
 
 def action_open_browser():
