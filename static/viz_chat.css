@@ -205,6 +205,7 @@
 #chat-messages {
     flex: 1;
     overflow-y: auto;
+    overflow-x: auto;
     padding: 12px 10px;
     display: flex;
     flex-direction: column;
@@ -279,15 +280,19 @@
     background: transparent;
     border: 1px solid var(--border);
     border-radius: 20px;
-    padding: 3px 10px 3px 8px;
+    padding: 6px 12px;
+    min-height: 28px;
+    height: 28px;
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 5px;
-    max-width: 92%;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex: 0 0 auto;
+    width: auto;
+    min-width: max-content;
+    overflow: visible;
     white-space: nowrap;
+    line-height: 1.4;
     transition: color .1s, border-color .1s;
 }
 
@@ -303,8 +308,7 @@
 
 .chat-tool-result {
     display: none;
-    align-self: flex-start;
-    max-width: 92%;
+    width: 92%;
     font-size: 11px;
     font-family: var(--code-font, monospace);
     color: var(--muted);
@@ -380,6 +384,10 @@
 #chat-send:disabled {
     opacity: .4;
     cursor: default;
+}
+
+#chat-send.stop {
+    background: #ef4444;
 }
 
 /* ── Config modal ────────────────────────────────────────────────────────── */
@@ -750,14 +758,22 @@
     font-size: 11px;
     color: var(--accent, #60a5fa);
     font-family: 'JetBrains Mono', 'Consolas', monospace;
-    padding: 3px 9px;
+    padding: 6px 12px;
+    min-height: 28px;
+    height: 28px;
     margin: 2px 0;
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    width: auto;
+    min-width: max-content;
     background: color-mix(in srgb, var(--accent, #60a5fa) 8%, transparent);
     border-left: 2px solid var(--accent, #60a5fa);
     border-radius: 0 6px 6px 0;
     letter-spacing: .2px;
-    max-width: 92%;
-    word-break: break-word;
+    line-height: 1.4;
+    overflow: visible;
+    white-space: nowrap;
 }
 
 /* ── Mermaid diagrams rendered inside chat bubbles ──────────────────────── */

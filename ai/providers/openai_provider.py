@@ -68,13 +68,15 @@ class OpenAIProvider(BaseProvider):
         try:
             yield from self._stream(url, body)
         except urllib.error.HTTPError as e:
+            err_body = ""
             try:
                 err_body = e.read().decode("utf-8")
                 err_json = json.loads(err_body)
-                msg = err_json.get("error", {}).get("message", err_body)
+                error_obj = err_json.get("error") or {}
+                msg = (error_obj.get("message") if isinstance(error_obj, dict) else str(error_obj)) or err_body
             except Exception:
-                msg = str(e)
-            yield {"type": "error", "message": f"OpenAI API error {e.code}: {msg}"}
+                msg = err_body or str(e)
+            yield {"type": "error", "message": f"API error {e.code}: {msg}"}
         except Exception as e:
             yield {"type": "error", "message": str(e)}
 
@@ -86,6 +88,7 @@ class OpenAIProvider(BaseProvider):
             "Content-Type":  "application/json",
             "Authorization": f"Bearer {self._api_key}",
             "Accept":        "text/event-stream",
+            "User-Agent":    "VizCode/1.0",
         }
         # Azure uses api-key header instead of Authorization
         if self._api_version:

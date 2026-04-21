@@ -65,6 +65,7 @@ _SECRET_FIELDS = (
     "openai_api_key",
     "grok_api_key",
     "gemini_api_key",
+    "custom_api_key",
 )
 
 _DEFAULTS: dict = {
@@ -81,6 +82,9 @@ _DEFAULTS: dict = {
     "gemini_model":        "gemini-2.0-flash",
     "ollama_url":          "",
     "ollama_model":        "llama3.1",
+    "custom_api_key":      "",
+    "custom_base_url":     "",
+    "custom_model":        "",
 }
 
 
@@ -243,6 +247,26 @@ class ProviderRouter:
             return OllamaProvider(
                 url=self._cfg.get("ollama_url", "http://localhost:11434"),
                 model=self._cfg.get("ollama_model", "llama3.1"),
+            )
+
+        if provider == "custom":
+            from ai.providers.custom_provider import CustomProvider
+            key = self._cfg.get("custom_api_key", "")
+            base_url = self._cfg.get("custom_base_url", "")
+            if not base_url:
+                raise ValueError(
+                    "Custom provider requires a Base URL. "
+                    "Set custom_base_url via the chat settings panel."
+                )
+            if not key:
+                raise ValueError(
+                    "Custom provider requires an API key. "
+                    "Set custom_api_key via the chat settings panel."
+                )
+            return CustomProvider(
+                api_key=key,
+                base_url=base_url,
+                model=self._cfg.get("custom_model", ""),
             )
 
         raise ValueError(f"Unknown provider: {provider!r}")

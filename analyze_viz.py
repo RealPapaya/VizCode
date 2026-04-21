@@ -2004,7 +2004,7 @@ HTML_SKELETON = """\
   <div id="chat-messages"></div>
   <div id="chat-input-row">
     <textarea id="chat-input" rows="1" placeholder="Ask about this codebase… (Enter to send)"></textarea>
-    <button id="chat-send">➤</button>
+    <button id="chat-send" title="Send"></button>
   </div>
 </div>
 <div id="chat-config-modal" class="hidden">
@@ -2019,6 +2019,7 @@ HTML_SKELETON = """\
         <option value="grok">xAI Grok</option>
         <option value="gemini">Google Gemini</option>
         <option value="ollama">Ollama (local)</option>
+        <option value="custom">Custom (OpenAI-compatible)</option>
       </select>
     </div>
     <!-- Anthropic fields -->
@@ -2114,6 +2115,30 @@ HTML_SKELETON = """\
       <div class="chat-cfg-row">
         <label>Model</label>
         <input type="text" id="chat-cfg-ollama-model" placeholder="llama3.1" />
+      </div>
+    </div>
+    <!-- Custom (OpenAI-compatible) fields -->
+    <div class="chat-cfg-section" data-provider="custom" style="display:none">
+      <div class="chat-cfg-row">
+        <div class="chat-cfg-label-row">
+          <label>API Key</label>
+          <button type="button" class="chat-cfg-folder-btn" data-open-key-folder title="Open local key folder" aria-label="Open local key folder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 7.5a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <path d="M3 10h18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="chat-cfg-key-meta" id="chat-cfg-custom-key-status"></div>
+        <input type="password" id="chat-cfg-custom-key" placeholder="Leave blank to keep stored key" autocomplete="off" />
+      </div>
+      <div class="chat-cfg-row">
+        <label>Base URL</label>
+        <input type="text" id="chat-cfg-custom-base-url" placeholder="https://openrouter.ai/api/v1" />
+      </div>
+      <div class="chat-cfg-row">
+        <label>Model</label>
+        <input type="text" id="chat-cfg-custom-model" placeholder="meta-llama/llama-3.1-8b-instruct:free" />
       </div>
     </div>
     <button id="chat-config-save">Save</button>

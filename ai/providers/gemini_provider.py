@@ -7,6 +7,13 @@ a partial GenerateContentResponse.
 
 Tool calling uses Gemini's functionDeclarations / functionCall / functionResponse
 format, which differs from both Anthropic and OpenAI.
+
+Fix (2025-04):
+  - _GEMINI_TERMINAL_ERRORS now drives finishReason logic.
+    Intermediate streaming chunks often return "FINISH_REASON_UNSPECIFIED"
+    (or other non-fatal reasons) which the old whitelist approach mis-treated
+    as errors, silently dropping all output.
+  - Only genuine safety / policy stops are surfaced as errors.
 """
 
 from __future__ import annotations
@@ -20,9 +27,23 @@ from . import BaseProvider
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
-_API_BASE     = "https://generativelanguage.googleapis.com/v1beta/models"
+_API_BASE      = "https://generativelanguage.googleapis.com/v1beta/models"
 _DEFAULT_MODEL = "gemini-2.0-flash"
-_MAX_TOKENS   = 4096
+_MAX_TOKENS    = 4096
+
+# Only these finishReasons represent a hard stop that should surface as an error.
+# Everything else (STOP, MAX_TOKENS, FINISH_REASON_UNSPECIFIED, "", None …)
+# is either a normal end or an intermediate chunk — never an error.
+_GEMINI_TERMINAL_ERRORS: set[str] = {
+    "SAFETY",
+    "RECITATION",
+    "BLOCKLIST",
+    "PROHIBITED_CONTENT",
+    "SPII",
+    "MALFORMED_FUNCTION_CALL",
+    "IMAGE_SAFETY",
+    "OTHER",
+}
 
 
 # ─── GeminiProvider ───────────────────────────────────────────────────────────
@@ -50,8 +71,8 @@ class GeminiProvider(BaseProvider):
         )
 
         body: dict = {
-            "contents":           contents,
-            "generationConfig":   {"maxOutputTokens": _MAX_TOKENS},
+            "contents":         contents,
+            "generationConfig": {"maxOutputTokens": _MAX_TOKENS},
         }
         if system_instruction:
             body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
@@ -61,12 +82,17 @@ class GeminiProvider(BaseProvider):
         try:
             yield from self._stream(url, body)
         except urllib.error.HTTPError as e:
+            err_body = ""
             try:
                 err_body = e.read().decode("utf-8")
                 err_json = json.loads(err_body)
-                msg = (err_json.get("error", {}) or {}).get("message", err_body)
+                error_obj = err_json.get("error") or {}
+                msg = (
+                    (error_obj.get("message") if isinstance(error_obj, dict) else str(error_obj))
+                    or err_body
+                )
             except Exception:
-                msg = str(e)
+                msg = err_body or str(e)
             yield {"type": "error", "message": f"Gemini API error {e.code}: {msg}"}
         except Exception as e:
             yield {"type": "error", "message": str(e)}
@@ -90,7 +116,7 @@ class GeminiProvider(BaseProvider):
                 if not chunk:
                     break
                 buf += chunk
-                # Gemini SSE: separated by \n\n
+                # Gemini SSE: events separated by \n\n
                 while b"\n\n" in buf:
                     raw_event, buf = buf.split(b"\n\n", 1)
                     data_str = ""
@@ -109,7 +135,27 @@ class GeminiProvider(BaseProvider):
 
     def _handle_response(self, resp_obj: dict) -> Iterator[dict]:
         """Parse one GenerateContentResponse chunk."""
+        # Prompt-level blocking (happens before any candidate)
+        if "promptFeedback" in resp_obj:
+            block = resp_obj["promptFeedback"].get("blockReason")
+            if block:
+                yield {"type": "error", "message": f"Gemini blocked the prompt: {block}"}
+                return
+
         for candidate in resp_obj.get("candidates", []):
+            finish = candidate.get("finishReason") or ""
+
+            # --- KEY FIX ---
+            # Only raise an error for known terminal policy/safety stops.
+            # "FINISH_REASON_UNSPECIFIED", "", None, "STOP", "MAX_TOKENS"
+            # are all benign and must NOT abort the stream.
+            if finish in _GEMINI_TERMINAL_ERRORS:
+                yield {
+                    "type":    "error",
+                    "message": f"Gemini stopped generating: {finish}",
+                }
+                return
+
             content = candidate.get("content", {})
             for part in content.get("parts", []):
                 # Text part
@@ -121,7 +167,6 @@ class GeminiProvider(BaseProvider):
                 fn_call = part.get("functionCall")
                 if fn_call:
                     args = fn_call.get("args", {})
-                    # Gemini args may already be a dict or a JSON string
                     if isinstance(args, str):
                         try:
                             args = json.loads(args)
@@ -129,7 +174,7 @@ class GeminiProvider(BaseProvider):
                             args = {}
                     yield {
                         "type":  "tool_use",
-                        "id":    fn_call.get("name", ""),   # Gemini has no separate ID
+                        "id":    fn_call.get("name", ""),   # Gemini has no separate call ID
                         "name":  fn_call.get("name", ""),
                         "input": args,
                     }
@@ -145,7 +190,7 @@ def _to_gemini_messages(
     Returns (contents, system_instruction_text).
 
     Gemini roles: "user" | "model"
-    Tool calls: parts with functionCall
+    Tool calls:   parts with functionCall
     Tool results: parts with functionResponse
     """
     contents: list[dict] = []
@@ -179,7 +224,6 @@ def _to_gemini_messages(
                 contents.append({"role": "model", "parts": parts})
 
         elif role == "tool":
-            # Gemini wraps tool results as user role with functionResponse
             result_part = {
                 "functionResponse": {
                     "name":     msg.get("tool_use_id", ""),
@@ -202,7 +246,6 @@ def _to_gemini_tools(tools: list[dict]) -> list[dict]:
     decls = []
     for t in tools:
         schema = dict(t.get("inputSchema", {"type": "object", "properties": {}}))
-        # Gemini does not support 'required' in nested schemas well — keep top-level only
         decls.append({
             "name":        t["name"],
             "description": t.get("description", ""),

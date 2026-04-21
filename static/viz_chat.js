@@ -21,6 +21,7 @@
     let _streamText   = '';          // accumulated text for current stream bubble
     let _currentChatProvider = null; // provider name for the current turn
     let _lastTurnHadError = false;   // true if error SSE event was received this turn
+    let _cancelStream     = null;    // fn to abort the current SSE stream (set by _readSSE)
 
     // ── DOM refs (populated in initChat) ─────────────────────────────────────
     let _btn, _panel, _msgs, _input, _sendBtn, _modal;
@@ -164,7 +165,27 @@
 
     function _appendStreamDelta(text) {
         _streamText += text;
+
+        // Snapshot already-rendered mermaid SVGs before innerHTML replacement destroys them
+        const savedSvgs = [];
+        _streamBubble.querySelectorAll('.chat-mermaid[data-rendered]').forEach(function (el) {
+            savedSvgs.push(el.querySelector('svg') ? el.innerHTML : null);
+        });
+
         _streamBubble.innerHTML = _renderMarkdown(_streamText);
+
+        // Restore rendered SVGs into the same-indexed mermaid divs
+        if (savedSvgs.length) {
+            _streamBubble.querySelectorAll('.chat-mermaid').forEach(function (el, i) {
+                if (savedSvgs[i]) {
+                    el.innerHTML = savedSvgs[i];
+                    el.setAttribute('data-rendered', '1');
+                }
+            });
+        }
+
+        // Render any newly complete ```mermaid blocks immediately, don't wait for stream end
+        _triggerMermaidIfNeeded();
         _scrollBottom();
     }
 
@@ -214,17 +235,33 @@
         if (!window.mermaid || !window.mermaid.run) return;
         const nodes = _msgs.querySelectorAll('.chat-mermaid:not([data-rendered])');
         if (!nodes.length) return;
-        nodes.forEach(function (n) { n.setAttribute('data-rendered', '1'); });
-        window.mermaid.run({ nodes: Array.from(nodes) }).then(function () {
-            _scrollBottom();
-        }).catch(function (e) {
+        nodes.forEach(function (n) {
+            n.setAttribute('data-rendered', '1');
+            n.dataset.src = n.textContent;  // save raw source before mermaid modifies the DOM
+        });
+
+        function _showSource(n) {
+            const src = n.dataset.src || '';
+            n.innerHTML =
+                `<pre style="color:var(--muted,#94a3b8);font-size:10.5px;margin:0;`
+                + `white-space:pre-wrap;word-break:break-word;text-align:left">`
+                + _escHtml(src) + `</pre>`;
+        }
+
+        function _checkNodes() {
             nodes.forEach(function (n) {
-                if (!n.querySelector('svg')) {
-                    n.innerHTML =
-                        `<pre style="color:var(--red,#f87171);font-size:11px;margin:0">`
-                        + `[mermaid error] ${_escHtml(String(e && e.message || e))}</pre>`;
-                }
+                const svg = n.querySelector('svg');
+                // mermaid 11+ renders syntax errors as an inline SVG (bomb icon).
+                // Detect by absence of SVG or by the error text inside it.
+                if (!svg || svg.textContent.includes('Syntax error')) _showSource(n);
             });
+        }
+
+        window.mermaid.run({ nodes: Array.from(nodes) }).then(function () {
+            _checkNodes();
+            _scrollBottom();
+        }).catch(function () {
+            nodes.forEach(_showSource);
         });
     }
 
@@ -386,11 +423,18 @@
         const assistantContent = [];   // accumulates for history
         let _sseFinished = false;
 
+        function _cleanup(cancel) {
+            if (_sseFinished) return false;
+            _sseFinished = true;
+            _cancelStream = null;
+            clearTimeout(_timeoutId);
+            try { if (cancel) reader.cancel(); } catch (_) {}
+            return true;
+        }
+
         // Safety valve: if server never sends 'done' or closes connection
         const _timeoutId = setTimeout(function () {
-            if (_sseFinished) return;
-            _sseFinished = true;
-            try { reader.cancel(); } catch (_) {}
+            if (!_cleanup(true)) return;
             _removeTyping();
             if (!_lastTurnHadError) {
                 _appendMsg('err', 'No response after 90 s — check your API key and server logs.');
@@ -398,15 +442,27 @@
             _setBusy(false);
         }, 90000);
 
+        // Exposed for the stop button
+        _cancelStream = function () {
+            if (!_cleanup(true)) return;
+            if (_streamBubble) _finaliseStreamBubble();
+            const fullText = assistantContent
+                .filter(function (c) { return c.type === 'text_fragment'; })
+                .map(function (c) { return c.text; })
+                .join('');
+            if (fullText) _history.push({ role: 'assistant', content: fullText });
+            _removeTyping();
+            _setBusy(false);
+        };
+
         function _finish() {
-            if (_sseFinished) return;
-            _sseFinished = true;
-            clearTimeout(_timeoutId);
+            if (!_cleanup(false)) return;
             _finishTurn(assistantContent);
         }
 
         function pump() {
             reader.read().then(function ({ done, value }) {
+                if (_sseFinished) return;   // stopped while read was pending
                 if (done) { _finish(); return; }
 
                 buf += decoder.decode(value, { stream: true });
@@ -437,7 +493,8 @@
                 }
                 pump();
             }).catch(function (err) {
-                clearTimeout(_timeoutId);
+                if (_sseFinished) return;   // cancelled — already cleaned up
+                _cleanup(false);
                 _removeTyping();
                 _appendMsg('err', 'Stream error: ' + err.message);
                 _setBusy(false);
@@ -502,10 +559,16 @@
         _setBusy(false);
     }
 
+    const _SEND_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`;
+    const _STOP_ICON = `<svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>`;
+
     function _setBusy(busy) {
         _isBusy = busy;
-        _sendBtn.disabled = busy;
-        _input.disabled   = busy;
+        _input.disabled    = busy;
+        _sendBtn.disabled  = false;  // always clickable (stop or send)
+        _sendBtn.innerHTML = busy ? _STOP_ICON : _SEND_ICON;
+        _sendBtn.title     = busy ? 'Stop' : 'Send';
+        _sendBtn.classList.toggle('stop', busy);
     }
 
     // ── Config modal ──────────────────────────────────────────────────────────
@@ -529,6 +592,7 @@
         if (provider === 'grok') return !!cfg.grok_api_key_present;
         if (provider === 'gemini') return !!cfg.gemini_api_key_present;
         if (provider === 'ollama') return !!cfg.ollama_url_present;
+        if (provider === 'custom') return !!cfg.custom_api_key_present;
         return false;
     }
 
@@ -692,13 +756,17 @@
         document.getElementById('chat-cfg-gemini-model').value      = cfg.gemini_model || 'gemini-2.0-flash';
         document.getElementById('chat-cfg-ollama-url').value        = cfg.ollama_url || '';
         document.getElementById('chat-cfg-ollama-model').value      = cfg.ollama_model || 'llama3.1';
+        document.getElementById('chat-cfg-custom-key').value        = '';
+        document.getElementById('chat-cfg-custom-base-url').value   = cfg.custom_base_url || '';
+        document.getElementById('chat-cfg-custom-model').value      = cfg.custom_model || '';
         _setKeyStatus('chat-cfg-anthropic-key-status', 'anthropic_api_key', cfg);
         _setKeyStatus('chat-cfg-openai-key-status', 'openai_api_key', cfg);
         _setKeyStatus('chat-cfg-grok-key-status', 'grok_api_key', cfg);
         _setKeyStatus('chat-cfg-gemini-key-status', 'gemini_api_key', cfg);
+        _setKeyStatus('chat-cfg-custom-key-status', 'custom_api_key', cfg);
 
         // Update key status "Active" color based on interaction
-        ['anthropic', 'openai', 'grok', 'gemini'].forEach(p => {
+        ['anthropic', 'openai', 'grok', 'gemini', 'custom'].forEach(p => {
             const el = document.getElementById(`chat-cfg-${p}-key-status`);
             if (el && _providerHasInteracted(p)) el.classList.add('interacted');
             else if (el) el.classList.remove('interacted');
@@ -732,6 +800,9 @@
             gemini_model:       document.getElementById('chat-cfg-gemini-model').value.trim() || 'gemini-2.0-flash',
             ollama_url:         document.getElementById('chat-cfg-ollama-url').value.trim() || 'http://localhost:11434',
             ollama_model:       document.getElementById('chat-cfg-ollama-model').value.trim() || 'llama3.1',
+            custom_api_key:     document.getElementById('chat-cfg-custom-key').value.trim(),
+            custom_base_url:    document.getElementById('chat-cfg-custom-base-url').value.trim(),
+            custom_model:       document.getElementById('chat-cfg-custom-model').value.trim(),
         };
         try {
             const resp = await fetch('/chat-config', {
@@ -889,7 +960,10 @@
 
         document.getElementById('chat-close').addEventListener('click', _close);
 
-        _sendBtn.addEventListener('click', _sendMessage);
+        _sendBtn.addEventListener('click', function () {
+            if (_isBusy) { if (_cancelStream) _cancelStream(); }
+            else { _sendMessage(); }
+        });
 
         _input.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -984,6 +1058,7 @@
         if (!_buildDOM()) return;   // HTML elements not present (launcher page)
         _updateButtonIcon();
         _attachEvents();
+        _setBusy(false);    // initialise send button icon
         _checkConfig();
     }
 
