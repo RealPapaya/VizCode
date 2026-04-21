@@ -14,11 +14,13 @@ No API key required — Ollama runs locally.
 from __future__ import annotations
 
 import json
+import socket
 import urllib.request
 import urllib.error
 from typing import Iterator
 
 from . import BaseProvider
+from ._errors import format_http_error, format_url_error
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -56,14 +58,11 @@ class OllamaProvider(BaseProvider):
 
         try:
             yield from self._stream(body)
-        except urllib.error.URLError as e:
-            yield {
-                "type":    "error",
-                "message": (
-                    f"Cannot connect to Ollama at {self._base_url}. "
-                    f"Is it running?  (ollama serve)  Details: {e.reason}"
-                ),
-            }
+        except urllib.error.HTTPError as e:
+            yield {"type": "error", "message": format_http_error(e, "Ollama")}
+        except (urllib.error.URLError, socket.timeout) as e:
+            base = format_url_error(e, self._base_url, "Ollama")
+            yield {"type": "error", "message": f"{base}  Is it running? (ollama serve)"}
         except Exception as e:
             yield {"type": "error", "message": str(e)}
 

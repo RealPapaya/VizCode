@@ -146,7 +146,7 @@ def save_config(updates: dict) -> None:
     for key, val in updates.items():
         if key in _SECRET_FIELDS:
             raw = str(val or "").strip()
-            if not raw or "****" in raw:
+            if not raw or "****" in raw or all(c == "*" for c in raw):
                 continue
             key_cfg[key] = raw
             continue

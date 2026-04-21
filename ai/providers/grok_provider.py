@@ -9,11 +9,13 @@ assistant turn.
 from __future__ import annotations
 
 import json
+import socket
 import urllib.request
 import urllib.error
 from typing import Iterator
 
 from . import BaseProvider
+from ._errors import OPENAI_BAD_FINISH, format_http_error, format_url_error
 
 # Reuse the OpenAI-format converters because xAI documents the endpoint as
 # OpenAI REST API compatible.
@@ -51,22 +53,19 @@ class GrokProvider(BaseProvider):
         try:
             yield from self._stream(_API_URL, body)
         except urllib.error.HTTPError as e:
-            try:
-                err_body = e.read().decode("utf-8")
-                err_json = json.loads(err_body)
-                msg = err_json.get("error", {}).get("message", err_body)
-            except Exception:
-                msg = str(e)
-            yield {"type": "error", "message": f"Grok API error {e.code}: {msg}"}
+            yield {"type": "error", "message": format_http_error(e, "Grok")}
+        except (urllib.error.URLError, socket.timeout) as e:
+            yield {"type": "error", "message": format_url_error(e, "api.x.ai", "Grok")}
         except Exception as e:
             yield {"type": "error", "message": str(e)}
 
     def _stream(self, url: str, body: dict) -> Iterator[dict]:
         raw = json.dumps(body, ensure_ascii=False).encode("utf-8")
         headers = {
-            "Content-Type": "application/json",
+            "Content-Type":  "application/json",
             "Authorization": f"Bearer {self._api_key}",
-            "Accept": "text/event-stream",
+            "Accept":        "text/event-stream",
+            "User-Agent":    "VizCode/1.0",
         }
         req = urllib.request.Request(url, data=raw, method="POST", headers=headers)
 
@@ -114,6 +113,11 @@ class GrokProvider(BaseProvider):
                             content = delta.get("content")
                             if content:
                                 yield {"type": "delta", "text": content}
+
+                            fr = choice.get("finish_reason")
+                            if fr in OPENAI_BAD_FINISH:
+                                yield {"type": "error", "message": f"Response blocked by content filter (finish_reason={fr!r})."}
+                                return
 
                             for tc_delta in (delta.get("tool_calls") or []):
                                 idx = tc_delta.get("index", 0)

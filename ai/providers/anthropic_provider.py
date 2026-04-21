@@ -10,11 +10,13 @@ Yields event dicts defined in ai/providers/__init__.py.
 from __future__ import annotations
 
 import json
+import socket
 import urllib.request
 import urllib.error
 from typing import Iterator
 
 from . import BaseProvider
+from ._errors import ANTHROPIC_BAD_STOP, format_http_error, format_url_error
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -60,13 +62,9 @@ class AnthropicProvider(BaseProvider):
         try:
             yield from self._stream(body)
         except urllib.error.HTTPError as e:
-            try:
-                err_body = e.read().decode("utf-8")
-                err_json = json.loads(err_body)
-                msg = err_json.get("error", {}).get("message", err_body)
-            except Exception:
-                msg = str(e)
-            yield {"type": "error", "message": f"Anthropic API error {e.code}: {msg}"}
+            yield {"type": "error", "message": format_http_error(e, "Anthropic")}
+        except (urllib.error.URLError, socket.timeout) as e:
+            yield {"type": "error", "message": format_url_error(e, "api.anthropic.com", "Anthropic")}
         except Exception as e:
             yield {"type": "error", "message": str(e)}
 
@@ -175,6 +173,13 @@ class AnthropicProvider(BaseProvider):
                 }
                 self._last_tool_block = None
                 self._last_tool_input_buf = ""
+
+        elif ev_type == "message_delta":
+            # Carries stop_reason in the final streaming event.
+            # Blacklist only explicit refusal states; unknown future values are allowed.
+            stop_reason = ev.get("delta", {}).get("stop_reason") or ""
+            if stop_reason and stop_reason in ANTHROPIC_BAD_STOP:
+                yield {"type": "error", "message": f"Anthropic refused to respond (stop_reason={stop_reason!r})."}
 
         elif ev_type == "message_stop":
             pass  # "done" yielded after loop ends

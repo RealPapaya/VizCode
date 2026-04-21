@@ -19,9 +19,12 @@ Fix (2025-04):
 from __future__ import annotations
 
 import json
+import socket
 import urllib.request
 import urllib.error
 from typing import Iterator
+
+from ._errors import format_http_error, format_url_error
 
 from . import BaseProvider
 
@@ -82,18 +85,9 @@ class GeminiProvider(BaseProvider):
         try:
             yield from self._stream(url, body)
         except urllib.error.HTTPError as e:
-            err_body = ""
-            try:
-                err_body = e.read().decode("utf-8")
-                err_json = json.loads(err_body)
-                error_obj = err_json.get("error") or {}
-                msg = (
-                    (error_obj.get("message") if isinstance(error_obj, dict) else str(error_obj))
-                    or err_body
-                )
-            except Exception:
-                msg = err_body or str(e)
-            yield {"type": "error", "message": f"Gemini API error {e.code}: {msg}"}
+            yield {"type": "error", "message": format_http_error(e, "Gemini")}
+        except (urllib.error.URLError, socket.timeout) as e:
+            yield {"type": "error", "message": format_url_error(e, "generativelanguage.googleapis.com", "Gemini")}
         except Exception as e:
             yield {"type": "error", "message": str(e)}
 

@@ -12,11 +12,14 @@ Also supports Azure OpenAI endpoints via the `base_url` parameter:
 from __future__ import annotations
 
 import json
+import socket
+import urllib.parse
 import urllib.request
 import urllib.error
 from typing import Iterator
 
 from . import BaseProvider
+from ._errors import OPENAI_BAD_FINISH, format_http_error, format_url_error
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -65,18 +68,13 @@ class OpenAIProvider(BaseProvider):
         if oai_tools:
             body["tools"] = oai_tools
 
+        host = urllib.parse.urlparse(url).netloc or url
         try:
             yield from self._stream(url, body)
         except urllib.error.HTTPError as e:
-            err_body = ""
-            try:
-                err_body = e.read().decode("utf-8")
-                err_json = json.loads(err_body)
-                error_obj = err_json.get("error") or {}
-                msg = (error_obj.get("message") if isinstance(error_obj, dict) else str(error_obj)) or err_body
-            except Exception:
-                msg = err_body or str(e)
-            yield {"type": "error", "message": f"API error {e.code}: {msg}"}
+            yield {"type": "error", "message": format_http_error(e, "OpenAI")}
+        except (urllib.error.URLError, socket.timeout) as e:
+            yield {"type": "error", "message": format_url_error(e, host, "OpenAI")}
         except Exception as e:
             yield {"type": "error", "message": str(e)}
 
@@ -144,6 +142,12 @@ class OpenAIProvider(BaseProvider):
                             content = delta.get("content")
                             if content:
                                 yield {"type": "delta", "text": content}
+
+                            # Content filter / refusal
+                            fr = choice.get("finish_reason")
+                            if fr in OPENAI_BAD_FINISH:
+                                yield {"type": "error", "message": f"Response blocked by content filter (finish_reason={fr!r})."}
+                                return
 
                             # Tool call delta (may be streamed in fragments)
                             for tc_delta in (delta.get("tool_calls") or []):
