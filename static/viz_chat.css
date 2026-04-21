@@ -783,6 +783,46 @@
     white-space: nowrap;
 }
 
+/* ── Clickable canvas badges inside AI replies ──────────────────────────── */
+.chat-badge {
+    display: inline-block;
+    padding: 0 6px;
+    margin: 0 1px;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: .92em;
+    line-height: 1.4;
+    color: var(--accent, #60a5fa);
+    background: color-mix(in srgb, var(--accent, #60a5fa) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent, #60a5fa) 35%, transparent);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background .12s, border-color .12s;
+    white-space: nowrap;
+}
+.chat-badge:hover,
+.chat-badge-hl {
+    background: color-mix(in srgb, var(--accent, #60a5fa) 28%, transparent);
+    border-color: color-mix(in srgb, var(--accent, #60a5fa) 70%, transparent);
+}
+
+/* ── Floating subtitle card shown beside the focused node during tour_step ─ */
+.tour-subtitle {
+    position: fixed;
+    max-width: 320px;
+    padding: 8px 12px;
+    background: rgba(9, 21, 37, .92);
+    color: #e5e7eb;
+    border: 1px solid color-mix(in srgb, var(--accent, #60a5fa) 40%, transparent);
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.45;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .45);
+    pointer-events: none;
+    z-index: 2147483600;
+    transition: opacity .25s ease;
+    opacity: 1;
+}
+
 /* ── Mermaid diagrams rendered inside chat bubbles ──────────────────────── */
 .chat-mermaid {
     display: block;

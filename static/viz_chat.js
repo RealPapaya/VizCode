@@ -28,6 +28,14 @@
     let _historyIndex = -1;          // current position in history (-1 = not navigating)
     let _tempInput    = '';          // save current input when starting to navigate
 
+    // ── AI-in-canvas integration state ────────────────────────────────────────
+    // Registered by the AI via `vizcode_ui_emit_badge`. The markdown post-pass
+    // wraps the first occurrence of `label` in each newly rendered AI bubble
+    // with a clickable <span class="chat-badge" data-node-id="..."> element.
+    const _badgeMap = new Map();     // label -> node_id
+    let   _tourSubtitleEl = null;    // floating caption DOM for vizcode_ui_tour_step
+    let   _tourSubtitleTimer = null;
+
     // ── DOM refs (populated in initChat) ─────────────────────────────────────
     let _btn, _panel, _msgs, _input, _sendBtn, _modal;
     let _chatCfgSnapshot = {};
@@ -80,7 +88,32 @@
 
         // 8. Paragraphs (double newline)
         t = t.replace(/\n{2,}/g, '</p><p>');
+        // 9. Wrap AI-registered labels as clickable badges (first occurrence only).
+        t = _applyBadges(t);
         return '<p>' + t + '</p>';
+    }
+
+    // Wrap the first occurrence of each registered label as a .chat-badge span.
+    // Skips matches that are already inside a tag (avoids badgifying tag names
+    // or attributes). Longer labels are processed first so that, e.g., a label
+    // "ai/vizbridge.py::stream_response" is matched before the shorter
+    // "ai/vizbridge.py" swallows it.
+    function _applyBadges(html) {
+        if (!_badgeMap.size) return html;
+        const labels = Array.from(_badgeMap.keys()).sort((a, b) => b.length - a.length);
+        for (const label of labels) {
+            const nodeId = _badgeMap.get(label);
+            if (!label || !nodeId) continue;
+            const safe = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            // Only match outside existing tags (no < before the match on the same line fragment).
+            const re = new RegExp('(^|[^<\\w/])(' + safe + ')(?![\\w/])');
+            const idAttr    = nodeId.replace(/"/g, '&quot;');
+            const labelAttr = label.replace(/"/g, '&quot;');
+            html = html.replace(re, (_, pre, body) =>
+                pre + `<span class="chat-badge" data-node-id="${idAttr}" data-label="${labelAttr}">${body}</span>`
+            );
+        }
+        return html;
     }
 
         // ── Panel open / close ───────────────────────────────────────────────────
@@ -330,8 +363,31 @@
                     _highlightNodeById(args.node_id || '');
                     break;
 
+                case 'highlight_nodes':
+                    if (Array.isArray(args.node_ids) && typeof window.highlightNodes === 'function') {
+                        window.highlightNodes(args.node_ids);
+                    }
+                    break;
+
                 case 'highlight_path':
                     _highlightPath(args.source || '', args.target || '');
+                    break;
+
+                case 'emit_badge':
+                    // Register mapping; rendering happens in _applyBadges on next _renderMarkdown pass.
+                    if (args.label && args.node_id) {
+                        _badgeMap.set(String(args.label), String(args.node_id));
+                    }
+                    // Re-render current streaming bubble so pre-existing text gets badgified
+                    // if the AI already wrote the label before calling emit_badge.
+                    if (_streamBubble && _streamText) {
+                        _streamBubble.innerHTML = _renderMarkdown(_streamText);
+                        _triggerMermaidIfNeeded();
+                    }
+                    break;
+
+                case 'tour_step':
+                    _runTourStep(args.node_id || '', args.caption || '');
                     break;
 
                 case 'noop':
@@ -344,7 +400,63 @@
             console.error('[VizBridge] ui_action dispatch failed:', err);
         }
 
-        _appendUiActionBadge(action, args);
+        // Don't dump noise into the chat for every badge registration.
+        if (action !== 'emit_badge') _appendUiActionBadge(action, args);
+    }
+
+    // Pan camera to a node, pin it, and show a floating subtitle card beside it.
+    function _runTourStep(nodeId, caption) {
+        if (!nodeId || !window.cy) return;
+        const node = window.cy.getElementById(nodeId);
+        if (!node || !node.length) {
+            // Fallback: try label match
+            const byLabel = window.cy.nodes().filter(n => n.data('label') === nodeId);
+            if (!byLabel.length) return;
+            _focusTourNode(byLabel[0], caption);
+            return;
+        }
+        _focusTourNode(node, caption);
+    }
+
+    function _focusTourNode(node, caption) {
+        const cy = window.cy;
+        const targetZoom = Math.max(cy.zoom(), 1.6);
+        cy.animate(
+            { center: { eles: node }, zoom: targetZoom },
+            { duration: 500, easing: 'ease-in-out-cubic' }
+        );
+        if (typeof window.pinHighlightNode === 'function') {
+            try { window.pinHighlightNode(node); } catch (_) {}
+        }
+        if (caption) _showTourSubtitle(node, caption);
+    }
+
+    // Floating caption that sits near the focused node for ~3 s, replacing the
+    // previous step's caption. Absolute position tracks the node's rendered
+    // screen coords; kept simple (no pan/zoom live follow).
+    function _showTourSubtitle(node, caption) {
+        if (!_tourSubtitleEl) {
+            _tourSubtitleEl = document.createElement('div');
+            _tourSubtitleEl.className = 'tour-subtitle';
+            document.body.appendChild(_tourSubtitleEl);
+        }
+        _tourSubtitleEl.textContent = caption;
+        _tourSubtitleEl.style.opacity = '1';
+
+        // Position after the camera animation settles so coords are final.
+        setTimeout(() => {
+            if (!_tourSubtitleEl || !node || !node.length) return;
+            const rp = node.renderedPosition();
+            const cyContainer = window.cy && window.cy.container();
+            const rect = cyContainer ? cyContainer.getBoundingClientRect() : { left: 0, top: 0 };
+            _tourSubtitleEl.style.left = (rect.left + rp.x + 16) + 'px';
+            _tourSubtitleEl.style.top  = (rect.top  + rp.y - 8)  + 'px';
+        }, 520);
+
+        if (_tourSubtitleTimer) clearTimeout(_tourSubtitleTimer);
+        _tourSubtitleTimer = setTimeout(() => {
+            if (_tourSubtitleEl) _tourSubtitleEl.style.opacity = '0';
+        }, 3500);
     }
 
     function _highlightNodeById(id) {
@@ -385,6 +497,10 @@
     function _sendMessage() {
         const text = _input.value.trim();
         if (!text || _isBusy) return;
+
+        // New turn: drop stale badge mappings so labels that collided with a
+        // previous turn's node_id don't leak into this response.
+        _badgeMap.clear();
 
         _input.value = '';
         _input.style.height = '';   // reset auto-grow
@@ -1078,6 +1194,44 @@
                 // Initialize dragging and resizing
         _initDrag();
         _initResize();
+
+        // ── Badge interactions (delegated on chat messages) ─────────────────
+        _msgs.addEventListener('click', function (e) {
+            const b = e.target.closest('.chat-badge');
+            if (!b) return;
+            const id = b.dataset.nodeId;
+            if (!id || !window.cy) return;
+            const node = window.cy.getElementById(id);
+            if (node && node.length) {
+                window.cy.animate(
+                    { center: { eles: node }, zoom: Math.max(window.cy.zoom(), 1.8) },
+                    { duration: 300 }
+                );
+                if (typeof window.pinHighlightNode === 'function') window.pinHighlightNode(node);
+            }
+        });
+        _msgs.addEventListener('mouseover', function (e) {
+            const b = e.target.closest('.chat-badge');
+            if (!b || !window.cy) return;
+            const node = window.cy.getElementById(b.dataset.nodeId);
+            if (node && node.length && typeof window.highlightNode === 'function') {
+                window.highlightNode(node);
+            }
+        });
+        _msgs.addEventListener('mouseout', function (e) {
+            const b = e.target.closest('.chat-badge');
+            if (b && typeof window.clearHighlight === 'function') window.clearHighlight();
+        });
+
+        // ── Canvas node hover → highlight matching badges in chat ───────────
+        document.addEventListener('vizNodeHover', function (e) {
+            const d = e.detail || {};
+            if (!d.nodeId) return;
+            const sel = `.chat-badge[data-node-id="${d.nodeId.replace(/"/g, '\\"')}"]`;
+            let badges;
+            try { badges = _msgs.querySelectorAll(sel); } catch (_) { return; }
+            badges.forEach(function (el) { el.classList.toggle('chat-badge-hl', !!d.enter); });
+        });
     }
 
     // ── Check if configured ───────────────────────────────────────────────────

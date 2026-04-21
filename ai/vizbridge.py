@@ -374,7 +374,13 @@ class ContextInjector:
             f"**Canvas tools** (drive the visualizer — web UI only):\n"
             f"- `vizcode_ui_goto_l0/l1/l2` — switch the user's canvas view\n"
             f"- `vizcode_ui_highlight_node(node_id)` — highlight a single node\n"
-            f"- `vizcode_ui_highlight_path(source, target)` — highlight a path\n\n"
+            f"- `vizcode_ui_highlight_nodes(node_ids[])` — highlight several nodes at once\n"
+            f"- `vizcode_ui_highlight_path(source, target)` — highlight a dependency path\n"
+            f"- `vizcode_ui_emit_badge(node_id, label)` — make a name in your reply clickable\n"
+            f"- `vizcode_ui_tour_step(node_id, caption?)` — pan camera + show subtitle beside a node\n\n"
+            f"Node id format: file paths as shown by `vizcode_l1` (e.g. `ai/vizbridge.py`). "
+            f"For L2 function nodes use `path::func`. Call `vizcode_l1` / `vizcode_l2` first "
+            f"if you are not certain of the exact id — do not guess.\n\n"
             f"Rules:\n"
             f"- ALWAYS start with `vizcode_l0()` for broad codebase questions.\n"
             f"- When the user asks to 'see / show / open / go to / highlight' "
@@ -385,7 +391,18 @@ class ContextInjector:
             f"that aren't already shown on the canvas (the chat panel renders them inline).\n"
             f"- Focus on architecture, dependencies, and call flows.\n"
             f"- Do NOT read raw source files — use the tools instead.\n"
-            f"- Be concise; the user can see the graph while chatting."
+            f"- Be concise; the user can see the graph while chatting.\n\n"
+            f"INTERACTIVE CHAT CONVENTIONS (important for UX):\n"
+            f"- Whenever you mention a file or function that exists in the project, call "
+            f"`vizcode_ui_emit_badge` FIRST (with the exact node_id and the label you will "
+            f"write), then write the label in the very next sentence. The frontend wraps "
+            f"the first matching occurrence of `label` as a clickable badge.\n"
+            f"- Use `vizcode_ui_highlight_nodes` (plural) when discussing a group of files "
+            f"that share a property (e.g. 'these three modules are tightly coupled').\n"
+            f"- For guided walkthroughs, use `vizcode_ui_tour_step` WITH PACING: write one "
+            f"sentence about node A, call tour_step(A, caption), write the next sentence "
+            f"about node B, call tour_step(B, caption). NEVER batch tour steps at the end; "
+            f"the rhythm between narration and camera movement is the whole point."
         )
 
 
@@ -447,6 +464,7 @@ class VizBridge:
         for _round in range(self._MAX_TOOL_ROUNDS):
             pending_tool_calls: list[dict] = []
             assistant_content:  list[dict] = []
+            ui_results: dict[str, str] = {}   # tool_use id -> result for UI tools already fired mid-stream
             text_buf = ""
 
             for ev in provider.stream_chat(working, tool_defs, system):
@@ -462,6 +480,23 @@ class VizBridge:
                         "name":  ev["name"],
                         "input": ev["input"],
                     })
+                    # UI tools fire IMMEDIATELY so the canvas moves in sync with narration.
+                    # The tool_result message still gets paired in `working` after the stream
+                    # ends, keeping the provider's tool-use/tool-result contract intact.
+                    if ev["name"] in UI_TOOL_NAMES:
+                        ui = ui_dispatch(ev["name"], ev.get("input") or {})
+                        yield {
+                            "type":   "ui_action",
+                            "action": ui["action"],
+                            "args":   ui["args"],
+                        }
+                        yield {
+                            "type":   "tool_call",
+                            "name":   ev["name"],
+                            "input":  ev.get("input") or {},
+                            "result": ui["message"],
+                        }
+                        ui_results[ev["id"]] = ui["message"]
 
                 elif ev["type"] == "done":
                     break
@@ -482,25 +517,19 @@ class VizBridge:
                 yield {"type": "done"}
                 return
 
-            # Execute tools and append results
+            # Pair every tool_use with a tool_result for the next round.
+            # UI tools already ran mid-stream; analysis tools run now.
             for tc in pending_tool_calls:
-                if tc["name"] in UI_TOOL_NAMES:
-                    ui = ui_dispatch(tc["name"], tc["input"] or {})
-                    yield {
-                        "type":   "ui_action",
-                        "action": ui["action"],
-                        "args":   ui["args"],
-                    }
-                    result = ui["message"]
+                if tc["id"] in ui_results:
+                    result = ui_results[tc["id"]]
                 else:
                     result = self._tools.call(tc["name"], tc["input"])
-
-                yield {
-                    "type":   "tool_call",
-                    "name":   tc["name"],
-                    "input":  tc["input"],
-                    "result": result,
-                }
+                    yield {
+                        "type":   "tool_call",
+                        "name":   tc["name"],
+                        "input":  tc["input"],
+                        "result": result,
+                    }
                 working.append({
                     "role":        "tool",
                     "tool_use_id": tc["id"],

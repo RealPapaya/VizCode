@@ -672,6 +672,13 @@ function initCy() {
         motionBlur: false,                                      // avoids dark-frame accumulation
         pixelRatio: Math.min(window.devicePixelRatio || 1, 1.5), // cap HiDPI render cost
     });
+    // Expose cy + highlight APIs so viz_chat.js (inside its IIFE) can drive the canvas.
+    window.cy               = cy;
+    window.highlightNode    = highlightNode;
+    window.pinHighlightNode = pinHighlightNode;
+    window.clearHighlight   = clearHighlight;
+    window.highlightNodes   = highlightNodes;
+
     cy.on('zoom', () => {
         if (_bgPointerDown) _bgPointerMoved = true;
         refreshGraphZoomControls();
@@ -722,6 +729,8 @@ function initCy() {
     cy.on('cxttap', 'node', e => onNodeRightClick(e, e.target));
     cy.on('mouseover', 'node', e => {
         const node = e.target;
+        // Broadcast so viz_chat.js can highlight matching badges.
+        try { document.dispatchEvent(new CustomEvent('vizNodeHover', { detail: { nodeId: node.id(), enter: true } })); } catch (_) {}
         if (_hoveredNodeClearTimer) { clearTimeout(_hoveredNodeClearTimer); _hoveredNodeClearTimer = null; }
         if (_hlPinned) {
             // Cancel any pending highlightNode call from scheduleHideTooltip —
@@ -744,6 +753,7 @@ function initCy() {
     cy.on('mouseout', 'node', e => {
         scheduleHideTooltip();
         const node = e.target;
+        try { document.dispatchEvent(new CustomEvent('vizNodeHover', { detail: { nodeId: node.id(), enter: false } })); } catch (_) {}
         if (_hoveredNode && _hoveredNode.same(node)) {
             _hoveredNodeClearTimer = setTimeout(() => {
                 _hoveredNodeClearTimer = null;
@@ -808,6 +818,32 @@ function pinHighlightNode(node) {
     _applySelectedLabelStyle(node);
     _graphShowIsolateBtn();
     _applyGraphIsolateState();
+}
+
+// Highlight multiple nodes simultaneously (AI "these files are coupled" use case).
+// Unlike highlightNode (which highlights neighbors by direction), this keeps the
+// focus on the exact set and fades everything else uniformly.
+function highlightNodes(ids) {
+    if (!cy || !Array.isArray(ids) || !ids.length) return;
+    if (tooltipHideTimer) clearTimeout(tooltipHideTimer);
+
+    const col = cy.collection();
+    for (const id of ids) {
+        const n = cy.getElementById(id);
+        if (n && n.length) col.merge(n);
+        else {
+            // Fallback: label match
+            const byLabel = cy.nodes().filter(x => x.data('label') === id);
+            if (byLabel.length) col.merge(byLabel[0]);
+        }
+    }
+    if (!col.length) return;
+
+    cy.elements().removeClass('hl hl-edge-out hl-edge-in hl-node-out hl-node-in');
+    cy.elements().addClass('faded');
+    col.removeClass('faded').addClass('hl');
+    // Keep edges between highlighted nodes visible.
+    col.edgesWith(col).removeClass('faded').addClass('hl-edge-out');
 }
 
 let _hlPinned = false;

@@ -108,6 +108,68 @@ UI_TOOL_SCHEMAS: list[dict] = [
             "required": ["source", "target"],
         },
     },
+    {
+        "name": "vizcode_ui_emit_badge",
+        "description": (
+            "Register a clickable badge for a file/function name you are about to mention. "
+            "Call this BEFORE writing the label in text; the frontend will wrap the first "
+            "matching occurrence of `label` as a clickable span that highlights the node on hover "
+            "and focuses it on click. Use for EVERY file/function you reference that exists in the project."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "node_id": {
+                    "type": "string",
+                    "description": "Exact canvas node id (file path e.g. 'ai/vizbridge.py', or 'path::func' for L2 funcs).",
+                },
+                "label": {
+                    "type": "string",
+                    "description": "The text that will appear in chat. First occurrence after this call becomes a badge.",
+                },
+            },
+            "required": ["node_id", "label"],
+        },
+    },
+    {
+        "name": "vizcode_ui_highlight_nodes",
+        "description": (
+            "Highlight multiple nodes on the current canvas at once. "
+            "Use this when discussing a group of files that share a property "
+            "(e.g. 'these three files are tightly coupled'). Fades everything else."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "node_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of canvas node ids (file paths) to highlight simultaneously.",
+                },
+            },
+            "required": ["node_ids"],
+        },
+    },
+    {
+        "name": "vizcode_ui_tour_step",
+        "description": (
+            "Pan the camera to one node and show a one-line subtitle card beside it. "
+            "Use this to guide the user through code AS YOU NARRATE — write a sentence "
+            "about a node, then call tour_step, then write the next sentence. "
+            "Do NOT batch all tour steps at the end; the rhythm matters."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "node_id": {"type": "string", "description": "Canvas node id to focus."},
+                "caption": {
+                    "type": "string",
+                    "description": "One-line subtitle shown beside the node. Keep it short (~80 chars).",
+                },
+            },
+            "required": ["node_id"],
+        },
+    },
 ]
 
 UI_TOOL_NAMES: frozenset = frozenset(s["name"] for s in UI_TOOL_SCHEMAS)
@@ -167,7 +229,42 @@ def dispatch(name: str, args: dict) -> dict:
         return {
             "action":  "highlight_path",
             "args":    {"source": src, "target": tgt},
-            "message": f"Highlighted path {src!r} → {tgt!r} on canvas.",
+            "message": f"Highlighted path {src!r} -> {tgt!r} on canvas.",
+        }
+
+    if name == "vizcode_ui_emit_badge":
+        node_id = (args.get("node_id") or "").strip()
+        label   = (args.get("label") or "").strip()
+        if not node_id or not label:
+            return _err(name, "both 'node_id' and 'label' are required")
+        return {
+            "action":  "emit_badge",
+            "args":    {"node_id": node_id, "label": label},
+            "message": f"Badge registered: {label!r} -> {node_id!r}.",
+        }
+
+    if name == "vizcode_ui_highlight_nodes":
+        ids = args.get("node_ids") or []
+        if not isinstance(ids, list):
+            return _err(name, "'node_ids' must be a list of strings")
+        ids = [str(x).strip() for x in ids if str(x).strip()]
+        if not ids:
+            return _err(name, "'node_ids' must contain at least one id")
+        return {
+            "action":  "highlight_nodes",
+            "args":    {"node_ids": ids},
+            "message": f"Highlighted {len(ids)} nodes on canvas.",
+        }
+
+    if name == "vizcode_ui_tour_step":
+        node_id = (args.get("node_id") or "").strip()
+        if not node_id:
+            return _err(name, "missing required arg 'node_id'")
+        caption = (args.get("caption") or "").strip()
+        return {
+            "action":  "tour_step",
+            "args":    {"node_id": node_id, "caption": caption},
+            "message": f"Tour step: focused {node_id!r}" + (f" ({caption!r})" if caption else "") + ".",
         }
 
     return _err(name, "unknown UI tool")
