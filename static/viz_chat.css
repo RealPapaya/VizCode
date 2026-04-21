@@ -211,10 +211,13 @@
     flex-direction: column;
     gap: 8px;
     scroll-behavior: smooth;
+    /* Ensure horizontal scrollbar appears when content is wide */
+    min-width: 0;
 }
 
 #chat-messages::-webkit-scrollbar {
     width: 4px;
+    height: 4px;
 }
 
 #chat-messages::-webkit-scrollbar-track {
@@ -308,7 +311,11 @@
 
 .chat-tool-result {
     display: none;
-    width: 92%;
+    align-self: flex-start;
+    min-width: 360px;
+    max-width: max-content;
+    width: max-content;
+    flex-shrink: 0;
     font-size: 11px;
     font-family: var(--code-font, monospace);
     color: var(--muted);
@@ -366,8 +373,8 @@
     color: #fff;
     border: none;
     border-radius: 8px;
-    width: 34px;
-    height: 34px;
+    width: 38px;
+    height: 38px;
     font-size: 16px;
     cursor: pointer;
     display: flex;

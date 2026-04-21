@@ -13,7 +13,7 @@
 (function () {
     'use strict';
 
-        // ── State ─────────────────────────────────────────────────────────────────
+            // ── State ─────────────────────────────────────────────────────────────────
     let _isOpen   = false;
     let _isBusy   = false;   // waiting for AI response
     let _history  = [];      // [{role, content}] sent to server
@@ -22,6 +22,11 @@
     let _currentChatProvider = null; // provider name for the current turn
     let _lastTurnHadError = false;   // true if error SSE event was received this turn
     let _cancelStream     = null;    // fn to abort the current SSE stream (set by _readSSE)
+
+    // ── Input history (for arrow key navigation) ──────────────────────────────
+    let _inputHistory = [];          // array of previously sent user messages
+    let _historyIndex = -1;          // current position in history (-1 = not navigating)
+    let _tempInput    = '';          // save current input when starting to navigate
 
     // ── DOM refs (populated in initChat) ─────────────────────────────────────
     let _btn, _panel, _msgs, _input, _sendBtn, _modal;
@@ -376,7 +381,7 @@
         }
     }
 
-    // ── Send message ─────────────────────────────────────────────────────────
+        // ── Send message ─────────────────────────────────────────────────────────
     function _sendMessage() {
         const text = _input.value.trim();
         if (!text || _isBusy) return;
@@ -384,6 +389,11 @@
         _input.value = '';
         _input.style.height = '';   // reset auto-grow
         _appendMsg('user', text);
+
+        // Add to input history (for arrow key recall)
+        _inputHistory.push(text);
+        _historyIndex = -1;  // reset navigation state
+        _tempInput = '';
 
         _history.push({ role: 'user', content: text });
         _setBusy(true);
@@ -965,10 +975,50 @@
             else { _sendMessage(); }
         });
 
-        _input.addEventListener('keydown', function (e) {
+                _input.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 _sendMessage();
+                return;
+            }
+
+            // Arrow key history navigation (like terminal)
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (_inputHistory.length === 0) return;
+
+                // First time pressing up: save current input
+                if (_historyIndex === -1) {
+                    _tempInput = _input.value;
+                    _historyIndex = _inputHistory.length - 1;
+                } else if (_historyIndex > 0) {
+                    _historyIndex--;
+                }
+
+                _input.value = _inputHistory[_historyIndex];
+                _input.style.height = 'auto';
+                _input.style.height = Math.min(_input.scrollHeight, 120) + 'px';
+                // Move cursor to end
+                setTimeout(() => _input.setSelectionRange(_input.value.length, _input.value.length), 0);
+            }
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (_historyIndex === -1) return;  // not navigating
+
+                if (_historyIndex < _inputHistory.length - 1) {
+                    _historyIndex++;
+                    _input.value = _inputHistory[_historyIndex];
+                } else {
+                    // Reached the end: restore temp input
+                    _historyIndex = -1;
+                    _input.value = _tempInput;
+                    _tempInput = '';
+                }
+
+                _input.style.height = 'auto';
+                _input.style.height = Math.min(_input.scrollHeight, 120) + 'px';
+                setTimeout(() => _input.setSelectionRange(_input.value.length, _input.value.length), 0);
             }
         });
 
