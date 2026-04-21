@@ -399,10 +399,17 @@ class VizBridge:
           {"type": "done"}
           {"type": "error",     "message": "..."}
         """
+        # ── DEBUG LOG ────────────────────────────────────────────────────────
+        _p = self._cfg.get('provider', '?')
+        _k = self._cfg.get(f'{_p}_api_key', '') or self._cfg.get('ollama_url', '')
+        print(f'[VizBridge.stream_response] called  provider={_p}  key_present={bool(_k)}  msgs={len(messages)}')
+        import sys; sys.stdout.flush()
+        # ─────────────────────────────────────────────────────────────────────
         try:
             provider = ProviderRouter(self._cfg).get_provider()
             yield {"type": "provider", "name": self._cfg.get("provider")}
         except ValueError as e:
+            print(f'[VizBridge.stream_response] provider error: {e}')
             yield {"type": "error", "message": str(e)}
             return
 

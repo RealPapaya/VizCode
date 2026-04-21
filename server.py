@@ -2128,6 +2128,16 @@ class Handler(BaseHTTPRequestHandler):
             length = int(self.headers.get('Content-Length', 0))
             try:
                 body = json.loads(self.rfile.read(length).decode('utf-8'))
+                # ── DEBUG LOG ────────────────────────────────────────────────
+                _SECRET = ('anthropic_api_key', 'openai_api_key', 'grok_api_key', 'gemini_api_key')
+                for k in _SECRET:
+                    v = body.get(k, '')
+                    if v and '****' not in v:
+                        print(f'[chat-config] {k} received ({len(v)} chars)')
+                    elif v:
+                        print(f'[chat-config] {k} skipped (masked placeholder)')
+                print(f'[chat-config] provider={body.get("provider","?")} model={body.get("anthropic_model") or body.get("openai_model") or body.get("gemini_model") or body.get("grok_model") or body.get("ollama_model","?")}')
+                # ─────────────────────────────────────────────────────────────
                 from ai.vizbridge import save_config
                 save_config(body)
                 self.json_resp({'ok': True})
@@ -2192,7 +2202,21 @@ class Handler(BaseHTTPRequestHandler):
                     return False
 
             try:
-                from ai.vizbridge import VizBridge
+                from ai.vizbridge import VizBridge, load_config
+                # ── DEBUG LOG ────────────────────────────────────────────────
+                _cfg = load_config()
+                _provider = _cfg.get('provider', '?')
+                _key_fields = {
+                    'anthropic': 'anthropic_api_key',
+                    'openai':    'openai_api_key',
+                    'grok':      'grok_api_key',
+                    'gemini':    'gemini_api_key',
+                    'ollama':    'ollama_url',
+                }
+                _key_val = _cfg.get(_key_fields.get(_provider, ''), '')
+                _key_present = bool(_key_val)
+                print(f'[chat-stream] provider={_provider}  key_present={_key_present}  key_len={len(_key_val)}  root={project_root!r}')
+                # ─────────────────────────────────────────────────────────────
                 vb = VizBridge(project_root)
                 for event in vb.stream_response(history):
                     if not _sse(event):

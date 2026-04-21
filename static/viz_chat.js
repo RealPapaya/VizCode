@@ -20,6 +20,7 @@
     let _streamBubble = null;        // DOM element currently streaming into
     let _streamText   = '';          // accumulated text for current stream bubble
     let _currentChatProvider = null; // provider name for the current turn
+    let _lastTurnHadError = false;   // true if error SSE event was received this turn
 
     // ── DOM refs (populated in initChat) ─────────────────────────────────────
     let _btn, _panel, _msgs, _input, _sendBtn, _modal;
@@ -366,8 +367,6 @@
                     throw new Error(err.error || 'Server error ' + resp.status);
                 });
             }
-            _removeTyping();
-            _startStreamBubble();
             _readSSE(resp.body);
         }).catch(function (err) {
             _removeTyping();
@@ -379,23 +378,43 @@
     // ── SSE reader (ReadableStream) ───────────────────────────────────────────
     function _readSSE(readableStream) {
         _currentChatProvider = null; // reset for this turn
+        _lastTurnHadError = false;
         const reader  = readableStream.getReader();
         const decoder = new TextDecoder();
         let buf = '';
 
         const assistantContent = [];   // accumulates for history
+        let _sseFinished = false;
+
+        // Safety valve: if server never sends 'done' or closes connection
+        const _timeoutId = setTimeout(function () {
+            if (_sseFinished) return;
+            _sseFinished = true;
+            try { reader.cancel(); } catch (_) {}
+            _removeTyping();
+            if (!_lastTurnHadError) {
+                _appendMsg('err', 'No response after 90 s — check your API key and server logs.');
+            }
+            _setBusy(false);
+        }, 90000);
+
+        function _finish() {
+            if (_sseFinished) return;
+            _sseFinished = true;
+            clearTimeout(_timeoutId);
+            _finishTurn(assistantContent);
+        }
 
         function pump() {
             reader.read().then(function ({ done, value }) {
-                if (done) {
-                    _finishTurn(assistantContent);
-                    return;
-                }
+                if (done) { _finish(); return; }
+
                 buf += decoder.decode(value, { stream: true });
 
                 // Process complete SSE messages (separated by \n\n)
                 let idx;
-                while ((idx = buf.indexOf('\n\n')) !== -1) {
+                let gotDone = false;
+                while (!gotDone && (idx = buf.indexOf('\n\n')) !== -1) {
                     const raw = buf.slice(0, idx);
                     buf = buf.slice(idx + 2);
 
@@ -405,12 +424,20 @@
                         if (!dataStr) continue;
                         try {
                             const ev = JSON.parse(dataStr);
+                            if (ev.type === 'done') { gotDone = true; break; }
                             _handleSSEEvent(ev, assistantContent);
                         } catch (_) {}
                     }
                 }
+
+                if (gotDone) {
+                    try { reader.cancel(); } catch (_) {}
+                    _finish();
+                    return;
+                }
                 pump();
             }).catch(function (err) {
+                clearTimeout(_timeoutId);
                 _removeTyping();
                 _appendMsg('err', 'Stream error: ' + err.message);
                 _setBusy(false);
@@ -421,6 +448,7 @@
 
     function _handleSSEEvent(ev, assistantContent) {
         if (ev.type === 'delta') {
+            _removeTyping();
             if (!_streamBubble) _startStreamBubble();
             _appendStreamDelta(ev.text);
             assistantContent.push({ type: 'text_fragment', text: ev.text });
@@ -443,7 +471,9 @@
                 _streamBubble.remove();
                 _streamBubble = null;
             }
+            _lastTurnHadError = true;
             _appendMsg('err', ev.message || 'Unknown error');
+            _setBusy(false);
         }
     }
 
@@ -465,6 +495,8 @@
                     localStorage.setItem('vizcode_ai_interactions', JSON.stringify(s));
                 } catch (_) { }
             }
+        } else if (!_lastTurnHadError) {
+            _appendMsg('err', 'No response received from AI. Check your API key and server logs.');
         }
 
         _setBusy(false);
@@ -936,7 +968,7 @@
                 _btn.title = 'AI Chat — click to set up';
                 // Override open to show config first
                 const setupAndOpen = function () {
-                    origOpen();
+                    _open();
                     _openConfigModal();
                     _btn.removeEventListener('click', setupAndOpen);
                     _btn.addEventListener('click', toggleChatPanel);
