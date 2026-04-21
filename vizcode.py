@@ -896,46 +896,78 @@ def prompt_path(msg: str) -> str:
 # ─── Actions ─────────────────────────────────────────────────────────────────
 
 
-def ask_generate_report() -> bool:
-    """Ask user if they want to generate AI report (vizcode_report.md)."""
-    tui = _tui
-    start_r = tui._bottom + 2
+def ask_generate_report() -> Optional[bool]:
+    """Ask user if they want to generate AI report (vizcode_report.md).
+    Returns: True (yes), False (no), None (back).
+    """
+    items = [
+        "✓  Yes  (recommended for AI analysis)",
+        "✗  No   (faster, visualization only)",
+        "-" * 40,
+        "<- Back",
+    ]
+    
+    _tui.update_badge('ready' if is_server_running() else 'none')
+    _tui._clear_zone()
+    r = CONTENT_START
+    
+    # Title and description
+    _tui._at(r, f"  {bold('Generate AI Report?')}"); r += 1
+    _tui._at(r, f"  {dim('Creates .local/vizcode_report.md — a structured summary')}"); r += 1
+    _tui._at(r, f"  {dim('for AI assistants (Claude, ChatGPT, etc.) to understand')}"); r += 1
+    _tui._at(r, f"  {dim('↑↓ move   Enter select   Esc back')}"); r += 1
+    _tui._at(r, ""); r += 1
+    
+    # Menu items
     sel = 0
-
-    def draw(selected: int):
-        r = start_r
-        tui._at(r, ""); r += 1
-        tui._at(r, f"  {cyan('❯')} {bold('Generate AI Report?')}"); r += 1
-        tui._at(r, f"     {dim('Creates .local/vizcode_report.md — a structured summary')}"); r += 1
-        tui._at(r, f"     {dim('for AI assistants (Claude, ChatGPT, etc.) to understand')}"); r += 1
-        tui._at(r, ""); r += 1
-
-        if selected == 0:
-            tui._at(r, f"   {orange('▶')} {orange(bold('Yes, generate report'))}  {dim('(recommended for AI analysis)')}"); r += 1
-            tui._at(r, f"     {dim('No, skip report       (faster, visualization only)')}"); r += 1
+    item_rows = {}
+    for i, label in enumerate(items):
+        item_rows[i] = r
+        if label.startswith("-"):
+            _tui._at(r, f"  {dim(label)}")
+        elif i == sel:
+            _tui._at(r, f"  {orange('▶')} {orange(bold(label))}")
         else:
-            tui._at(r, f"     {dim('Yes, generate report  (recommended for AI analysis)')}"); r += 1
-            tui._at(r, f"   {orange('▶')} {orange(bold('No, skip report'))}       {dim('(faster, visualization only)')}"); r += 1
-
-        tui._at(r, ""); r += 1
-        tui._at(r, f"  {dim('↑↓ move   Enter select')}                                  ")
-        tui._bottom = r
-        tui.flush()
-
-    draw(sel)
-
+            _tui._at(r, f"    {label}")
+        r += 1
+    
+    _tui._at(r, ""); r += 1
+    _tui._bottom = r
+    _tui.flush()
+    
+    # Input loop
     while True:
         try:
             key = _getch()
-            if key in ('UP', 'DOWN'):
-                sel = 1 if sel == 0 else 0
-                draw(sel)
+            if key == 'UP':
+                old_sel = sel
+                sel = (sel - 1) % len(items)
+                while items[sel].startswith("-"):
+                    sel = (sel - 1) % len(items)
+                # Redraw only changed items
+                _tui._at(item_rows[old_sel], f"    {items[old_sel]}")
+                _tui._at(item_rows[sel], f"  {orange('▶')} {orange(bold(items[sel]))}")
+                _tui.flush()
+            elif key == 'DOWN':
+                old_sel = sel
+                sel = (sel + 1) % len(items)
+                while items[sel].startswith("-"):
+                    sel = (sel + 1) % len(items)
+                # Redraw only changed items
+                _tui._at(item_rows[old_sel], f"    {items[old_sel]}")
+                _tui._at(item_rows[sel], f"  {orange('▶')} {orange(bold(items[sel]))}")
+                _tui.flush()
             elif key == 'ENTER':
-                return sel == 0
-            elif key in ('ESC', '\x1b', 'q', 'Q'):
-                return False
-        except Exception:
-            return False
+                if sel == 0:
+                    return True
+                elif sel == 1:
+                    return False
+                elif sel == 3:
+                    return None
+            elif key in ('ESC', 'q', 'Q'):
+                return None
+        except KeyboardInterrupt:
+            return None
 
 
 def _generate_report_for_path(path: str) -> bool:
@@ -971,7 +1003,10 @@ def _action_analyze_local():
         time.sleep(1.5); return
     
     # Ask if user wants AI report
-    if ask_generate_report():
+    report_choice = ask_generate_report()
+    if report_choice is None:
+        return  # User chose back, return to main menu
+    if report_choice:
         _generate_report_for_path(str(p.resolve()))
     
     run_analysis_with_progress(str(p.resolve()))
@@ -1032,7 +1067,10 @@ def action_recent():
         time.sleep(1.5); return
     
     # Ask if user wants AI report
-    if ask_generate_report():
+    report_choice = ask_generate_report()
+    if report_choice is None:
+        return  # User chose back, return to main menu
+    if report_choice:
         _generate_report_for_path(path)
     
     run_analysis_with_progress(path)
