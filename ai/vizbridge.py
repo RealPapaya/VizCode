@@ -56,6 +56,9 @@ from ai.ui_tools import (
     dispatch as ui_dispatch,
 )
 
+# Mode + forced-task registry (dropdown + button behaviours)
+from ai.chat_modes import resolve as _resolve_mode
+
 # ─── Config ───────────────────────────────────────────────────────────────────
 
 _CONFIG_PATH = _HERE / "config.json"
@@ -327,9 +330,16 @@ class ToolRegistry:
         return f"Unknown tool: {name}"
 
     @staticmethod
-    def definitions() -> list[dict]:
-        """Return merged analysis + UI tool schemas (MCP inputSchema style)."""
-        return list(MCP_TOOL_SCHEMAS) + list(UI_TOOL_SCHEMAS)
+    def definitions(whitelist: set[str] | None = None) -> list[dict]:
+        """Return merged analysis + UI tool schemas (MCP inputSchema style).
+
+        When `whitelist` is provided, only tools whose names are in the set are
+        returned — used by mode-based tool filtering.
+        """
+        defs = list(MCP_TOOL_SCHEMAS) + list(UI_TOOL_SCHEMAS)
+        if whitelist is None:
+            return defs
+        return [d for d in defs if d.get("name") in whitelist]
 
 
 # ─── ContextInjector ──────────────────────────────────────────────────────────
@@ -337,7 +347,7 @@ class ToolRegistry:
 class ContextInjector:
     """Build a system prompt summarising the current project."""
 
-    def build(self, project_root: str, scan_path: str) -> str:
+    def build(self, project_root: str, scan_path: str, addendum: str = "") -> str:
         root_name = Path(project_root).name or "project"
         scan = _load_json(scan_path)
         entries = scan.get("entries", {})
@@ -403,6 +413,7 @@ class ContextInjector:
             f"sentence about node A, call tour_step(A, caption), write the next sentence "
             f"about node B, call tour_step(B, caption). NEVER batch tour steps at the end; "
             f"the rhythm between narration and camera movement is the whole point."
+            + (addendum or "")
         )
 
 
@@ -428,9 +439,18 @@ class VizBridge:
         self._tools   = ToolRegistry(project_root)
         self._context = ContextInjector()
 
-    def stream_response(self, messages: list[dict]) -> Iterator[dict]:
+    def stream_response(
+        self,
+        messages: list[dict],
+        mode: str | None = None,
+        force_task: str | None = None,
+    ) -> Iterator[dict]:
         """
         Drive one conversation turn with automatic tool-use loop.
+
+        `mode` selects a persistent conversation mode ("chat" / "deep" / "fast").
+        `force_task` optionally layers a one-shot directive ("mermaid_flow" /
+        "file_tour" / "health_report"). Unknown values fall back silently.
 
         Yields event dicts:
           {"type": "delta",     "text": "..."}
@@ -443,7 +463,7 @@ class VizBridge:
         # ── DEBUG LOG ────────────────────────────────────────────────────────
         _p = self._cfg.get('provider', '?')
         _k = self._cfg.get(f'{_p}_api_key', '') or self._cfg.get('ollama_url', '')
-        print(f'[VizBridge.stream_response] called  provider={_p}  key_present={bool(_k)}  msgs={len(messages)}')
+        print(f'[VizBridge.stream_response] called  provider={_p}  key_present={bool(_k)}  msgs={len(messages)}  mode={mode!r}  force_task={force_task!r}')
         import sys; sys.stdout.flush()
         # ─────────────────────────────────────────────────────────────────────
         try:
@@ -454,12 +474,22 @@ class VizBridge:
             yield {"type": "error", "message": str(e)}
             return
 
+        # Resolve mode + forced task into (tool whitelist, prompt addendum, seed user message).
+        whitelist, addendum, seed_msg = _resolve_mode(mode, force_task)
+
         scan_path = str(Path(self._root) / ".local" / "scan_cache.json")
-        system    = self._context.build(self._root, scan_path)
-        tool_defs = self._tools.definitions()
+        system    = self._context.build(self._root, scan_path, addendum=addendum)
+        tool_defs = self._tools.definitions(whitelist=whitelist)
 
         # Working copy of messages — we append assistant + tool_result turns
         working = list(messages)
+
+        # Forced task: inject the directive as a user-role message right before the
+        # user's latest turn. This gives AI a clear "your task this turn" cue while
+        # preserving whatever the user typed alongside the button click.
+        if seed_msg:
+            insert_at = max(len(working) - 1, 0)
+            working.insert(insert_at, {"role": "user", "content": seed_msg})
 
         for _round in range(self._MAX_TOOL_ROUNDS):
             pending_tool_calls: list[dict] = []
@@ -480,6 +510,21 @@ class VizBridge:
                         "name":  ev["name"],
                         "input": ev["input"],
                     })
+                    # Whitelist guard: AI shouldn't see out-of-mode tool schemas, but a
+                    # replayed history or provider-side cache could surface one. Short-circuit
+                    # with a deterministic error result instead of running the tool.
+                    if whitelist is not None and ev["name"] not in whitelist:
+                        block_msg = (
+                            f"Tool {ev['name']!r} is not available in the current mode."
+                        )
+                        yield {
+                            "type":   "tool_call",
+                            "name":   ev["name"],
+                            "input":  ev.get("input") or {},
+                            "result": block_msg,
+                        }
+                        ui_results[ev["id"]] = block_msg
+                        continue
                     # UI tools fire IMMEDIATELY so the canvas moves in sync with narration.
                     # The tool_result message still gets paired in `working` after the stream
                     # ends, keeping the provider's tool-use/tool-result contract intact.

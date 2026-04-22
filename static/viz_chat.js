@@ -36,6 +36,13 @@
     let   _tourSubtitleEl = null;    // floating caption DOM for vizcode_ui_tour_step
     let   _tourSubtitleTimer = null;
 
+    // ── Chat mode + forced-task state ─────────────────────────────────────────
+    // Persistent mode: dropdown choice, survives reloads via localStorage.
+    // Pending force task: set by a button click, cleared as soon as the turn is sent.
+    const _MODE_LABELS = { chat: '一般對話', deep: '深度分析', fast: '快速查詢' };
+    let _currentMode      = localStorage.getItem('vizcode.chat.mode') || 'chat';
+    let _pendingForceTask = null;    // null | 'mermaid_flow' | 'file_tour' | 'health_report'
+
     // ── DOM refs (populated in initChat) ─────────────────────────────────────
     let _btn, _panel, _msgs, _input, _sendBtn, _modal;
     let _chatCfgSnapshot = {};
@@ -515,7 +522,13 @@
         _setBusy(true);
 
         const jobId = window.JOB_ID || '';
-        const body  = JSON.stringify({ job_id: jobId, history: _history });
+        const body  = JSON.stringify({
+            job_id:     jobId,
+            history:    _history,
+            mode:       _currentMode,
+            force_task: _pendingForceTask,
+        });
+        _pendingForceTask = null;   // one-shot: cleared as soon as the request is built
 
         _removeTyping();
         _appendTyping();
@@ -1257,11 +1270,45 @@
         } catch (_) {}
     }
 
+    // ── Mode dropdown + forced-task button toolbar ────────────────────────────
+    function _refreshHeaderTitle() {
+        const el = document.getElementById('chat-header-title');
+        if (!el) return;
+        const label = _MODE_LABELS[_currentMode] || _MODE_LABELS.chat;
+        el.textContent = 'VizCode AI · ' + label;
+    }
+
+    function _initToolbar() {
+        const sel = document.getElementById('chat-mode-select');
+        if (sel) {
+            sel.value = _currentMode;
+            sel.addEventListener('change', function () {
+                _currentMode = sel.value || 'chat';
+                localStorage.setItem('vizcode.chat.mode', _currentMode);
+                _refreshHeaderTitle();
+            });
+        }
+        const btns = document.querySelectorAll('.chat-force-btn');
+        btns.forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                if (_isBusy) return;
+                _pendingForceTask = btn.dataset.task || null;
+                // Drop a synthetic user-visible message matching the button's role so
+                // the transcript reads naturally ("產生流程圖"). The actual forced-task
+                // directive is resolved server-side from `force_task`.
+                _input.value = btn.title || btn.textContent.trim();
+                _sendMessage();
+            });
+        });
+        _refreshHeaderTitle();
+    }
+
         // ── Public init ───────────────────────────────────────────────────────────
     function initChat() {
         if (!_buildDOM()) return;   // HTML elements not present (launcher page)
         _updateButtonIcon();
         _attachEvents();
+        _initToolbar();
         _setBusy(false);    // initialise send button icon
         _checkConfig();
     }

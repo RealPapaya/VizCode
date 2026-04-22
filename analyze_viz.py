@@ -2001,6 +2001,18 @@ HTML_SKELETON = """\
       <button id="chat-close">✕</button>
     </div>
   </div>
+  <div id="chat-toolbar">
+    <select id="chat-mode-select" title="對話模式">
+      <option value="chat">💬 一般對話</option>
+      <option value="deep">🔬 深度分析</option>
+      <option value="fast">⚡ 快速查詢</option>
+    </select>
+    <div class="chat-force-btns">
+      <button class="chat-force-btn" data-task="mermaid_flow" title="產生流程圖">📊</button>
+      <button class="chat-force-btn" data-task="file_tour" title="導覽檔案關係">🎬</button>
+      <button class="chat-force-btn" data-task="health_report" title="健康報告">🩺</button>
+    </div>
+  </div>
   <div id="chat-messages"></div>
   <div id="chat-input-row">
     <textarea id="chat-input" rows="1" placeholder="Ask about this codebase… (Enter to send)"></textarea>
