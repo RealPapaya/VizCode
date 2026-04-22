@@ -36,12 +36,10 @@
     let   _tourSubtitleEl = null;    // floating caption DOM for vizcode_ui_tour_step
     let   _tourSubtitleTimer = null;
 
-    // ── Chat mode + forced-task state ─────────────────────────────────────────
-    // Persistent mode: dropdown choice, survives reloads via localStorage.
-    // Pending force task: set by a button click, cleared as soon as the turn is sent.
-    const _MODE_LABELS = { chat: '一般對話', deep: '深度分析', fast: '快速查詢' };
-    let _currentMode      = localStorage.getItem('vizcode.chat.mode') || 'chat';
-    let _pendingForceTask = null;    // null | 'mermaid_flow' | 'file_tour' | 'health_report'
+    // ── Chat mode state (depth × output) ─────────────────────────────────────
+    let _currentDepth  = localStorage.getItem('vizcode.chat.depth')  || 'general';
+    let _currentOutput = localStorage.getItem('vizcode.chat.output') || null;
+    let _modePickerOpen = false;
 
     // ── DOM refs (populated in initChat) ─────────────────────────────────────
     let _btn, _panel, _msgs, _input, _sendBtn, _modal;
@@ -523,12 +521,11 @@
 
         const jobId = window.JOB_ID || '';
         const body  = JSON.stringify({
-            job_id:     jobId,
-            history:    _history,
-            mode:       _currentMode,
-            force_task: _pendingForceTask,
+            job_id:  jobId,
+            history: _history,
+            depth:   _currentDepth,
+            output:  _currentOutput,
         });
-        _pendingForceTask = null;   // one-shot: cleared as soon as the request is built
 
         _removeTyping();
         _appendTyping();
@@ -1270,37 +1267,223 @@
         } catch (_) {}
     }
 
-    // ── Mode dropdown + forced-task button toolbar ────────────────────────────
-    function _refreshHeaderTitle() {
-        const el = document.getElementById('chat-header-title');
-        if (!el) return;
-        const label = _MODE_LABELS[_currentMode] || _MODE_LABELS.chat;
-        el.textContent = 'VizCode AI · ' + label;
+    // ── Mode controls (depth × output) ─────────────────────────────────────────
+    const _DEPTH_SVGS = {
+        general: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v12H8.5L4 20V4z"/></svg>',
+        deep:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>',
+        quick:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 2 8 13 13 13 11 22 16 11 11 11"/></svg>',
+    };
+    const _OUTPUT_SVGS = {
+        mermaid_flow:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="7" height="4" rx="1"/><rect x="15" y="10" width="7" height="4" rx="1"/><rect x="2" y="17" width="7" height="4" rx="1"/><path d="M9 5h3a3 3 0 0 1 3 3v4M9 19h3a3 3 0 0 0 3-3v-4"/></svg>',
+        file_tour:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88"/></svg>',
+        health_report: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 12 6 12 8 5 11 19 14 12 16 15 18 12 22 12"/></svg>',
+    };
+    const _DEFAULT_MODE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="16" cy="6" r="2.5" fill="currentColor" stroke="none"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="8" cy="12" r="2.5" fill="currentColor" stroke="none"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="13" cy="18" r="2.5" fill="currentColor" stroke="none"/></svg>';
+    const _DEPTH_ORDER = ['quick', 'general', 'deep'];
+
+    function _t(k, fb) { return window._i18n ? window._i18n.t(k) : fb; }
+
+        function _depthItems() {
+        return [
+            { id: 'quick',   label: _t('chatDepthLabel_quick'),   desc: _t('chatDepthDesc_quick') },
+            { id: 'general', label: _t('chatDepthLabel_general'), desc: _t('chatDepthDesc_general') },
+            { id: 'deep',    label: _t('chatDepthLabel_deep'),    desc: _t('chatDepthDesc_deep') },
+        ];
     }
 
-    function _initToolbar() {
-        const sel = document.getElementById('chat-mode-select');
-        if (sel) {
-            sel.value = _currentMode;
-            sel.addEventListener('change', function () {
-                _currentMode = sel.value || 'chat';
-                localStorage.setItem('vizcode.chat.mode', _currentMode);
-                _refreshHeaderTitle();
+        function _outputItems() {
+        return [
+            { id: 'mermaid_flow',  label: _t('chatOutputLabel_mermaid_flow'),  desc: _t('chatOutputDesc_mermaid_flow') },
+            { id: 'file_tour',     label: _t('chatOutputLabel_file_tour'),     desc: _t('chatOutputDesc_file_tour') },
+            { id: 'health_report', label: _t('chatOutputLabel_health_report'), desc: _t('chatOutputDesc_health_report') },
+        ];
+    }
+
+    function _refreshHeaderTitle() { /* static title — no-op */ }
+
+    function _depthToRange(id) {
+        const idx = _DEPTH_ORDER.indexOf(id);
+        return idx < 0 ? 1 : idx;
+    }
+
+    function _rangeToDepth(val) { return _DEPTH_ORDER[parseInt(val)] || 'general'; }
+
+    // ── Depth button ──────────────────────────────────────────────────────────
+    function _updateDepthBtn() {
+        const btn = document.getElementById('chat-depth-btn');
+        if (!btn) return;
+        const info = _depthItems().find(function (d) { return d.id === _currentDepth; }) || _depthItems()[1];
+        btn.innerHTML = '<span class="chat-ctrl-icon">' + (_DEPTH_SVGS[_currentDepth] || '') + '</span>' +
+                        '<span class="chat-ctrl-label">' + info.label + '</span>';
+    }
+
+    function _updateDepthInfo() {
+        const info = _depthItems().find(function (d) { return d.id === _currentDepth; });
+        if (!info) return;
+        const lbl = document.getElementById('chat-depth-info-label');
+        const dsc = document.getElementById('chat-depth-info-desc');
+        if (lbl) lbl.textContent = info.label;
+        if (dsc) dsc.textContent = info.desc;
+    }
+
+    function _closeDepthPicker() {
+        const picker = document.getElementById('chat-depth-picker');
+        const btn    = document.getElementById('chat-depth-btn');
+        if (picker) picker.classList.remove('open');
+        if (btn)    btn.setAttribute('aria-expanded', 'false');
+    }
+
+    function _initDepthBtn() {
+        const btn   = document.getElementById('chat-depth-btn');
+        const range = document.getElementById('chat-depth-range');
+        if (btn) {
+            _updateDepthBtn();
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                const picker = document.getElementById('chat-depth-picker');
+                if (!picker) return;
+                if (picker.classList.contains('open')) {
+                    _closeDepthPicker();
+                } else {
+                    _closeOutputPicker();
+                    picker.classList.add('open');
+                    btn.setAttribute('aria-expanded', 'true');
+                }
             });
         }
-        const btns = document.querySelectorAll('.chat-force-btn');
-        btns.forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                if (_isBusy) return;
-                _pendingForceTask = btn.dataset.task || null;
-                // Drop a synthetic user-visible message matching the button's role so
-                // the transcript reads naturally ("產生流程圖"). The actual forced-task
-                // directive is resolved server-side from `force_task`.
-                _input.value = btn.title || btn.textContent.trim();
-                _sendMessage();
+        if (range) {
+            range.value = _depthToRange(_currentDepth);
+            _updateDepthInfo();
+            range.addEventListener('input', function () {
+                _selectDepth(_rangeToDepth(range.value));
             });
+        }
+    }
+
+    // ── Output picker (inside card) ───────────────────────────────────────────
+    function _makeOutputRow(disabledAll) {
+        const row = document.createElement('div');
+        row.className = 'chat-mode-row';
+                _outputItems().forEach(function (item) {
+            const card = document.createElement('button');
+            card.className = 'chat-mode-pill' + (item.id === _currentOutput ? ' active' : '');
+            if (disabledAll) { card.disabled = true; card.setAttribute('aria-disabled', 'true'); }
+            card.innerHTML = '<span class="chat-mode-pill-icon">' + (_OUTPUT_SVGS[item.id] || '') + '</span>' +
+                             '<span class="chat-mode-pill-label">' + item.label + '</span>';
+            if (item.desc) card.title = item.desc;  // Tooltip showing description
+            card.addEventListener('click', function () { if (!disabledAll) _selectOutput(item.id); });
+            row.appendChild(card);
         });
-        _refreshHeaderTitle();
+        return row;
+    }
+
+    function _buildOutputPicker() {
+        const picker = document.getElementById('chat-output-picker');
+        if (!picker) return;
+        picker.innerHTML = '';
+        picker.appendChild(_makeOutputRow(_currentDepth === 'quick'));
+    }
+
+    function _openOutputPicker() {
+        const picker = document.getElementById('chat-output-picker');
+        const btn    = document.getElementById('chat-mode-btn');
+        if (!picker) return;
+        _closeDepthPicker();
+        _buildOutputPicker();
+        picker.classList.add('open');
+        _modePickerOpen = true;
+        if (btn) btn.setAttribute('aria-expanded', 'true');
+    }
+
+    function _closeOutputPicker() {
+        const picker = document.getElementById('chat-output-picker');
+        const btn    = document.getElementById('chat-mode-btn');
+        if (picker) picker.classList.remove('open');
+        _modePickerOpen = false;
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+
+    function _updateModeBtnIcon() {
+        const btn = document.getElementById('chat-mode-btn');
+        if (!btn) return;
+        if (_currentOutput) {
+            const info = _outputItems().find(function (o) { return o.id === _currentOutput; });
+            const label = info ? info.label : '';
+            btn.innerHTML = '<span class="chat-ctrl-icon">' + (_OUTPUT_SVGS[_currentOutput] || _DEFAULT_MODE_SVG) + '</span>' +
+                            '<span class="chat-ctrl-label">' + label + '</span>';
+            btn.classList.add('has-output');
+        } else {
+            btn.innerHTML = _DEFAULT_MODE_SVG;
+            btn.classList.remove('has-output');
+        }
+        btn.classList.toggle('active', !!_currentOutput);
+    }
+
+    // ── Depth / Output selection ──────────────────────────────────────────────
+    function _selectDepth(id) {
+        _currentDepth = id;
+        localStorage.setItem('vizcode.chat.depth', id);
+        if (id === 'quick' && _currentOutput) {
+            _currentOutput = null;
+            localStorage.removeItem('vizcode.chat.output');
+        }
+        _updateModeBtnIcon();
+        _updateModeBtnDisabled();
+        _updateDepthBtn();
+        _updateDepthInfo();
+        const range = document.getElementById('chat-depth-range');
+        if (range) range.value = _depthToRange(id);
+        _buildOutputPicker();
+    }
+
+    function _selectOutput(id) {
+        if (_currentDepth === 'quick') return;
+        _currentOutput = (_currentOutput === id) ? null : id;
+        if (_currentOutput) {
+            localStorage.setItem('vizcode.chat.output', _currentOutput);
+        } else {
+            localStorage.removeItem('vizcode.chat.output');
+        }
+        _updateModeBtnIcon();
+        _closeOutputPicker();
+    }
+
+    // ── Mode button init ──────────────────────────────────────────────────────
+    function _updateModeBtnDisabled() {
+        const btn = document.getElementById('chat-mode-btn');
+        if (!btn) return;
+        if (_currentDepth === 'quick') {
+            btn.disabled = true;
+        } else {
+            btn.disabled = false;
+        }
+    }
+
+    function _initModeBtn() {
+        const btn = document.getElementById('chat-mode-btn');
+        if (!btn) return;
+        _updateModeBtnIcon();
+        _updateModeBtnDisabled();
+        btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (_modePickerOpen) { _closeOutputPicker(); } else { _openOutputPicker(); }
+        });
+        document.addEventListener('click', function (e) {
+            const depthPicker = document.getElementById('chat-depth-picker');
+            if (depthPicker && depthPicker.classList.contains('open') &&
+                !e.target.closest('#chat-depth-picker') &&
+                !e.target.closest('#chat-depth-btn')) {
+                _closeDepthPicker();
+            }
+            if (_modePickerOpen &&
+                !e.target.closest('#chat-output-picker') &&
+                !e.target.closest('#chat-mode-btn')) {
+                _closeOutputPicker();
+            }
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { _closeOutputPicker(); _closeDepthPicker(); }
+        });
     }
 
         // ── Public init ───────────────────────────────────────────────────────────
@@ -1308,7 +1491,8 @@
         if (!_buildDOM()) return;   // HTML elements not present (launcher page)
         _updateButtonIcon();
         _attachEvents();
-        _initToolbar();
+        _initModeBtn();
+        _initDepthBtn();
         _setBusy(false);    // initialise send button icon
         _checkConfig();
     }

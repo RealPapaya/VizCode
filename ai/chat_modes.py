@@ -1,36 +1,30 @@
 """
-ai/chat_modes.py — Mode + forced-task registry for VizBridge.
+ai/chat_modes.py — Two-dimensional conversation mode registry for VizBridge.
 
-Two layers of behaviour control live here:
+DEPTH controls reply thoroughness: general / deep / quick.
+OUTPUT optionally constrains response format: mermaid_flow / file_tour / health_report.
 
-* **Persistent modes** (`MODES`) — dropdown-driven tone shift that persists
-  across turns. Each mode contributes a `system_addendum` appended to the
-  base system prompt, and an optional `tool_whitelist` that filters which
-  tools the provider sees.
+Quick depth is incompatible with any output modifier — the UI enforces this,
+and resolve() enforces it on the backend as well.
 
-* **Forced tasks** (`FORCED_TASKS`) — one-shot button-driven directives
-  that override behaviour for a single turn. They inject a seed user
-  message, layer on their own prompt addendum, and may further narrow the
-  tool whitelist (intersected with the persistent mode).
-
-`resolve(mode, force_task)` is the single entry point used by `VizBridge`.
+`resolve(depth, output)` is the single entry point used by VizBridge.
 """
 
 from __future__ import annotations
 
 
-# ─── Persistent modes (dropdown) ─────────────────────────────────────────────
+# ─── Depth modes ─────────────────────────────────────────────────────────────
 
-MODES: dict[str, dict] = {
-    "chat": {
-        "label": "一般對話",
-        "system_addendum": "",        # default behaviour — no override
-        "tool_whitelist": None,        # None = all tools available
+DEPTH_MODES: dict[str, dict] = {
+    "general": {
+        "label": "General",
+        "system_addendum": "",    # default — no override
+        "tool_whitelist": None,   # all tools available
     },
     "deep": {
-        "label": "深度分析",
+        "label": "Deep Analysis",
         "system_addendum": (
-            "\n\nMODE: DEEP ANALYSIS.\n"
+            "\n\nDEPTH: DEEP ANALYSIS.\n"
             "- Always start with `vizcode_l0()` for any structural question.\n"
             "- Before concluding anything about a file, call `vizcode_l1` or `vizcode_l2` to verify.\n"
             "- Attach an exact node_id (file path or `path::func`) to every claim.\n"
@@ -38,14 +32,18 @@ MODES: dict[str, dict] = {
         ),
         "tool_whitelist": None,
     },
-    "fast": {
-        "label": "快速查詢",
+    "quick": {
+        "label": "Quick Lookup",
         "system_addendum": (
-            "\n\nMODE: FAST LOOKUP.\n"
-            "- Answer in ONE or TWO sentences.\n"
-            "- Prefer `vizcode_query` over hierarchical drilldown.\n"
-            "- Do NOT call `vizcode_l0` unless explicitly asked for the big picture.\n"
-            "- Do NOT launch tours.\n"
+            "\n\nDEPTH: QUICK LOOKUP.\n"
+            "- Answer in ONE or TWO sentences — be concise.\n"
+            "- Prefer `vizcode_query` or `vizcode_explain` over hierarchical drilldown.\n"
+            "- Do NOT call `vizcode_l0` unless the user explicitly asks for the big picture.\n"
+            "- Do NOT generate Mermaid flowcharts.\n"
+            "- Do NOT launch guided tours (`vizcode_ui_tour_step`).\n"
+            "- Do NOT run health checks or produce health reports.\n"
+            "- If the user asks for a complex output (flowchart, tour, health report),\n"
+            "  reply in one sentence that they should switch to General or Deep mode for that.\n"
         ),
         "tool_whitelist": {
             "vizcode_query", "vizcode_explain", "vizcode_report",
@@ -55,21 +53,18 @@ MODES: dict[str, dict] = {
 }
 
 
-# ─── Forced tasks (one-shot buttons) ──────────────────────────────────────────
+# ─── Output modes ─────────────────────────────────────────────────────────────
 
-FORCED_TASKS: dict[str, dict] = {
+OUTPUT_MODES: dict[str, dict] = {
     "mermaid_flow": {
-        "label": "產生流程圖",
-        "seed_user_message": (
-            "Produce a Mermaid flowchart for the CURRENT canvas view. "
-            "If you are unsure what is currently shown, call `vizcode_l0()` once to orient, "
-            "then commit. Output ```mermaid ... ``` fenced — no narrative before the diagram."
-        ),
+        "label": "Flowchart",
         "system_addendum": (
-            "\n\nFORCED TASK: mermaid_flow. You MUST output a Mermaid diagram fenced in "
-            "```mermaid. Do not produce a tour, do not call tour_step. If you cannot "
-            "determine a meaningful flow from available tools, emit a short apology "
-            "explaining what is missing — DO NOT fabricate."
+            "\n\nOUTPUT: FLOWCHART.\n"
+            "- Your response MUST include a Mermaid diagram fenced in ```mermaid.\n"
+            "- Do not produce a tour, do not call tour_step.\n"
+            "- If you need context, call `vizcode_l0()` once to orient first.\n"
+            "- If you cannot determine a meaningful flow from available tools, emit a short\n"
+            "  apology explaining what is missing — DO NOT fabricate.\n"
         ),
         "tool_whitelist": {
             "vizcode_l0", "vizcode_l1", "vizcode_l2",
@@ -77,29 +72,23 @@ FORCED_TASKS: dict[str, dict] = {
         },
     },
     "file_tour": {
-        "label": "導覽檔案關係",
-        "seed_user_message": (
-            "Give me a guided tour of 3-5 key nodes in the current view. "
-            "Use `vizcode_ui_tour_step` with pacing: one sentence of narration, then "
-            "one tour_step, then the next sentence. End with a one-line summary."
-        ),
+        "label": "Tour",
         "system_addendum": (
-            "\n\nFORCED TASK: file_tour. You MUST call `vizcode_ui_tour_step` at least 3 "
-            "times, interleaved with short narration. Do not emit mermaid."
+            "\n\nOUTPUT: GUIDED TOUR.\n"
+            "- You MUST call `vizcode_ui_tour_step` at least 3 times, interleaved with narration.\n"
+            "- Rhythm: one sentence → tour_step → next sentence → tour_step.\n"
+            "- Do not emit Mermaid diagrams.\n"
         ),
-        "tool_whitelist": None,   # full access — tour needs l1/l2 + ui tools
+        "tool_whitelist": None,
     },
     "health_report": {
-        "label": "健康報告",
-        "seed_user_message": (
-            "Run `vizcode_health()` and give me a bulleted summary: dead code, god files, "
-            "circular imports. For each category list up to 5 items with exact file paths. "
-            "If the health data is empty, say so plainly."
-        ),
+        "label": "Health Report",
         "system_addendum": (
-            "\n\nFORCED TASK: health_report. Your FIRST tool call must be `vizcode_health`. "
-            "Output format: three H3 sections (### Dead code / ### God files / ### Circular "
-            "imports), each a bullet list. No tour, no mermaid."
+            "\n\nOUTPUT: HEALTH REPORT.\n"
+            "- Your FIRST tool call must be `vizcode_health`.\n"
+            "- Output format: three H3 sections — ### Dead code / ### God files /\n"
+            "  ### Circular imports — each as a bullet list (up to 5 items with exact paths).\n"
+            "- Do not produce a tour, do not emit Mermaid.\n"
         ),
         "tool_whitelist": {
             "vizcode_health", "vizcode_report",
@@ -111,37 +100,40 @@ FORCED_TASKS: dict[str, dict] = {
 
 # ─── Resolver ────────────────────────────────────────────────────────────────
 
-def resolve(
-    mode: str | None,
-    force_task: str | None,
-) -> tuple[set[str] | None, str, str | None]:
+def resolve(depth: str | None, output: str | None) -> tuple[set[str] | None, str]:
     """
-    Resolve the effective (whitelist, addendum, seed_user_message) for a turn.
+    Resolve the effective (whitelist, addendum) for a conversation turn.
 
-    Behaviour:
-    - Unknown mode → falls back to "chat" silently (no errors bubble to the user).
-    - Unknown force_task → ignored silently; behaves as pure persistent-mode turn.
-    - If both mode and force_task provide a whitelist, the result is their
-      intersection; if only one provides one, that one wins; if neither, None
-      (all tools allowed).
+    Quick depth ignores any output modifier (backend enforcement of the UI rule).
+    Unknown depth/output fall back to general/none silently.
 
     Returns:
-        whitelist:   set[str] of allowed tool names, or None for "all".
-        addendum:    extra text to append to the base system prompt.
-        seed:        user-role message to insert before the latest turn, or None.
+        whitelist:  set[str] of allowed tool names, or None for "all tools".
+        addendum:   extra text appended to the base system prompt.
     """
-    m  = MODES.get(mode or "chat") or MODES["chat"]
-    addendum_parts: list[str] = [m["system_addendum"]]
-    whitelist: set[str] | None = set(m["tool_whitelist"]) if m["tool_whitelist"] else None
+    d = DEPTH_MODES.get(depth or "general") or DEPTH_MODES["general"]
 
-    seed: str | None = None
-    if force_task:
-        ft = FORCED_TASKS.get(force_task)
-        if ft:
-            addendum_parts.append(ft["system_addendum"])
-            seed = ft["seed_user_message"]
-            if ft["tool_whitelist"]:
-                ft_wl = set(ft["tool_whitelist"])
-                whitelist = ft_wl if whitelist is None else (whitelist & ft_wl)
+    # Quick depth: output modifiers are incompatible — discard silently
+    if depth == "quick" or not output:
+        o_addendum = ""
+        o_wl: set[str] | None = None
+    else:
+        o = OUTPUT_MODES.get(output) or {}
+        o_addendum = o.get("system_addendum", "")
+        o_wl_raw   = o.get("tool_whitelist")
+        o_wl       = set(o_wl_raw) if o_wl_raw else None
 
-    return whitelist, "".join(addendum_parts), seed
+    addendum = d["system_addendum"] + o_addendum
+
+    d_wl: set[str] | None = set(d["tool_whitelist"]) if d["tool_whitelist"] else None
+
+    if d_wl is None and o_wl is None:
+        whitelist = None
+    elif d_wl is None:
+        whitelist = o_wl
+    elif o_wl is None:
+        whitelist = d_wl
+    else:
+        whitelist = d_wl & o_wl
+
+    return whitelist, addendum

@@ -201,58 +201,81 @@
     background: var(--border);
 }
 
-/* ── Mode toolbar ────────────────────────────────────────────────────────── */
-#chat-toolbar {
+
+.chat-mode-section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted, #9ca3af);
+    margin-bottom: 2px;
+}
+
+.chat-mode-section-label.muted {
+    opacity: .4;
+}
+
+.chat-mode-section-divider {
+    height: 1px;
+    background: var(--border, rgba(255, 255, 255, 0.07));
+    margin: 2px 0;
+}
+
+/* ── Depth / Output pill rows ─────────────────────────────────────────────── */
+.chat-mode-row {
+    display: flex;
+    gap: 5px;
+}
+
+.chat-mode-pill {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 7px 4px;
+    background: transparent;
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--text, #e5e7eb);
+    transition: background .1s, border-color .1s, color .1s;
+}
+
+.chat-mode-pill:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+.chat-mode-pill.active {
+    background: color-mix(in srgb, var(--accent, #60a5fa) 14%, transparent);
+    border-color: color-mix(in srgb, var(--accent, #60a5fa) 55%, transparent);
+    color: var(--accent, #60a5fa);
+}
+
+.chat-mode-pill:disabled {
+    opacity: .3;
+    cursor: not-allowed;
+}
+
+.chat-mode-pill-icon {
+    width: 18px;
+    height: 18px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 6px 10px;
-    border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.06));
-    background: rgba(9, 21, 37, 0.35);
-    flex-shrink: 0;
+    justify-content: center;
 }
 
-#chat-mode-select {
-    background: transparent;
-    color: var(--text, #e5e7eb);
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
-    border-radius: 4px;
-    padding: 3px 6px;
-    font-size: 12px;
-    cursor: pointer;
-    outline: none;
+.chat-mode-pill-icon svg {
+    width: 100%;
+    height: 100%;
 }
 
-#chat-mode-select:focus {
-    border-color: color-mix(in srgb, var(--accent, #60a5fa) 60%, transparent);
-}
-
-.chat-force-btns {
-    display: flex;
-    gap: 4px;
-}
-
-.chat-force-btn {
-    background: transparent;
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
-    border-radius: 4px;
-    padding: 3px 8px;
-    cursor: pointer;
-    font-size: 14px;
+.chat-mode-pill-label {
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
     line-height: 1;
-    color: var(--text, #e5e7eb);
-    transition: background .12s, border-color .12s;
-}
-
-.chat-force-btn:hover {
-    background: color-mix(in srgb, var(--accent, #60a5fa) 20%, transparent);
-    border-color: color-mix(in srgb, var(--accent, #60a5fa) 60%, transparent);
-}
-
-.chat-force-btn:disabled {
-    opacity: .4;
-    cursor: not-allowed;
 }
 
 /* ── Message area ────────────────────────────────────────────────────────── */
@@ -387,49 +410,210 @@
     display: block;
 }
 
-/* ── Input row ───────────────────────────────────────────────────────────── */
-#chat-input-row {
-    display: flex;
-    align-items: flex-end;
-    gap: 6px;
-    padding: 10px;
-    border-top: 1px solid var(--border);
+/* ── Input area (card) ───────────────────────────────────────────────────── */
+#chat-input-area {
+    margin: 0 10px 10px;
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+    border-radius: 14px;
+    background: rgba(9, 21, 37, 0.6);
     flex-shrink: 0;
-}
-
-#chat-input {
-    flex: 1;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-size: 12.5px;
-    padding: 8px 10px;
-    resize: none;
-    min-height: 38px;
-    max-height: 120px;
-    overflow-y: auto;
-    line-height: 1.45;
-    outline: none;
+    display: flex;
+    flex-direction: column;
     transition: border-color .15s;
 }
 
-#chat-input:focus {
-    border-color: var(--accent);
+#chat-input-area:focus-within {
+    border-color: rgba(255, 255, 255, 0.22);
+}
+
+#chat-input {
+    background: transparent;
+    border: none;
+    color: var(--text, #e5e7eb);
+    font-size: 13px;
+    padding: 12px 14px 4px;
+    resize: none;
+    min-height: 56px;
+    max-height: 150px;
+    overflow-y: auto;
+    line-height: 1.5;
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 #chat-input::placeholder {
-    color: var(--muted);
+    color: var(--muted, #6b7280);
 }
 
+/* ── Toolbar row inside the card ─────────────────────────────────────────── */
+#chat-input-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 8px 8px;
+}
+
+#chat-toolbar-spacer { flex: 1; }
+
+/* ── Depth / Output pickers (inside card, animated) ─────────────────────── */
+#chat-depth-picker,
+#chat-output-picker {
+    overflow: hidden;
+    max-height: 0;
+    position: relative;
+    transition: max-height 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#chat-depth-picker {
+    display: grid;
+    grid-template-columns: 68px auto 1fr;
+    align-items: center;
+    column-gap: 8px;
+    padding: 0 14px;
+    transition: max-height 0.24s cubic-bezier(0.4, 0, 0.2, 1),
+                padding-top 0.24s ease, padding-bottom 0.24s ease;
+}
+
+#chat-depth-picker.open {
+    max-height: 72px;
+    padding: 10px 14px;
+}
+
+#chat-output-picker {
+    padding: 0 10px;
+    transition: max-height 0.24s cubic-bezier(0.4, 0, 0.2, 1),
+                padding-top 0.24s ease, padding-bottom 0.24s ease;
+}
+
+#chat-output-picker.open {
+    max-height: 72px;
+    padding: 8px 10px;
+}
+
+/* Separator line with breathing room on both sides */
+#chat-depth-picker.open::after,
+#chat-output-picker.open::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 12px;
+    right: 12px;
+    height: 1px;
+    background: var(--border, rgba(255, 255, 255, 0.07));
+}
+
+/* Depth range + label + desc: three-column grid */
+#chat-depth-range {
+    width: 68px;
+    accent-color: var(--accent, #60a5fa);
+    cursor: pointer;
+}
+
+#chat-depth-info-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text, #e5e7eb);
+    white-space: nowrap;
+}
+
+#chat-depth-info-desc {
+    font-size: 10px;
+    color: var(--muted, #9ca3af);
+    line-height: 1.4;
+}
+
+/* ── Shared ctrl button (depth btn + mode btn base) ──────────────────────── */
+.chat-ctrl-icon {
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.chat-ctrl-icon svg { width: 100%; height: 100%; }
+
+.chat-ctrl-label {
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+/* ── Depth button ────────────────────────────────────────────────────────── */
+#chat-depth-btn {
+    flex-shrink: 0;
+    height: 30px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: transparent;
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+    border-radius: 20px;
+    cursor: pointer;
+    color: var(--muted, #9ca3af);
+    transition: background .12s, border-color .12s, color .12s;
+}
+
+#chat-depth-btn:hover,
+#chat-depth-btn[aria-expanded="true"] {
+    background: color-mix(in srgb, var(--accent, #60a5fa) 15%, transparent);
+    border-color: color-mix(in srgb, var(--accent, #60a5fa) 50%, transparent);
+    color: var(--accent, #60a5fa);
+}
+
+/* ── Mode button (round by default, pill when output selected) ───────────── */
+#chat-mode-btn {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+    border-radius: 50%;
+    cursor: pointer;
+    color: var(--muted, #9ca3af);
+    transition: background .12s, border-color .12s, color .12s, width .15s, border-radius .15s, padding .15s;
+    overflow: hidden;
+}
+
+#chat-mode-btn.has-output {
+    width: auto;
+    padding: 0 10px;
+    gap: 5px;
+    border-radius: 20px;
+    color: var(--accent, #60a5fa);
+    border-color: color-mix(in srgb, var(--accent, #60a5fa) 50%, transparent);
+    background: color-mix(in srgb, var(--accent, #60a5fa) 12%, transparent);
+}
+
+#chat-mode-btn:hover,
+#chat-mode-btn[aria-expanded="true"] {
+    background: color-mix(in srgb, var(--accent, #60a5fa) 15%, transparent);
+    border-color: color-mix(in srgb, var(--accent, #60a5fa) 50%, transparent);
+    color: var(--accent, #60a5fa);
+}
+
+#chat-mode-btn > svg { width: 14px; height: 14px; }
+
+#chat-mode-btn:disabled {
+    opacity: 0.28;
+    cursor: not-allowed;
+}
+
+/* ── Send btn (round) ────────────────────────────────────────────────────── */
 #chat-send {
-    background: var(--accent);
+    background: var(--accent, #60a5fa);
     color: #fff;
     border: none;
-    border-radius: 8px;
-    width: 38px;
-    height: 38px;
-    font-size: 16px;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -438,18 +622,11 @@
     transition: opacity .15s;
 }
 
-#chat-send:hover {
-    opacity: .85;
-}
+#chat-send:hover { opacity: .85; }
 
-#chat-send:disabled {
-    opacity: .4;
-    cursor: default;
-}
+#chat-send:disabled { opacity: .4; cursor: default; }
 
-#chat-send.stop {
-    background: #ef4444;
-}
+#chat-send.stop { background: #ef4444; }
 
 /* ── Config modal ────────────────────────────────────────────────────────── */
 #chat-config-modal {

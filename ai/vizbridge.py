@@ -56,7 +56,7 @@ from ai.ui_tools import (
     dispatch as ui_dispatch,
 )
 
-# Mode + forced-task registry (dropdown + button behaviours)
+# Conversation mode registry
 from ai.chat_modes import resolve as _resolve_mode
 
 # ─── Config ───────────────────────────────────────────────────────────────────
@@ -442,15 +442,15 @@ class VizBridge:
     def stream_response(
         self,
         messages: list[dict],
-        mode: str | None = None,
-        force_task: str | None = None,
+        depth:  str | None = None,
+        output: str | None = None,
     ) -> Iterator[dict]:
         """
         Drive one conversation turn with automatic tool-use loop.
 
-        `mode` selects a persistent conversation mode ("chat" / "deep" / "fast").
-        `force_task` optionally layers a one-shot directive ("mermaid_flow" /
-        "file_tour" / "health_report"). Unknown values fall back silently.
+        `depth`  — reply thoroughness: "general" / "deep" / "quick".
+        `output` — optional format constraint: "mermaid_flow" / "file_tour" / "health_report".
+        Quick depth ignores output. Unknown values fall back silently.
 
         Yields event dicts:
           {"type": "delta",     "text": "..."}
@@ -463,7 +463,7 @@ class VizBridge:
         # ── DEBUG LOG ────────────────────────────────────────────────────────
         _p = self._cfg.get('provider', '?')
         _k = self._cfg.get(f'{_p}_api_key', '') or self._cfg.get('ollama_url', '')
-        print(f'[VizBridge.stream_response] called  provider={_p}  key_present={bool(_k)}  msgs={len(messages)}  mode={mode!r}  force_task={force_task!r}')
+        print(f'[VizBridge.stream_response] called  provider={_p}  key_present={bool(_k)}  msgs={len(messages)}  depth={depth!r}  output={output!r}')
         import sys; sys.stdout.flush()
         # ─────────────────────────────────────────────────────────────────────
         try:
@@ -474,8 +474,8 @@ class VizBridge:
             yield {"type": "error", "message": str(e)}
             return
 
-        # Resolve mode + forced task into (tool whitelist, prompt addendum, seed user message).
-        whitelist, addendum, seed_msg = _resolve_mode(mode, force_task)
+        # Resolve depth + output into (tool whitelist, prompt addendum).
+        whitelist, addendum = _resolve_mode(depth, output)
 
         scan_path = str(Path(self._root) / ".local" / "scan_cache.json")
         system    = self._context.build(self._root, scan_path, addendum=addendum)
@@ -483,13 +483,6 @@ class VizBridge:
 
         # Working copy of messages — we append assistant + tool_result turns
         working = list(messages)
-
-        # Forced task: inject the directive as a user-role message right before the
-        # user's latest turn. This gives AI a clear "your task this turn" cue while
-        # preserving whatever the user typed alongside the button click.
-        if seed_msg:
-            insert_at = max(len(working) - 1, 0)
-            working.insert(insert_at, {"role": "user", "content": seed_msg})
 
         for _round in range(self._MAX_TOOL_ROUNDS):
             pending_tool_calls: list[dict] = []

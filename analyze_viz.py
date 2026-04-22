@@ -2001,22 +2001,21 @@ HTML_SKELETON = """\
       <button id="chat-close">✕</button>
     </div>
   </div>
-  <div id="chat-toolbar">
-    <select id="chat-mode-select" title="對話模式">
-      <option value="chat">💬 一般對話</option>
-      <option value="deep">🔬 深度分析</option>
-      <option value="fast">⚡ 快速查詢</option>
-    </select>
-    <div class="chat-force-btns">
-      <button class="chat-force-btn" data-task="mermaid_flow" title="產生流程圖">📊</button>
-      <button class="chat-force-btn" data-task="file_tour" title="導覽檔案關係">🎬</button>
-      <button class="chat-force-btn" data-task="health_report" title="健康報告">🩺</button>
-    </div>
-  </div>
   <div id="chat-messages"></div>
-  <div id="chat-input-row">
-    <textarea id="chat-input" rows="1" placeholder="Ask about this codebase… (Enter to send)"></textarea>
-    <button id="chat-send" title="Send"></button>
+  <div id="chat-input-area">
+    <div id="chat-depth-picker">
+      <input type="range" id="chat-depth-range" min="0" max="2" step="1">
+      <span id="chat-depth-info-label"></span>
+      <span id="chat-depth-info-desc"></span>
+    </div>
+    <div id="chat-output-picker"></div>
+    <textarea id="chat-input" rows="2" placeholder="Ask about this codebase…"></textarea>
+    <div id="chat-input-toolbar">
+      <button id="chat-depth-btn" aria-expanded="false" aria-controls="chat-depth-picker"></button>
+      <button id="chat-mode-btn" title="切換輸出模式" data-i18n="chatModePickerTitle" data-i18n-attr="title" aria-expanded="false" aria-haspopup="listbox" aria-controls="chat-output-picker"></button>
+      <div id="chat-toolbar-spacer"></div>
+      <button id="chat-send" title="Send"></button>
+    </div>
   </div>
 </div>
 <div id="chat-config-modal" class="hidden">

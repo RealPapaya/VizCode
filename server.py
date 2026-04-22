@@ -2162,10 +2162,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.json_resp({'error': f'Bad request: {e}'}, 400)
                 return
 
-            job_id     = body.get('job_id', '')
-            history    = body.get('history', [])
-            mode       = body.get('mode') or 'chat'
-            force_task = body.get('force_task') or None
+            job_id  = body.get('job_id', '')
+            history = body.get('history', [])
+            depth   = body.get('depth')  or 'general'
+            output  = body.get('output') or None
             if not history:
                 self.json_resp({'error': 'No messages provided'}, 400)
                 return
@@ -2220,7 +2220,7 @@ class Handler(BaseHTTPRequestHandler):
                 print(f'[chat-stream] provider={_provider}  key_present={_key_present}  key_len={len(_key_val)}  root={project_root!r}')
                 # ─────────────────────────────────────────────────────────────
                 vb = VizBridge(project_root)
-                for event in vb.stream_response(history, mode=mode, force_task=force_task):
+                for event in vb.stream_response(history, depth=depth, output=output):
                     if not _sse(event):
                         break  # client disconnected
             except ImportError:
