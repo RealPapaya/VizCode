@@ -41,6 +41,10 @@
     let _currentOutput = localStorage.getItem('vizcode.chat.output') || null;
     let _modePickerOpen = false;
 
+    // ── Session state ─────────────────────────────────────────────────────────
+    let _currentSessionId = null;
+    let _sessionsOpen     = false;
+
     // ── DOM refs (populated in initChat) ─────────────────────────────────────
     let _btn, _panel, _msgs, _input, _sendBtn, _modal;
     let _chatCfgSnapshot = {};
@@ -251,6 +255,83 @@
     const MERMAID_CDN = 'https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js';
     let _mermaidLoading = null;
 
+    function _getMermaidConfig() {
+        const cs  = getComputedStyle(document.documentElement);
+        const get = function (v) { return cs.getPropertyValue(v).trim(); };
+        const bg     = get('--bg')     || '#0f110e';
+        const panel  = get('--panel')  || '#161715';
+        const panel2 = get('--panel2') || '#1b1c19';
+        const border = get('--border') || '#2c2d2a';
+        const accent = get('--accent') || '#dfa745';
+        const text   = get('--text')   || '#eae8e3';
+        const muted  = get('--muted')  || '#93918b';
+        const font   = "'Segoe UI', system-ui, sans-serif";
+
+        // Detect dark vs light theme by --bg luminance
+        const hex = bg.replace('#', '');
+        const r = parseInt(hex.slice(0, 2), 16) || 15;
+        const g = parseInt(hex.slice(2, 4), 16) || 17;
+        const b = parseInt(hex.slice(4, 6), 16) || 14;
+        const isLight = (r * 0.299 + g * 0.587 + b * 0.114) > 128;
+
+        return {
+            startOnLoad:   false,
+            theme:         isLight ? 'default' : 'dark',
+            securityLevel: 'loose',
+            fontFamily:    font,
+            fontSize:      13,
+            themeVariables: {
+                // Container / background
+                background:           'transparent',
+                mainBkg:              panel2,
+                // Nodes
+                primaryColor:         panel2,
+                primaryBorderColor:   border,
+                primaryTextColor:     text,
+                secondaryColor:       panel,
+                secondaryBorderColor: border,
+                secondaryTextColor:   text,
+                tertiaryColor:        panel,
+                tertiaryBorderColor:  border,
+                tertiaryTextColor:    text,
+                // Edges
+                lineColor:            muted,
+                edgeLabelBackground:  bg,
+                labelBackground:      bg,
+                // Clusters / subgraphs
+                clusterBkg:           panel,
+                clusterBorder:        border,
+                // Title
+                titleColor:           accent,
+                // Font
+                fontFamily:           font,
+                fontSize:             '13px',
+                // Sequence diagrams
+                actorBkg:             panel2,
+                actorBorder:          border,
+                actorTextColor:       text,
+                actorLineColor:       border,
+                signalColor:          muted,
+                signalTextColor:      text,
+                labelBoxBkgColor:     panel,
+                labelBoxBorderColor:  border,
+                labelTextColor:       text,
+                loopTextColor:        text,
+                noteBorderColor:      border,
+                noteBkgColor:         panel2,
+                noteTextColor:        text,
+                activationBorderColor: accent,
+                activationBkgColor:   panel,
+                // Gantt
+                sectionBkgColor:      panel2,
+                altSectionBkgColor:   panel,
+                gridColor:            border,
+                taskTextColor:        text,
+                taskTextOutsideColor: text,
+            },
+        };
+    }
+
     function _ensureMermaid() {
         if (window.mermaid && window.mermaid.run) return Promise.resolve();
         if (_mermaidLoading) return _mermaidLoading;
@@ -259,13 +340,7 @@
             s.src   = MERMAID_CDN;
             s.async = true;
             s.onload = function () {
-                try {
-                    window.mermaid.initialize({
-                        startOnLoad:   false,
-                        theme:         'dark',
-                        securityLevel: 'loose',
-                    });
-                } catch (_) {}
+                try { window.mermaid.initialize(_getMermaidConfig()); } catch (_) {}
                 resolve();
             };
             s.onerror = function () { reject(new Error('mermaid script load failed')); };
@@ -670,6 +745,115 @@
         }
     }
 
+    // ── Conversation sessions (.local/chat/) ─────────────────────────────────
+    function _newSessionId() {
+        const d = new Date(), pad = function (n) { return String(n).padStart(2, '0'); };
+        return 'session_' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) +
+               '_' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+    }
+
+    function _saveHistory() {
+        if (!_currentSessionId || !_history.length) return;
+        fetch('/chat-history', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ job_id: window.JOB_ID || '', session_id: _currentSessionId, history: _history }),
+        }).catch(function () {});
+    }
+
+    function _renderSessionMessages(history) {
+        if (_msgs) _msgs.innerHTML = '';
+        history.forEach(function (msg) {
+            if (msg.role === 'user')      _appendMsg('user', msg.content);
+            else if (msg.role === 'assistant') _appendMsg('ai', _renderMarkdown(msg.content));
+        });
+    }
+
+    function _loadHistory() {
+        const jobId = window.JOB_ID || '';
+        fetch('/chat-history?job=' + encodeURIComponent(jobId))
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (!data || !Array.isArray(data.history) || !data.history.length) return;
+                _currentSessionId = data.session_id || null;
+                _history = data.history;
+                _renderSessionMessages(data.history);
+            })
+            .catch(function () {});
+    }
+
+    function _clearHistory() {
+        _currentSessionId = _newSessionId();
+        _history = [];
+        if (_msgs) _msgs.innerHTML = '';
+    }
+
+    // ── Sessions panel ────────────────────────────────────────────────────────
+    function _buildSessionsList(sessions) {
+        const panel = document.getElementById('chat-sessions-panel');
+        if (!panel) return;
+        panel.innerHTML = '';
+        const title = document.createElement('div');
+        title.className = 'chat-sessions-title';
+        title.textContent = 'Conversations';
+        panel.appendChild(title);
+        if (!sessions.length) {
+            const empty = document.createElement('div');
+            empty.className = 'chat-sessions-empty';
+            empty.textContent = 'No saved conversations yet';
+            panel.appendChild(empty);
+            return;
+        }
+        sessions.forEach(function (s) {
+            const item = document.createElement('button');
+            item.className = 'chat-session-item' + (s.session_id === _currentSessionId ? ' active' : '');
+            const d = new Date(s.created || '');
+            const dateStr = isNaN(d.getTime()) ? '' :
+                d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + '  ' +
+                d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+            item.innerHTML =
+                '<span class="chat-si-date">' + dateStr + '</span>' +
+                '<span class="chat-si-preview">' + (s.preview || '—') + '</span>' +
+                '<span class="chat-si-count">' + (s.message_count || 0) + ' msg</span>';
+            item.addEventListener('click', function () {
+                _currentSessionId = s.session_id;
+                _history = [];
+                fetch('/chat-history?job=' + encodeURIComponent(window.JOB_ID || '') +
+                      '&session=' + encodeURIComponent(s.session_id))
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (data) {
+                        if (!data) return;
+                        _history = data.history || [];
+                        _renderSessionMessages(_history);
+                        _closeSessionsPanel();
+                    }).catch(function () { _closeSessionsPanel(); });
+            });
+            panel.appendChild(item);
+        });
+    }
+
+    function _openSessionsPanel() {
+        const panel = document.getElementById('chat-sessions-panel');
+        const btn   = document.getElementById('chat-hist-btn');
+        if (!panel) return;
+        fetch('/chat-sessions?job=' + encodeURIComponent(window.JOB_ID || ''))
+            .then(function (r) { return r.ok ? r.json() : { sessions: [] }; })
+            .then(function (d) { _buildSessionsList(d.sessions || []); })
+            .catch(function () { _buildSessionsList([]); });
+        panel.classList.add('open');
+        _sessionsOpen = true;
+        if (btn) btn.setAttribute('aria-expanded', 'true');
+    }
+
+    function _closeSessionsPanel() {
+        const panel = document.getElementById('chat-sessions-panel');
+        const btn   = document.getElementById('chat-hist-btn');
+        if (!panel) return;
+        panel.classList.remove('open');
+        _sessionsOpen = false;
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+
     function _finishTurn(assistantContent) {
         if (_streamBubble) _finaliseStreamBubble();
         _removeTyping();
@@ -681,6 +865,7 @@
             .join('');
         if (fullText) {
             _history.push({ role: 'assistant', content: fullText });
+            _saveHistory();
             if (_currentChatProvider) {
                 try {
                     const s = JSON.parse(localStorage.getItem('vizcode_ai_interactions') || '{}');
@@ -1158,6 +1343,20 @@
         const cfgBtn = document.getElementById('chat-cfg-btn');
         if (cfgBtn) cfgBtn.addEventListener('click', _openConfigModal);
 
+        // History button
+        const histBtn = document.getElementById('chat-hist-btn');
+        if (histBtn) histBtn.addEventListener('click', function () {
+            _sessionsOpen ? _closeSessionsPanel() : _openSessionsPanel();
+        });
+
+        // New conversation button
+        const newBtn = document.getElementById('chat-new-btn');
+        if (newBtn) newBtn.addEventListener('click', function () {
+            if (_isBusy) return;
+            _closeSessionsPanel();
+            _clearHistory();
+        });
+
         // Provider selector — show/hide relevant fields
         const providerSelect = document.getElementById('chat-cfg-provider');
         if (providerSelect) {
@@ -1495,6 +1694,7 @@
         _initDepthBtn();
         _setBusy(false);    // initialise send button icon
         _checkConfig();
+        _loadHistory();
     }
 
     // Expose globally so viz.js can call initChat()

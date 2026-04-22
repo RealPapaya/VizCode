@@ -530,7 +530,7 @@ class Handler(BaseHTTPRequestHandler):
             with JOBS_LOCK:
                 job = JOBS.get(jid, {})
             root = job.get('root', '')
-            report_path = os.path.join(root, '.local', 'vizcode_report.md') if root else ''
+            report_path = os.path.join(root, '.local', 'report', 'vizcode_report.md') if root else ''
             if report_path and os.path.isfile(report_path):
                 try:
                     with open(report_path, encoding='utf-8') as _fh:
@@ -1948,6 +1948,72 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.json_resp({'error': str(e)}, 500)
 
+        elif p == '/chat-sessions':
+            # ── VizBridge: list all conversation sessions ─────────────────
+            jid = qs.get('job', [''])[0]
+            with JOBS_LOCK:
+                job = JOBS.get(jid, {})
+            root = job.get('root', '')
+            if not root:
+                with JOBS_LOCK:
+                    recent = [(v.get('started', 0), v.get('root', ''))
+                              for v in JOBS.values() if v.get('root')]
+                if recent:
+                    root = sorted(recent, reverse=True)[0][1]
+            chat_dir = os.path.join(root, '.local', 'chat') if root else ''
+            sessions = []
+            if chat_dir and os.path.isdir(chat_dir):
+                for fname in sorted(os.listdir(chat_dir), reverse=True):
+                    if fname.startswith('session_') and fname.endswith('.json'):
+                        try:
+                            with open(os.path.join(chat_dir, fname), 'r', encoding='utf-8') as f:
+                                data = json.load(f)
+                            hist = data.get('history', [])
+                            preview = next((m['content'][:80] for m in hist if m.get('role') == 'user'), '')
+                            sessions.append({
+                                'session_id': data.get('session_id', fname[:-5]),
+                                'created':    data.get('created', ''),
+                                'message_count': len(hist),
+                                'preview':    preview,
+                            })
+                        except Exception:
+                            pass
+            self.json_resp({'sessions': sessions})
+
+        elif p == '/chat-history':
+            # ── VizBridge: load a specific session ────────────────────────
+            jid        = qs.get('job',     [''])[0]
+            session_id = qs.get('session', [''])[0]
+            with JOBS_LOCK:
+                job = JOBS.get(jid, {})
+            root = job.get('root', '')
+            if not root:
+                with JOBS_LOCK:
+                    recent = [(v.get('started', 0), v.get('root', ''))
+                              for v in JOBS.values() if v.get('root')]
+                if recent:
+                    root = sorted(recent, reverse=True)[0][1]
+            chat_dir = os.path.join(root, '.local', 'chat') if root else ''
+            if not chat_dir:
+                self.json_resp({'history': []}); return
+            if session_id:
+                fpath = os.path.join(chat_dir, session_id + '.json')
+            else:
+                fpath = ''
+                if os.path.isdir(chat_dir):
+                    files = sorted([f for f in os.listdir(chat_dir)
+                                    if f.startswith('session_') and f.endswith('.json')], reverse=True)
+                    if files:
+                        fpath = os.path.join(chat_dir, files[0])
+            if fpath and os.path.isfile(fpath):
+                try:
+                    with open(fpath, 'r', encoding='utf-8') as f:
+                        self.json_resp(json.load(f))
+                except Exception:
+                    self.json_resp({'history': []})
+            else:
+                self.json_resp({'history': []})
+
         else:
             self.json_resp({'error': 'Not found'}, 404)
 
@@ -2122,6 +2188,55 @@ class Handler(BaseHTTPRequestHandler):
 
         elif p == '/cancel':
             self.json_resp({'ok': True})
+
+        elif p == '/chat-history':
+            # ── VizBridge: save a conversation session to .local/chat/ ───────
+            import datetime as _dt
+            length = int(self.headers.get('Content-Length', 0))
+            try:
+                body = json.loads(self.rfile.read(length).decode('utf-8'))
+            except Exception as e:
+                self.json_resp({'error': str(e)}, 400)
+                return
+            job_id     = body.get('job_id', '')
+            session_id = body.get('session_id', '')
+            history    = body.get('history', [])
+            if not session_id:
+                self.json_resp({'error': 'No session_id'}, 400)
+                return
+            with JOBS_LOCK:
+                job = JOBS.get(job_id, {})
+            root = job.get('root', '')
+            if not root:
+                with JOBS_LOCK:
+                    recent = [(v.get('started', 0), v.get('root', ''))
+                              for v in JOBS.values() if v.get('root')]
+                if recent:
+                    root = sorted(recent, reverse=True)[0][1]
+            if not root:
+                self.json_resp({'error': 'No active job'}, 400)
+                return
+            if len(history) > 40:
+                history = history[-40:]
+            chat_dir = os.path.join(root, '.local', 'chat')
+            os.makedirs(chat_dir, exist_ok=True)
+            fpath = os.path.join(chat_dir, session_id + '.json')
+            # Preserve original created timestamp if file already exists
+            created = _dt.datetime.now().isoformat(timespec='seconds')
+            if os.path.isfile(fpath):
+                try:
+                    with open(fpath, 'r', encoding='utf-8') as f:
+                        existing = json.load(f)
+                    created = existing.get('created', created)
+                except Exception:
+                    pass
+            try:
+                with open(fpath, 'w', encoding='utf-8') as f:
+                    json.dump({'session_id': session_id, 'created': created,
+                               'history': history}, f, ensure_ascii=False, indent=2)
+                self.json_resp({'ok': True, 'count': len(history)})
+            except Exception as e:
+                self.json_resp({'error': str(e)}, 500)
 
         elif p == '/chat-config':
             # ── VizBridge: save AI provider config ───────────────────────────

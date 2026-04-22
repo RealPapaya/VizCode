@@ -62,7 +62,8 @@ from ai.chat_modes import resolve as _resolve_mode
 # ─── Config ───────────────────────────────────────────────────────────────────
 
 _CONFIG_PATH = _HERE / "config.json"
-_KEYS_PATH = _ROOT / ".local" / "ai_keys.json"
+_KEYS_PATH = _ROOT / ".local" / "key" / "ai_keys.json"
+_LEGACY_KEYS_PATH = _ROOT / ".local" / "ai_keys.json"   # pre-folder migration
 _SECRET_FIELDS = (
     "anthropic_api_key",
     "openai_api_key",
@@ -121,7 +122,14 @@ def load_config() -> dict:
     """Merge defaults, ai/config.json, and persisted keys. Returns a copy."""
     cfg = dict(_DEFAULTS)
     cfg.update(_read_json_file(_CONFIG_PATH))
-    cfg.update(_read_json_file(_KEYS_PATH))
+    key_cfg = _read_json_file(_KEYS_PATH)
+    if not any(key_cfg.values()) and _LEGACY_KEYS_PATH.is_file():
+        key_cfg = _read_json_file(_LEGACY_KEYS_PATH)
+        if any(key_cfg.values()):
+            _write_json_file(_KEYS_PATH, key_cfg)
+            try: _LEGACY_KEYS_PATH.unlink()
+            except Exception: pass
+    cfg.update(key_cfg)
     # Environment variable overrides
     if os.environ.get("ANTHROPIC_API_KEY"):
         cfg["anthropic_api_key"] = os.environ["ANTHROPIC_API_KEY"]
@@ -287,7 +295,7 @@ class ToolRegistry:
         self._root = Path(project_root)
         self._scan_path = self._root / ".local" / "scan_cache.json"
         self._sem_path  = self._root / ".local" / "semantic_cache.json"
-        self._report_path = self._root / ".local" / "vizcode_report.md"
+        self._report_path = self._root / ".local" / "report" / "vizcode_report.md"
         self._modules: dict | None = None
         self._edges:   list | None = None
         self._adj:     dict | None = None

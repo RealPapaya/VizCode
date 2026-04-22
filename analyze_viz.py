@@ -1997,10 +1997,13 @@ HTML_SKELETON = """\
   <div id="chat-header">
     <span id="chat-header-title">VizCode AI</span>
     <div style="display:flex;gap:6px;align-items:center">
+      <button id="chat-hist-btn" title="Conversation history" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:2px 5px;border-radius:4px;display:flex;align-items:center" aria-expanded="false"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><circle cx="10" cy="10" r="8"/><polyline points="10 6 10 10 13 12"/></svg></button>
+      <button id="chat-new-btn" title="New conversation" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:2px 5px;border-radius:4px;display:flex;align-items:center"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M10 4H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/><path d="M17 3a1.5 1.5 0 0 1 0 2.12L10.06 12H8v-2.06L14.88 3A1.5 1.5 0 0 1 17 3z"/></svg></button>
       <button id="chat-cfg-btn" title="Settings" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 5px;border-radius:4px">⚙</button>
       <button id="chat-close">✕</button>
     </div>
   </div>
+  <div id="chat-sessions-panel" aria-label="Conversation history"></div>
   <div id="chat-messages"></div>
   <div id="chat-input-area">
     <div id="chat-depth-picker">
