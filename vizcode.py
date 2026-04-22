@@ -353,9 +353,9 @@ class TUI:
     def upd_stages(self, cur: int, done: bool, error: bool, fi: int, skip_report=True):
         f = SPINNER_FRAMES[fi % len(SPINNER_FRAMES)]
         for i, (stage_key, label) in enumerate(ANALYSIS_STAGES):
-            # Skip report stage display if skip_report=True
+            # Completely hide report stage if skip_report=True
             if skip_report and stage_key == 'report':
-                marker, text = green('✓'), label  # Always show as completed
+                continue  # Skip rendering this stage entirely
             elif done or i < cur:      
                 marker, text = green('✓'), label
             elif i == cur:           
@@ -569,15 +569,31 @@ def _run_analysis(label: str, trigger_fn, save_fn=None, skip_report_stage=True, 
         report_thread = threading.Thread(target=_generate_report_thread, daemon=True)
         report_thread.start()
         
+        # Animate report generation with progress bar (0% -> 10%)
+        report_start_time = time.monotonic()
         frame_idx = 0
+        REPORT_DURATION = 3.0  # Estimate 3 seconds minimum for animation
+        
         while not report_done.is_set():
+            elapsed = time.monotonic() - report_start_time
+            # Progress grows from 0 to 10%, but never exceeds actual completion
+            progress_pct = min(int((elapsed / REPORT_DURATION) * 10), 9)
+            
             tui.upd_title(frame_idx, "Generating AI Report")
+            tui.upd_progress(progress_pct, "Generate AI report")
             tui.upd_stages(0, False, False, frame_idx, skip_report=False)
             tui.flush()
             frame_idx += 1
             time.sleep(1.0 / FPS)
         
+        # Mark as complete at 10%
+        tui.upd_progress(10, "Generate AI report")
+        # Mark report stage as complete
+        from functools import partial
+        tui.upd_stages(1, False, False, frame_idx, skip_report=False)  # Move to next stage
+        tui.flush()
         report_thread.join(timeout=1.0)
+        time.sleep(0.3)  # Brief pause to show completion
 
     tui.upd_title(0, "Analyzing Project"); tui.flush()
 
@@ -638,14 +654,22 @@ def _run_progress_loop(job_id: str, skip_report_stage=True):
     # over ~1.2 s so the bar glides in rather than snapping.
     analysis_start_t: float = time.monotonic()
     done_signal_t:    float = 0.0   # set once when done=True first seen
-    virt_pct:         float = 0.0
+    virt_pct:         float = 10.0 if not skip_report_stage else 0.0  # Start at 10% if report was generated
 
     # ── Visual phase constants ─────────────────────────────────────────────────
-    # Progress bar allocation: SCAN 0→5%, INDEX 5→90%, BUILD 90→99%
-    # Reflects actual backend time distribution (analysis is 85-95% of total).
-    SCAN_END_PCT  = 5.0    # progress % where SCAN ends
-    INDEX_END_PCT = 90.0   # progress % where INDEX ends
-    BUILD_END_PCT = 99.0   # progress % where BUILD ends
+    # Progress bar allocation:
+    # With report: REPORT 0→10%, SCAN 10→15%, INDEX 15→85%, BUILD 85→99%
+    # No report:   SCAN 0→5%, INDEX 5→90%, BUILD 90→99%
+    if skip_report_stage:
+        REPORT_END_PCT = 0.0
+        SCAN_END_PCT  = 5.0
+        INDEX_END_PCT = 90.0
+        BUILD_END_PCT = 99.0
+    else:
+        REPORT_END_PCT = 10.0
+        SCAN_END_PCT  = 15.0
+        INDEX_END_PCT = 85.0
+        BUILD_END_PCT = 99.0
 
     SCAN_MIN_S  = 1.5     # minimum visual time for SCAN phase
     INDEX_MIN_S = 2.0     # minimum visual time for INDEX phase
@@ -712,7 +736,7 @@ def _run_progress_loop(job_id: str, skip_report_stage=True):
         else:
             if vphase == 'scan':
                 scan_frac  = min(vphase_elapsed / scan_phase_s, 1.0)
-                target_pct = scan_frac * SCAN_END_PCT
+                target_pct = REPORT_END_PCT + scan_frac * (SCAN_END_PCT - REPORT_END_PCT)
             elif vphase == 'index':
                 denom = real_source_total or real_project_total
                 if denom > 0:
