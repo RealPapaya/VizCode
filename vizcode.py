@@ -282,7 +282,7 @@ class TUI:
     # ANALYSIS SCREEN
     # ══════════════════════════════════════════════════════════════════════
 
-    def show_analysis(self, path: str):
+    def show_analysis(self, path: str, skip_report: bool = True):
         self._clear_zone()
         r = CONTENT_START
         self._reg('title',        r, f"  {cyan(SPINNER_FRAMES[0])} {bold('Initializing…')}"); r += 1
@@ -294,7 +294,10 @@ class TUI:
         self._reg('project_type', r, f"  Project Type: {dim('Detecting…')}"); r += 1
         self._at(r, "");                           r += 1
         self._at(r, f"  {bold('Stages')}");        r += 1
-        for i, (_, label) in enumerate(ANALYSIS_STAGES):
+        for i, (stage_key, label) in enumerate(ANALYSIS_STAGES):
+            if skip_report and stage_key == 'report':
+                self._named[f'stage_{i}'] = None  # mark as hidden
+                continue
             self._reg(f'stage_{i}', r, f"  {dim('○')} {dim(label)}"); r += 1
         self._at(r, "");                           r += 1
         self._reg('error', r, "");                 r += 1
@@ -524,7 +527,7 @@ def poll_job(job_id: str) -> dict:
 def _run_analysis(label: str, trigger_fn, save_fn=None, skip_report_stage=True, report_path=None):
     """Shared core: start server → call trigger_fn() → run animation loop."""
     tui = _tui
-    tui.show_analysis(label)
+    tui.show_analysis(label, skip_report=skip_report_stage)
 
     try:
         start_server(tui)
@@ -544,60 +547,111 @@ def _run_analysis(label: str, trigger_fn, save_fn=None, skip_report_stage=True, 
         
         def _generate_report_thread():
             try:
-                import sys, io
-                old_stdout = sys.stdout
-                old_stderr = sys.stderr
-                sys.stdout = io.StringIO()
-                sys.stderr = io.StringIO()
-                
-                from analyze_viz import build_graph
-                from analytics_helpers import generate_report as gen_report
-                
-                data = build_graph(report_path, progress_cb=lambda *args, **kwargs: None)
-                report_file = os.path.join(report_path, '.local', 'vizcode_report.md')
-                gen_report(data, report_file)
-                
-                sys.stdout = old_stdout
-                sys.stderr = old_stderr
+                # Run as a subprocess so its stdout/stderr are fully isolated
+                # from the TUI's stdout — no screen corruption.
+                # SCRIPT_DIR / vizcode.py --scan-only already does build_graph
+                # + generate_report and writes .local/vizcode_report.md.
+                result = subprocess.run(
+                    [sys.executable, str(SERVER_PY.parent / "vizcode.py"),
+                     report_path, "--scan-only"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                )
+                if result.returncode != 0:
+                    report_error[0] = Exception(
+                        result.stderr.decode("utf-8", errors="replace").strip()
+                        or "scan-only failed"
+                    )
             except Exception as e:
-                sys.stdout = old_stdout
-                sys.stderr = old_stderr
                 report_error[0] = e
             finally:
                 report_done.set()
         
         report_thread = threading.Thread(target=_generate_report_thread, daemon=True)
+        
+        # Initialize display before starting thread
+        tui.upd_title(0, "Generating AI Report", done=False, error=False)
+        tui.upd_progress(0, "Generate AI report")
+        tui._set('msg', f"  {dim('Preparing...')}")  # Clear the queued message
+        tui.upd_stages(0, False, False, 0, skip_report=False)
+        tui.flush()
+        
+        # Start the background thread
         report_thread.start()
         
-        # Animate report generation with progress bar (0% -> 10%)
+        # Animate report generation with progress bar (0% -> 9%)
+        # Asymptotic easing: pct = 9 * t / (t + 45)
+        # Fast at start, slows gradually, never freezes for large codebases.
+        # ~2% @15s  ~4% @45s  ~6% @90s  ~7% @180s  ~8% @360s
         report_start_time = time.monotonic()
-        frame_idx = 0
-        REPORT_DURATION = 3.0  # Estimate 3 seconds minimum for animation
+        frame_idx = 1  # Start from 1 since we already showed frame 0
         
         while not report_done.is_set():
             elapsed = time.monotonic() - report_start_time
-            # Progress grows from 0 to 10%, but never exceeds actual completion
-            progress_pct = min(int((elapsed / REPORT_DURATION) * 10), 9)
+            progress_pct = int(9.0 * elapsed / (elapsed + 45.0))
             
-            tui.upd_title(frame_idx, "Generating AI Report")
+            # Update with spinner animation
+            tui.upd_title(frame_idx, "Generating AI Report", done=False, error=False)
             tui.upd_progress(progress_pct, "Generate AI report")
             tui.upd_stages(0, False, False, frame_idx, skip_report=False)
             tui.flush()
             frame_idx += 1
             time.sleep(1.0 / FPS)
         
-        # Mark as complete at 10%
-        tui.upd_progress(10, "Generate AI report")
-        # Mark report stage as complete
-        from functools import partial
-        tui.upd_stages(1, False, False, frame_idx, skip_report=False)  # Move to next stage
-        tui.flush()
+        # Mark report stage done (or errored), then immediately kick off the
+        # analysis job in a background thread so the spinner keeps going
+        # with zero pause between report and analysis.
         report_thread.join(timeout=1.0)
-        time.sleep(0.3)  # Brief pause to show completion
+        _report_had_error = bool(report_error[0])
+        if _report_had_error:
+            tui.upd_title(frame_idx, "AI Report Failed", done=False, error=True)
+            tui.upd_progress(10, "Report skipped (error)")
+            tui.upd_stages(1, False, True, frame_idx, skip_report=False)
+        else:
+            tui.upd_title(frame_idx, "AI Report Complete", done=True, error=False)
+            tui.upd_progress(10, "Generate AI report")
+            tui.upd_stages(1, False, False, frame_idx, skip_report=False)
+        tui.flush()
 
-    tui.upd_title(0, "Analyzing Project"); tui.flush()
+        # Launch analysis job in background — spinner keeps running
+        job_id_holder = [None]
+        job_ready = __import__("threading").Event()
 
-    job_id = trigger_fn()
+        def _kick_job():
+            job_id_holder[0] = trigger_fn()
+            job_ready.set()
+
+        __import__("threading").Thread(target=_kick_job, daemon=True).start()
+
+        while not job_ready.is_set():
+            frame_idx += 1
+            tui.upd_title(frame_idx, "Analyzing Project")
+            tui.flush()
+            time.sleep(1.0 / FPS)
+
+        job_id = job_id_holder[0]
+
+    else:
+        # No report stage — start job normally (still non-blocking spinner)
+        job_id_holder = [None]
+        job_ready = __import__("threading").Event()
+
+        def _kick_job():
+            job_id_holder[0] = trigger_fn()
+            job_ready.set()
+
+        __import__("threading").Thread(target=_kick_job, daemon=True).start()
+
+        frame_idx = 0
+        tui.upd_title(frame_idx, "Analyzing Project"); tui.flush()
+        while not job_ready.is_set():
+            frame_idx += 1
+            tui.upd_title(frame_idx, "Analyzing Project")
+            tui.flush()
+            time.sleep(1.0 / FPS)
+
+        job_id = job_id_holder[0]
+
     if not job_id:
         tui.upd_error("Failed to start analysis job."); tui.restore(); return
     if save_fn:
