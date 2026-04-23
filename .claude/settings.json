@@ -1,4 +1,54 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(curl -sI https://unpkg.com/graphology-layout-forceatlas2@0.10.1/dist/)",
+      "Bash(curl -sL https://unpkg.com/graphology-layout-forceatlas2@0.10.1/)",
+      "Bash(curl -sI https://esm.sh/sigma@3.0.2)",
+      "Bash(curl -sI https://esm.sh/graphology@0.26.0)",
+      "Bash(curl -sI https://esm.sh/graphology-layout-forceatlas2@0.10.1)",
+      "Bash(curl -sL \"https://esm.sh/sigma@3.0.2\")",
+      "Bash(curl -sL \"https://esm.sh/graphology@0.26.0\")",
+      "Bash(curl -sL \"https://esm.sh/graphology-layout-forceatlas2@0.10.1\")",
+      "Bash(curl -sI https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/worker.js)",
+      "Bash(curl -sI https://unpkg.com/graphology-layout-forceatlas2@0.10.1/webworker.js)",
+      "Bash(curl -sL https://unpkg.com/graphology-layout-forceatlas2@0.10.1/webworker.js)",
+      "Bash(curl -sL https://unpkg.com/graphology-layout-forceatlas2@0.10.1/worker.js)",
+      "Bash(curl -sL https://cdn.jsdelivr.net/npm/sigma@2.4.0/build/sigma.min.js)",
+      "Bash(curl -sL https://unpkg.com/sigma@2.4.0/package.json)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:d.get\\(k\\) for k in [''''main'''',''''module'''',''''browser'''',''''exports'''']}, indent=2\\)\\)\")",
+      "Bash(curl -sI https://cdn.jsdelivr.net/npm/sigma@2.4.0/build/sigma.min.js)",
+      "Bash(curl -sL https://esm.sh/graphology-layout-forceatlas2@0.10.1/worker)",
+      "Bash(curl -sI https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/index.js)",
+      "Bash(curl -sL https://unpkg.com/graphology-layout-forceatlas2@0.10.1/index.js)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''analyze_viz.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''analyze_viz.py: OK''\\)\")",
+      "Bash(curl -s \"https://cdn.jsdelivr.net/npm/sigma@3.0.2/dist/sigma.min.js\")",
+      "PowerShell($procIds = \\(Get-NetTCPConnection -LocalPort 7777 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess | Select-Object -Unique; foreach \\($pp in $procIds\\) { Stop-Process -Id $pp -Force -ErrorAction SilentlyContinue }; Start-Sleep -Milliseconds 500; Remove-Item server_out.log, server_err.log -ErrorAction SilentlyContinue; $remaining = \\(Get-NetTCPConnection -LocalPort 7777 -State Listen -ErrorAction SilentlyContinue | Measure-Object\\).Count; Write-Output \"Remaining listeners on 7777: $remaining\")",
+      "PowerShell(python -c \"import py_compile; py_compile.compile\\('server.py', doraise=True\\); print\\('server.py OK'\\)\")",
+      "PowerShell(Remove-Item server_out.log, server_err.log -ErrorAction SilentlyContinue; Start-Process -FilePath python -ArgumentList 'server.py' -WindowStyle Hidden -RedirectStandardOutput 'server_out.log' -RedirectStandardError 'server_err.log'; Start-Sleep -Seconds 2; $b = @{ path = 'D:/Google AI/CodeViz/testproject' } | ConvertTo-Json -Compress; $r = Invoke-RestMethod -Uri http://localhost:7777/analyze -Method POST -Body $b -ContentType 'application/json' -TimeoutSec 30; $jid = $r.job_id; Write-Output \"Job: $jid\"; $retry = 0; while \\($retry -lt 20\\) { Start-Sleep -Milliseconds 700; $s = Invoke-RestMethod -Uri \"http://localhost:7777/progress?job=$jid\" -TimeoutSec 5; if \\($s.done\\) { break }; $retry++ }; Write-Output \\(\"Progress: {0}% done={1}\" -f $s.pct, $s.done\\))",
+      "PowerShell($jid='4f2a13a3'; $sym = Invoke-RestMethod -Uri \"http://localhost:7777/symbols?job=$jid&q=tictactoe&limit=5\" -TimeoutSec 10; $target = \\($sym.results | Where-Object name -eq 'TicTacToe'\\).id; Write-Output \"TicTacToe id: $target\"; $sg = Invoke-RestMethod -Uri \"http://localhost:7777/symbol-graph?job=$jid&sym=$target\" -TimeoutSec 10; Write-Output \"=== outgoing \\(center TicTacToe\\) ===\"; $sg.outgoing | ForEach-Object { \"$\\($_.sym.name\\) [$\\($_.edge_type\\)] sites=$\\($_.edge_lines -join ','\\) file=$\\($_.edge_file\\)\" }; Write-Output \"\"; Write-Output \"=== incoming ===\"; $sg.incoming | ForEach-Object { \"$\\($_.sym.name\\) [$\\($_.edge_type\\)] sites=$\\($_.edge_lines -join ','\\) file=$\\($_.edge_file\\)\" })",
+      "PowerShell($jid='4f2a13a3'; $sym = Invoke-RestMethod -Uri \"http://localhost:7777/symbols?job=$jid&q=makeMove&limit=5\" -TimeoutSec 10; $target = $sym.results.id; Write-Output \"makeMove id: $target\"; $sg = Invoke-RestMethod -Uri \"http://localhost:7777/symbol-graph?job=$jid&sym=$target\" -TimeoutSec 10; Write-Output \"=== center $\\($sg.center.name\\) \\($\\($sg.center.kind\\)\\) ===\"; Write-Output \"=== outgoing ===\"; $sg.outgoing | ForEach-Object { \"$\\($_.sym.name\\) [$\\($_.edge_type\\)] count=$\\($_.count\\) sites=[$\\($_.edge_lines -join ','\\)] file=$\\($_.edge_file\\)\" }; Write-Output \"\"; Write-Output \"=== incoming ===\"; $sg.incoming | ForEach-Object { \"$\\($_.sym.name\\) [$\\($_.edge_type\\)] count=$\\($_.count\\) sites=[$\\($_.edge_lines -join ','\\)] file=$\\($_.edge_file\\)\" })",
+      "PowerShell($jid='4f2a13a3'; $sym = Invoke-RestMethod -Uri \"http://localhost:7777/symbols?job=$jid&q=Pet&limit=5\" -TimeoutSec 10; $target = \\($sym.results | Where-Object name -eq 'Pet'\\).id; $sg = Invoke-RestMethod -Uri \"http://localhost:7777/symbol-graph?job=$jid&sym=$target\" -TimeoutSec 10; Write-Output \"=== outgoing ===\"; $sg.outgoing | ForEach-Object { \"{0,-20} [{1}] count={2} sites=[{3}] file={4}\" -f $_.sym.name, $_.edge_type, $_.count, \\($_.edge_lines -join ','\\), $_.edge_file }; Write-Output \"\"; Write-Output \"=== incoming ===\"; $sg.incoming | ForEach-Object { \"{0,-20} [{1}] count={2} sites=[{3}] file={4}\" -f $_.sym.name, $_.edge_type, $_.count, \\($_.edge_lines -join ','\\), $_.edge_file })",
+      "PowerShell($jobs = Invoke-RestMethod -Uri \"http://localhost:7777/jobs\" -TimeoutSec 5; $jobs | ForEach-Object { \"$\\($_.id\\) | $\\($_.msg\\)\" })",
+      "PowerShell($jid='4f2a13a3'; $f = Invoke-RestMethod -Uri \"http://localhost:7777/symbol-file?job=$jid&file=sym_demo.py\" -TimeoutSec 10; $f.symbols | Where-Object { $_.name -eq '__init__' -or $_.name -eq 'Pet' } | Select-Object id,name,kind,line,end_line,parent,file | Format-Table -AutoSize)",
+      "PowerShell($jid='d63c597f'; $sym = Invoke-RestMethod -Uri \"http://localhost:7777/symbols?job=$jid&q=Pet&limit=5\" -TimeoutSec 10; $target = \\($sym.results | Where-Object name -eq 'Pet'\\).id; $sg = Invoke-RestMethod -Uri \"http://localhost:7777/symbol-graph?job=$jid&sym=$target\" -TimeoutSec 10; Write-Output \"=== outgoing ===\"; $sg.outgoing | ForEach-Object { \"{0,-20} [{1}] count={2} sites=[{3}] file={4}\" -f $_.sym.name, $_.edge_type, $_.count, \\($_.edge_lines -join ','\\), $_.edge_file }; Write-Output \"\"; Write-Output \"=== incoming ===\"; $sg.incoming | ForEach-Object { \"{0,-20} [{1}] count={2} sites=[{3}] file={4}\" -f $_.sym.name, $_.edge_type, $_.count, \\($_.edge_lines -join ','\\), $_.edge_file })",
+      "PowerShell($procIds = \\(Get-NetTCPConnection -LocalPort 7777 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess | Select-Object -Unique; foreach \\($pp in $procIds\\) { Stop-Process -Id $pp -Force -ErrorAction SilentlyContinue }; Remove-Item server_out.log, server_err.log, .jid -ErrorAction SilentlyContinue; Write-Output \"Cleanup done\")",
+      "PowerShell($procIds = \\(Get-NetTCPConnection -LocalPort 7777 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess | Select-Object -Unique; foreach \\($pp in $procIds\\) { Stop-Process -Id $pp -Force -ErrorAction SilentlyContinue }; Remove-Item server_out.log, server_err.log -ErrorAction SilentlyContinue; Write-Output \"done\")",
+      "PowerShell(Remove-Item server_out.log, server_err.log -ErrorAction SilentlyContinue; Start-Process -FilePath python -ArgumentList 'server.py' -WindowStyle Hidden -RedirectStandardOutput 'server_out.log' -RedirectStandardError 'server_err.log'; Start-Sleep -Seconds 2; $b = @{ path = 'D:/Google AI/CodeViz/testproject' } | ConvertTo-Json -Compress; $r = Invoke-RestMethod -Uri http://localhost:7777/analyze -Method POST -Body $b -ContentType 'application/json' -TimeoutSec 30; $jid = $r.job_id; $retry=0; while \\($retry -lt 20\\) { Start-Sleep -Milliseconds 700; $s = Invoke-RestMethod -Uri \"http://localhost:7777/progress?job=$jid\" -TimeoutSec 5; if \\($s.done\\) { break }; $retry++ }; Write-Output \"Job $jid done\"; $ss = Invoke-RestMethod -Uri \"http://localhost:7777/symbols?job=$jid&q=broken&limit=10\" -TimeoutSec 10; $ss.results | Format-Table id,name,kind,file,line,has_error -AutoSize)",
+      "PowerShell($jid='b114c3bc'; $ss = Invoke-RestMethod -Uri \"http://localhost:7777/symbols?job=$jid&q=Broken&limit=10\" -TimeoutSec 10; Write-Output 'Search broken_syntax symbols:'; $ss.results | Select-Object id,name,kind,file,line,has_error | Format-Table -AutoSize; $ss2 = Invoke-RestMethod -Uri \"http://localhost:7777/symbols?job=$jid&q=Sibling&limit=10\" -TimeoutSec 10; Write-Output 'SiblingClass:'; $ss2.results | Select-Object id,name,kind,file,line,has_error | Format-Table -AutoSize)",
+      "PowerShell($jid='b114c3bc'; Get-Content server_err.log -Tail 30 -ErrorAction SilentlyContinue; Write-Output '---'; $all = Invoke-RestMethod -Uri \"http://localhost:7777/symbols?job=$jid&q=&limit=500\" -TimeoutSec 10; $broken = $all.results | Where-Object { $_.file -eq 'broken_syntax.py' }; Write-Output \"broken_syntax.py symbols found: $\\($broken.Count\\)\"; $broken | Format-Table id,name,kind,line,has_error -AutoSize)",
+      "PowerShell($env:PYTHONIOENCODING='utf-8'; python _v7_test.py 2>&1 | Where-Object { $_ -notmatch '^\\\\[' })",
+      "PowerShell($jid='183658c8'; $ss = Invoke-RestMethod -Uri \"http://localhost:7777/symbols?job=$jid&q=Broken&limit=10\" -TimeoutSec 10; Write-Output \"Count: $\\($ss.results.Count\\), Total: $\\($ss.total\\)\"; $ss.results | Select-Object id,name,kind,file,line,has_error | Format-Table -AutoSize; $all = Invoke-RestMethod -Uri \"http://localhost:7777/symbols?job=$jid&q=&limit=500\" -TimeoutSec 10; $bs = $all.results | Where-Object { $_.file -eq 'broken_syntax.py' }; Write-Output \"broken_syntax.py symbols found: $\\($bs.Count\\)\"; $bs | Format-Table id,name,kind,line,has_error -AutoSize)",
+      "PowerShell($jid='183658c8'; $prog = Invoke-RestMethod -Uri \"http://localhost:7777/progress?job=$jid\" -TimeoutSec 5; Write-Output \"state=$\\($prog.state\\) done=$\\($prog.done\\) error=$\\($prog.error\\) msg=$\\($prog.msg\\)\"; Write-Output \"stats: files=$\\($prog.stats.files\\) functions=$\\($prog.stats.functions\\)\")",
+      "PowerShell($jid='113be7a1'; $ss = Invoke-RestMethod -Uri \"http://localhost:7777/symbols?job=$jid&q=Broken&limit=10\" -TimeoutSec 10; Write-Output 'Search broken symbols:'; $ss.results | Select-Object name,kind,file,has_error | Format-Table -AutoSize; $bhId = \\($ss.results | Where-Object name -eq 'BrokenHost'\\).id; Write-Output \"BrokenHost id: $bhId\"; $sg = Invoke-RestMethod -Uri \"http://localhost:7777/symbol-graph?job=$jid&sym=$bhId\" -TimeoutSec 10; Write-Output \\(\"center: name={0} parse_error={1}\" -f $sg.center.name, $sg.center.parse_error\\); Write-Output 'children has_error:'; $sg.center.children | Select-Object name,kind,has_error | Format-Table -AutoSize)",
+      "PowerShell($jid='113be7a1'; $html = \\(Invoke-WebRequest -Uri \"http://localhost:7777/result?job=$jid\" -UseBasicParsing -TimeoutSec 30\\).Content; foreach \\($probe in @\\('sv-error-badge','sv-error-x','sv-member-error','sv-ov-card-error','hasError','parse_error'\\)\\) { \"{0,-22} => {1}\" -f $probe, $html.Contains\\($probe\\) })",
+      "PowerShell($procIds = \\(Get-NetTCPConnection -LocalPort 7777 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess | Select-Object -Unique; foreach \\($pp in $procIds\\) { Stop-Process -Id $pp -Force -ErrorAction SilentlyContinue }; Remove-Item server_out.log, server_err.log, .jid -ErrorAction SilentlyContinue; Write-Output done)"
+    ],
+    "additionalDirectories": [
+      "D:\\Google AI\\CodeViz\\testproject\\.local",
+      "D:\\Google AI\\CodeViz"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
   "hooks": {
     "PostToolUse": [
       {
@@ -7,8 +57,8 @@
           {
             "type": "command",
             "command": "python \"d:/Google AI/CodeViz/.claude/hooks/check-python-syntax.py\"",
-            "statusMessage": "Checking Python syntax...",
-            "timeout": 10
+            "timeout": 10,
+            "statusMessage": "Checking Python syntax..."
           }
         ]
       }
@@ -36,35 +86,9 @@
       }
     ]
   },
-  "autoMemoryEnabled": true,
-  "enableAllProjectMcpServers": true,
-  "permissions": {
-    "allow": [
-      "Bash(curl -sI https://unpkg.com/graphology-layout-forceatlas2@0.10.1/dist/)",
-      "Bash(curl -sL https://unpkg.com/graphology-layout-forceatlas2@0.10.1/)",
-      "Bash(curl -sI https://esm.sh/sigma@3.0.2)",
-      "Bash(curl -sI https://esm.sh/graphology@0.26.0)",
-      "Bash(curl -sI https://esm.sh/graphology-layout-forceatlas2@0.10.1)",
-      "Bash(curl -sL \"https://esm.sh/sigma@3.0.2\")",
-      "Bash(curl -sL \"https://esm.sh/graphology@0.26.0\")",
-      "Bash(curl -sL \"https://esm.sh/graphology-layout-forceatlas2@0.10.1\")",
-      "Bash(curl -sI https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/worker.js)",
-      "Bash(curl -sI https://unpkg.com/graphology-layout-forceatlas2@0.10.1/webworker.js)",
-      "Bash(curl -sL https://unpkg.com/graphology-layout-forceatlas2@0.10.1/webworker.js)",
-      "Bash(curl -sL https://unpkg.com/graphology-layout-forceatlas2@0.10.1/worker.js)",
-      "Bash(curl -sL https://cdn.jsdelivr.net/npm/sigma@2.4.0/build/sigma.min.js)",
-      "Bash(curl -sL https://unpkg.com/sigma@2.4.0/package.json)",
-      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:d.get\\(k\\) for k in [''''main'''',''''module'''',''''browser'''',''''exports'''']}, indent=2\\)\\)\")",
-      "Bash(curl -sI https://cdn.jsdelivr.net/npm/sigma@2.4.0/build/sigma.min.js)",
-      "Bash(curl -sL https://esm.sh/graphology-layout-forceatlas2@0.10.1/worker)",
-      "Bash(curl -sI https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/index.js)",
-      "Bash(curl -sL https://unpkg.com/graphology-layout-forceatlas2@0.10.1/index.js)",
-      "Bash(python -c \"import ast; ast.parse\\(open\\(''analyze_viz.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''analyze_viz.py: OK''\\)\")",
-      "Bash(curl -s \"https://cdn.jsdelivr.net/npm/sigma@3.0.2/dist/sigma.min.js\")"
-    ]
-  },
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true,
     "context7@claude-plugins-official": true
-  }
+  },
+  "autoMemoryEnabled": true
 }

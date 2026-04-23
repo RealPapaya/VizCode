@@ -102,6 +102,7 @@ def lookup_entry(memo: dict, rel_path: str, file_sha: str, parser_sha: str):
     if not isinstance(p, dict):
         return None
     try:
+        # 7-tuple with optional parse diagnostic (None when the parser parsed cleanly).
         return (
             p["imports"],
             p["funcdefs"],
@@ -109,6 +110,7 @@ def lookup_entry(memo: dict, rel_path: str, file_sha: str, parser_sha: str):
             p["extras"],
             p["func_calls_by_func"],
             p["symdefs"],
+            p.get("parse_diag"),
         )
     except (KeyError, TypeError):
         return None
@@ -121,12 +123,21 @@ def record_entry(
     parser_sha: str,
     result: tuple,
 ) -> None:
-    """Store a 6-tuple parse result into the in-memory memo dict.
+    """Store a 6- or 7-tuple parse result into the in-memory memo dict.
 
     Field naming deliberately uses VizCode's own vocabulary; see the Parser
     Interface Contract in CLAUDE.md for what each element represents.
     """
-    incs, defs, calls, extra, fcbf, symdefs = result
+    n = len(result)
+    if n == 6:
+        incs, defs, calls, extra, fcbf, symdefs = result
+        diag = None
+    elif n == 7:
+        incs, defs, calls, extra, fcbf, symdefs, diag = result
+    else:
+        # Defensive: coerce any other arity by padding/truncating.
+        padded = list(result)[:7] + [None] * max(0, 7 - n)
+        incs, defs, calls, extra, fcbf, symdefs, diag = padded
     memo["entries"][rel_path] = {
         "file_sha":   file_sha,
         "parser_sha": parser_sha,
@@ -137,5 +148,6 @@ def record_entry(
             "extras":             extra,
             "func_calls_by_func": fcbf,
             "symdefs":            symdefs,
+            "parse_diag":         diag,
         },
     }

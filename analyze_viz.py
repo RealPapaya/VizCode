@@ -575,7 +575,7 @@ def scan_file(filepath: str, root: str, _memo: dict | None = None):
     try:
         file_bytes = fp_path.read_bytes()
     except Exception:
-        return [], [], [], None, [], []
+        return [], [], [], None, [], [], None
 
     ext = fp_path.suffix.lower()
 
@@ -633,8 +633,19 @@ def scan_file(filepath: str, root: str, _memo: dict | None = None):
         raw = scan_common(src, ext)
 
     if raw is not None:
-        # All pluggable parsers: pad 5-tuple to 6-tuple if needed
-        result = (*raw, []) if len(raw) == 5 else tuple(raw)
+        # Pluggable parsers return 5-, 6-, or 7-tuples. Normalise to 7:
+        #   (imports, funcdefs, calls, extra, calls_by_func, symbol_defs, parse_diag)
+        n = len(raw)
+        if n == 5:
+            result = (*raw, [], None)
+        elif n == 6:
+            result = (*raw, None)
+        elif n == 7:
+            result = tuple(raw)
+        else:
+            # Defensive: coerce any future shape to 7 by truncating or padding.
+            padded = list(raw)[:7] + [None] * max(0, 7 - n)
+            result = tuple(padded)
     else:
         # Final safety net: .c, .cpp, .h, .hpp → C-like analysis
         clean = strip_comments(src)
@@ -667,7 +678,7 @@ def scan_file(filepath: str, root: str, _memo: dict | None = None):
             if name not in C_KEYWORDS and len(name) >= 2:
                 funccalls.append(name)
 
-        result = (includes, funcdefs, funccalls, None, func_calls_by_func, [])
+        result = (includes, funcdefs, funccalls, None, func_calls_by_func, [], None)
 
     # ── Cache write ───────────────────────────────────────────────────────────
     if _memo is not None and rel is not None:
@@ -811,7 +822,10 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                 source_files_total=total,
             )
         rel = os.path.relpath(fp, root).replace('\\', '/')
-        inc, defs, calls, extra, func_calls_by_func, sym_defs = scan_file(fp, root, _memo=_memo)
+        _scanned = scan_file(fp, root, _memo=_memo)
+        # scan_file may return 6- or 7-tuple depending on parser — unpack safely.
+        inc, defs, calls, extra, func_calls_by_func, sym_defs = _scanned[:6]
+        parse_diag = _scanned[6] if len(_scanned) > 6 else None
         ext = Path(fp).suffix.lower()
         bios_meta = {}
         if extra and 'meta' in extra:
@@ -824,6 +838,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             'module':    get_module(rel),
             'file_type': FILE_TYPE_MAP.get(ext, 'other'),
             'bios_meta': bios_meta,
+            'parse_error': (parse_diag or {}).get('file_error') if isinstance(parse_diag, dict) else None,
         }
         file_incs[rel]  = inc
         file_defs[rel]  = defs
@@ -1306,6 +1321,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     file_list = sorted(file_meta.keys())
     for f_idx, rel in enumerate(file_list):
         syms = file_symdefs.get(rel, []) or []
+        file_parse_error = file_meta[rel].get('parse_error')
         for s_idx, sym in enumerate(syms):
             sid = f'sym_{f_idx}_{s_idx}'
             symbol_index[sid] = {
@@ -1319,6 +1335,9 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                 'parent':    sym.get('parent'),
                 'is_public': sym.get('is_public', True),
                 'module':    file_meta[rel]['module'],
+                # Flag set when the parser had to fall back (e.g. ast.parse failed).
+                # Truthy value is a short diagnostic message; falsy → clean symbol.
+                'parse_error': file_parse_error,
             }
             _sym_name_to_ids[sym['name']].append(sid)
             _file_sym_key[(rel, sym['name'])] = sid

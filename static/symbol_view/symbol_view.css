@@ -338,6 +338,30 @@
     font-size: 13px;
 }
 
+/* Reverse-sync highlight: overview card that matches the clicked code line */
+.sv-ov-card.sv-ov-card-active {
+    background: var(--panel2, #1b1c19);
+    border-color: var(--accent, #dfa745);
+    box-shadow: 0 0 0 2px rgba(223, 167, 69, 0.35);
+    animation: sv-ov-pulse 0.9s ease-out;
+}
+
+@keyframes sv-ov-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(223, 167, 69, 0.8); }
+    100% { box-shadow: 0 0 0 2px rgba(223, 167, 69, 0.35); }
+}
+
+/* Reverse-sync highlight: card flash when the clicked line falls inside center */
+.sv-node.sv-card-flash .sv-node-bg {
+    animation: sv-card-pulse 0.9s ease-out;
+}
+
+@keyframes sv-card-pulse {
+    0%   { filter: drop-shadow(0 0 0 rgba(223, 167, 69, 0.9)); }
+    40%  { filter: drop-shadow(0 0 14px rgba(223, 167, 69, 0.7)); }
+    100% { filter: drop-shadow(0 4px 12px rgba(223, 167, 69, 0.18)); }
+}
+
 /* ── SVG: nodes ───────────────────────────────────────────────────── */
 .sv-node {
     cursor: pointer;
@@ -380,6 +404,33 @@
     letter-spacing: 0.1em;
     fill: var(--muted, #93918b);
     text-transform: uppercase;
+}
+
+/* Section toggle chips (PUBLIC / PRIVATE) inside class card header */
+.sv-section-chip { cursor: pointer; }
+
+.sv-chip-bg {
+    fill: rgba(0, 0, 0, 0.22);
+    stroke-width: 1;
+    transition: fill 0.12s;
+}
+
+.sv-section-chip:hover .sv-chip-bg {
+    fill: rgba(223, 167, 69, 0.12);
+}
+
+.sv-section-chip.sv-chip-collapsed .sv-chip-bg {
+    fill: rgba(148, 163, 184, 0.12);
+    stroke-dasharray: 3 2;
+}
+
+.sv-chip-text {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    dominant-baseline: middle;
+    pointer-events: none;
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
 }
 
 .sv-pill-kind {
@@ -437,6 +488,88 @@
     font-weight: 700;
 }
 
+/* Expansion chip on neighbor pills (±) */
+.sv-expand-chip {
+    cursor: pointer;
+    pointer-events: all;
+    transition: transform 0.15s;
+}
+
+.sv-expand-chip:hover {
+    transform-origin: center;
+}
+
+.sv-expand-chip:hover circle {
+    fill: var(--accent, #dfa745);
+}
+
+.sv-expand-chip:hover .sv-expand-chip-text {
+    fill: var(--bg, #0f110e);
+}
+
+.sv-expand-chip-text {
+    font-size: 12px;
+    font-weight: 800;
+    fill: var(--accent, #dfa745);
+    dominant-baseline: middle;
+    pointer-events: none;
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+
+/* Secondary pill visual treatment — lower opacity to de-emphasize 2nd hop */
+.sv-node.sv-secondary .sv-node-bg {
+    opacity: 0.72;
+}
+
+.sv-node.sv-secondary .sv-node-name {
+    opacity: 0.9;
+}
+
+/* Dashed secondary edges */
+.sv-edge.sv-edge-secondary {
+    opacity: 0.6;
+}
+
+.sv-edge.sv-edge-secondary:hover {
+    opacity: 1;
+}
+
+/* Parse-error indicators */
+.sv-error-badge { pointer-events: all; cursor: help; }
+
+.sv-error-x {
+    font-size: 11px;
+    font-weight: 700;
+    font-family: inherit;
+    pointer-events: none;
+}
+
+.sv-member-error-mark {
+    font-size: 10px;
+    font-weight: 700;
+    fill: #ef4444;
+    dominant-baseline: middle;
+}
+
+.sv-member-error .sv-member-name {
+    fill: #fca5a5;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-decoration-color: rgba(239, 68, 68, 0.5);
+}
+
+.sv-ov-card.sv-ov-card-error {
+    border-left: 3px solid #ef4444;
+}
+
+.sv-ov-err {
+    color: #ef4444;
+    font-size: 11px;
+    font-weight: 700;
+    margin-left: 4px;
+    cursor: help;
+}
+
 /* ── SVG: edges ───────────────────────────────────────────────────── */
 .sv-edge {
     cursor: pointer;
@@ -487,6 +620,14 @@
     color: var(--muted, #93918b);
     margin-left: 6px;
     font-size: 11px;
+}
+
+.sv-tip-sites {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--accent, #dfa745);
+    letter-spacing: 0.04em;
 }
 
 .sv-tip-site {

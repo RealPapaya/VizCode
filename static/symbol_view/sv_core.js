@@ -20,6 +20,9 @@ const _svState = {
     searchOpen:   false,
     searchCache:  new Map(),
     hiddenEdgeTypes: new Set(), // edge types toggled off via legend
+    edgeJumpCursor: new Map(),  // edgeId → next index into edge_lines
+    collapsedSections: new Set(), // "<cardId>|public" / "<cardId>|private" — collapsed access sections
+    expansions: new Map(),        // pillId → { group: 'left|right|up|down', neighbors: [...] }
     _legendSnap:  null,
 };
 
@@ -259,6 +262,9 @@ function symViewActivate(symId) {
         _svState.future = [];
     }
     _svState.active = symId;
+    _svState.edgeJumpCursor.clear();     // Cursors reset per-center.
+    _svState.collapsedSections.clear();  // Section collapse state is per-center.
+    _svState.expansions.clear();         // Local expansions drop when center changes.
     _svFetchAndRender(symId);
     _svSyncNavBtns();
     _svUpdateStructBtn(true);
@@ -408,12 +414,18 @@ function _svRenderOverview(fileRel) {
             ${_svEsc(k)} <span class="sv-ov-count">${items.length}</span>
           </div>
           <div class="sv-ov-grid">
-            ${items.map(s => `
-              <div class="sv-ov-card" data-symid="${_svEsc(s.id)}" title="${_svEsc(s.name)} · line ${s.line || '?'}">
+            ${items.map(s => {
+                const err = !!s.parse_error;
+                const errCls  = err ? ' sv-ov-card-error' : '';
+                const errMark = err ? `<span class="sv-ov-err" title="${_svEsc(s.parse_error || 'Parse issue')}">✕</span>` : '';
+                return `
+              <div class="sv-ov-card${errCls}" data-symid="${_svEsc(s.id)}" title="${_svEsc(s.name)} · line ${s.line || '?'}${err ? ' — ' + _svEsc(s.parse_error || 'parse issue') : ''}">
                 <span class="sv-kind-dot" style="background:${_svKindColor(s.kind)}"></span>
                 <span class="sv-ov-name">${_svEsc(s.name)}</span>
+                ${errMark}
                 <span class="sv-ov-line">L${s.line || 0}</span>
-              </div>`).join('')}
+              </div>`;
+            }).join('')}
           </div>
         </div>`;
     }
@@ -463,8 +475,70 @@ window.svHideStructureBtn = function () {
 };
 // Multi-snippet hook — v2 feature; keep as no-op so viz_code_panel doesn't throw.
 window.symShowCurrentSnippets = function () { /* no-op in v1 */ };
-// Reverse-sync stub: code panel line-click → graph highlight. Deferred.
-window.svHighlightLine = function (_lineIdx) { /* no-op in v1 */ };
+// Reverse-sync: code panel line-click → graph highlight.
+window.svHighlightLine = function (lineIdx) {
+    const lineNo = lineIdx + 1;  // cl-N ids are 0-based; line numbers are 1-based.
+
+    // Overview mode: flash the matching card.
+    if (_svState.active === '__overview__') {
+        const ov = document.getElementById('sv-overview');
+        if (!ov || !window.DATA || !DATA.symbol_index) return;
+        const file = _svState.overviewFile;
+        if (!file) return;
+        const candidates = Object.values(DATA.symbol_index).filter(s => s.file === file);
+        let best = null;
+        for (const s of candidates) {
+            const start = s.line || 0;
+            const end   = s.end_line || start;
+            if (lineNo >= start && lineNo <= end) {
+                if (!best || (s.line || 0) > (best.line || 0)) best = s;  // prefer innermost
+            }
+        }
+        ov.querySelectorAll('.sv-ov-card-active').forEach(c => c.classList.remove('sv-ov-card-active'));
+        if (!best) return;
+        const card = ov.querySelector(`.sv-ov-card[data-symid="${CSS.escape(best.id)}"]`);
+        if (card) {
+            card.classList.add('sv-ov-card-active');
+            card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+        return;
+    }
+
+    // Centric mode: highlight matching member, or flash the center card.
+    const graph = _svState.currentGraph;
+    if (!graph || !_svState.viewport) return;
+    const center = graph.center;
+    if (!center) return;
+
+    // Look for a matching member first.
+    const children = (center.children || []).filter(c => {
+        const s = c.line || 0;
+        const e = c.end_line || s;
+        return lineNo >= s && lineNo <= e;
+    });
+    // Clear previous highlights.
+    _svState.viewport.querySelectorAll('.sv-member-active').forEach(m => m.classList.remove('sv-member-active'));
+    _svState.viewport.querySelectorAll('.sv-card-flash').forEach(c => c.classList.remove('sv-card-flash'));
+
+    if (children.length) {
+        const innermost = children.sort((a, b) => (b.line || 0) - (a.line || 0))[0];
+        const el = _svState.viewport.querySelector(`.sv-member[data-symid="${CSS.escape(innermost.id)}"]`);
+        if (el) el.classList.add('sv-member-active');
+        return;
+    }
+
+    // No member matched: if the line is within center's range, flash the card.
+    const cStart = center.line || 0;
+    const cEnd   = center.end_line || cStart;
+    if (cStart && lineNo >= cStart && lineNo <= cEnd) {
+        const node = _svState.viewport.querySelector(`.sv-node[data-symid="${CSS.escape(center.id)}"]`);
+        if (node) {
+            node.classList.add('sv-card-flash');
+            // Auto-clear after animation completes so repeated clicks can re-flash.
+            setTimeout(() => node.classList.remove('sv-card-flash'), 900);
+        }
+    }
+};
 // Identifier word-click from code panel → activate matching symbol.
 window.svHighlightBadgeByName = function (word) {
     if (!word || !window.DATA || !DATA.symbol_index) return;

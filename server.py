@@ -7,7 +7,7 @@ stdlib only: http.server, threading, json, uuid
 Usage: python server.py [port]   (default port 7777)
 """
 
-import sys, os, json, threading, uuid, time
+import sys, os, json, threading, uuid, time, re
 import zipfile, tarfile, tempfile, shutil, subprocess, io
 from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
@@ -1625,6 +1625,7 @@ class Handler(BaseHTTPRequestHandler):
                     'is_public': sym['is_public'],
                     'module':    sym['module'],
                     'parent':    sym['parent'],
+                    'has_error': bool(sym.get('parse_error')),
                 })
                 if len(results) >= limit * 3:  # over-fetch for dedup
                     break
@@ -1755,6 +1756,7 @@ class Handler(BaseHTTPRequestHandler):
                         'end_line':     s.get('end_line', 0),
                         'is_public':    s.get('is_public', True),
                         'access_level': 'public' if s.get('is_public', True) else 'private',
+                        'has_error':    bool(s.get('parse_error')),
                     }
                     for s in sym_index.values()
                     if s.get('parent') == sname and s.get('file') == sfile
@@ -1776,6 +1778,8 @@ class Handler(BaseHTTPRequestHandler):
                     'access_level': 'public' if s.get('is_public', True) else 'private',
                     'module':       s['module'],
                     'parent':       s['parent'],
+                    'has_error':    bool(s.get('parse_error')),
+                    'parse_error':  s.get('parse_error'),
                 }
 
             # ── Gather center ids (class + all its children) ──────────────────
@@ -1849,6 +1853,44 @@ class Handler(BaseHTTPRequestHandler):
             # Edge site: where the relationship appears in source.
             # For an incoming edge other→center, the call site lives in `other` (the caller).
             # For an outgoing edge center→other, the call site lives in `center` (or a member of center).
+            # For call/override edges we scan the source to list ALL occurrences, so the
+            # client can cycle through call sites on repeated edge clicks.
+            root_dir = job.get('root', '')
+            _file_cache = {}
+
+            def _load_file_lines(rel_path):
+                if rel_path in _file_cache:
+                    return _file_cache[rel_path]
+                try:
+                    abs_path = os.path.normpath(os.path.join(root_dir, rel_path))
+                    root_norm = os.path.normpath(root_dir)
+                    if not (abs_path.startswith(root_norm + os.sep) or abs_path == root_norm):
+                        _file_cache[rel_path] = None
+                        return None
+                    with open(abs_path, 'r', encoding='utf-8', errors='replace') as fh:
+                        _file_cache[rel_path] = fh.readlines()
+                except Exception:
+                    _file_cache[rel_path] = None
+                return _file_cache[rel_path]
+
+            def _scan_call_sites(src_file, src_line, src_end_line, target_name):
+                """Return 1-based line numbers inside [src_line, src_end_line] containing target_name."""
+                if not src_file or not target_name:
+                    return []
+                lines = _load_file_lines(src_file)
+                if not lines:
+                    return []
+                start = max(0, (src_line or 1) - 1)
+                end   = min(len(lines), (src_end_line or src_line or 1))
+                pattern = re.compile(r'\b' + re.escape(target_name) + r'\b')
+                hits = []
+                for i in range(start, end):
+                    if pattern.search(lines[i]):
+                        hits.append(i + 1)
+                return hits
+
+            _SITE_TYPES = {'call', 'override', 'type_usage', 'member'}
+
             incoming = []
             for (nid, etype, cm), count in in_bundles.items():
                 sym_sum = _sym_summary(nid)
@@ -1856,12 +1898,28 @@ class Handler(BaseHTTPRequestHandler):
                     continue
                 _enrich_neighbor(nid)
                 nbr_raw = sym_index.get(nid, {})
+                edge_file = nbr_raw.get('file', sym_sum.get('file', ''))
+                default_line = nbr_raw.get('line', sym_sum.get('line', 0))
+                # Target name: the center or the specific member the edge points at.
+                target_sym = sym_index.get(cm) if cm else center
+                target_name = target_sym.get('name', '') if target_sym else ''
+                sites = []
+                if etype in _SITE_TYPES and target_name:
+                    sites = _scan_call_sites(
+                        edge_file,
+                        nbr_raw.get('line', default_line),
+                        nbr_raw.get('end_line', nbr_raw.get('line', default_line)),
+                        target_name,
+                    )
+                if not sites:
+                    sites = [default_line] if default_line else []
                 item = {
-                    'sym':       sym_sum,
-                    'edge_type': etype,
-                    'count':     count,
-                    'edge_file': nbr_raw.get('file', sym_sum.get('file', '')),
-                    'edge_line': nbr_raw.get('line', sym_sum.get('line', 0)),
+                    'sym':        sym_sum,
+                    'edge_type':  etype,
+                    'count':      count,
+                    'edge_file':  edge_file,
+                    'edge_line':  sites[0] if sites else default_line,
+                    'edge_lines': sites,
                 }
                 if cm:
                     item['center_member_id'] = cm
@@ -1879,12 +1937,26 @@ class Handler(BaseHTTPRequestHandler):
                 _enrich_neighbor(nid)
                 # Call site is in center, or in the specific center member if cm set
                 source_sym = sym_index.get(cm) if cm else center
+                edge_file = source_sym.get('file', center.get('file', ''))
+                default_line = source_sym.get('line', center.get('line', 0))
+                target_name = sym_sum.get('name', '')
+                sites = []
+                if etype in _SITE_TYPES and target_name:
+                    sites = _scan_call_sites(
+                        edge_file,
+                        source_sym.get('line', default_line),
+                        source_sym.get('end_line', source_sym.get('line', default_line)),
+                        target_name,
+                    )
+                if not sites:
+                    sites = [default_line] if default_line else []
                 item = {
-                    'sym':       sym_sum,
-                    'edge_type': etype,
-                    'count':     count,
-                    'edge_file': source_sym.get('file', center.get('file', '')),
-                    'edge_line': source_sym.get('line', center.get('line', 0)),
+                    'sym':        sym_sum,
+                    'edge_type':  etype,
+                    'count':      count,
+                    'edge_file':  edge_file,
+                    'edge_line':  sites[0] if sites else default_line,
+                    'edge_lines': sites,
                 }
                 if cm:
                     item['center_member_id'] = cm

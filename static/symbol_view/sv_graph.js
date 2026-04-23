@@ -10,10 +10,14 @@
 const _SV_CARD_MIN_W   = 280;
 const _SV_CARD_MAX_W   = 420;
 const _SV_CARD_PAD_X   = 16;
-const _SV_CARD_PAD_TOP = 44;    // header + padding
+const _SV_CARD_PAD_TOP = 68;    // header + section-chip row
 const _SV_CARD_PAD_BOT = 14;
 const _SV_MEMBER_H     = 26;
 const _SV_MEMBER_GAP   = 2;
+const _SV_COLUMN_GAP   = 14;    // gap between public/private columns in two-column mode
+const _SV_TWO_COL_TRIGGER = 8;  // switch to two-column layout above this total member count
+const _SV_TWO_COL_MIN_SIDE = 3; // both public and private need at least this many members
+const _SV_COL_MIN_W    = 180;   // single column min width in two-column mode
 const _SV_PILL_H       = 40;
 const _SV_PILL_PAD_X   = 14;
 const _SV_NEIGHBOR_GAP_V = 56;  // vertical spacing between stacked neighbors
@@ -21,6 +25,7 @@ const _SV_NEIGHBOR_GAP_H = 160; // horizontal spread for up/down rows
 const _SV_MARGIN_LR    = 300;   // distance from center card edge to left/right neighbors
 const _SV_MARGIN_TB    = 110;   // distance from center card edge to up/down neighbors
 const _SV_MAX_PER_SIDE = 24;
+const _SV_EXPAND_GAP   = 220;   // extra distance from primary pill to its own expansions
 
 // Approximate character width for monospace rendering.
 const _SV_CH_W = 7.1;
@@ -31,8 +36,14 @@ function _svMeasureText(s, fontSize = 13) {
     return Math.ceil(w);
 }
 
+function _svPillWidthFor(entry) {
+    return Math.min(_SV_CARD_MAX_W, Math.max(140, _svMeasureText(entry.name, 13) + _SV_PILL_PAD_X * 2 + 24));
+}
+
 // ── Entry: fetch + render ─────────────────────────────────────────────────
-async function _svFetchAndRender(symId) {
+// opts.preserveView = true keeps the current pan/zoom (used for collapse toggles
+// and other in-place re-renders where jumping back to (0,0) would be disorienting).
+async function _svFetchAndRender(symId, opts) {
     const ov  = document.getElementById('sv-overview');
     const svg = _svState.svg;
     const empty = document.getElementById('sv-empty');
@@ -50,7 +61,7 @@ async function _svFetchAndRender(symId) {
         if (data && !data.error) {
             const model = _svBuildModel(data);
             _svUpdateBreadcrumb(data.center);
-            _svRenderModel(model);
+            _svRenderModel(model, opts);
         } else if (empty) {
             empty.hidden = false;
         }
@@ -115,7 +126,10 @@ function _svBuildModel(resp) {
             edgeCount: item.count,
             edgeFile:  item.edge_file,
             edgeLine:  item.edge_line,
+            edgeLines: Array.isArray(item.edge_lines) && item.edge_lines.length ? item.edge_lines : [item.edge_line],
             direction: 'out',
+            hasError:  !!neighbor.has_error,
+            parseError: neighbor.parse_error || '',
         };
         if (item.edge_type === 'inheritance' || item.edge_type === 'implements') {
             up.push(entry);
@@ -139,7 +153,10 @@ function _svBuildModel(resp) {
             edgeCount: item.count,
             edgeFile:  item.edge_file,
             edgeLine:  item.edge_line,
+            edgeLines: Array.isArray(item.edge_lines) && item.edge_lines.length ? item.edge_lines : [item.edge_line],
             direction: 'in',
+            hasError:  !!neighbor.has_error,
+            parseError: neighbor.parse_error || '',
         };
         if (item.edge_type === 'inheritance' || item.edge_type === 'implements') {
             down.push(entry);
@@ -163,38 +180,72 @@ function _svBuildModel(resp) {
     const R = truncate(right, _SV_MAX_PER_SIDE);
 
     // Compute center card dimensions.
+    const centerId = center.id || '__center__';
     const nameLen   = _svMeasureText(center.name || '', 15) + 40;
     const fileLen   = _svMeasureText(center.file || '', 11) + 40;
+
+    // Split members by access; track collapse state.
+    const pubMembers  = isCard ? children.filter(c => c.is_public !== false) : [];
+    const privMembers = isCard ? children.filter(c => c.is_public === false) : [];
+    const pubCollapsed  = _svState.collapsedSections.has(centerId + '|public');
+    const privCollapsed = _svState.collapsedSections.has(centerId + '|private');
+
+    // Decide single vs two-column layout.
+    const totalMembers = pubMembers.length + privMembers.length;
+    const useTwoCol = isCard
+        && totalMembers >= _SV_TWO_COL_TRIGGER
+        && pubMembers.length >= _SV_TWO_COL_MIN_SIDE
+        && privMembers.length >= _SV_TWO_COL_MIN_SIDE;
+
     const memberLen = isCard ? Math.max(
         0,
         ...children.map(c => _svMeasureText(c.name || '', 13) + 60)
     ) : 0;
-    let cardW = Math.max(_SV_CARD_MIN_W, nameLen, fileLen, memberLen);
-    cardW = Math.min(_SV_CARD_MAX_W, cardW);
 
+    let cardW;
     let cardH;
     if (isCard) {
-        const n = children.length;
-        cardH = _SV_CARD_PAD_TOP + Math.max(_SV_MEMBER_H, n * (_SV_MEMBER_H + _SV_MEMBER_GAP)) + _SV_CARD_PAD_BOT;
+        if (useTwoCol) {
+            const colW = Math.max(_SV_COL_MIN_W, memberLen);
+            cardW = colW * 2 + _SV_COLUMN_GAP + _SV_CARD_PAD_X * 2;
+            const pubCount  = pubCollapsed  ? 0 : pubMembers.length;
+            const privCount = privCollapsed ? 0 : privMembers.length;
+            const rows = Math.max(1, pubCount, privCount);
+            cardH = _SV_CARD_PAD_TOP + rows * (_SV_MEMBER_H + _SV_MEMBER_GAP) + _SV_CARD_PAD_BOT;
+        } else {
+            cardW = Math.min(_SV_CARD_MAX_W, Math.max(_SV_CARD_MIN_W, nameLen, fileLen, memberLen));
+            const visiblePub  = pubCollapsed  ? 0 : pubMembers.length;
+            const visiblePriv = privCollapsed ? 0 : privMembers.length;
+            const visibleRows = visiblePub + visiblePriv;
+            cardH = _SV_CARD_PAD_TOP + Math.max(_SV_MEMBER_H, visibleRows * (_SV_MEMBER_H + _SV_MEMBER_GAP)) + _SV_CARD_PAD_BOT;
+        }
     } else {
-        cardH = _SV_PILL_H;
         cardW = Math.max(_SV_CARD_MIN_W, nameLen);
+        cardH = _SV_PILL_H;
     }
 
     // Position everything (center at 0,0).
     const model = {
         center: {
-            id:    center.id || '__center__',
-            name:  center.name || '',
-            kind:  centerKind,
-            file:  center.file || '',
-            line:  center.line || 0,
+            id:       centerId,
+            name:     center.name || '',
+            kind:     centerKind,
+            file:     center.file || '',
+            line:     center.line || 0,
+            end_line: center.end_line || center.line || 0,
             isCard,
-            w:     cardW,
-            h:     cardH,
-            x:     0,
-            y:     0,
+            w:        cardW,
+            h:        cardH,
+            x:        0,
+            y:        0,
             children,
+            pubMembers,
+            privMembers,
+            pubCollapsed,
+            privCollapsed,
+            useTwoCol,
+            hasError:  !!center.parse_error,
+            parseError: center.parse_error || '',
             activeMemberId: resp.active_member_id || null,
         },
         neighbors: [],
@@ -221,71 +272,135 @@ function _svBuildModel(resp) {
             x:         0,
             y:         0,
             isPill:    true,
+            hasError:  !!entry.hasError,
+            parseError: entry.parseError || '',
         };
     }
 
     const halfW = cardW / 2;
     const halfH = cardH / 2;
 
+    // Keep track of placed pills keyed by id so we can build secondary expansions.
+    const placed = new Map();
+    function addPill(entry, group, x, y) {
+        const p = pillOf(entry, group);
+        p.x = x; p.y = y;
+        p.expanded = _svState.expansions.has(p.id);
+        model.neighbors.push(p);
+        placed.set(p.id, p);
+        return p;
+    }
+
     // UP row (base classes)
     U.list.forEach((entry, i) => {
-        const p = pillOf(entry, 'up');
-        const n  = U.list.length;
+        const n = U.list.length;
         const totalW = (n - 1) * _SV_NEIGHBOR_GAP_H;
-        p.x = -totalW / 2 + i * _SV_NEIGHBOR_GAP_H;
-        p.y = -halfH - _SV_MARGIN_TB;
-        model.neighbors.push(p);
+        addPill(entry, 'up', -totalW / 2 + i * _SV_NEIGHBOR_GAP_H, -halfH - _SV_MARGIN_TB);
     });
     // DOWN row (derived classes)
     D.list.forEach((entry, i) => {
-        const p = pillOf(entry, 'down');
-        const n  = D.list.length;
+        const n = D.list.length;
         const totalW = (n - 1) * _SV_NEIGHBOR_GAP_H;
-        p.x = -totalW / 2 + i * _SV_NEIGHBOR_GAP_H;
-        p.y = halfH + _SV_MARGIN_TB;
-        model.neighbors.push(p);
+        addPill(entry, 'down', -totalW / 2 + i * _SV_NEIGHBOR_GAP_H, halfH + _SV_MARGIN_TB);
     });
     // LEFT column (incoming)
     L.list.forEach((entry, i) => {
-        const p = pillOf(entry, 'left');
         const n = L.list.length;
         const totalH = (n - 1) * _SV_NEIGHBOR_GAP_V;
-        p.x = -halfW - _SV_MARGIN_LR - p.w / 2;
-        p.y = -totalH / 2 + i * _SV_NEIGHBOR_GAP_V;
-        model.neighbors.push(p);
+        const w = _svPillWidthFor(entry);
+        addPill(entry, 'left', -halfW - _SV_MARGIN_LR - w / 2, -totalH / 2 + i * _SV_NEIGHBOR_GAP_V);
     });
     // RIGHT column (outgoing)
     R.list.forEach((entry, i) => {
-        const p = pillOf(entry, 'right');
         const n = R.list.length;
         const totalH = (n - 1) * _SV_NEIGHBOR_GAP_V;
-        p.x = halfW + _SV_MARGIN_LR + p.w / 2;
-        p.y = -totalH / 2 + i * _SV_NEIGHBOR_GAP_V;
-        model.neighbors.push(p);
+        const w = _svPillWidthFor(entry);
+        addPill(entry, 'right', halfW + _SV_MARGIN_LR + w / 2, -totalH / 2 + i * _SV_NEIGHBOR_GAP_V);
     });
+
+    // ── Secondary (expanded) neighbors ───────────────────────────────────────
+    // For each 1-hop pill marked as expanded, place its extra neighbors one
+    // step further out along the same axis. Dedup against existing ids so we
+    // don't draw the center or already-visible neighbors twice.
+    const existingIds = new Set([centerId, ...model.neighbors.map(n => n.id)]);
+    for (const [pillId, exp] of _svState.expansions.entries()) {
+        const parent = placed.get(pillId);
+        if (!parent || !exp || !Array.isArray(exp.neighbors)) continue;
+        const filtered = exp.neighbors.filter(e => !existingIds.has(e.id));
+        if (!filtered.length) continue;
+        const group = parent.group;
+        let bx = parent.x, by = parent.y;
+        filtered.forEach((entry, i) => {
+            const w = _svPillWidthFor(entry);
+            let x, y;
+            if (group === 'right') {
+                x = bx + parent.w / 2 + _SV_EXPAND_GAP + w / 2;
+                const n = filtered.length;
+                y = by + (-((n - 1) * _SV_NEIGHBOR_GAP_V) / 2) + i * _SV_NEIGHBOR_GAP_V;
+            } else if (group === 'left') {
+                x = bx - parent.w / 2 - _SV_EXPAND_GAP - w / 2;
+                const n = filtered.length;
+                y = by + (-((n - 1) * _SV_NEIGHBOR_GAP_V) / 2) + i * _SV_NEIGHBOR_GAP_V;
+            } else if (group === 'up') {
+                y = by - _SV_MARGIN_TB - _SV_PILL_H;
+                const n = filtered.length;
+                x = bx + (-((n - 1) * _SV_NEIGHBOR_GAP_H) / 2) + i * _SV_NEIGHBOR_GAP_H;
+            } else {  // down
+                y = by + _SV_MARGIN_TB + _SV_PILL_H;
+                const n = filtered.length;
+                x = bx + (-((n - 1) * _SV_NEIGHBOR_GAP_H) / 2) + i * _SV_NEIGHBOR_GAP_H;
+            }
+            const sec = pillOf(entry, group);
+            sec.x = x; sec.y = y;
+            sec.isSecondary = true;
+            sec.parentPillId = pillId;
+            sec.expanded = _svState.expansions.has(sec.id);
+            model.neighbors.push(sec);
+            existingIds.add(sec.id);
+        });
+    }
 
     // Build edge entries. Direction convention: "in" edges point from neighbor to center;
     // "out" edges point from center to neighbor.
     for (const nb of model.neighbors) {
+        if (nb.isSecondary) {
+            const expandedSide = nb.group;
+            const fromId = expandedSide === 'left' || expandedSide === 'down' ? nb.id : nb.parentPillId;
+            const toId   = expandedSide === 'left' || expandedSide === 'down' ? nb.parentPillId : nb.id;
+            model.edges.push({
+                id:         `e|${fromId}|${toId}|${nb.edgeType}|sec`,
+                from:       fromId,
+                to:         toId,
+                type:       nb.edgeType,
+                count:      nb.edgeCount,
+                edgeFile:   nb.edgeFile,
+                edgeLine:   nb.edgeLine,
+                edgeLines:  nb.edgeLines,
+                secondary:  true,
+            });
+            continue;
+        }
         if (nb.direction === 'out') {
             model.edges.push({
-                id:       `e|${model.center.id}|${nb.id}|${nb.edgeType}|out`,
-                from:     model.center.id,
-                to:       nb.id,
-                type:     nb.edgeType,
-                count:    nb.edgeCount,
-                edgeFile: nb.edgeFile,
-                edgeLine: nb.edgeLine,
+                id:        `e|${model.center.id}|${nb.id}|${nb.edgeType}|out`,
+                from:      model.center.id,
+                to:        nb.id,
+                type:      nb.edgeType,
+                count:     nb.edgeCount,
+                edgeFile:  nb.edgeFile,
+                edgeLine:  nb.edgeLine,
+                edgeLines: nb.edgeLines,
             });
         } else {
             model.edges.push({
-                id:       `e|${nb.id}|${model.center.id}|${nb.edgeType}|in`,
-                from:     nb.id,
-                to:       model.center.id,
-                type:     nb.edgeType,
-                count:    nb.edgeCount,
-                edgeFile: nb.edgeFile,
-                edgeLine: nb.edgeLine,
+                id:        `e|${nb.id}|${model.center.id}|${nb.edgeType}|in`,
+                from:      nb.id,
+                to:        model.center.id,
+                type:      nb.edgeType,
+                count:     nb.edgeCount,
+                edgeFile:  nb.edgeFile,
+                edgeLine:  nb.edgeLine,
+                edgeLines: nb.edgeLines,
             });
         }
     }
@@ -294,15 +409,17 @@ function _svBuildModel(resp) {
 }
 
 // ── Render + animate ──────────────────────────────────────────────────────
-function _svRenderModel(newModel) {
+function _svRenderModel(newModel, opts) {
     const svg      = _svState.svg;
     const viewport = _svState.viewport;
     if (!svg || !viewport) return;
 
-    // Make sure the viewport is visible + zoom reset.
+    // Make sure the viewport is visible. Only reset pan/zoom on fresh activation.
     svg.style.display = '';
-    _svResetZoom(false);
-    _svCenterView(newModel);
+    if (!opts || !opts.preserveView) {
+        _svResetZoom(false);
+        _svCenterView(newModel);
+    }
 
     const cardsG  = viewport.querySelector('.sv-cards');
     const edgesG  = viewport.querySelector('.sv-edges');
@@ -322,10 +439,15 @@ function _svRenderModel(newModel) {
         const was = oldById.get(n.id);
         if (was && was.el) {
             // Node persists. Decide whether to rebuild its contents (e.g. center
-            // vs pill transition, or member list changed).
+            // vs pill transition, member list changed, collapse state flipped,
+            // single→two column layout, or expansion chip flipped + → −).
             const needRebuild = (was.isCard !== !!n.isCard)
                 || (n.isCard && n.children && was.children && n.children.length !== was.children.length)
-                || (was.name !== n.name);
+                || (was.name !== n.name)
+                || (n.isCard && (was.pubCollapsed  !== n.pubCollapsed ||
+                                 was.privCollapsed !== n.privCollapsed ||
+                                 was.useTwoCol     !== n.useTwoCol))
+                || (n.isPill && was.expanded !== n.expanded);
             let el = was.el;
             if (needRebuild) {
                 const fresh = _svCreateNodeEl(n);
@@ -448,6 +570,7 @@ function _svNodeClass(n) {
     if (n.isCard) classes.push('sv-card');
     if (n.isPill) classes.push('sv-pill');
     if (n.group)  classes.push(`sv-group-${n.group}`);
+    if (n.isSecondary) classes.push('sv-secondary');
     return classes.join(' ');
 }
 
@@ -515,58 +638,313 @@ function _svCreateNodeEl(n) {
         g.appendChild(badge);
     }
 
-    // Members (card only)
-    if (n.isCard && n.children && n.children.length) {
-        const children = n.children;
-        let y = _SV_CARD_PAD_TOP;
-        for (const m of children) {
-            const mg = document.createElementNS(NS, 'g');
-            mg.setAttribute('class', 'sv-member');
-            mg.dataset.symid = m.id;
-            mg.setAttribute('transform', `translate(8,${y})`);
-
-            const mBg = document.createElementNS(NS, 'rect');
-            mBg.setAttribute('class', 'sv-member-bg');
-            mBg.setAttribute('x', '0'); mBg.setAttribute('y', '0');
-            mBg.setAttribute('width',  String(n.w - 16));
-            mBg.setAttribute('height', String(_SV_MEMBER_H));
-            mBg.setAttribute('rx', '6');
-            mg.appendChild(mBg);
-
-            const mDot = document.createElementNS(NS, 'circle');
-            mDot.setAttribute('class', 'sv-member-dot');
-            mDot.setAttribute('cx', '12');
-            mDot.setAttribute('cy', String(_SV_MEMBER_H / 2));
-            mDot.setAttribute('r', '4');
-            mDot.setAttribute('fill', _svKindColor(m.kind));
-            mg.appendChild(mDot);
-
-            const mName = document.createElementNS(NS, 'text');
-            mName.setAttribute('class', 'sv-member-name');
-            mName.setAttribute('x', '22');
-            mName.setAttribute('y', String(_SV_MEMBER_H / 2 + 4));
-            mName.textContent = _svClipText(m.name, n.w - 80);
-            mg.appendChild(mName);
-
-            const access = m.is_public === false ? 'PRIV' : 'PUB';
-            const accessEl = document.createElementNS(NS, 'text');
-            accessEl.setAttribute('class', `sv-member-access sv-access-${access.toLowerCase()}`);
-            accessEl.setAttribute('x', String(n.w - 24));
-            accessEl.setAttribute('y', String(_SV_MEMBER_H / 2 + 4));
-            accessEl.setAttribute('text-anchor', 'end');
-            accessEl.textContent = access;
-            mg.appendChild(accessEl);
-
-            if (n.activeMemberId && m.id === n.activeMemberId) {
-                mg.classList.add('sv-member-active');
-            }
-
-            g.appendChild(mg);
-            y += _SV_MEMBER_H + _SV_MEMBER_GAP;
+    // Section chips (PUBLIC / PRIVATE toggles) + member rows.
+    if (n.isCard) {
+        const pub  = n.pubMembers  || [];
+        const priv = n.privMembers || [];
+        if (pub.length || priv.length) {
+            _svBuildSectionChips(g, n, pub, priv);
+            _svBuildMemberRows(g, n, pub, priv);
         }
     }
 
+    // Expand chip (+ / −) on primary neighbor pills — click to fetch and merge
+    // one more hop outward along the same direction as this pill's group.
+    // Secondary pills intentionally have no chip — clicking them promotes them
+    // to the new center instead, which is cleaner than cascading expansions.
+    if (n.isPill && n.group && !n.isSecondary) {
+        _svBuildExpandChip(g, n);
+    }
+
+    // Parse-error badge (X in a red circle) on nodes whose source couldn't
+    // be parsed cleanly. Positioned in the bottom-right corner of the node.
+    if (n.hasError) {
+        const NS2 = 'http://www.w3.org/2000/svg';
+        const badge = document.createElementNS(NS2, 'g');
+        badge.setAttribute('class', 'sv-error-badge');
+        badge.setAttribute('transform', `translate(${n.w - 12},${n.h - 12})`);
+        const disc = document.createElementNS(NS2, 'circle');
+        disc.setAttribute('r', '9');
+        disc.setAttribute('fill', '#ef4444');
+        disc.setAttribute('stroke', '#1b1c19');
+        disc.setAttribute('stroke-width', '1.5');
+        badge.appendChild(disc);
+        const xm = document.createElementNS(NS2, 'text');
+        xm.setAttribute('class', 'sv-error-x');
+        xm.setAttribute('text-anchor', 'middle');
+        xm.setAttribute('y', '4');
+        xm.setAttribute('fill', '#fff');
+        xm.textContent = '✕';
+        badge.appendChild(xm);
+        const tipText = n.parseError ? `Parse issue: ${n.parseError}` : 'Parse issue — symbols may be incomplete';
+        const title = document.createElementNS(NS2, 'title');
+        title.textContent = tipText;
+        badge.appendChild(title);
+        g.appendChild(badge);
+    }
+
     return g;
+}
+
+// Build the PUBLIC/PRIVATE toggle chips in the card header row.
+function _svBuildSectionChips(g, n, pub, priv) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const chipY = 38;
+    let chipX = 10;
+    const chipCfg = [
+        { key: 'public',  label: 'PUBLIC',  count: pub.length,  collapsed: n.pubCollapsed,  color: '#34d399' },
+        { key: 'private', label: 'PRIVATE', count: priv.length, collapsed: n.privCollapsed, color: '#f87171' },
+    ];
+    for (const c of chipCfg) {
+        if (!c.count) continue;
+        const chip = document.createElementNS(NS, 'g');
+        chip.setAttribute('class', 'sv-section-chip' + (c.collapsed ? ' sv-chip-collapsed' : ''));
+        chip.dataset.section = c.key;
+        chip.dataset.cardid  = n.id;
+        chip.setAttribute('transform', `translate(${chipX},${chipY})`);
+
+        const labelText = `${c.label} ${c.count}${c.collapsed ? ' ▸' : ' ▾'}`;
+        const w = labelText.length * 6.2 + 14;
+        const bg = document.createElementNS(NS, 'rect');
+        bg.setAttribute('x', '0'); bg.setAttribute('y', '-10');
+        bg.setAttribute('width', String(w)); bg.setAttribute('height', '18');
+        bg.setAttribute('rx', '9');
+        bg.setAttribute('class', 'sv-chip-bg');
+        bg.setAttribute('stroke', c.color);
+        chip.appendChild(bg);
+
+        const tx = document.createElementNS(NS, 'text');
+        tx.setAttribute('x', String(w / 2));
+        tx.setAttribute('y', '3');
+        tx.setAttribute('text-anchor', 'middle');
+        tx.setAttribute('class', 'sv-chip-text');
+        tx.setAttribute('fill', c.color);
+        tx.textContent = labelText;
+        chip.appendChild(tx);
+
+        chip.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            _svToggleSection(n.id, c.key);
+        });
+        g.appendChild(chip);
+        chipX += w + 6;
+    }
+}
+
+// Arrange member rows, either single-column stacked or two-column (public left, private right).
+function _svBuildMemberRows(g, n, pub, priv) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const pubVisible  = n.pubCollapsed  ? [] : pub;
+    const privVisible = n.privCollapsed ? [] : priv;
+
+    if (n.useTwoCol) {
+        const colW = (n.w - _SV_COLUMN_GAP - _SV_CARD_PAD_X * 2) / 2;
+        _svRenderMemberColumn(g, n, pubVisible,  _SV_CARD_PAD_X,                                 colW, 'public');
+        _svRenderMemberColumn(g, n, privVisible, _SV_CARD_PAD_X + colW + _SV_COLUMN_GAP,         colW, 'private');
+        return;
+    }
+    // Single-column: public first, then private.
+    let y = _SV_CARD_PAD_TOP;
+    y = _svRenderMemberRowRange(g, n, pubVisible,  8, n.w - 16, y);
+    y = _svRenderMemberRowRange(g, n, privVisible, 8, n.w - 16, y);
+}
+
+function _svRenderMemberColumn(g, n, list, x, colW, section) {
+    let y = _SV_CARD_PAD_TOP;
+    for (const m of list) {
+        g.appendChild(_svRenderMember(n, m, x, y, colW, section));
+        y += _SV_MEMBER_H + _SV_MEMBER_GAP;
+    }
+}
+
+function _svRenderMemberRowRange(g, n, list, x, rowW, startY) {
+    let y = startY;
+    for (const m of list) {
+        g.appendChild(_svRenderMember(n, m, x, y, rowW, m.is_public === false ? 'private' : 'public'));
+        y += _SV_MEMBER_H + _SV_MEMBER_GAP;
+    }
+    return y;
+}
+
+function _svRenderMember(n, m, x, y, rowW, section) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const mg = document.createElementNS(NS, 'g');
+    mg.setAttribute('class', 'sv-member sv-member-' + section);
+    mg.dataset.symid = m.id;
+    mg.setAttribute('transform', `translate(${x},${y})`);
+
+    const mBg = document.createElementNS(NS, 'rect');
+    mBg.setAttribute('class', 'sv-member-bg');
+    mBg.setAttribute('x', '0'); mBg.setAttribute('y', '0');
+    mBg.setAttribute('width',  String(rowW));
+    mBg.setAttribute('height', String(_SV_MEMBER_H));
+    mBg.setAttribute('rx', '6');
+    mg.appendChild(mBg);
+
+    const mDot = document.createElementNS(NS, 'circle');
+    mDot.setAttribute('class', 'sv-member-dot');
+    mDot.setAttribute('cx', '12');
+    mDot.setAttribute('cy', String(_SV_MEMBER_H / 2));
+    mDot.setAttribute('r', '4');
+    mDot.setAttribute('fill', _svKindColor(m.kind));
+    mg.appendChild(mDot);
+
+    const mName = document.createElementNS(NS, 'text');
+    mName.setAttribute('class', 'sv-member-name');
+    mName.setAttribute('x', '22');
+    mName.setAttribute('y', String(_SV_MEMBER_H / 2 + 4));
+    mName.textContent = _svClipText(m.name, rowW - 60);
+    mg.appendChild(mName);
+
+    const access = m.is_public === false ? 'PRIV' : 'PUB';
+    const accessEl = document.createElementNS(NS, 'text');
+    accessEl.setAttribute('class', `sv-member-access sv-access-${access.toLowerCase()}`);
+    accessEl.setAttribute('x', String(rowW - 8));
+    accessEl.setAttribute('y', String(_SV_MEMBER_H / 2 + 4));
+    accessEl.setAttribute('text-anchor', 'end');
+    accessEl.textContent = access;
+    mg.appendChild(accessEl);
+
+    if (n.activeMemberId && m.id === n.activeMemberId) {
+        mg.classList.add('sv-member-active');
+    }
+    if (m.has_error) {
+        mg.classList.add('sv-member-error');
+        const NS2 = 'http://www.w3.org/2000/svg';
+        const mark = document.createElementNS(NS2, 'text');
+        mark.setAttribute('class', 'sv-member-error-mark');
+        mark.setAttribute('x', String(rowW - 34));
+        mark.setAttribute('y', String(_SV_MEMBER_H / 2 + 4));
+        mark.setAttribute('text-anchor', 'end');
+        mark.textContent = '✕';
+        const t = document.createElementNS(NS2, 'title');
+        t.textContent = 'Parse issue in this symbol';
+        mark.appendChild(t);
+        mg.appendChild(mark);
+    }
+    return mg;
+}
+
+function _svToggleSection(cardId, section) {
+    const key = `${cardId}|${section}`;
+    if (_svState.collapsedSections.has(key)) {
+        _svState.collapsedSections.delete(key);
+    } else {
+        _svState.collapsedSections.add(key);
+    }
+    // Re-run the model build + animated render; preserve the current pan/zoom.
+    if (_svState.active && _svState.active !== '__overview__') {
+        _svFetchAndRender(_svState.active, { preserveView: true });
+    }
+}
+
+// ── Local expansion: +N hop ─────────────────────────────────────────────
+// Places a small chip on the outer edge of a neighbor pill; clicking it
+// fetches that pill's /symbol-graph and keeps the neighbors on the same
+// side (e.g. a right-side pill contributes its outgoing edges further right).
+function _svBuildExpandChip(g, n) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const chip = document.createElementNS(NS, 'g');
+    chip.setAttribute('class', 'sv-expand-chip');
+    chip.dataset.pillid = n.id;
+    chip.dataset.group  = n.group;
+
+    // Position the chip on the outer edge of the pill.
+    let cx, cy;
+    if (n.group === 'right')      { cx = n.w;      cy = n.h / 2; }
+    else if (n.group === 'left')  { cx = 0;        cy = n.h / 2; }
+    else if (n.group === 'up')    { cx = n.w / 2;  cy = 0;       }
+    else                          { cx = n.w / 2;  cy = n.h;     }  // down
+    chip.setAttribute('transform', `translate(${cx},${cy})`);
+
+    const disc = document.createElementNS(NS, 'circle');
+    disc.setAttribute('r', '8');
+    disc.setAttribute('fill', 'var(--panel, #161715)');
+    disc.setAttribute('stroke', 'var(--accent, #dfa745)');
+    disc.setAttribute('stroke-width', '1.4');
+    chip.appendChild(disc);
+
+    const tx = document.createElementNS(NS, 'text');
+    tx.setAttribute('class', 'sv-expand-chip-text');
+    tx.setAttribute('text-anchor', 'middle');
+    tx.setAttribute('y', '4');
+    tx.textContent = n.expanded ? '−' : '+';
+    chip.appendChild(tx);
+
+    const title = document.createElementNS(NS, 'title');
+    title.textContent = n.expanded ? 'Collapse this branch' : 'Expand one more hop';
+    chip.appendChild(title);
+
+    chip.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        _svToggleExpansion(n);
+    });
+    g.appendChild(chip);
+}
+
+async function _svToggleExpansion(pill) {
+    if (_svState.expansions.has(pill.id)) {
+        _svState.expansions.delete(pill.id);
+        // Also drop any cascades anchored on this pill — a collapse should not
+        // leave orphan grandchildren visible.
+        for (const [pid, exp] of Array.from(_svState.expansions.entries())) {
+            if (exp && exp.parentTrail && exp.parentTrail.includes(pill.id)) {
+                _svState.expansions.delete(pid);
+            }
+        }
+        if (_svState.active && _svState.active !== '__overview__') {
+            _svFetchAndRender(_svState.active, { preserveView: true });
+        }
+        return;
+    }
+
+    const jid = _svState.jobId || window.JOB_ID;
+    if (!jid) return;
+    try {
+        const resp = await fetch(`/symbol-graph?job=${encodeURIComponent(jid)}&sym=${encodeURIComponent(pill.id)}`);
+        const data = await resp.json();
+        if (!data || data.error) return;
+
+        // Pick edges heading in the same direction this pill sits on.
+        // right / up pills contribute outgoing neighbors; left / down pills
+        // contribute incoming. Mirrors the primary 5-way layout semantics.
+        const pool = (pill.group === 'right' || pill.group === 'up')
+            ? (data.outgoing || [])
+            : (data.incoming || []);
+
+        const neighbors = [];
+        for (const item of pool) {
+            if (!item || !item.sym) continue;
+            const sym = item.sym;
+            neighbors.push({
+                id:         sym.id,
+                name:       sym.name,
+                kind:       sym.kind,
+                file:       sym.file,
+                line:       sym.line,
+                edgeType:   item.edge_type,
+                edgeCount:  item.count,
+                edgeFile:   item.edge_file,
+                edgeLine:   item.edge_line,
+                edgeLines:  Array.isArray(item.edge_lines) && item.edge_lines.length
+                              ? item.edge_lines
+                              : [item.edge_line],
+                direction:  (pill.group === 'right' || pill.group === 'up') ? 'out' : 'in',
+                hasError:   !!sym.has_error,
+                parseError: sym.parse_error || '',
+            });
+        }
+        _svState.expansions.set(pill.id, {
+            group:        pill.group,
+            neighbors,
+            parentTrail:  [pill.id],
+        });
+        if (_svState.active && _svState.active !== '__overview__') {
+            _svFetchAndRender(_svState.active, { preserveView: true });
+        }
+    } catch (err) {
+        /* swallow: expansion is a best-effort enhancement */
+    }
 }
 
 function _svClipText(s, maxPx) {
@@ -585,14 +963,15 @@ function _svAppendEdge(edgesG, labelsG, ed, from, to) {
     const color = _svEdgeColor(ed.type);
 
     const path = document.createElementNS(NS, 'path');
-    path.setAttribute('class', `sv-edge sv-edge-${ed.type}`);
+    path.setAttribute('class', `sv-edge sv-edge-${ed.type}` + (ed.secondary ? ' sv-edge-secondary' : ''));
     path.dataset.edgeid = ed.id;
     const d = _svBuildEdgePath(endpoints);
     path.setAttribute('d', d);
     path.setAttribute('stroke', color);
-    path.setAttribute('stroke-width', '1.6');
+    path.setAttribute('stroke-width', ed.secondary ? '1.2' : '1.6');
     path.setAttribute('fill', 'none');
     path.setAttribute('marker-end', 'url(#sv-arrow)');
+    if (ed.secondary) path.setAttribute('stroke-dasharray', '4 3');
     path.style.color = color;
     path.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -692,11 +1071,22 @@ function _svMidpoint({ sx, sy, ex, ey }) {
 function _svShowEdgeTip(e, ed) {
     const tip = document.getElementById('sv-edge-tip');
     if (!tip) return;
-    const lineStr = ed.edgeLine ? `:${ed.edgeLine}` : '';
+    const sites = Array.isArray(ed.edgeLines) && ed.edgeLines.length ? ed.edgeLines : [ed.edgeLine];
+    const nSites = sites.length;
+    const cursor = _svState.edgeJumpCursor.get(ed.id) || 0;
+    const currentLine = sites[cursor % Math.max(1, nSites)] || ed.edgeLine;
+    const lineStr = currentLine ? `:${currentLine}` : '';
+    const siteInfo = nSites > 1
+        ? `<span class="sv-tip-sites">${nSites} call sites &middot; next ${((cursor % nSites) + 1)}/${nSites}</span>`
+        : '';
+    const hint = nSites > 1
+        ? 'Click to cycle through call sites'
+        : 'Click to jump to source';
     tip.innerHTML = `<span class="sv-tip-type" style="color:${_svEdgeColor(ed.type)}">${_svEsc(ed.type)}</span>
         <span class="sv-tip-count">&times;${ed.count}</span>
+        ${siteInfo}
         <div class="sv-tip-site">${_svEsc(ed.edgeFile || '')}${lineStr}</div>
-        <div class="sv-tip-hint">Click to jump to source</div>`;
+        <div class="sv-tip-hint">${hint}</div>`;
     tip.hidden = false;
     _svMoveEdgeTip(e);
 }
@@ -772,12 +1162,18 @@ function _svHandleMemberClick(memberId) {
 
 function _svHandleEdgeClick(ed) {
     if (!ed) return;
-    const file = ed.edgeFile;
-    const line = ed.edgeLine;
+    const file  = ed.edgeFile;
+    const sites = Array.isArray(ed.edgeLines) && ed.edgeLines.length ? ed.edgeLines : [ed.edgeLine];
+    const cursor = _svState.edgeJumpCursor.get(ed.id) || 0;
+    const line = sites[cursor % Math.max(1, sites.length)] || ed.edgeLine;
+    _svState.edgeJumpCursor.set(ed.id, (cursor + 1) % Math.max(1, sites.length));
     if (file && typeof loadFileInPanel === 'function') {
         loadFileInPanel(file, null);
         if (line && typeof jumpToLine === 'function') {
             setTimeout(() => jumpToLine(line), 150);
         }
     }
+    // Refresh the tooltip so the user sees the cursor advance.
+    const tip = document.getElementById('sv-edge-tip');
+    if (tip && !tip.hidden) _svShowEdgeTip({ clientX: parseFloat(tip.style.left) || 0, clientY: parseFloat(tip.style.top) || 0 }, ed);
 }
