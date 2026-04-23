@@ -2182,7 +2182,7 @@ HTML_TEMPLATE = HTML_SKELETON
 def build_html(data: dict, job_id: str = None) -> str:
     """Read shared static assets and embed them inline into the HTML skeleton."""
     base = Path(__file__).parent / 'static'
-    css_assets = [base / 'viz.css', base / 'themes.css', base / 'symbol_view.css', base / 'viz_chat.css']
+    css_assets = [base / 'viz.css', base / 'themes.css', base / 'symbol_view' / 'symbol_view.css', base / 'viz_chat.css']
     js_assets = [
         base / 'i18n.js',
         base / 'viz_utils.js',
@@ -2204,8 +2204,9 @@ def build_html(data: dict, job_id: str = None) -> str:
         base / 'viz_layout.js',
         base / 'viz_chat.js',
         base / 'viz.js',              # boot — must be last of viz_* files
-        base / 'trail_layouter.js',
-        base / 'symbol_view.js',
+        base / 'symbol_view' / 'sv_core.js',    # state, DOM lifecycle, public API
+        base / 'symbol_view' / 'sv_search.js',  # fuzzy search dropdown
+        base / 'symbol_view' / 'sv_graph.js',   # SVG renderer + animation
     ]
     missing = [p for p in css_assets + js_assets if not p.exists()]
 

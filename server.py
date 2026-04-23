@@ -1846,13 +1846,23 @@ class Handler(BaseHTTPRequestHandler):
                     np['children'] = _children_of(pc)
                     neighbor_parents[pc['id']] = np
 
+            # Edge site: where the relationship appears in source.
+            # For an incoming edge other→center, the call site lives in `other` (the caller).
+            # For an outgoing edge center→other, the call site lives in `center` (or a member of center).
             incoming = []
             for (nid, etype, cm), count in in_bundles.items():
                 sym_sum = _sym_summary(nid)
                 if not sym_sum:
                     continue
                 _enrich_neighbor(nid)
-                item = {'sym': sym_sum, 'edge_type': etype, 'count': count}
+                nbr_raw = sym_index.get(nid, {})
+                item = {
+                    'sym':       sym_sum,
+                    'edge_type': etype,
+                    'count':     count,
+                    'edge_file': nbr_raw.get('file', sym_sum.get('file', '')),
+                    'edge_line': nbr_raw.get('line', sym_sum.get('line', 0)),
+                }
                 if cm:
                     item['center_member_id'] = cm
                 # Check if neighbor belongs to a parent class
@@ -1867,7 +1877,15 @@ class Handler(BaseHTTPRequestHandler):
                 if not sym_sum:
                     continue
                 _enrich_neighbor(nid)
-                item = {'sym': sym_sum, 'edge_type': etype, 'count': count}
+                # Call site is in center, or in the specific center member if cm set
+                source_sym = sym_index.get(cm) if cm else center
+                item = {
+                    'sym':       sym_sum,
+                    'edge_type': etype,
+                    'count':     count,
+                    'edge_file': source_sym.get('file', center.get('file', '')),
+                    'edge_line': source_sym.get('line', center.get('line', 0)),
+                }
                 if cm:
                     item['center_member_id'] = cm
                 pc = _find_parent_class(nid)
