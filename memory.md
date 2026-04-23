@@ -218,6 +218,24 @@ return (
 - **Phase 8 Back/Forward**: `_sym.history`（back stack）+ `_sym.future`（forward stack）；`symViewActivate(id, _fromHistory)` 若為 back/forward 操作不清除 future；`cy.animate({ fit }, {duration:280})` 每次 render 後淡入動畫。
 - **`build_html()` 載入順序**: `viz.css` → `themes.css` → `symbol_view.css` → `i18n.js` → `viz_utils.js` → `viz_state.js` → `viz_constants.js` → `viz_preferences.js` → `viz_code_panel.js` → **`viz_office.js`** → `viz_toolbar.js` → `viz_sidebar.js` → `viz_graph.js` → **`viz_sigma.js`** → `viz_search.js` → `viz_dashboard.js` → `viz_layout.js` → **`viz.js`** (boot) → `trail_layouter.js` → **`symbol_view.js`**
 
+## 📊 專案整合記錄 (Integration Log)
+
+### 2026-04-23: NotebookLM 整合
+- **安裝套件**: `notebooklm-py[browser]`, `playwright`, `yt-dlp`
+- **功能**: 可使用 NotebookLM API 建立筆記本、新增來源（包括 YouTube 影片）、AI 分析
+
+- **使用方式**:
+  ```bash
+  # CLI 模式
+  python -m notebooklm use <notebook_id>
+  python -m notebooklm ask "問題"
+  
+  # Python API
+  from notebooklm import NotebookLMClient
+  async with await NotebookLMClient.from_storage() as client:
+      result = await client.chat.ask(notebook_id, "問題")
+  ```
+
 ---
 
 ## 📜 備忘：BIOS 的 Edge Type 與顏色定義
