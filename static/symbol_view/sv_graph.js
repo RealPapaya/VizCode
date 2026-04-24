@@ -10,25 +10,187 @@
 const _SV_CLASS_PAD_X   = 16;
 const _SV_CLASS_PAD_TOP = 38;
 const _SV_CLASS_PAD_BOT = 14;
+const _SV_CLASS_MIN_W   = 232;
+const _SV_CLASS_MAX_W   = 420;
 const _SV_METHOD_W      = 200;
+const _SV_METHOD_MAX_W  = 320;
 const _SV_METHOD_H      = 34;
 const _SV_METHOD_GAP    = 6;
 const _SV_FUNC_W        = 220;
+const _SV_FUNC_MAX_W    = 340;
 const _SV_FUNC_H        = 42;
 const _SV_FIELD_W       = 180;
+const _SV_FIELD_MAX_W   = 300;
 const _SV_FIELD_H       = 28;
 const _SV_GHOST_W       = 220;
+const _SV_GHOST_MAX_W   = 360;
 const _SV_GHOST_H       = 52;
 
 const _SV_FOCUS_SIG_H   = 36;   // detail row heights (each collapsible)
 const _SV_FOCUS_DOC_H   = 46;
 const _SV_FOCUS_MET_H   = 28;
 
+const _SV_LAYOUT_NODESEP = 42;
+const _SV_LAYOUT_RANKSEP = 128;
+const _SV_LAYOUT_MARGIN  = 56;
+const _SV_COLLISION_PAD  = 24;
+
+const _SV_DETAIL_GAP      = 24;
+const _SV_DETAIL_MIN_W    = 280;
+const _SV_DETAIL_MAX_W    = 420;
+const _SV_DETAIL_MIN_H    = 170;
+const _SV_DETAIL_MAX_H    = 420;
+const _SV_DETAIL_VIEW_PAD = 18;
+
 const _SV_CH_W = 7.1;
 
 function _svMeasureText(s, fontSize = 13) {
     const w = String(s || '').length * (_SV_CH_W * (fontSize / 13));
     return Math.ceil(w);
+}
+
+function _svClamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function _svMeasureMethodWidth(sym) {
+    const accessW = sym && sym.is_public === false ? 48 : 44;
+    const raw = _svMeasureText(sym && sym.name, 13) + accessW + 44;
+    return _svClamp(raw, _SV_METHOD_W, _SV_METHOD_MAX_W);
+}
+
+function _svMeasureTopLevelWidth(sym, isField) {
+    const min = isField ? _SV_FIELD_W : _SV_FUNC_W;
+    const max = isField ? _SV_FIELD_MAX_W : _SV_FUNC_MAX_W;
+    const badgeW = isField ? 50 : 58;
+    const raw = _svMeasureText(sym && sym.name, 13) + badgeW + 40;
+    return _svClamp(raw, min, max);
+}
+
+function _svMeasureGhostWidth(sym) {
+    const nameW = _svMeasureText(sym && sym.name, 14) + 34;
+    const path = (sym && sym.file ? sym.file : '') + (sym && sym.line ? ':' + sym.line : '');
+    const pathW = _svMeasureText(path, 10) + 92;
+    return _svClamp(Math.max(nameW, pathW), _SV_GHOST_W, _SV_GHOST_MAX_W);
+}
+
+function _svEstimateDetailCardHeight(sym, collapsed) {
+    let height = 96;
+    if (sym && sym.signature) height += collapsed.has('signature') ? 30 : _SV_FOCUS_SIG_H;
+    if (sym && sym.docstring) height += collapsed.has('docstring') ? 30 : _SV_FOCUS_DOC_H;
+    height += collapsed.has('metrics') ? 30 : (_SV_FOCUS_MET_H + 12);
+    return _svClamp(height, _SV_DETAIL_MIN_H, _SV_DETAIL_MAX_H);
+}
+
+function _svVisibleWorldBounds() {
+    const svg = _svState.svg;
+    const zoom = _svState.zoom;
+    if (!svg || !zoom || !zoom.k) {
+        return { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity };
+    }
+    const rect = svg.getBoundingClientRect();
+    return {
+        left:   (-zoom.x) / zoom.k,
+        top:    (-zoom.y) / zoom.k,
+        right:  (rect.width - zoom.x) / zoom.k,
+        bottom: (rect.height - zoom.y) / zoom.k,
+    };
+}
+
+function _svRectsOverlap(a, b, pad = 0) {
+    return !(
+        a.x + a.w + pad <= b.x ||
+        b.x + b.w + pad <= a.x ||
+        a.y + a.h + pad <= b.y ||
+        b.y + b.h + pad <= a.y
+    );
+}
+
+function _svRectOverlapArea(a, b) {
+    const left = Math.max(a.x, b.x);
+    const right = Math.min(a.x + a.w, b.x + b.w);
+    const top = Math.max(a.y, b.y);
+    const bottom = Math.min(a.y + a.h, b.y + b.h);
+    if (right <= left || bottom <= top) return 0;
+    return (right - left) * (bottom - top);
+}
+
+function _svResolveRootOverlaps(items) {
+    const ordered = items
+        .map(item => ({ ...item }))
+        .sort((a, b) => (a.x - b.x) || (a.y - b.y));
+    const offsets = new Map();
+
+    for (const item of ordered) {
+        for (const id of item.shiftIds) offsets.set(id, { dx: 0, dy: 0 });
+    }
+
+    for (let pass = 0; pass < 6; pass++) {
+        let moved = false;
+        for (let i = 0; i < ordered.length; i++) {
+            for (let j = i + 1; j < ordered.length; j++) {
+                const a = ordered[i];
+                const b = ordered[j];
+                if (!_svRectsOverlap(a, b, _SV_COLLISION_PAD)) continue;
+                const shiftY = (a.y + a.h + _SV_COLLISION_PAD) - b.y;
+                if (shiftY <= 0) continue;
+                b.y += shiftY;
+                for (const id of b.shiftIds) {
+                    const prior = offsets.get(id) || { dx: 0, dy: 0 };
+                    offsets.set(id, { dx: prior.dx, dy: prior.dy + shiftY });
+                }
+                moved = true;
+            }
+        }
+        if (!moved) break;
+    }
+
+    return offsets;
+}
+
+function _svGetCardPlacement(node, model, cardW, cardH) {
+    const bounds = _svVisibleWorldBounds();
+    const minX = Number.isFinite(bounds.left) ? bounds.left + _SV_DETAIL_VIEW_PAD : -Infinity;
+    const maxX = Number.isFinite(bounds.right) ? bounds.right - cardW - _SV_DETAIL_VIEW_PAD : Infinity;
+    const minY = Number.isFinite(bounds.top) ? bounds.top + _SV_DETAIL_VIEW_PAD : -Infinity;
+    const maxY = Number.isFinite(bounds.bottom) ? bounds.bottom - cardH - _SV_DETAIL_VIEW_PAD : Infinity;
+
+    const xCandidates = [
+        node.x + node.w + _SV_DETAIL_GAP,
+        node.x - cardW - _SV_DETAIL_GAP,
+    ].map(x => _svClamp(x, minX, maxX));
+
+    const yCandidates = [
+        node.y - 10,
+        node.y + node.h - cardH,
+        node.y + (node.h - cardH) / 2,
+    ].map(y => _svClamp(y, minY, maxY));
+
+    let best = { x: xCandidates[0], y: yCandidates[0], overlaps: Infinity, area: Infinity, dist: Infinity };
+    for (const x of xCandidates) {
+        for (const y of yCandidates) {
+            const rect = { x, y, w: cardW, h: cardH };
+            let overlaps = 0;
+            let area = 0;
+            for (const other of model.nodes) {
+                if (!other || other.id === node.id) continue;
+                const otherRect = { x: other.x, y: other.y, w: other.w, h: other.h };
+                if (_svRectsOverlap(rect, otherRect, 16)) {
+                    overlaps += 1;
+                    area += _svRectOverlapArea(rect, otherRect);
+                }
+            }
+            const dist = Math.abs((node.y + node.h / 2) - (y + cardH / 2));
+            if (
+                overlaps < best.overlaps ||
+                (overlaps === best.overlaps && area < best.area) ||
+                (overlaps === best.overlaps && area === best.area && dist < best.dist)
+            ) {
+                best = { x, y, overlaps, area, dist };
+            }
+        }
+    }
+    return { x: best.x, y: best.y };
 }
 
 // ── Entry: load a file's graph ────────────────────────────────────────────
@@ -121,10 +283,10 @@ function _svBuildFileGraphModel(resp, fileRel) {
     const g = new dagre.graphlib.Graph({ compound: true });
     g.setGraph({
         rankdir:  'LR',
-        nodesep:  26,
-        ranksep:  90,
-        marginx:  40,
-        marginy:  40,
+        nodesep:  _SV_LAYOUT_NODESEP,
+        ranksep:  _SV_LAYOUT_RANKSEP,
+        marginx:  _SV_LAYOUT_MARGIN,
+        marginy:  _SV_LAYOUT_MARGIN,
     });
     g.setDefaultEdgeLabel(() => ({}));
 
@@ -133,11 +295,15 @@ function _svBuildFileGraphModel(resp, fileRel) {
     for (const cls of classes) {
         const collapsed = _svState.compoundCollapsed.has(cls.id);
         const clsMethods = methods.filter(m => m._parentId === cls.id);
-        const longest = Math.max(
-            _svMeasureText(cls.name, 15) + 60,
-            ...clsMethods.map(m => _svMeasureText(m.name, 13) + 48)
+        const innerW = clsMethods.length
+            ? Math.max(_SV_METHOD_W, ...clsMethods.map(m => _svMeasureMethodWidth(m)))
+            : _SV_METHOD_W;
+        const headerW = _svMeasureText(cls.name, 15) + 96;
+        const w = _svClamp(
+            Math.max(headerW, innerW + _SV_CLASS_PAD_X * 2),
+            _SV_CLASS_MIN_W,
+            _SV_CLASS_MAX_W
         );
-        const w = Math.max(_SV_METHOD_W + _SV_CLASS_PAD_X * 2, longest + _SV_CLASS_PAD_X * 2);
         let h;
         if (collapsed || !clsMethods.length) {
             h = _SV_CLASS_PAD_TOP + _SV_CLASS_PAD_BOT + (clsMethods.length ? 18 : 0);
@@ -146,7 +312,13 @@ function _svBuildFileGraphModel(resp, fileRel) {
               + clsMethods.length * (_SV_METHOD_H + _SV_METHOD_GAP)
               + _SV_CLASS_PAD_BOT;
         }
-        classDims[cls.id] = { w, h, methods: clsMethods, collapsed };
+        classDims[cls.id] = {
+            w,
+            h,
+            methods: clsMethods,
+            collapsed,
+            innerW: Math.max(_SV_METHOD_W, w - _SV_CLASS_PAD_X * 2),
+        };
     }
 
     // Add class compound nodes. Dagre compounds: set the compound node with
@@ -162,25 +334,30 @@ function _svBuildFileGraphModel(resp, fileRel) {
     for (const m of methods) {
         const parentDim = classDims[m._parentId];
         if (!parentDim || parentDim.collapsed) continue;
-        g.setNode(m.id, { width: _SV_METHOD_W, height: _SV_METHOD_H });
+        g.setNode(m.id, { width: parentDim.innerW, height: _SV_METHOD_H });
         g.setParent(m.id, m._parentId);
     }
 
     // Top-level functions / fields
+    const topLevelDims = new Map();
     for (const f of topFuncs) {
         const isField = f.kind === 'field' || f.kind === 'variable' || f.kind === 'constant' || f.kind === 'property';
-        const w = isField ? _SV_FIELD_W : _SV_FUNC_W;
+        const w = _svMeasureTopLevelWidth(f, isField);
         const h = isField ? _SV_FIELD_H : _SV_FUNC_H;
+        topLevelDims.set(f.id, { w, h });
         g.setNode(f.id, { width: w, height: h });
     }
 
     // Ghost nodes for external endpoints (one per foreign symbol referenced).
     const ghostIds = [];
+    const ghostDims = new Map();
     for (const gid of Object.keys(extSyms)) {
         if (byId[gid]) continue;  // skip if it somehow sits inside file_syms
         const gs = extSyms[gid];
         byId[gid] = { ...gs, _ghost: true };
-        g.setNode(gid, { width: _SV_GHOST_W, height: _SV_GHOST_H });
+        const w = _svMeasureGhostWidth(gs);
+        ghostDims.set(gid, { w, h: _SV_GHOST_H });
+        g.setNode(gid, { width: w, height: _SV_GHOST_H });
         ghostIds.push(gid);
     }
 
@@ -216,12 +393,56 @@ function _svBuildFileGraphModel(resp, fileRel) {
 
     dagre.layout(g);
 
+    const rootOffsets = _svResolveRootOverlaps([
+        ...classes.map(cls => {
+            const info = g.node(cls.id);
+            const dim = classDims[cls.id];
+            const shiftIds = [cls.id];
+            if (!dim.collapsed) {
+                for (const m of dim.methods) shiftIds.push(m.id);
+            }
+            return {
+                id: cls.id,
+                x: info.x - dim.w / 2,
+                y: info.y - dim.h / 2,
+                w: dim.w,
+                h: dim.h,
+                shiftIds,
+            };
+        }),
+        ...topFuncs.map(f => {
+            const info = g.node(f.id);
+            const dim = topLevelDims.get(f.id);
+            return {
+                id: f.id,
+                x: info.x - dim.w / 2,
+                y: info.y - dim.h / 2,
+                w: dim.w,
+                h: dim.h,
+                shiftIds: [f.id],
+            };
+        }),
+        ...ghostIds.map(gid => {
+            const info = g.node(gid);
+            const dim = ghostDims.get(gid);
+            return {
+                id: gid,
+                x: info.x - dim.w / 2,
+                y: info.y - dim.h / 2,
+                w: dim.w,
+                h: dim.h,
+                shiftIds: [gid],
+            };
+        }),
+    ]);
+
     // Collect node records with positions.
     const nodes = [];
 
     for (const cls of classes) {
         const info = g.node(cls.id);
         const d    = classDims[cls.id];
+        const offset = rootOffsets.get(cls.id) || { dx: 0, dy: 0 };
         nodes.push({
             id:          cls.id,
             sym:         cls,
@@ -229,63 +450,68 @@ function _svBuildFileGraphModel(resp, fileRel) {
             isCompound:  true,
             collapsed:   d.collapsed,
             methods:     d.methods,
-            x:           info.x - d.w / 2,
-            y:           info.y - d.h / 2,
+            x:           info.x - d.w / 2 + offset.dx,
+            y:           info.y - d.h / 2 + offset.dy,
             w:           d.w,
             h:           d.h,
-            cx:          info.x,
-            cy:          info.y,
+            cx:          info.x + offset.dx,
+            cy:          info.y + offset.dy,
         });
     }
     for (const m of methods) {
         const parentDim = classDims[m._parentId];
         if (!parentDim || parentDim.collapsed) continue;
         const info = g.node(m.id);
+        const offset = rootOffsets.get(m.id) || { dx: 0, dy: 0 };
         nodes.push({
             id:          m.id,
             sym:         m,
             kind:        m.kind,
             isMethod:    true,
             parentId:    m._parentId,
-            x:           info.x - _SV_METHOD_W / 2,
-            y:           info.y - _SV_METHOD_H / 2,
-            w:           _SV_METHOD_W,
+            x:           info.x - parentDim.innerW / 2 + offset.dx,
+            y:           info.y - _SV_METHOD_H / 2 + offset.dy,
+            w:           parentDim.innerW,
             h:           _SV_METHOD_H,
-            cx:          info.x,
-            cy:          info.y,
+            cx:          info.x + offset.dx,
+            cy:          info.y + offset.dy,
         });
     }
     for (const f of topFuncs) {
         const info = g.node(f.id);
-        const isField = f.kind === 'field' || f.kind === 'variable' || f.kind === 'constant' || f.kind === 'property';
-        const w = isField ? _SV_FIELD_W : _SV_FUNC_W;
-        const h = isField ? _SV_FIELD_H : _SV_FUNC_H;
+        const dim = topLevelDims.get(f.id);
+        const isField = !!dim && dim.h === _SV_FIELD_H;
+        const w = dim ? dim.w : (isField ? _SV_FIELD_W : _SV_FUNC_W);
+        const h = dim ? dim.h : (isField ? _SV_FIELD_H : _SV_FUNC_H);
+        const offset = rootOffsets.get(f.id) || { dx: 0, dy: 0 };
         nodes.push({
             id:        f.id,
             sym:       f,
             kind:      f.kind,
             isTopLevel: true,
             isField,
-            x:         info.x - w / 2,
-            y:         info.y - h / 2,
+            x:         info.x - w / 2 + offset.dx,
+            y:         info.y - h / 2 + offset.dy,
             w, h,
-            cx:        info.x,
-            cy:        info.y,
+            cx:        info.x + offset.dx,
+            cy:        info.y + offset.dy,
         });
     }
     for (const gid of ghostIds) {
         const info = g.node(gid);
+        const dim = ghostDims.get(gid) || { w: _SV_GHOST_W, h: _SV_GHOST_H };
+        const offset = rootOffsets.get(gid) || { dx: 0, dy: 0 };
         nodes.push({
             id:       gid,
             sym:      byId[gid],
             kind:     byId[gid].kind || 'class',
             isGhost:  true,
-            x:        info.x - _SV_GHOST_W / 2,
-            y:        info.y - _SV_GHOST_H / 2,
-            w:        _SV_GHOST_W,
-            h:        _SV_GHOST_H,
-            cx:       info.x,
-            cy:       info.y,
+            x:        info.x - dim.w / 2 + offset.dx,
+            y:        info.y - dim.h / 2 + offset.dy,
+            w:        dim.w,
+            h:        dim.h,
+            cx:       info.x + offset.dx,
+            cy:       info.y + offset.dy,
         });
     }
 
@@ -552,13 +778,14 @@ function _svUpdateFocusDetailCard() {
     const NS = 'http://www.w3.org/2000/svg';
     const fo = document.createElementNS(NS, 'foreignObject');
     fo.setAttribute('class', 'sv-focus-detail');
-    const cardW = Math.max(260, Math.min(440, node.w + 40));
-    fo.setAttribute('x', String(node.x + node.w + 24));
-    fo.setAttribute('y', String(node.y - 10));
-    fo.setAttribute('width',  String(cardW));
-    fo.setAttribute('height', '420');
-
     const collapsed = _svState.detailSectionCollapsed;
+    const cardW = _svClamp(node.w + 52, _SV_DETAIL_MIN_W, _SV_DETAIL_MAX_W);
+    const cardH = _svEstimateDetailCardHeight(sym, collapsed);
+    const cardPos = _svGetCardPlacement(node, model, cardW, cardH);
+    fo.setAttribute('x', String(cardPos.x));
+    fo.setAttribute('y', String(cardPos.y));
+    fo.setAttribute('width',  String(cardW));
+    fo.setAttribute('height', String(cardH));
     const sigHidden = collapsed.has('signature');
     const docHidden = collapsed.has('docstring');
     const metHidden = collapsed.has('metrics');

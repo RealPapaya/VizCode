@@ -235,6 +235,7 @@
     position: relative;
     flex: 1;
     overflow: hidden;
+    isolation: isolate;
     background: var(--bg, #0f110e);
     background-image:
         radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.035) 1px, transparent 0);
@@ -246,6 +247,7 @@
     inset: 0;
     width: 100%;
     height: 100%;
+    overflow: visible;
     cursor: grab;
 }
 
@@ -255,6 +257,7 @@
 .sv-node {
     cursor: pointer;
     pointer-events: all;
+    will-change: transform, opacity;
     transition:
         opacity 550ms cubic-bezier(0.65, 0, 0.35, 1),
         transform 550ms cubic-bezier(0.65, 0, 0.35, 1);
@@ -266,6 +269,7 @@
     fill: var(--panel, #161715);
     stroke: var(--border, #2c2d2a);
     stroke-width: 1.2;
+    vector-effect: non-scaling-stroke;
     transition: stroke 0.22s, filter 0.22s;
 }
 
@@ -332,6 +336,16 @@
     font-weight: 700;
     letter-spacing: 0.08em;
     fill: #2dd4bf;
+}
+
+.sv-node-name,
+.sv-node-kind,
+.sv-pill-kind,
+.sv-access,
+.sv-ghost-path,
+.sv-ghost-tag {
+    pointer-events: none;
+    user-select: none;
 }
 
 /* Node text */
@@ -406,6 +420,7 @@
 .sv-edge {
     cursor: pointer;
     opacity: 0.7;
+    vector-effect: non-scaling-stroke;
     transition: opacity 550ms cubic-bezier(0.65, 0, 0.35, 1),
                 stroke-width 0.18s;
 }
@@ -417,7 +432,7 @@
 
 /* ── Focus system ─────────────────────────────────────────────────── */
 .sv-node.sv-focus {
-    transform: scale(1.06);
+    transform: scale(1.03);
     filter: drop-shadow(0 0 18px rgba(223, 167, 69, 0.5));
 }
 
@@ -451,6 +466,7 @@
 .sv-focus-detail {
     overflow: visible;
     pointer-events: auto;
+    filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.45));
 }
 
 .sv-fd-card {
@@ -458,6 +474,9 @@
     border: 1px solid var(--accent, #dfa745);
     border-radius: 10px;
     padding: 10px 12px;
+    min-height: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
     font-family: inherit;
     font-size: 13px;
     color: var(--text, #eae8e3);
@@ -474,6 +493,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;
     margin-bottom: 4px;
 }
 
@@ -492,6 +512,7 @@
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+    flex-shrink: 0;
     color: var(--muted, #93918b);
 }
 
@@ -545,6 +566,7 @@
 .sv-fd-section-body {
     max-height: 220px;
     overflow: hidden;
+    overflow-wrap: anywhere;
     opacity: 1;
     transition: max-height 550ms cubic-bezier(0.65, 0, 0.35, 1),
                 opacity    550ms cubic-bezier(0.65, 0, 0.35, 1);
