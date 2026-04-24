@@ -1335,6 +1335,12 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                 'parent':    sym.get('parent'),
                 'is_public': sym.get('is_public', True),
                 'module':    file_meta[rel]['module'],
+                # Function signature (args + return annotation) — parsers that
+                # don't extract this leave it empty, consumers hide the row.
+                'signature': sym.get('signature', ''),
+                'docstring': sym.get('doc', ''),
+                'decorators': sym.get('decorators', []),
+                'is_static': sym.get('is_static', False),
                 # Flag set when the parser had to fall back (e.g. ast.parse failed).
                 # Truthy value is a short diagnostic message; falsy → clean symbol.
                 'parse_error': file_parse_error,

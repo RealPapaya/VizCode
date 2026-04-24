@@ -1,51 +1,64 @@
-// ── Symbol View — self-contained module (core) ──────────────────────────
+// ── Symbol View — self-contained module (core, V3) ─────────────────────
 // Owns: _svState, mount/unmount of #sym-view, public entry points, history,
 //       legend save/restore. Graph rendering lives in sv_graph.js; search
 //       bar in sv_search.js. Loaded before those two so they can read state.
+//
+// V3 model: a single unified file-level flow graph. `fileRel` identifies
+// which file's graph is shown; `focusId` (nullable) marks the in-graph focus
+// node whose rich detail pane is expanded. No more overview vs centric modes.
 
 'use strict';
 
 // ── Module state ──────────────────────────────────────────────────────────
 const _svState = {
-    active:       null,         // current center symId or '__overview__'
-    history:      [],           // back stack
-    future:       [],           // forward stack
-    jobId:        null,
-    ready:        false,        // DOM mounted?
-    overviewFile: null,         // file shown in overview mode
-    svg:          null,         // root <svg id="sv-svg">
-    viewport:     null,         // zoom target <g class="sv-viewport">
-    zoom:         { k: 1, x: 0, y: 0 },
-    currentGraph: null,         // last rendered model (for keyed diff)
-    searchOpen:   false,
-    searchCache:  new Map(),
-    hiddenEdgeTypes: new Set(), // edge types toggled off via legend
-    edgeJumpCursor: new Map(),  // edgeId → next index into edge_lines
-    collapsedSections: new Set(), // "<cardId>|public" / "<cardId>|private" — collapsed access sections
-    expansions: new Map(),        // pillId → { group: 'left|right|up|down', neighbors: [...] }
-    _legendSnap:  null,
+    fileRel:   null,         // current file path rel to project root
+    focusId:   null,         // focused symbol id inside fileRel, or null
+    history:   [],           // back stack of { fileRel, focusId }
+    future:    [],           // forward stack
+    jobId:     null,
+    ready:     false,        // DOM mounted?
+    svg:       null,
+    viewport:  null,
+    zoom:      { k: 1, x: 0, y: 0 },
+    currentGraph: null,      // last rendered file graph model
+    searchOpen: false,
+    searchCache: new Map(),
+    hiddenEdgeTypes: new Set(),
+    edgeJumpCursor: new Map(),
+    detailSectionCollapsed: new Set(),   // "signature" | "docstring" | "metrics"
+    compoundCollapsed: new Set(),        // class compound ids whose methods are hidden
+    _legendSnap: null,
+
+    // Back-compat alias — viz_code_panel.js / viz_graph.js / viz_sidebar.js
+    // read `window._sv.active` as a truthy "is symbol view open" flag. Keep
+    // it in sync via _svSyncActive().
+    active: null,
 };
 
-// Semantic palette. Gray=type, yellow=method, blue=field.
+function _svSyncActive() {
+    _svState.active = _svState.fileRel || null;
+}
+
+// ── Kind palette (V3: extended with interface, enum, constant etc.) ───
 const _SV_KIND_COLOR = {
-    class:      '#9ca3af',
-    struct:     '#9ca3af',
-    interface:  '#9ca3af',
-    enum:       '#9ca3af',
-    type:       '#9ca3af',
-    method:     '#fbbf24',
-    function:   '#fbbf24',
-    field:      '#60a5fa',
-    variable:   '#60a5fa',
-    constant:   '#60a5fa',
-    property:   '#60a5fa',
-    default:    '#94a3b8',
+    class:     '#9ca3af',   // gray
+    struct:    '#9ca3af',
+    interface: '#2dd4bf',   // teal — distinct from class
+    enum:      '#a855f7',   // purple
+    type:      '#9ca3af',
+    method:    '#fbbf24',   // yellow
+    function:  '#fbbf24',
+    field:     '#60a5fa',   // blue
+    variable:  '#60a5fa',
+    constant:  '#38bdf8',   // sky — distinct from variable
+    property:  '#60a5fa',
+    default:   '#94a3b8',
 };
 
 const _SV_EDGE_COLOR = {
     call:        '#fbbf24',
     inheritance: '#9ca3af',
-    implements:  '#9ca3af',
+    implements:  '#2dd4bf',
     override:    '#f472b6',
     import:      '#34d399',
     include:     '#34d399',
@@ -55,6 +68,10 @@ const _SV_EDGE_COLOR = {
 };
 
 const _SV_CARD_KINDS = new Set(['class', 'struct', 'interface', 'enum']);
+
+// Animation duration applies to position tween, focus scale + fade, etc.
+// Bumped from V2's 280ms to V3's 550ms per user request ("戲劇").
+const _SV_DUR_MS = 550;
 
 function _svKindColor(kind) {
     return _SV_KIND_COLOR[kind] || _SV_KIND_COLOR.default;
@@ -75,7 +92,7 @@ function _svEnsureDom() {
         <div id="sv-nav-group">
           <button id="sv-back-btn" title="Back" disabled>&larr;</button>
           <button id="sv-fwd-btn"  title="Forward" disabled>&rarr;</button>
-          <button id="sv-overview-btn" title="Overview" style="display:none">&#9783;</button>
+          <button id="sv-unfocus-btn" title="Clear focus" style="display:none">&#9005;</button>
           <div id="sv-breadcrumb"></div>
         </div>
         <div id="sv-search-wrap">
@@ -101,10 +118,9 @@ function _svEnsureDom() {
             <g class="sv-cards"></g>
           </g>
         </svg>
-        <div id="sv-overview" hidden></div>
         <div id="sv-empty" hidden>
           <div class="sv-empty-icon">&#10697;</div>
-          <div class="sv-empty-msg">No symbol selected</div>
+          <div class="sv-empty-msg">No file loaded</div>
         </div>
         <div id="sv-edge-tip" hidden></div>
       </div>
@@ -113,18 +129,14 @@ function _svEnsureDom() {
     _svState.svg      = root.querySelector('#sv-svg');
     _svState.viewport = root.querySelector('.sv-viewport');
 
-    // Nav buttons
-    root.querySelector('#sv-back-btn').onclick     = _svGoBack;
-    root.querySelector('#sv-fwd-btn').onclick      = _svGoForward;
-    root.querySelector('#sv-overview-btn').onclick = () => {
-        if (_svState.overviewFile) symViewOpen(_svState.overviewFile);
+    root.querySelector('#sv-back-btn').onclick    = _svGoBack;
+    root.querySelector('#sv-fwd-btn').onclick     = _svGoForward;
+    root.querySelector('#sv-unfocus-btn').onclick = () => {
+        if (_svState.focusId) _svSetFocus(null);
     };
     root.querySelector('#sv-close-btn').onclick = symViewClose;
 
-    // Zoom + pan on SVG
     _svInitPanZoom();
-
-    // Search (handled in sv_search.js)
     if (typeof _svInitSearch === 'function') _svInitSearch();
 
     _svState.ready = true;
@@ -145,7 +157,6 @@ function _svInitPanZoom() {
         const cy = e.clientY - rect.top;
         const z = _svState.zoom;
         const nk = Math.max(0.1, Math.min(4, z.k * factor));
-        // Zoom toward cursor
         z.x = cx - (cx - z.x) * (nk / z.k);
         z.y = cy - (cy - z.y) * (nk / z.k);
         z.k = nk;
@@ -154,7 +165,6 @@ function _svInitPanZoom() {
 
     svg.addEventListener('mousedown', (e) => {
         if (e.target !== svg && !e.target.classList.contains('sv-viewport')) return;
-        // Only pan on empty canvas clicks
         isPanning = true;
         panStart  = { x: e.clientX - _svState.zoom.x, y: e.clientY - _svState.zoom.y };
         svg.style.cursor = 'grabbing';
@@ -189,10 +199,9 @@ function _svResetZoom(animate = true) {
         _svApplyZoom();
         return;
     }
-    _svAnimateValue(_svState.zoom, targetZoom, 280, _svApplyZoom);
+    _svAnimateValue(_svState.zoom, targetZoom, _SV_DUR_MS, _svApplyZoom);
 }
 
-// Generic object-property tween (used for zoom + node positions).
 function _svAnimateValue(obj, target, durationMs, onStep) {
     const start = {};
     for (const k in target) start[k] = obj[k];
@@ -207,9 +216,11 @@ function _svAnimateValue(obj, target, durationMs, onStep) {
     requestAnimationFrame(frame);
 }
 
-// easeInOutCubic
+// easeInOutQuint — more dramatic than cubic, per V3 animation spec.
 function _svEase(t) {
-    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    return t < 0.5
+        ? 16 * t * t * t * t * t
+        : 1 - Math.pow(-2 * t + 2, 5) / 2;
 }
 
 // ── Public entry points ────────────────────────────────────────────────────
@@ -217,27 +228,27 @@ function _svEase(t) {
 function symViewOpen(fileRel) {
     _svEnsureDom();
     _svState.jobId = window.JOB_ID || null;
+    if (!fileRel) return;
 
     const root = document.getElementById('sym-view');
     if (!root) return;
-
-    // Hide other overlays
     const cy = document.getElementById('cy');
     if (cy) cy.style.display = 'none';
     root.classList.add('active');
-
     _svSaveLegend();
     _svHideLegend();
 
-    const prev = _svState.active;
-    if (prev !== null && prev !== '__overview__') {
-        _svState.history.push(prev);
-        if (_svState.history.length > 100) _svState.history.shift();
+    _svPushHistory();
+    _svState.fileRel = fileRel;
+    _svState.focusId = null;
+    _svState.detailSectionCollapsed.clear();
+    _svState.compoundCollapsed.clear();
+    _svState.edgeJumpCursor.clear();
+    _svSyncActive();
+
+    if (typeof _svLoadFileGraph === 'function') {
+        _svLoadFileGraph(fileRel);
     }
-    _svState.future = [];
-    _svState.active       = '__overview__';
-    _svState.overviewFile = fileRel;
-    _svRenderOverview(fileRel);
     _svSyncNavBtns();
     _svUpdateStructBtn(true);
 }
@@ -247,6 +258,9 @@ function symViewActivate(symId) {
     _svEnsureDom();
     _svState.jobId = window.JOB_ID || null;
 
+    const sym = window.DATA && DATA.symbol_index ? DATA.symbol_index[symId] : null;
+    if (!sym || !sym.file) return;
+
     const root = document.getElementById('sym-view');
     if (!root) return;
     const cy = document.getElementById('cy');
@@ -255,17 +269,22 @@ function symViewActivate(symId) {
     _svSaveLegend();
     _svHideLegend();
 
-    const prev = _svState.active;
-    if (prev !== null && prev !== symId) {
-        _svState.history.push(prev);
-        if (_svState.history.length > 100) _svState.history.shift();
-        _svState.future = [];
+    _svPushHistory();
+
+    if (sym.file !== _svState.fileRel) {
+        _svState.fileRel = sym.file;
+        _svState.focusId = symId;
+        _svState.detailSectionCollapsed.clear();
+        _svState.compoundCollapsed.clear();
+        _svState.edgeJumpCursor.clear();
+        _svSyncActive();
+        if (typeof _svLoadFileGraph === 'function') {
+            _svLoadFileGraph(sym.file, { pendingFocus: symId });
+        }
+    } else {
+        // Same file — just move focus.
+        _svSetFocus(symId);
     }
-    _svState.active = symId;
-    _svState.edgeJumpCursor.clear();     // Cursors reset per-center.
-    _svState.collapsedSections.clear();  // Section collapse state is per-center.
-    _svState.expansions.clear();         // Local expansions drop when center changes.
-    _svFetchAndRender(symId);
     _svSyncNavBtns();
     _svUpdateStructBtn(true);
 }
@@ -276,54 +295,75 @@ function symViewClose() {
     const cy = document.getElementById('cy');
     if (cy) cy.style.display = '';
 
-    _svState.active       = null;
-    _svState.overviewFile = null;
+    _svState.fileRel = null;
+    _svState.focusId = null;
     _svState.currentGraph = null;
+    _svSyncActive();
     _svRestoreLegend();
     _svSyncNavBtns();
     _svUpdateStructBtn(false);
 
-    // Close search dropdown if open
     const results = document.getElementById('sv-search-results');
     if (results) results.hidden = true;
     _svState.searchOpen = false;
 }
 
+function _svPushHistory() {
+    if (!_svState.fileRel) return;
+    _svState.history.push({ fileRel: _svState.fileRel, focusId: _svState.focusId });
+    if (_svState.history.length > 100) _svState.history.shift();
+    _svState.future.length = 0;
+}
+
 function _svGoBack() {
     if (!_svState.history.length) return;
     const prev = _svState.history.pop();
-    const cur  = _svState.active;
-    if (cur !== null) _svState.future.push(cur);
-    _svState.active = prev;
-    if (prev === '__overview__') {
-        _svRenderOverview(_svState.overviewFile);
-    } else {
-        _svFetchAndRender(prev);
-    }
-    _svSyncNavBtns();
+    _svState.future.push({ fileRel: _svState.fileRel, focusId: _svState.focusId });
+    _svJumpTo(prev);
 }
 
 function _svGoForward() {
     if (!_svState.future.length) return;
     const nxt = _svState.future.pop();
-    const cur = _svState.active;
-    if (cur !== null) _svState.history.push(cur);
-    _svState.active = nxt;
-    if (nxt === '__overview__') {
-        _svRenderOverview(_svState.overviewFile);
-    } else {
-        _svFetchAndRender(nxt);
+    _svState.history.push({ fileRel: _svState.fileRel, focusId: _svState.focusId });
+    _svJumpTo(nxt);
+}
+
+function _svJumpTo(snap) {
+    if (!snap) return;
+    const prevFile = _svState.fileRel;
+    _svState.fileRel = snap.fileRel || null;
+    _svState.focusId = snap.focusId || null;
+    _svState.detailSectionCollapsed.clear();
+    _svState.compoundCollapsed.clear();
+    _svState.edgeJumpCursor.clear();
+    _svSyncActive();
+    if (_svState.fileRel && _svState.fileRel !== prevFile) {
+        if (typeof _svLoadFileGraph === 'function') {
+            _svLoadFileGraph(_svState.fileRel, { pendingFocus: _svState.focusId });
+        }
+    } else if (typeof _svApplyFocus === 'function') {
+        _svApplyFocus();
     }
+    _svSyncNavBtns();
+}
+
+function _svSetFocus(symId) {
+    _svPushHistory();
+    _svState.focusId = symId;
+    _svState.detailSectionCollapsed.clear();
+    _svState.edgeJumpCursor.clear();
+    if (typeof _svApplyFocus === 'function') _svApplyFocus();
     _svSyncNavBtns();
 }
 
 function _svSyncNavBtns() {
     const back = document.getElementById('sv-back-btn');
     const fwd  = document.getElementById('sv-fwd-btn');
-    const ov   = document.getElementById('sv-overview-btn');
+    const unf  = document.getElementById('sv-unfocus-btn');
     if (back) back.disabled = !_svState.history.length;
     if (fwd)  fwd.disabled  = !_svState.future.length;
-    if (ov)   ov.style.display = (_svState.overviewFile && _svState.active !== '__overview__') ? '' : 'none';
+    if (unf)  unf.style.display = _svState.focusId ? '' : 'none';
 }
 
 function _svUpdateStructBtn(isOpen) {
@@ -368,77 +408,6 @@ function _svRestoreLegend() {
     _svState._legendSnap = null;
 }
 
-// ── Overview (file-level symbol list) ─────────────────────────────────────
-function _svRenderOverview(fileRel) {
-    const ov  = document.getElementById('sv-overview');
-    const svg = _svState.svg;
-    const empty = document.getElementById('sv-empty');
-    if (!ov || !svg) return;
-
-    svg.style.display = 'none';
-    if (empty) empty.hidden = true;
-    ov.hidden = false;
-
-    const brd = document.getElementById('sv-breadcrumb');
-    if (brd) brd.textContent = 'Overview · ' + (fileRel || '');
-
-    if (!window.DATA || !DATA.symbol_index) {
-        ov.innerHTML = '<div class="sv-overview-empty">No symbols for this file.</div>';
-        return;
-    }
-
-    const syms = Object.values(DATA.symbol_index).filter(s => s.file === fileRel);
-    if (!syms.length) {
-        ov.innerHTML = '<div class="sv-overview-empty">No symbols for this file.</div>';
-        return;
-    }
-
-    const byKind = {};
-    for (const s of syms) {
-        const k = s.kind || 'other';
-        (byKind[k] = byKind[k] || []).push(s);
-    }
-
-    const order = ['class', 'struct', 'interface', 'enum', 'function', 'method', 'field', 'variable', 'constant', 'property'];
-    const kinds = Object.keys(byKind).sort((a, b) => {
-        const ai = order.indexOf(a); const bi = order.indexOf(b);
-        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-    });
-
-    let html = '';
-    for (const k of kinds) {
-        const items = byKind[k].sort((a, b) => (a.line || 0) - (b.line || 0));
-        html += `<div class="sv-ov-section">
-          <div class="sv-ov-section-title">
-            <span class="sv-kind-dot" style="background:${_svKindColor(k)}"></span>
-            ${_svEsc(k)} <span class="sv-ov-count">${items.length}</span>
-          </div>
-          <div class="sv-ov-grid">
-            ${items.map(s => {
-                const err = !!s.parse_error;
-                const errCls  = err ? ' sv-ov-card-error' : '';
-                const errMark = err ? `<span class="sv-ov-err" title="${_svEsc(s.parse_error || 'Parse issue')}">✕</span>` : '';
-                return `
-              <div class="sv-ov-card${errCls}" data-symid="${_svEsc(s.id)}" title="${_svEsc(s.name)} · line ${s.line || '?'}${err ? ' — ' + _svEsc(s.parse_error || 'parse issue') : ''}">
-                <span class="sv-kind-dot" style="background:${_svKindColor(s.kind)}"></span>
-                <span class="sv-ov-name">${_svEsc(s.name)}</span>
-                ${errMark}
-                <span class="sv-ov-line">L${s.line || 0}</span>
-              </div>`;
-            }).join('')}
-          </div>
-        </div>`;
-    }
-    ov.innerHTML = html;
-
-    ov.querySelectorAll('.sv-ov-card').forEach(el => {
-        el.addEventListener('click', () => {
-            const sid = el.dataset.symid;
-            if (sid) symViewActivate(sid);
-        });
-    });
-}
-
 // ── Small util used by all modules ────────────────────────────────────────
 function _svEsc(s) {
     return String(s == null ? '' : s)
@@ -457,14 +426,13 @@ window.svToggleStructView = function () {
     const fileRel = window.codeState && window.codeState.currentFile;
     if (fileRel) symViewOpen(fileRel);
 };
-// Called by viz_code_panel when a file loads — enable Structure btn if file has symbols.
 window.svUpdateStructureBtn = function (fileRel, _ext) {
     const btn = document.getElementById('struct-toggle-btn');
     if (!btn) return;
     const hasSymbols = !!(window.DATA && window.DATA.symbol_index &&
         Object.values(window.DATA.symbol_index).some(s => s.file === fileRel));
     btn.disabled = !hasSymbols;
-    btn.classList.toggle('active', hasSymbols && !!_svState.active);
+    btn.classList.toggle('active', hasSymbols && !!_svState.fileRel);
     btn.title = hasSymbols ? 'Structure View' : 'Structure View (no symbols for this file)';
 };
 window.svHideStructureBtn = function () {
@@ -473,79 +441,40 @@ window.svHideStructureBtn = function () {
     btn.disabled = true;
     btn.classList.remove('active');
 };
-// Multi-snippet hook — v2 feature; keep as no-op so viz_code_panel doesn't throw.
-window.symShowCurrentSnippets = function () { /* no-op in v1 */ };
-// Reverse-sync: code panel line-click → graph highlight.
+// Multi-snippet hook — legacy no-op so viz_code_panel doesn't throw.
+window.symShowCurrentSnippets = function () { /* no-op */ };
+
+// Reverse-sync: code panel line-click → graph focus match. V3 behavior:
+// - If the clicked line falls inside a symbol in the current file, set focus
+//   to that symbol (stays on the same file graph). Does not recurse into
+//   file switching unless the caller explicitly calls symViewActivate.
 window.svHighlightLine = function (lineIdx) {
-    const lineNo = lineIdx + 1;  // cl-N ids are 0-based; line numbers are 1-based.
+    const lineNo = lineIdx + 1;
+    if (!_svState.fileRel || !window.DATA || !DATA.symbol_index) return;
 
-    // Overview mode: flash the matching card.
-    if (_svState.active === '__overview__') {
-        const ov = document.getElementById('sv-overview');
-        if (!ov || !window.DATA || !DATA.symbol_index) return;
-        const file = _svState.overviewFile;
-        if (!file) return;
-        const candidates = Object.values(DATA.symbol_index).filter(s => s.file === file);
-        let best = null;
-        for (const s of candidates) {
-            const start = s.line || 0;
-            const end   = s.end_line || start;
-            if (lineNo >= start && lineNo <= end) {
-                if (!best || (s.line || 0) > (best.line || 0)) best = s;  // prefer innermost
-            }
-        }
-        ov.querySelectorAll('.sv-ov-card-active').forEach(c => c.classList.remove('sv-ov-card-active'));
-        if (!best) return;
-        const card = ov.querySelector(`.sv-ov-card[data-symid="${CSS.escape(best.id)}"]`);
-        if (card) {
-            card.classList.add('sv-ov-card-active');
-            card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        }
-        return;
-    }
-
-    // Centric mode: highlight matching member, or flash the center card.
-    const graph = _svState.currentGraph;
-    if (!graph || !_svState.viewport) return;
-    const center = graph.center;
-    if (!center) return;
-
-    // Look for a matching member first.
-    const children = (center.children || []).filter(c => {
-        const s = c.line || 0;
-        const e = c.end_line || s;
-        return lineNo >= s && lineNo <= e;
-    });
-    // Clear previous highlights.
-    _svState.viewport.querySelectorAll('.sv-member-active').forEach(m => m.classList.remove('sv-member-active'));
-    _svState.viewport.querySelectorAll('.sv-card-flash').forEach(c => c.classList.remove('sv-card-flash'));
-
-    if (children.length) {
-        const innermost = children.sort((a, b) => (b.line || 0) - (a.line || 0))[0];
-        const el = _svState.viewport.querySelector(`.sv-member[data-symid="${CSS.escape(innermost.id)}"]`);
-        if (el) el.classList.add('sv-member-active');
-        return;
-    }
-
-    // No member matched: if the line is within center's range, flash the card.
-    const cStart = center.line || 0;
-    const cEnd   = center.end_line || cStart;
-    if (cStart && lineNo >= cStart && lineNo <= cEnd) {
-        const node = _svState.viewport.querySelector(`.sv-node[data-symid="${CSS.escape(center.id)}"]`);
-        if (node) {
-            node.classList.add('sv-card-flash');
-            // Auto-clear after animation completes so repeated clicks can re-flash.
-            setTimeout(() => node.classList.remove('sv-card-flash'), 900);
+    const candidates = Object.values(DATA.symbol_index)
+        .filter(s => s.file === _svState.fileRel);
+    let best = null;
+    for (const s of candidates) {
+        const start = s.line || 0;
+        const end   = s.end_line || start;
+        if (start && lineNo >= start && lineNo <= end) {
+            if (!best || (s.line || 0) > (best.line || 0)) best = s;  // innermost
         }
     }
+    if (!best) return;
+    if (best.id === _svState.focusId) return;
+    _svState.focusId = best.id;
+    _svState.detailSectionCollapsed.clear();
+    _svState.edgeJumpCursor.clear();
+    if (typeof _svApplyFocus === 'function') _svApplyFocus({ noHistory: true });
+    _svSyncNavBtns();
 };
+
 // Identifier word-click from code panel → activate matching symbol.
 window.svHighlightBadgeByName = function (word) {
     if (!word || !window.DATA || !DATA.symbol_index) return;
-    const file = _svState.overviewFile
-        || (_svState.active && _svState.active !== '__overview__'
-              ? (DATA.symbol_index[_svState.active] || {}).file
-              : null);
+    const file = _svState.fileRel;
     if (!file) return;
     const all = Object.values(DATA.symbol_index);
     const inFile = all.filter(s => s.file === file && s.name === word);
@@ -553,5 +482,6 @@ window.svHighlightBadgeByName = function (word) {
     if (!match) return;
     symViewActivate(match.id);
 };
+
 // viz_code_panel and viz_sidebar read `window._sv.active`.
 window._sv = _svState;

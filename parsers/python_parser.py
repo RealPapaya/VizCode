@@ -124,6 +124,18 @@ class _PyAnalyzer(ast.NodeVisitor):
                 elif isinstance(d.func, ast.Attribute):
                     decorators.append(d.func.attr)
 
+        # Reconstruct a readable signature using ast.unparse (Python 3.9+).
+        # Falls back to empty string on older interpreters or unparse failure —
+        # the consumer treats empty signature as "not available" and hides the row.
+        signature = ''
+        if hasattr(ast, 'unparse'):
+            try:
+                args_src = ast.unparse(node.args)
+                ret_src = ' -> ' + ast.unparse(node.returns) if node.returns is not None else ''
+                signature = f'({args_src}){ret_src}'
+            except Exception:
+                signature = ''
+
         self.funcdefs.append({
             'label':     node.name,
             'is_efiapi': False,
@@ -140,6 +152,7 @@ class _PyAnalyzer(ast.NodeVisitor):
             'is_public':  not node.name.startswith('_'),
             'doc':        doc,
             'decorators': decorators,
+            'signature':  signature,
         })
 
         # Track calls inside this function body

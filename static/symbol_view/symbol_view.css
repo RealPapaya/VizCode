@@ -1,19 +1,17 @@
-/* ── Symbol View (self-contained module) ──────────────────────────── */
+/* ── Symbol View V3 — File flow graph + focus detail ──────────────────── */
 
 #sym-view {
     position: absolute;
     inset: 0;
-    background: var(--bg, #050a0f);
+    background: var(--bg, #0f110e);
     display: none;
     flex-direction: column;
     font-family: inherit;
-    color: var(--text, #e2e8f0);
+    color: var(--text, #eae8e3);
     z-index: 20;
 }
 
-#sym-view.active {
-    display: flex;
-}
+#sym-view.active { display: flex; }
 
 /* ── Toolbar ──────────────────────────────────────────────────────── */
 #sv-toolbar {
@@ -36,22 +34,22 @@
 
 #sv-back-btn,
 #sv-fwd-btn,
-#sv-overview-btn,
+#sv-unfocus-btn,
 #sv-close-btn {
     background: transparent;
     border: 1px solid var(--border, #2c2d2a);
-    color: var(--text, #e2e8f0);
+    color: var(--text, #eae8e3);
     border-radius: 6px;
     padding: 4px 9px;
     font-size: 13px;
     cursor: pointer;
     line-height: 1.3;
-    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    transition: background 0.18s, border-color 0.18s, color 0.18s;
 }
 
 #sv-back-btn:hover:not(:disabled),
 #sv-fwd-btn:hover:not(:disabled),
-#sv-overview-btn:hover,
+#sv-unfocus-btn:hover,
 #sv-close-btn:hover {
     background: var(--panel2, #1b1c19);
     border-color: var(--accent, #dfa745);
@@ -67,12 +65,12 @@
 #sv-breadcrumb {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     font-size: 13px;
-    color: var(--text, #e2e8f0);
+    color: var(--text, #eae8e3);
     overflow: hidden;
     white-space: nowrap;
-    flex: 0 0 auto;
+    flex: 0 1 auto;
     margin-left: 6px;
 }
 
@@ -138,16 +136,14 @@
     background: transparent;
     border: none;
     outline: none;
-    color: var(--text, #e2e8f0);
+    color: var(--text, #eae8e3);
     font-size: 13px;
     font-family: inherit;
     padding: 0;
     min-width: 0;
 }
 
-#sv-search-input::placeholder {
-    color: var(--muted, #93918b);
-}
+#sv-search-input::placeholder { color: var(--muted, #93918b); }
 
 #sv-search-clear {
     background: transparent;
@@ -159,9 +155,7 @@
     line-height: 1;
 }
 
-#sv-search-clear:hover {
-    color: var(--text, #e2e8f0);
-}
+#sv-search-clear:hover { color: var(--text, #eae8e3); }
 
 #sv-search-results {
     position: absolute;
@@ -206,7 +200,7 @@
 }
 
 .sv-search-name {
-    color: var(--text, #e2e8f0);
+    color: var(--text, #eae8e3);
     font-weight: 500;
     flex-shrink: 0;
 }
@@ -257,145 +251,102 @@
 
 #sv-svg:active { cursor: grabbing; }
 
-/* ── Overview list ────────────────────────────────────────────────── */
-#sv-overview {
-    position: absolute;
-    inset: 0;
-    overflow-y: auto;
-    padding: 24px 32px;
-}
-
-#sv-overview[hidden] { display: none; }
-
-.sv-ov-section {
-    margin-bottom: 18px;
-}
-
-.sv-ov-section-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--muted, #93918b);
-    margin-bottom: 10px;
-}
-
-.sv-ov-count {
-    background: var(--panel2, #1b1c19);
-    border: 1px solid var(--border, #2c2d2a);
-    border-radius: 10px;
-    padding: 1px 8px;
-    font-size: 11px;
-    color: var(--text, #e2e8f0);
-}
-
-.sv-ov-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 8px;
-}
-
-.sv-ov-card {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 12px;
-    background: var(--panel, #161715);
-    border: 1px solid var(--border, #2c2d2a);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background 0.1s, border-color 0.1s, transform 0.1s;
-}
-
-.sv-ov-card:hover {
-    background: var(--panel2, #1b1c19);
-    border-color: var(--accent, #dfa745);
-    transform: translateX(2px);
-}
-
-.sv-ov-name {
-    color: var(--text, #e2e8f0);
-    font-weight: 500;
-    font-size: 13px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-}
-
-.sv-ov-line {
-    color: var(--muted, #93918b);
-    font-size: 11px;
-    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
-}
-
-.sv-overview-empty {
-    padding: 60px;
-    text-align: center;
-    color: var(--muted, #93918b);
-    font-size: 13px;
-}
-
-/* Reverse-sync highlight: overview card that matches the clicked code line */
-.sv-ov-card.sv-ov-card-active {
-    background: var(--panel2, #1b1c19);
-    border-color: var(--accent, #dfa745);
-    box-shadow: 0 0 0 2px rgba(223, 167, 69, 0.35);
-    animation: sv-ov-pulse 0.9s ease-out;
-}
-
-@keyframes sv-ov-pulse {
-    0%   { box-shadow: 0 0 0 0 rgba(223, 167, 69, 0.8); }
-    100% { box-shadow: 0 0 0 2px rgba(223, 167, 69, 0.35); }
-}
-
-/* Reverse-sync highlight: card flash when the clicked line falls inside center */
-.sv-node.sv-card-flash .sv-node-bg {
-    animation: sv-card-pulse 0.9s ease-out;
-}
-
-@keyframes sv-card-pulse {
-    0%   { filter: drop-shadow(0 0 0 rgba(223, 167, 69, 0.9)); }
-    40%  { filter: drop-shadow(0 0 14px rgba(223, 167, 69, 0.7)); }
-    100% { filter: drop-shadow(0 4px 12px rgba(223, 167, 69, 0.18)); }
-}
-
 /* ── SVG: nodes ───────────────────────────────────────────────────── */
 .sv-node {
     cursor: pointer;
     pointer-events: all;
+    transition:
+        opacity 550ms cubic-bezier(0.65, 0, 0.35, 1),
+        transform 550ms cubic-bezier(0.65, 0, 0.35, 1);
+    transform-origin: center;
+    transform-box: fill-box;
 }
 
 .sv-node .sv-node-bg {
     fill: var(--panel, #161715);
     stroke: var(--border, #2c2d2a);
     stroke-width: 1.2;
-    transition: stroke 0.2s, filter 0.2s;
+    transition: stroke 0.22s, filter 0.22s;
 }
 
 .sv-node:hover .sv-node-bg {
     stroke-width: 1.8;
-    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
 }
 
-.sv-node.sv-card .sv-node-bg {
+/* Kind-specific accent strokes */
+.sv-kind-class     .sv-node-bg,
+.sv-kind-struct    .sv-node-bg,
+.sv-kind-type      .sv-node-bg  { stroke: #9ca3af; }
+.sv-kind-interface .sv-node-bg  { stroke: #2dd4bf; }
+.sv-kind-enum      .sv-node-bg  { stroke: #a855f7; }
+.sv-kind-method    .sv-node-bg,
+.sv-kind-function  .sv-node-bg  { stroke: #fbbf24; }
+.sv-kind-field     .sv-node-bg,
+.sv-kind-variable  .sv-node-bg,
+.sv-kind-property  .sv-node-bg  { stroke: #60a5fa; }
+.sv-kind-constant  .sv-node-bg  { stroke: #38bdf8; }
+
+/* Compound class container */
+.sv-node.sv-compound .sv-node-bg {
     fill: var(--panel, #161715);
-    stroke: var(--accent, #dfa745);
-    stroke-width: 1.6;
-    filter: drop-shadow(0 4px 12px rgba(223, 167, 69, 0.18));
+    stroke-width: 1.5;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.35));
 }
 
-.sv-node.sv-pill .sv-node-bg {
+/* Methods and top-level functions */
+.sv-node.sv-method .sv-node-bg,
+.sv-node.sv-top    .sv-node-bg {
     fill: var(--panel2, #1b1c19);
 }
 
+.sv-node.sv-field .sv-node-bg {
+    fill: rgba(96, 165, 250, 0.08);
+}
+
+/* Static method decoration */
+.sv-node.sv-static .sv-node-bg {
+    stroke-dasharray: 2 3;
+}
+
+/* Override decoration */
+.sv-node.sv-override .sv-node-bg {
+    stroke: #f472b6;
+}
+
+/* Ghost node (external file) */
+.sv-node.sv-ghost .sv-node-bg {
+    fill: rgba(45, 212, 191, 0.05);
+    stroke-dasharray: 4 3;
+    stroke: #64748b;
+}
+
+.sv-ghost-path {
+    font-size: 10px;
+    fill: var(--muted, #93918b);
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+
+.sv-ghost-tag {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    fill: #2dd4bf;
+}
+
+/* Node text */
 .sv-node-name {
     font-family: inherit;
     font-size: 14px;
     font-weight: 600;
     dominant-baseline: middle;
+    fill: var(--text, #eae8e3);
+}
+
+.sv-node-name.sv-mono {
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    font-weight: 500;
 }
 
 .sv-node-kind {
@@ -406,33 +357,6 @@
     text-transform: uppercase;
 }
 
-/* Section toggle chips (PUBLIC / PRIVATE) inside class card header */
-.sv-section-chip { cursor: pointer; }
-
-.sv-chip-bg {
-    fill: rgba(0, 0, 0, 0.22);
-    stroke-width: 1;
-    transition: fill 0.12s;
-}
-
-.sv-section-chip:hover .sv-chip-bg {
-    fill: rgba(223, 167, 69, 0.12);
-}
-
-.sv-section-chip.sv-chip-collapsed .sv-chip-bg {
-    fill: rgba(148, 163, 184, 0.12);
-    stroke-dasharray: 3 2;
-}
-
-.sv-chip-text {
-    font-size: 9.5px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    dominant-baseline: middle;
-    pointer-events: none;
-    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
-}
-
 .sv-pill-kind {
     font-size: 9px;
     font-weight: 700;
@@ -441,100 +365,222 @@
     dominant-baseline: middle;
 }
 
-/* Kind-specific accents */
-.sv-kind-class   .sv-node-bg,
-.sv-kind-struct  .sv-node-bg,
-.sv-kind-interface .sv-node-bg,
-.sv-kind-enum    .sv-node-bg { stroke: #9ca3af; }
-.sv-kind-method  .sv-node-bg,
-.sv-kind-function .sv-node-bg { stroke: #fbbf24; }
-.sv-kind-field   .sv-node-bg,
-.sv-kind-variable .sv-node-bg,
-.sv-kind-constant .sv-node-bg,
-.sv-kind-property .sv-node-bg { stroke: #60a5fa; }
-
-/* Members inside a class card */
-.sv-member { cursor: pointer; }
-.sv-member-bg {
-    fill: transparent;
-    stroke: transparent;
-    transition: fill 0.1s, stroke 0.1s;
-}
-.sv-member:hover .sv-member-bg {
-    fill: rgba(223, 167, 69, 0.08);
-    stroke: rgba(223, 167, 69, 0.35);
-}
-.sv-member-name {
-    font-size: 12px;
-    fill: var(--text, #e2e8f0);
-    dominant-baseline: middle;
-    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
-}
-.sv-member-access {
+.sv-access {
     font-size: 9px;
     font-weight: 700;
     letter-spacing: 0.06em;
     dominant-baseline: middle;
 }
+
 .sv-access-pub  { fill: #34d399; }
 .sv-access-priv { fill: #f87171; }
-.sv-member-active .sv-member-bg {
-    fill: rgba(223, 167, 69, 0.18);
+
+.sv-compound-toggle { cursor: pointer; }
+
+.sv-compound-toggle rect {
+    fill: rgba(223, 167, 69, 0.08);
     stroke: var(--accent, #dfa745);
-    stroke-width: 1.3;
+    stroke-width: 1;
+    transition: fill 0.15s;
 }
-.sv-member-active .sv-member-name {
-    fill: var(--accent, #dfa745);
+
+.sv-compound-toggle:hover rect {
+    fill: rgba(223, 167, 69, 0.25);
+}
+
+.sv-compound-toggle text {
+    font-size: 11px;
     font-weight: 700;
-}
-
-/* Expansion chip on neighbor pills (±) */
-.sv-expand-chip {
-    cursor: pointer;
-    pointer-events: all;
-    transition: transform 0.15s;
-}
-
-.sv-expand-chip:hover {
-    transform-origin: center;
-}
-
-.sv-expand-chip:hover circle {
     fill: var(--accent, #dfa745);
-}
-
-.sv-expand-chip:hover .sv-expand-chip-text {
-    fill: var(--bg, #0f110e);
-}
-
-.sv-expand-chip-text {
-    font-size: 12px;
-    font-weight: 800;
-    fill: var(--accent, #dfa745);
-    dominant-baseline: middle;
-    pointer-events: none;
     font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    pointer-events: none;
 }
 
-/* Secondary pill visual treatment — lower opacity to de-emphasize 2nd hop */
-.sv-node.sv-secondary .sv-node-bg {
-    opacity: 0.72;
+.sv-compound-hint {
+    font-size: 10px;
+    font-style: italic;
+    fill: var(--muted, #93918b);
 }
 
-.sv-node.sv-secondary .sv-node-name {
-    opacity: 0.9;
+/* ── SVG: edges ───────────────────────────────────────────────────── */
+.sv-edge {
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 550ms cubic-bezier(0.65, 0, 0.35, 1),
+                stroke-width 0.18s;
 }
 
-/* Dashed secondary edges */
-.sv-edge.sv-edge-secondary {
-    opacity: 0.6;
-}
-
-.sv-edge.sv-edge-secondary:hover {
+.sv-edge:hover {
     opacity: 1;
+    stroke-width: 2.4 !important;
 }
 
-/* Parse-error indicators */
+/* ── Focus system ─────────────────────────────────────────────────── */
+.sv-node.sv-focus {
+    transform: scale(1.06);
+    filter: drop-shadow(0 0 18px rgba(223, 167, 69, 0.5));
+}
+
+.sv-node.sv-focus .sv-node-bg {
+    stroke-width: 2.2;
+    stroke: var(--accent, #dfa745);
+}
+
+.sv-node.sv-in-focus-scope .sv-node-bg {
+    stroke-width: 1.8;
+}
+
+.sv-node.sv-faded {
+    opacity: 0.32;
+}
+
+.sv-edge.sv-edge-in-scope {
+    opacity: 0.95;
+    stroke-width: 2.1;
+}
+
+.sv-edge.sv-edge-faded {
+    opacity: 0.18;
+}
+
+/* Cross-file (external) edge */
+.sv-edge.sv-edge-external { opacity: 0.55; }
+.sv-edge.sv-edge-external.sv-edge-in-scope { opacity: 0.9; }
+
+/* ── Focus detail card (foreignObject HTML) ───────────────────────── */
+.sv-focus-detail {
+    overflow: visible;
+    pointer-events: auto;
+}
+
+.sv-fd-card {
+    background: var(--panel, #161715);
+    border: 1px solid var(--accent, #dfa745);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text, #eae8e3);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+    animation: sv-fd-in 550ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes sv-fd-in {
+    from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+.sv-fd-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.sv-fd-name {
+    font-weight: 700;
+    color: var(--accent, #dfa745);
+    font-size: 14px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sv-fd-kind {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted, #93918b);
+}
+
+.sv-fd-sub {
+    font-size: 11px;
+    color: var(--muted, #93918b);
+    margin-bottom: 10px;
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    word-break: break-all;
+}
+
+.sv-fd-section {
+    margin-top: 8px;
+    border-top: 1px solid var(--border, #2c2d2a);
+    padding-top: 8px;
+}
+
+.sv-fd-section:first-of-type {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+}
+
+.sv-fd-section-hd {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+    padding: 2px 0;
+}
+
+.sv-fd-section-hd:hover { color: var(--accent, #dfa745); }
+
+.sv-fd-chev {
+    font-size: 10px;
+    color: var(--muted, #93918b);
+    transition: transform 0.18s;
+    width: 10px;
+    display: inline-block;
+}
+
+.sv-fd-section-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted, #93918b);
+    font-weight: 600;
+}
+
+.sv-fd-section-body {
+    max-height: 220px;
+    overflow: hidden;
+    opacity: 1;
+    transition: max-height 550ms cubic-bezier(0.65, 0, 0.35, 1),
+                opacity    550ms cubic-bezier(0.65, 0, 0.35, 1);
+    padding: 6px 0 2px 16px;
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    font-size: 12px;
+    color: var(--text, #eae8e3);
+    line-height: 1.5;
+}
+
+.sv-fd-section-body code {
+    color: #fbbf24;
+    word-break: break-all;
+    white-space: pre-wrap;
+}
+
+.sv-fd-collapsed .sv-fd-section-body {
+    max-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.sv-fd-metric {
+    display: inline-block;
+    margin-right: 10px;
+    padding: 2px 8px;
+    background: var(--panel2, #1b1c19);
+    border: 1px solid var(--border, #2c2d2a);
+    border-radius: 10px;
+    font-size: 11px;
+    color: var(--text, #eae8e3);
+    font-family: inherit;
+}
+
+/* ── Parse-error badge (preserved from V2 F7) ────────────────────── */
 .sv-error-badge { pointer-events: all; cursor: help; }
 
 .sv-error-x {
@@ -544,55 +590,7 @@
     pointer-events: none;
 }
 
-.sv-member-error-mark {
-    font-size: 10px;
-    font-weight: 700;
-    fill: #ef4444;
-    dominant-baseline: middle;
-}
-
-.sv-member-error .sv-member-name {
-    fill: #fca5a5;
-    text-decoration: underline;
-    text-decoration-style: dotted;
-    text-decoration-color: rgba(239, 68, 68, 0.5);
-}
-
-.sv-ov-card.sv-ov-card-error {
-    border-left: 3px solid #ef4444;
-}
-
-.sv-ov-err {
-    color: #ef4444;
-    font-size: 11px;
-    font-weight: 700;
-    margin-left: 4px;
-    cursor: help;
-}
-
-/* ── SVG: edges ───────────────────────────────────────────────────── */
-.sv-edge {
-    cursor: pointer;
-    opacity: 0.75;
-    transition: opacity 0.12s, stroke-width 0.12s;
-}
-
-.sv-edge:hover {
-    opacity: 1;
-    stroke-width: 2.4 !important;
-}
-
-.sv-edge-label {
-    pointer-events: none;
-}
-
-.sv-edge-label-text {
-    font-size: 10px;
-    font-weight: 700;
-    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
-}
-
-/* ── Edge tooltip (floats over SVG) ──────────────────────────────── */
+/* ── Edge tooltip ─────────────────────────────────────────────────── */
 #sv-edge-tip {
     position: fixed;
     z-index: 40;
@@ -601,7 +599,7 @@
     border-radius: 6px;
     padding: 8px 10px;
     font-size: 12px;
-    color: var(--text, #e2e8f0);
+    color: var(--text, #eae8e3);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
     pointer-events: none;
     max-width: 360px;
@@ -623,21 +621,14 @@
 }
 
 .sv-tip-sites {
-    display: block;
-    margin-top: 3px;
-    font-size: 11px;
-    color: var(--accent, #dfa745);
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    background: rgba(45, 212, 191, 0.15);
+    color: #2dd4bf;
+    border-radius: 8px;
+    font-size: 10px;
     letter-spacing: 0.04em;
-}
-
-.sv-tip-site {
-    margin-top: 4px;
-    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
-    font-size: 11px;
-    color: var(--muted, #93918b);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 .sv-tip-hint {

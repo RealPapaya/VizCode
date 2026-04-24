@@ -1,54 +1,43 @@
-// ── Symbol View — Graph renderer (SVG + requestAnimationFrame tween) ────
-//   5-direction layout:
-//   center | up = base class (parent)          | down = derived class (child)
-//          | left = incoming (callers)         | right = outgoing (callees)
-// Class members render inside the center card. Animated keyed enter/update/exit.
+// ── Symbol View — Graph renderer (V3: dagre LR flow graph + focus fade) ─
+// Single unified view per file: all classes/functions/methods are laid out
+// by dagre. Clicking a node focuses it (scales up, shows rich detail card);
+// 1-hop neighbors stay vivid; 2-hop+ nodes fade to communicate scope without
+// hiding context.
 
 'use strict';
 
 // ── Layout constants ──────────────────────────────────────────────────────
-const _SV_CARD_MIN_W   = 280;
-const _SV_CARD_MAX_W   = 420;
-const _SV_CARD_PAD_X   = 16;
-const _SV_CARD_PAD_TOP = 68;    // header + section-chip row
-const _SV_CARD_PAD_BOT = 14;
-const _SV_MEMBER_H     = 26;
-const _SV_MEMBER_GAP   = 2;
-const _SV_COLUMN_GAP   = 14;    // gap between public/private columns in two-column mode
-const _SV_TWO_COL_TRIGGER = 8;  // switch to two-column layout above this total member count
-const _SV_TWO_COL_MIN_SIDE = 3; // both public and private need at least this many members
-const _SV_COL_MIN_W    = 180;   // single column min width in two-column mode
-const _SV_PILL_H       = 40;
-const _SV_PILL_PAD_X   = 14;
-const _SV_NEIGHBOR_GAP_V = 56;  // vertical spacing between stacked neighbors
-const _SV_NEIGHBOR_GAP_H = 160; // horizontal spread for up/down rows
-const _SV_MARGIN_LR    = 300;   // distance from center card edge to left/right neighbors
-const _SV_MARGIN_TB    = 110;   // distance from center card edge to up/down neighbors
-const _SV_MAX_PER_SIDE = 24;
-const _SV_EXPAND_GAP   = 220;   // extra distance from primary pill to its own expansions
+const _SV_CLASS_PAD_X   = 16;
+const _SV_CLASS_PAD_TOP = 38;
+const _SV_CLASS_PAD_BOT = 14;
+const _SV_METHOD_W      = 200;
+const _SV_METHOD_H      = 34;
+const _SV_METHOD_GAP    = 6;
+const _SV_FUNC_W        = 220;
+const _SV_FUNC_H        = 42;
+const _SV_FIELD_W       = 180;
+const _SV_FIELD_H       = 28;
+const _SV_GHOST_W       = 220;
+const _SV_GHOST_H       = 52;
 
-// Approximate character width for monospace rendering.
+const _SV_FOCUS_SIG_H   = 36;   // detail row heights (each collapsible)
+const _SV_FOCUS_DOC_H   = 46;
+const _SV_FOCUS_MET_H   = 28;
+
 const _SV_CH_W = 7.1;
 
 function _svMeasureText(s, fontSize = 13) {
-    // Simple measurement: use char count × approx width scaled by font size.
     const w = String(s || '').length * (_SV_CH_W * (fontSize / 13));
     return Math.ceil(w);
 }
 
-function _svPillWidthFor(entry) {
-    return Math.min(_SV_CARD_MAX_W, Math.max(140, _svMeasureText(entry.name, 13) + _SV_PILL_PAD_X * 2 + 24));
-}
-
-// ── Entry: fetch + render ─────────────────────────────────────────────────
-// opts.preserveView = true keeps the current pan/zoom (used for collapse toggles
-// and other in-place re-renders where jumping back to (0,0) would be disorienting).
-async function _svFetchAndRender(symId, opts) {
-    const ov  = document.getElementById('sv-overview');
-    const svg = _svState.svg;
+// ── Entry: load a file's graph ────────────────────────────────────────────
+// opts.pendingFocus — focus this symbol as soon as the graph lands.
+async function _svLoadFileGraph(fileRel, opts) {
+    const svg   = _svState.svg;
     const empty = document.getElementById('sv-empty');
-    if (ov) ov.hidden = true;
-    if (svg) svg.style.display = '';
+    if (!svg) return;
+    svg.style.display = '';
     if (empty) empty.hidden = true;
 
     const jid = _svState.jobId || window.JOB_ID;
@@ -56,20 +45,25 @@ async function _svFetchAndRender(symId, opts) {
 
     _svShowLoading(true);
     try {
-        const resp = await fetch(`/symbol-graph?job=${encodeURIComponent(jid)}&sym=${encodeURIComponent(symId)}`);
+        const url  = `/symbol-file?job=${encodeURIComponent(jid)}&file=${encodeURIComponent(fileRel)}&include_external=1`;
+        const resp = await fetch(url);
         const data = await resp.json();
-        if (data && !data.error) {
-            const model = _svBuildModel(data);
-            _svUpdateBreadcrumb(data.center);
-            _svRenderModel(model, opts);
-        } else if (empty) {
-            empty.hidden = false;
+        if (!data || !Array.isArray(data.symbols)) {
+            if (empty) empty.hidden = false;
+            return;
         }
+        const model = _svBuildFileGraphModel(data, fileRel);
+        _svUpdateBreadcrumbFile(fileRel, model);
+        _svRenderFileGraph(model);
+        if (opts && opts.pendingFocus && model.byId[opts.pendingFocus]) {
+            _svState.focusId = opts.pendingFocus;
+        }
+        _svApplyFocus({ noHistory: true });
     } catch (err) {
-        // Show empty placeholder on failure
         if (empty) {
             empty.hidden = false;
-            empty.querySelector('.sv-empty-msg').textContent = 'Failed to load symbol graph';
+            const msg = empty.querySelector('.sv-empty-msg');
+            if (msg) msg.textContent = 'Failed to load file graph';
         }
     } finally {
         _svShowLoading(false);
@@ -77,349 +71,282 @@ async function _svFetchAndRender(symId, opts) {
 }
 
 function _svShowLoading(on) {
-    const tb = document.getElementById('sv-breadcrumb');
-    if (!tb) return;
-    if (on) tb.classList.add('sv-loading');
-    else    tb.classList.remove('sv-loading');
-}
-
-function _svUpdateBreadcrumb(center) {
     const brd = document.getElementById('sv-breadcrumb');
-    if (!brd || !center) return;
-    const kind = center.kind || 'symbol';
-    const dot  = `<span class="sv-kind-dot" style="background:${_svKindColor(kind)}"></span>`;
-    brd.innerHTML = `${dot}<span class="sv-bc-kind">${_svEsc(kind)}</span>
-      <span class="sv-bc-name">${_svEsc(center.name || '')}</span>
-      <span class="sv-bc-file">${_svEsc(center.file || '')}${center.line ? ':' + center.line : ''}</span>`;
+    if (!brd) return;
+    brd.classList.toggle('sv-loading', !!on);
 }
 
-// ── Model builder: /symbol-graph response → normalized layout model ───────
-function _svBuildModel(resp) {
-    const center = resp.center || {};
-    const centerKind = center.kind || '';
-    const isCard = _SV_CARD_KINDS.has(centerKind);
+function _svUpdateBreadcrumbFile(fileRel, model) {
+    const brd = document.getElementById('sv-breadcrumb');
+    if (!brd) return;
+    const n = model && model.nodes ? model.nodes.length : 0;
+    const e = model && model.edges ? model.edges.length : 0;
+    brd.innerHTML = `
+      <span class="sv-bc-kind">File</span>
+      <span class="sv-bc-name">${_svEsc(fileRel)}</span>
+      <span class="sv-bc-file">${n} symbols · ${e} edges</span>`;
+}
 
-    const children = Array.isArray(center.children) ? center.children : [];
+// ── Model: classify symbols and run dagre layout ──────────────────────────
+function _svBuildFileGraphModel(resp, fileRel) {
+    const symbols = resp.symbols || [];
+    const edges   = resp.edges || [];
+    const extEdges = resp.external_edges || [];
+    const extSyms  = resp.external_syms  || {};
 
-    // Classify incoming/outgoing into 5 buckets.
-    // "up = base class" means the center extends base.
-    // In server edges, `from=sub, to=base, type=inheritance`. So from the center's
-    // perspective:  outgoing inheritance → base (up);   incoming inheritance → derived (down).
-    const up    = [];
-    const down  = [];
-    const left  = [];
-    const right = [];
-    const seenIds = new Set();
+    const byId = {};
+    for (const s of symbols) byId[s.id] = s;
 
-    for (const item of (resp.outgoing || [])) {
-        if (!item || !item.sym) continue;
-        const neighbor = item.sym;
-        if (seenIds.has(neighbor.id + '|out|' + item.edge_type)) continue;
-        seenIds.add(neighbor.id + '|out|' + item.edge_type);
-        const entry = {
-            id:        neighbor.id,
-            name:      neighbor.name,
-            kind:      neighbor.kind,
-            file:      neighbor.file,
-            line:      neighbor.line,
-            edgeType:  item.edge_type,
-            edgeCount: item.count,
-            edgeFile:  item.edge_file,
-            edgeLine:  item.edge_line,
-            edgeLines: Array.isArray(item.edge_lines) && item.edge_lines.length ? item.edge_lines : [item.edge_line],
-            direction: 'out',
-            hasError:  !!neighbor.has_error,
-            parseError: neighbor.parse_error || '',
-        };
-        if (item.edge_type === 'inheritance' || item.edge_type === 'implements') {
-            up.push(entry);
+    // Classify: classes (compound), methods (nested), top-level functions / fields.
+    const classes  = [];
+    const methods  = [];
+    const topFuncs = [];
+    const classById = {};
+    for (const s of symbols) {
+        if (_SV_CARD_KINDS.has(s.kind)) {
+            classes.push(s);
+            classById[s.name] = s;
+        }
+    }
+    for (const s of symbols) {
+        if (_SV_CARD_KINDS.has(s.kind)) continue;
+        if (s.parent && classById[s.parent]) {
+            methods.push({ ...s, _parentId: classById[s.parent].id });
         } else {
-            right.push(entry);
+            topFuncs.push(s);
         }
     }
 
-    for (const item of (resp.incoming || [])) {
-        if (!item || !item.sym) continue;
-        const neighbor = item.sym;
-        if (seenIds.has(neighbor.id + '|in|' + item.edge_type)) continue;
-        seenIds.add(neighbor.id + '|in|' + item.edge_type);
-        const entry = {
-            id:        neighbor.id,
-            name:      neighbor.name,
-            kind:      neighbor.kind,
-            file:      neighbor.file,
-            line:      neighbor.line,
-            edgeType:  item.edge_type,
-            edgeCount: item.count,
-            edgeFile:  item.edge_file,
-            edgeLine:  item.edge_line,
-            edgeLines: Array.isArray(item.edge_lines) && item.edge_lines.length ? item.edge_lines : [item.edge_line],
-            direction: 'in',
-            hasError:  !!neighbor.has_error,
-            parseError: neighbor.parse_error || '',
-        };
-        if (item.edge_type === 'inheritance' || item.edge_type === 'implements') {
-            down.push(entry);
+    // Use dagre for positions. Compound classes contain their methods.
+    const g = new dagre.graphlib.Graph({ compound: true });
+    g.setGraph({
+        rankdir:  'LR',
+        nodesep:  26,
+        ranksep:  90,
+        marginx:  40,
+        marginy:  40,
+    });
+    g.setDefaultEdgeLabel(() => ({}));
+
+    // Compute per-class inner layout first (methods stacked vertically).
+    const classDims = {};
+    for (const cls of classes) {
+        const collapsed = _svState.compoundCollapsed.has(cls.id);
+        const clsMethods = methods.filter(m => m._parentId === cls.id);
+        const longest = Math.max(
+            _svMeasureText(cls.name, 15) + 60,
+            ...clsMethods.map(m => _svMeasureText(m.name, 13) + 48)
+        );
+        const w = Math.max(_SV_METHOD_W + _SV_CLASS_PAD_X * 2, longest + _SV_CLASS_PAD_X * 2);
+        let h;
+        if (collapsed || !clsMethods.length) {
+            h = _SV_CLASS_PAD_TOP + _SV_CLASS_PAD_BOT + (clsMethods.length ? 18 : 0);
         } else {
-            left.push(entry);
+            h = _SV_CLASS_PAD_TOP
+              + clsMethods.length * (_SV_METHOD_H + _SV_METHOD_GAP)
+              + _SV_CLASS_PAD_BOT;
         }
+        classDims[cls.id] = { w, h, methods: clsMethods, collapsed };
     }
 
-    // Sort each bucket by edge count desc then by name.
-    const cmp = (a, b) => (b.edgeCount - a.edgeCount) || a.name.localeCompare(b.name);
-    [up, down, left, right].forEach(arr => arr.sort(cmp));
-
-    // Cap per side.
-    const truncate = (arr, cap) => {
-        if (arr.length <= cap) return { list: arr, extra: 0 };
-        return { list: arr.slice(0, cap), extra: arr.length - cap };
-    };
-    const U = truncate(up, _SV_MAX_PER_SIDE);
-    const D = truncate(down, _SV_MAX_PER_SIDE);
-    const L = truncate(left, _SV_MAX_PER_SIDE);
-    const R = truncate(right, _SV_MAX_PER_SIDE);
-
-    // Compute center card dimensions.
-    const centerId = center.id || '__center__';
-    const nameLen   = _svMeasureText(center.name || '', 15) + 40;
-    const fileLen   = _svMeasureText(center.file || '', 11) + 40;
-
-    // Split members by access; track collapse state.
-    const pubMembers  = isCard ? children.filter(c => c.is_public !== false) : [];
-    const privMembers = isCard ? children.filter(c => c.is_public === false) : [];
-    const pubCollapsed  = _svState.collapsedSections.has(centerId + '|public');
-    const privCollapsed = _svState.collapsedSections.has(centerId + '|private');
-
-    // Decide single vs two-column layout.
-    const totalMembers = pubMembers.length + privMembers.length;
-    const useTwoCol = isCard
-        && totalMembers >= _SV_TWO_COL_TRIGGER
-        && pubMembers.length >= _SV_TWO_COL_MIN_SIDE
-        && privMembers.length >= _SV_TWO_COL_MIN_SIDE;
-
-    const memberLen = isCard ? Math.max(
-        0,
-        ...children.map(c => _svMeasureText(c.name || '', 13) + 60)
-    ) : 0;
-
-    let cardW;
-    let cardH;
-    if (isCard) {
-        if (useTwoCol) {
-            const colW = Math.max(_SV_COL_MIN_W, memberLen);
-            cardW = colW * 2 + _SV_COLUMN_GAP + _SV_CARD_PAD_X * 2;
-            const pubCount  = pubCollapsed  ? 0 : pubMembers.length;
-            const privCount = privCollapsed ? 0 : privMembers.length;
-            const rows = Math.max(1, pubCount, privCount);
-            cardH = _SV_CARD_PAD_TOP + rows * (_SV_MEMBER_H + _SV_MEMBER_GAP) + _SV_CARD_PAD_BOT;
-        } else {
-            cardW = Math.min(_SV_CARD_MAX_W, Math.max(_SV_CARD_MIN_W, nameLen, fileLen, memberLen));
-            const visiblePub  = pubCollapsed  ? 0 : pubMembers.length;
-            const visiblePriv = privCollapsed ? 0 : privMembers.length;
-            const visibleRows = visiblePub + visiblePriv;
-            cardH = _SV_CARD_PAD_TOP + Math.max(_SV_MEMBER_H, visibleRows * (_SV_MEMBER_H + _SV_MEMBER_GAP)) + _SV_CARD_PAD_BOT;
-        }
-    } else {
-        cardW = Math.max(_SV_CARD_MIN_W, nameLen);
-        cardH = _SV_PILL_H;
+    // Add class compound nodes. Dagre compounds: set the compound node with
+    // width/height, then setParent(child, compound).
+    for (const cls of classes) {
+        const d = classDims[cls.id];
+        g.setNode(cls.id, { width: d.w, height: d.h });
     }
 
-    // Position everything (center at 0,0).
-    const model = {
-        center: {
-            id:       centerId,
-            name:     center.name || '',
-            kind:     centerKind,
-            file:     center.file || '',
-            line:     center.line || 0,
-            end_line: center.end_line || center.line || 0,
-            isCard,
-            w:        cardW,
-            h:        cardH,
-            x:        0,
-            y:        0,
-            children,
-            pubMembers,
-            privMembers,
-            pubCollapsed,
-            privCollapsed,
-            useTwoCol,
-            hasError:  !!center.parse_error,
-            parseError: center.parse_error || '',
-            activeMemberId: resp.active_member_id || null,
-        },
-        neighbors: [],
-        edges:     [],
-    };
-
-    // Helper to build a neighbor pill.
-    function pillOf(entry, group) {
-        const w = Math.min(_SV_CARD_MAX_W, Math.max(140, _svMeasureText(entry.name, 13) + _SV_PILL_PAD_X * 2 + 24));
-        return {
-            id:        entry.id,
-            name:      entry.name,
-            kind:      entry.kind,
-            file:      entry.file,
-            line:      entry.line,
-            group,
-            edgeType:  entry.edgeType,
-            edgeCount: entry.edgeCount,
-            edgeFile:  entry.edgeFile,
-            edgeLine:  entry.edgeLine,
-            direction: entry.direction,
-            w,
-            h:         _SV_PILL_H,
-            x:         0,
-            y:         0,
-            isPill:    true,
-            hasError:  !!entry.hasError,
-            parseError: entry.parseError || '',
-        };
+    // Child methods — add only if not collapsed so dagre ranks them among
+    // edge targets correctly; when collapsed we still render them inside the
+    // compound but don't expose as discrete dagre nodes.
+    for (const m of methods) {
+        const parentDim = classDims[m._parentId];
+        if (!parentDim || parentDim.collapsed) continue;
+        g.setNode(m.id, { width: _SV_METHOD_W, height: _SV_METHOD_H });
+        g.setParent(m.id, m._parentId);
     }
 
-    const halfW = cardW / 2;
-    const halfH = cardH / 2;
-
-    // Keep track of placed pills keyed by id so we can build secondary expansions.
-    const placed = new Map();
-    function addPill(entry, group, x, y) {
-        const p = pillOf(entry, group);
-        p.x = x; p.y = y;
-        p.expanded = _svState.expansions.has(p.id);
-        model.neighbors.push(p);
-        placed.set(p.id, p);
-        return p;
+    // Top-level functions / fields
+    for (const f of topFuncs) {
+        const isField = f.kind === 'field' || f.kind === 'variable' || f.kind === 'constant' || f.kind === 'property';
+        const w = isField ? _SV_FIELD_W : _SV_FUNC_W;
+        const h = isField ? _SV_FIELD_H : _SV_FUNC_H;
+        g.setNode(f.id, { width: w, height: h });
     }
 
-    // UP row (base classes)
-    U.list.forEach((entry, i) => {
-        const n = U.list.length;
-        const totalW = (n - 1) * _SV_NEIGHBOR_GAP_H;
-        addPill(entry, 'up', -totalW / 2 + i * _SV_NEIGHBOR_GAP_H, -halfH - _SV_MARGIN_TB);
-    });
-    // DOWN row (derived classes)
-    D.list.forEach((entry, i) => {
-        const n = D.list.length;
-        const totalW = (n - 1) * _SV_NEIGHBOR_GAP_H;
-        addPill(entry, 'down', -totalW / 2 + i * _SV_NEIGHBOR_GAP_H, halfH + _SV_MARGIN_TB);
-    });
-    // LEFT column (incoming)
-    L.list.forEach((entry, i) => {
-        const n = L.list.length;
-        const totalH = (n - 1) * _SV_NEIGHBOR_GAP_V;
-        const w = _svPillWidthFor(entry);
-        addPill(entry, 'left', -halfW - _SV_MARGIN_LR - w / 2, -totalH / 2 + i * _SV_NEIGHBOR_GAP_V);
-    });
-    // RIGHT column (outgoing)
-    R.list.forEach((entry, i) => {
-        const n = R.list.length;
-        const totalH = (n - 1) * _SV_NEIGHBOR_GAP_V;
-        const w = _svPillWidthFor(entry);
-        addPill(entry, 'right', halfW + _SV_MARGIN_LR + w / 2, -totalH / 2 + i * _SV_NEIGHBOR_GAP_V);
-    });
+    // Ghost nodes for external endpoints (one per foreign symbol referenced).
+    const ghostIds = [];
+    for (const gid of Object.keys(extSyms)) {
+        if (byId[gid]) continue;  // skip if it somehow sits inside file_syms
+        const gs = extSyms[gid];
+        byId[gid] = { ...gs, _ghost: true };
+        g.setNode(gid, { width: _SV_GHOST_W, height: _SV_GHOST_H });
+        ghostIds.push(gid);
+    }
 
-    // ── Secondary (expanded) neighbors ───────────────────────────────────────
-    // For each 1-hop pill marked as expanded, place its extra neighbors one
-    // step further out along the same axis. Dedup against existing ids so we
-    // don't draw the center or already-visible neighbors twice.
-    const existingIds = new Set([centerId, ...model.neighbors.map(n => n.id)]);
-    for (const [pillId, exp] of _svState.expansions.entries()) {
-        const parent = placed.get(pillId);
-        if (!parent || !exp || !Array.isArray(exp.neighbors)) continue;
-        const filtered = exp.neighbors.filter(e => !existingIds.has(e.id));
-        if (!filtered.length) continue;
-        const group = parent.group;
-        let bx = parent.x, by = parent.y;
-        filtered.forEach((entry, i) => {
-            const w = _svPillWidthFor(entry);
-            let x, y;
-            if (group === 'right') {
-                x = bx + parent.w / 2 + _SV_EXPAND_GAP + w / 2;
-                const n = filtered.length;
-                y = by + (-((n - 1) * _SV_NEIGHBOR_GAP_V) / 2) + i * _SV_NEIGHBOR_GAP_V;
-            } else if (group === 'left') {
-                x = bx - parent.w / 2 - _SV_EXPAND_GAP - w / 2;
-                const n = filtered.length;
-                y = by + (-((n - 1) * _SV_NEIGHBOR_GAP_V) / 2) + i * _SV_NEIGHBOR_GAP_V;
-            } else if (group === 'up') {
-                y = by - _SV_MARGIN_TB - _SV_PILL_H;
-                const n = filtered.length;
-                x = bx + (-((n - 1) * _SV_NEIGHBOR_GAP_H) / 2) + i * _SV_NEIGHBOR_GAP_H;
-            } else {  // down
-                y = by + _SV_MARGIN_TB + _SV_PILL_H;
-                const n = filtered.length;
-                x = bx + (-((n - 1) * _SV_NEIGHBOR_GAP_H) / 2) + i * _SV_NEIGHBOR_GAP_H;
-            }
-            const sec = pillOf(entry, group);
-            sec.x = x; sec.y = y;
-            sec.isSecondary = true;
-            sec.parentPillId = pillId;
-            sec.expanded = _svState.expansions.has(sec.id);
-            model.neighbors.push(sec);
-            existingIds.add(sec.id);
+    // Intra-file edges. Dagre needs both endpoints as nodes.
+    const modelEdges = [];
+    for (const e of edges) {
+        // If either endpoint is a method inside a collapsed class, redirect to
+        // the compound class so the edge still has a visible anchor.
+        const fromId = _svRedirectIfCollapsed(e.from, methods, classDims);
+        const toId   = _svRedirectIfCollapsed(e.to,   methods, classDims);
+        if (!g.hasNode(fromId) || !g.hasNode(toId)) continue;
+        if (fromId === toId) continue;
+        const id = `e|${fromId}|${toId}|${e.type}`;
+        g.setEdge(fromId, toId);
+        modelEdges.push({
+            id, from: fromId, to: toId, type: e.type,
+            origFrom: e.from, origTo: e.to, external: false,
         });
     }
 
-    // Build edge entries. Direction convention: "in" edges point from neighbor to center;
-    // "out" edges point from center to neighbor.
-    for (const nb of model.neighbors) {
-        if (nb.isSecondary) {
-            const expandedSide = nb.group;
-            const fromId = expandedSide === 'left' || expandedSide === 'down' ? nb.id : nb.parentPillId;
-            const toId   = expandedSide === 'left' || expandedSide === 'down' ? nb.parentPillId : nb.id;
-            model.edges.push({
-                id:         `e|${fromId}|${toId}|${nb.edgeType}|sec`,
-                from:       fromId,
-                to:         toId,
-                type:       nb.edgeType,
-                count:      nb.edgeCount,
-                edgeFile:   nb.edgeFile,
-                edgeLine:   nb.edgeLine,
-                edgeLines:  nb.edgeLines,
-                secondary:  true,
-            });
-            continue;
-        }
-        if (nb.direction === 'out') {
-            model.edges.push({
-                id:        `e|${model.center.id}|${nb.id}|${nb.edgeType}|out`,
-                from:      model.center.id,
-                to:        nb.id,
-                type:      nb.edgeType,
-                count:     nb.edgeCount,
-                edgeFile:  nb.edgeFile,
-                edgeLine:  nb.edgeLine,
-                edgeLines: nb.edgeLines,
-            });
-        } else {
-            model.edges.push({
-                id:        `e|${nb.id}|${model.center.id}|${nb.edgeType}|in`,
-                from:      nb.id,
-                to:        model.center.id,
-                type:      nb.edgeType,
-                count:     nb.edgeCount,
-                edgeFile:  nb.edgeFile,
-                edgeLine:  nb.edgeLine,
-                edgeLines: nb.edgeLines,
-            });
-        }
+    // External edges — cross-file.
+    for (const e of extEdges) {
+        const fromId = byId[e.from] ? _svRedirectIfCollapsed(e.from, methods, classDims) : e.from;
+        const toId   = byId[e.to]   ? _svRedirectIfCollapsed(e.to,   methods, classDims) : e.to;
+        if (!g.hasNode(fromId) || !g.hasNode(toId)) continue;
+        const id = `e|${fromId}|${toId}|${e.type}|ext`;
+        g.setEdge(fromId, toId);
+        modelEdges.push({
+            id, from: fromId, to: toId, type: e.type,
+            origFrom: e.from, origTo: e.to, external: true,
+        });
     }
 
-    return model;
+    dagre.layout(g);
+
+    // Collect node records with positions.
+    const nodes = [];
+
+    for (const cls of classes) {
+        const info = g.node(cls.id);
+        const d    = classDims[cls.id];
+        nodes.push({
+            id:          cls.id,
+            sym:         cls,
+            kind:        cls.kind,
+            isCompound:  true,
+            collapsed:   d.collapsed,
+            methods:     d.methods,
+            x:           info.x - d.w / 2,
+            y:           info.y - d.h / 2,
+            w:           d.w,
+            h:           d.h,
+            cx:          info.x,
+            cy:          info.y,
+        });
+    }
+    for (const m of methods) {
+        const parentDim = classDims[m._parentId];
+        if (!parentDim || parentDim.collapsed) continue;
+        const info = g.node(m.id);
+        nodes.push({
+            id:          m.id,
+            sym:         m,
+            kind:        m.kind,
+            isMethod:    true,
+            parentId:    m._parentId,
+            x:           info.x - _SV_METHOD_W / 2,
+            y:           info.y - _SV_METHOD_H / 2,
+            w:           _SV_METHOD_W,
+            h:           _SV_METHOD_H,
+            cx:          info.x,
+            cy:          info.y,
+        });
+    }
+    for (const f of topFuncs) {
+        const info = g.node(f.id);
+        const isField = f.kind === 'field' || f.kind === 'variable' || f.kind === 'constant' || f.kind === 'property';
+        const w = isField ? _SV_FIELD_W : _SV_FUNC_W;
+        const h = isField ? _SV_FIELD_H : _SV_FUNC_H;
+        nodes.push({
+            id:        f.id,
+            sym:       f,
+            kind:      f.kind,
+            isTopLevel: true,
+            isField,
+            x:         info.x - w / 2,
+            y:         info.y - h / 2,
+            w, h,
+            cx:        info.x,
+            cy:        info.y,
+        });
+    }
+    for (const gid of ghostIds) {
+        const info = g.node(gid);
+        nodes.push({
+            id:       gid,
+            sym:      byId[gid],
+            kind:     byId[gid].kind || 'class',
+            isGhost:  true,
+            x:        info.x - _SV_GHOST_W / 2,
+            y:        info.y - _SV_GHOST_H / 2,
+            w:        _SV_GHOST_W,
+            h:        _SV_GHOST_H,
+            cx:       info.x,
+            cy:       info.y,
+        });
+    }
+
+    // Adjacency map for 1-hop focus scope.
+    const adj = new Map();
+    for (const e of modelEdges) {
+        if (!adj.has(e.from)) adj.set(e.from, new Set());
+        if (!adj.has(e.to))   adj.set(e.to,   new Set());
+        adj.get(e.from).add(e.to);
+        adj.get(e.to).add(e.from);
+        // Methods also count as 1-hop from their class compound when focus is
+        // the class, so mirror that relation.
+        if (e.origFrom && e.origFrom !== e.from) {
+            if (!adj.has(e.origFrom)) adj.set(e.origFrom, new Set());
+            adj.get(e.origFrom).add(e.to);
+            adj.get(e.to).add(e.origFrom);
+        }
+        if (e.origTo && e.origTo !== e.to) {
+            if (!adj.has(e.origTo)) adj.set(e.origTo, new Set());
+            adj.get(e.origTo).add(e.from);
+            adj.get(e.from).add(e.origTo);
+        }
+    }
+    // Parent-child adjacency (class ↔ its methods).
+    for (const m of methods) {
+        if (!adj.has(m._parentId)) adj.set(m._parentId, new Set());
+        if (!adj.has(m.id))        adj.set(m.id, new Set());
+        adj.get(m._parentId).add(m.id);
+        adj.get(m.id).add(m._parentId);
+    }
+
+    const byNodeId = {};
+    for (const n of nodes) byNodeId[n.id] = n;
+
+    return {
+        fileRel,
+        nodes,
+        edges:  modelEdges,
+        byId,
+        byNodeId,
+        adj,
+        extSyms,
+    };
+}
+
+function _svRedirectIfCollapsed(symId, methods, classDims) {
+    const m = methods.find(x => x.id === symId);
+    if (!m) return symId;
+    const dim = classDims[m._parentId];
+    if (dim && dim.collapsed) return m._parentId;
+    return symId;
 }
 
 // ── Render + animate ──────────────────────────────────────────────────────
-function _svRenderModel(newModel, opts) {
+function _svRenderFileGraph(newModel) {
     const svg      = _svState.svg;
     const viewport = _svState.viewport;
     if (!svg || !viewport) return;
 
-    // Make sure the viewport is visible. Only reset pan/zoom on fresh activation.
     svg.style.display = '';
-    if (!opts || !opts.preserveView) {
-        _svResetZoom(false);
-        _svCenterView(newModel);
-    }
+    _svFitViewport(newModel);
 
     const cardsG  = viewport.querySelector('.sv-cards');
     const edgesG  = viewport.querySelector('.sv-edges');
@@ -427,95 +354,71 @@ function _svRenderModel(newModel, opts) {
     if (!cardsG || !edgesG) return;
 
     const prev = _svState.currentGraph;
-    const allNew = [newModel.center, ...newModel.neighbors];
     const oldById = new Map();
     if (prev) {
-        for (const n of prev.allNodes) oldById.set(n.id, n);
+        for (const n of prev.nodes) oldById.set(n.id, n);
     }
 
-    // ── Diff: update existing / create new ────────────────────────────────
-    const live = new Map();   // id -> { x0, y0, x1, y1, fadeIn, el, data }
-    for (const n of allNew) {
+    // Diff nodes: create / update / fade-out.
+    const live = new Map();
+    for (const n of newModel.nodes) {
         const was = oldById.get(n.id);
         if (was && was.el) {
-            // Node persists. Decide whether to rebuild its contents (e.g. center
-            // vs pill transition, member list changed, collapse state flipped,
-            // single→two column layout, or expansion chip flipped + → −).
-            const needRebuild = (was.isCard !== !!n.isCard)
-                || (n.isCard && n.children && was.children && n.children.length !== was.children.length)
-                || (was.name !== n.name)
-                || (n.isCard && (was.pubCollapsed  !== n.pubCollapsed ||
-                                 was.privCollapsed !== n.privCollapsed ||
-                                 was.useTwoCol     !== n.useTwoCol))
-                || (n.isPill && was.expanded !== n.expanded);
+            const needRebuild = (was.isCompound !== !!n.isCompound)
+                || (n.isCompound && was.collapsed !== n.collapsed)
+                || (was.sym && n.sym && was.sym.name !== n.sym.name);
             let el = was.el;
             if (needRebuild) {
                 const fresh = _svCreateNodeEl(n);
                 el.replaceWith(fresh);
                 el = fresh;
             } else {
-                // Keep element, just update highlight / kind class.
                 el.setAttribute('class', _svNodeClass(n));
             }
             live.set(n.id, {
-                x0: was.x, y0: was.y,
-                x1: n.x,   y1: n.y,
-                fadeIn: false, el, data: n,
+                x0: was.x, y0: was.y, x1: n.x, y1: n.y,
+                w: n.w, h: n.h, fadeIn: false, el, data: n,
             });
         } else {
             const el = _svCreateNodeEl(n);
             cardsG.appendChild(el);
             el.style.opacity = '0';
-            // Start from a sensible "spawn" position: near the previous center if
-            // the previous graph exists (so neighbors fly out from center).
-            const spawnX = prev ? prev.center.x : n.x;
-            const spawnY = prev ? prev.center.y : n.y;
             live.set(n.id, {
-                x0: spawnX, y0: spawnY,
-                x1: n.x,    y1: n.y,
-                fadeIn: true, el, data: n,
+                x0: n.x, y0: n.y, x1: n.x, y1: n.y,
+                w: n.w, h: n.h, fadeIn: true, el, data: n,
             });
         }
     }
 
-    // Exits: existing nodes not in new model.
     const exits = [];
     if (prev) {
-        const newIds = new Set(allNew.map(n => n.id));
-        for (const o of prev.allNodes) {
+        const newIds = new Set(newModel.nodes.map(n => n.id));
+        for (const o of prev.nodes) {
             if (!newIds.has(o.id) && o.el) {
                 exits.push({ el: o.el, startOpacity: parseFloat(o.el.style.opacity) || 1 });
             }
         }
     }
 
-    // Reset edge groups (we redraw every animation frame).
     edgesG.innerHTML  = '';
     labelsG.innerHTML = '';
 
-    const DUR = 280;
+    const DUR = _SV_DUR_MS;
     const t0  = performance.now();
-
     function frame(now) {
         const t = Math.min(1, (now - t0) / DUR);
         const e = _svEase(t);
-
-        // Update live node positions / opacity.
-        for (const [_id, L] of live) {
+        for (const [, L] of live) {
             const x = L.x0 + (L.x1 - L.x0) * e;
             const y = L.y0 + (L.y1 - L.y0) * e;
             L.currentX = x;
             L.currentY = y;
-            L.el.setAttribute('transform', `translate(${x - L.data.w / 2},${y - L.data.h / 2})`);
+            L.el.setAttribute('transform', `translate(${x},${y})`);
             if (L.fadeIn) L.el.style.opacity = String(e);
         }
-
-        // Fade exits.
         for (const X of exits) {
             X.el.style.opacity = String(X.startOpacity * (1 - e));
         }
-
-        // Rebuild edges from live positions so they track animations.
         edgesG.innerHTML  = '';
         labelsG.innerHTML = '';
         for (const ed of newModel.edges) {
@@ -524,53 +427,219 @@ function _svRenderModel(newModel, opts) {
             if (!from || !to) continue;
             _svAppendEdge(edgesG, labelsG, ed, from, to);
         }
-
         if (t < 1) {
             requestAnimationFrame(frame);
         } else {
-            // Cleanup: remove exit elements.
             for (const X of exits) X.el.remove();
-            // Snap to final positions + full opacity.
-            for (const [_id, L] of live) {
-                L.el.setAttribute('transform', `translate(${L.x1 - L.data.w / 2},${L.y1 - L.data.h / 2})`);
+            for (const [, L] of live) {
+                L.el.setAttribute('transform', `translate(${L.x1},${L.y1})`);
                 L.el.style.opacity = '1';
-                L.data.x  = L.x1;
-                L.data.y  = L.y1;
                 L.data.el = L.el;
             }
-            _svState.currentGraph = {
-                center:   newModel.center,
-                allNodes: allNew.map(n => ({ ...n, el: live.get(n.id).el })),
-                edges:    newModel.edges,
-            };
+            _svState.currentGraph = newModel;
+            // Re-attach live refs so subsequent focus changes know where each
+            // node currently sits.
+            for (const n of newModel.nodes) {
+                const L = live.get(n.id);
+                if (L) n.el = L.el;
+            }
             _svBindNodeClicks();
+            _svApplyFocus({ noHistory: true });
         }
     }
     requestAnimationFrame(frame);
-    // Also bind clicks immediately so user can interact while animation runs.
-    _svBindNodeClicks(live);
+    _svBindNodeClicks();
 }
 
-function _svCenterView(model) {
-    // Fit the model into the current svg viewport. We just pan so that (0,0)
-    // sits at the svg center. (Zoom stays at k=1 for v1.)
+function _svFitViewport(model) {
     const svg = _svState.svg;
-    if (!svg) return;
+    if (!svg || !model || !model.nodes.length) return;
     const rect = svg.getBoundingClientRect();
-    _svState.zoom.k = 1;
-    _svState.zoom.x = rect.width / 2;
-    _svState.zoom.y = rect.height / 2;
+
+    let minX =  Infinity, minY =  Infinity;
+    let maxX = -Infinity, maxY = -Infinity;
+    for (const n of model.nodes) {
+        if (n.x < minX) minX = n.x;
+        if (n.y < minY) minY = n.y;
+        if (n.x + n.w > maxX) maxX = n.x + n.w;
+        if (n.y + n.h > maxY) maxY = n.y + n.h;
+    }
+    const w = maxX - minX;
+    const h = maxY - minY;
+    const margin = 40;
+    const k = Math.min(
+        1,
+        (rect.width  - margin * 2) / w,
+        (rect.height - margin * 2) / h,
+    );
+    _svState.zoom.k = Math.max(0.15, k);
+    _svState.zoom.x = rect.width  / 2 - (minX + w / 2) * _svState.zoom.k;
+    _svState.zoom.y = rect.height / 2 - (minY + h / 2) * _svState.zoom.k;
     _svApplyZoom();
+}
+
+// ── Focus system ──────────────────────────────────────────────────────────
+function _svApplyFocus(_opts) {
+    const model = _svState.currentGraph;
+    const viewport = _svState.viewport;
+    if (!model || !viewport) return;
+    const focusId = _svState.focusId;
+
+    // 1-hop scope
+    const inScope = new Set();
+    if (focusId) {
+        inScope.add(focusId);
+        const near = model.adj.get(focusId);
+        if (near) for (const id of near) inScope.add(id);
+    }
+
+    // Apply node classes
+    for (const n of model.nodes) {
+        if (!n.el) continue;
+        n.el.classList.remove('sv-focus', 'sv-in-focus-scope', 'sv-faded');
+        if (!focusId) continue;
+        if (n.id === focusId) n.el.classList.add('sv-focus');
+        else if (inScope.has(n.id)) n.el.classList.add('sv-in-focus-scope');
+        else n.el.classList.add('sv-faded');
+    }
+    // Apply edge classes
+    const edgesG = viewport.querySelector('.sv-edges');
+    if (edgesG) {
+        edgesG.querySelectorAll('path.sv-edge').forEach(p => {
+            p.classList.remove('sv-edge-in-scope', 'sv-edge-faded');
+            if (!focusId) return;
+            const eid = p.dataset.edgeid;
+            const ed = model.edges.find(e => e.id === eid);
+            if (!ed) return;
+            const touchesFocus = (ed.from === focusId) || (ed.to === focusId)
+                || (ed.origFrom === focusId) || (ed.origTo === focusId);
+            if (touchesFocus) p.classList.add('sv-edge-in-scope');
+            else if (inScope.has(ed.from) && inScope.has(ed.to)) p.classList.add('sv-edge-in-scope');
+            else p.classList.add('sv-edge-faded');
+        });
+    }
+
+    // Rich detail card on the focused node
+    _svUpdateFocusDetailCard();
+    _svSyncNavBtns();
+}
+
+function _svUpdateFocusDetailCard() {
+    const model = _svState.currentGraph;
+    if (!model) return;
+    // Remove any existing detail card
+    const viewport = _svState.viewport;
+    const old = viewport.querySelector('.sv-focus-detail');
+    if (old) old.remove();
+
+    const focusId = _svState.focusId;
+    if (!focusId) return;
+    const node = model.byNodeId[focusId];
+    if (!node || !node.el) return;
+    const sym = node.sym || {};
+
+    // Compute metrics from current model
+    let callers = 0, callees = 0;
+    for (const e of model.edges) {
+        const hitsFocus = (e.from === focusId || e.origFrom === focusId || e.to === focusId || e.origTo === focusId);
+        if (!hitsFocus) continue;
+        if (e.from === focusId || e.origFrom === focusId) callees++;
+        else callers++;
+    }
+    const lineCount = Math.max(1, (sym.end_line || sym.line || 1) - (sym.line || 1) + 1);
+
+    // Build detail card DOM (HTML-via-foreignObject so text wrapping works)
+    const NS = 'http://www.w3.org/2000/svg';
+    const fo = document.createElementNS(NS, 'foreignObject');
+    fo.setAttribute('class', 'sv-focus-detail');
+    const cardW = Math.max(260, Math.min(440, node.w + 40));
+    fo.setAttribute('x', String(node.x + node.w + 24));
+    fo.setAttribute('y', String(node.y - 10));
+    fo.setAttribute('width',  String(cardW));
+    fo.setAttribute('height', '420');
+
+    const collapsed = _svState.detailSectionCollapsed;
+    const sigHidden = collapsed.has('signature');
+    const docHidden = collapsed.has('docstring');
+    const metHidden = collapsed.has('metrics');
+
+    const xhtml = `
+      <div xmlns="http://www.w3.org/1999/xhtml" class="sv-fd-card">
+        <div class="sv-fd-header">
+          <span class="sv-kind-dot" style="background:${_svKindColor(sym.kind)}"></span>
+          <span class="sv-fd-name">${_svEsc(sym.name || '')}</span>
+          <span class="sv-fd-kind">${_svEsc(sym.kind || '')}</span>
+        </div>
+        <div class="sv-fd-sub">
+          ${_svEsc(sym.file || '')}${sym.line ? ':' + sym.line : ''}
+          ${sym.module ? ' · ' + _svEsc(sym.module) : ''}
+        </div>
+        ${sym.signature ? `
+          <div class="sv-fd-section ${sigHidden ? 'sv-fd-collapsed' : ''}" data-section="signature">
+            <div class="sv-fd-section-hd" data-section="signature">
+              <span class="sv-fd-chev">${sigHidden ? '▸' : '▾'}</span>
+              <span class="sv-fd-section-title">signature</span>
+            </div>
+            <div class="sv-fd-section-body"><code>${_svEsc(sym.signature)}</code></div>
+          </div>` : ''}
+        ${sym.docstring ? `
+          <div class="sv-fd-section ${docHidden ? 'sv-fd-collapsed' : ''}" data-section="docstring">
+            <div class="sv-fd-section-hd" data-section="docstring">
+              <span class="sv-fd-chev">${docHidden ? '▸' : '▾'}</span>
+              <span class="sv-fd-section-title">docstring</span>
+            </div>
+            <div class="sv-fd-section-body">${_svDocExcerpt(sym.docstring)}</div>
+          </div>` : ''}
+        <div class="sv-fd-section ${metHidden ? 'sv-fd-collapsed' : ''}" data-section="metrics">
+          <div class="sv-fd-section-hd" data-section="metrics">
+            <span class="sv-fd-chev">${metHidden ? '▸' : '▾'}</span>
+            <span class="sv-fd-section-title">metrics</span>
+          </div>
+          <div class="sv-fd-section-body">
+            <span class="sv-fd-metric">${lineCount} lines</span>
+            <span class="sv-fd-metric">↓ ${callers} callers</span>
+            <span class="sv-fd-metric">↑ ${callees} callees</span>
+          </div>
+        </div>
+      </div>`;
+    fo.innerHTML = xhtml;
+    const cardsG = viewport.querySelector('.sv-cards');
+    cardsG.appendChild(fo);
+
+    // Chevron click toggles — delegate to foreignObject child
+    fo.querySelectorAll('.sv-fd-section-hd').forEach(hd => {
+        hd.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            const key = hd.dataset.section;
+            if (!key) return;
+            if (_svState.detailSectionCollapsed.has(key)) {
+                _svState.detailSectionCollapsed.delete(key);
+            } else {
+                _svState.detailSectionCollapsed.add(key);
+            }
+            _svUpdateFocusDetailCard();
+        });
+    });
+}
+
+function _svDocExcerpt(doc) {
+    const lines = String(doc || '').trim().split(/\r?\n/).filter(Boolean).slice(0, 2);
+    return lines.map(l => `<div>${_svEsc(l)}</div>`).join('');
 }
 
 // ── Node creation (SVG) ───────────────────────────────────────────────────
 function _svNodeClass(n) {
     const kind = n.kind || 'default';
     const classes = ['sv-node', `sv-kind-${kind}`];
-    if (n.isCard) classes.push('sv-card');
-    if (n.isPill) classes.push('sv-pill');
-    if (n.group)  classes.push(`sv-group-${n.group}`);
-    if (n.isSecondary) classes.push('sv-secondary');
+    if (n.isCompound) classes.push('sv-compound');
+    if (n.isMethod)   classes.push('sv-method');
+    if (n.isTopLevel) classes.push('sv-top');
+    if (n.isField)    classes.push('sv-field');
+    if (n.isGhost)    classes.push('sv-ghost');
+    if (n.sym && n.sym.is_static) classes.push('sv-static');
+    if (n.sym && Array.isArray(n.sym.decorators) && n.sym.decorators.includes('override')) {
+        classes.push('sv-override');
+    }
     return classes.join(' ');
 }
 
@@ -579,372 +648,162 @@ function _svCreateNodeEl(n) {
     const g  = document.createElementNS(NS, 'g');
     g.setAttribute('class', _svNodeClass(n));
     g.dataset.symid = n.id;
-    g.setAttribute('transform', `translate(${n.x - n.w / 2},${n.y - n.h / 2})`);
+    g.setAttribute('transform', `translate(${n.x},${n.y})`);
 
-    // Background rectangle
     const rect = document.createElementNS(NS, 'rect');
     rect.setAttribute('class', 'sv-node-bg');
-    rect.setAttribute('x', '0');
-    rect.setAttribute('y', '0');
+    rect.setAttribute('x', '0'); rect.setAttribute('y', '0');
     rect.setAttribute('width',  String(n.w));
     rect.setAttribute('height', String(n.h));
-    rect.setAttribute('rx', n.isPill ? '20' : '10');
+    rect.setAttribute('rx', n.isField ? '14' : n.isCompound ? '10' : '8');
     g.appendChild(rect);
 
-    // Header / title — colored left indicator bar
+    // Colored accent bar on the left
     const bar = document.createElementNS(NS, 'rect');
     bar.setAttribute('class', 'sv-node-accent');
-    bar.setAttribute('x', '0');
-    bar.setAttribute('y', '0');
-    bar.setAttribute('width', '4');
-    bar.setAttribute('height', String(n.h));
+    bar.setAttribute('x', '0'); bar.setAttribute('y', '0');
+    bar.setAttribute('width', '4'); bar.setAttribute('height', String(n.h));
     bar.setAttribute('fill', _svKindColor(n.kind));
     g.appendChild(bar);
 
-    // Kind dot
-    const dot = document.createElementNS(NS, 'circle');
-    dot.setAttribute('class', 'sv-node-dot');
-    dot.setAttribute('cx', '18');
-    dot.setAttribute('cy', n.isCard ? '22' : String(n.h / 2));
-    dot.setAttribute('r', '5');
-    dot.setAttribute('fill', _svKindColor(n.kind));
-    g.appendChild(dot);
+    const sym = n.sym || {};
 
-    // Name
-    const name = document.createElementNS(NS, 'text');
-    name.setAttribute('class', 'sv-node-name');
-    name.setAttribute('x', '32');
-    name.setAttribute('y', n.isCard ? '26' : String(n.h / 2 + 4));
-    name.setAttribute('fill', 'var(--text, #e2e8f0)');
-    name.textContent = _svClipText(n.name, n.w - 52);
-    g.appendChild(name);
+    if (n.isGhost) {
+        const nameEl = document.createElementNS(NS, 'text');
+        nameEl.setAttribute('class', 'sv-node-name');
+        nameEl.setAttribute('x', '12'); nameEl.setAttribute('y', '20');
+        nameEl.textContent = _svClipText(sym.name, n.w - 20);
+        g.appendChild(nameEl);
 
-    // Kind badge (top-right)
-    if (n.isCard) {
-        const kind = document.createElementNS(NS, 'text');
-        kind.setAttribute('class', 'sv-node-kind');
-        kind.setAttribute('x', String(n.w - 10));
-        kind.setAttribute('y', '20');
-        kind.setAttribute('text-anchor', 'end');
-        kind.textContent = (n.kind || '').toUpperCase();
-        g.appendChild(kind);
-    } else {
-        const badge = document.createElementNS(NS, 'text');
-        badge.setAttribute('class', 'sv-pill-kind');
-        badge.setAttribute('x', String(n.w - 10));
-        badge.setAttribute('y', String(n.h / 2 + 4));
-        badge.setAttribute('text-anchor', 'end');
-        badge.textContent = (n.kind || '').slice(0, 4).toUpperCase();
-        g.appendChild(badge);
-    }
+        const sub = document.createElementNS(NS, 'text');
+        sub.setAttribute('class', 'sv-ghost-path');
+        sub.setAttribute('x', '12'); sub.setAttribute('y', '38');
+        sub.textContent = _svClipText((sym.file || '') + (sym.line ? ':' + sym.line : ''), n.w - 20);
+        g.appendChild(sub);
 
-    // Section chips (PUBLIC / PRIVATE toggles) + member rows.
-    if (n.isCard) {
-        const pub  = n.pubMembers  || [];
-        const priv = n.privMembers || [];
-        if (pub.length || priv.length) {
-            _svBuildSectionChips(g, n, pub, priv);
-            _svBuildMemberRows(g, n, pub, priv);
+        const tag = document.createElementNS(NS, 'text');
+        tag.setAttribute('class', 'sv-ghost-tag');
+        tag.setAttribute('x', String(n.w - 8)); tag.setAttribute('y', '16');
+        tag.setAttribute('text-anchor', 'end');
+        tag.textContent = 'EXTERNAL';
+        g.appendChild(tag);
+    } else if (n.isCompound) {
+        // Class header
+        const nameEl = document.createElementNS(NS, 'text');
+        nameEl.setAttribute('class', 'sv-node-name');
+        nameEl.setAttribute('x', '14'); nameEl.setAttribute('y', '22');
+        nameEl.textContent = _svClipText(sym.name, n.w - 80);
+        g.appendChild(nameEl);
+
+        const kindEl = document.createElementNS(NS, 'text');
+        kindEl.setAttribute('class', 'sv-node-kind');
+        kindEl.setAttribute('x', String(n.w - 10)); kindEl.setAttribute('y', '20');
+        kindEl.setAttribute('text-anchor', 'end');
+        kindEl.textContent = (sym.kind || '').toUpperCase();
+        g.appendChild(kindEl);
+
+        // Collapse/expand chip for the compound class methods
+        if (n.methods && n.methods.length) {
+            const chip = document.createElementNS(NS, 'g');
+            chip.setAttribute('class', 'sv-compound-toggle');
+            chip.setAttribute('transform', `translate(${n.w - 24}, 34)`);
+            chip.dataset.classid = n.id;
+            const chipBg = document.createElementNS(NS, 'rect');
+            chipBg.setAttribute('x', '-18'); chipBg.setAttribute('y', '-9');
+            chipBg.setAttribute('width', '32'); chipBg.setAttribute('height', '18');
+            chipBg.setAttribute('rx', '9');
+            chip.appendChild(chipBg);
+            const chipTx = document.createElementNS(NS, 'text');
+            chipTx.setAttribute('x', '-2'); chipTx.setAttribute('y', '4');
+            chipTx.setAttribute('text-anchor', 'middle');
+            chipTx.textContent = n.collapsed
+                ? `+${n.methods.length}`
+                : `−${n.methods.length}`;
+            chip.appendChild(chipTx);
+            chip.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                _svToggleCompound(n.id);
+            });
+            g.appendChild(chip);
+
+            if (n.collapsed) {
+                const hint = document.createElementNS(NS, 'text');
+                hint.setAttribute('class', 'sv-compound-hint');
+                hint.setAttribute('x', '14');
+                hint.setAttribute('y', String(n.h - 14));
+                hint.textContent = `${n.methods.length} members hidden`;
+                g.appendChild(hint);
+            }
         }
+    } else if (n.isMethod) {
+        const dot = document.createElementNS(NS, 'circle');
+        dot.setAttribute('class', 'sv-node-dot');
+        dot.setAttribute('cx', '14'); dot.setAttribute('cy', String(n.h / 2));
+        dot.setAttribute('r', '4');
+        dot.setAttribute('fill', _svKindColor(n.kind));
+        g.appendChild(dot);
+
+        const name = document.createElementNS(NS, 'text');
+        name.setAttribute('class', 'sv-node-name sv-mono');
+        name.setAttribute('x', '24'); name.setAttribute('y', String(n.h / 2 + 4));
+        name.textContent = _svClipText(sym.name, n.w - 80);
+        g.appendChild(name);
+
+        const access = sym.is_public === false ? 'PRIV' : 'PUB';
+        const accessEl = document.createElementNS(NS, 'text');
+        accessEl.setAttribute('class', `sv-access sv-access-${access.toLowerCase()}`);
+        accessEl.setAttribute('x', String(n.w - 10));
+        accessEl.setAttribute('y', String(n.h / 2 + 4));
+        accessEl.setAttribute('text-anchor', 'end');
+        accessEl.textContent = access;
+        g.appendChild(accessEl);
+    } else {
+        // Top-level function or field
+        const dot = document.createElementNS(NS, 'circle');
+        dot.setAttribute('class', 'sv-node-dot');
+        dot.setAttribute('cx', '14'); dot.setAttribute('cy', String(n.h / 2));
+        dot.setAttribute('r', '5');
+        dot.setAttribute('fill', _svKindColor(n.kind));
+        g.appendChild(dot);
+
+        const name = document.createElementNS(NS, 'text');
+        name.setAttribute('class', 'sv-node-name sv-mono');
+        name.setAttribute('x', '26'); name.setAttribute('y', String(n.h / 2 + 4));
+        name.textContent = _svClipText(sym.name, n.w - 60);
+        g.appendChild(name);
+
+        const kindEl = document.createElementNS(NS, 'text');
+        kindEl.setAttribute('class', 'sv-pill-kind');
+        kindEl.setAttribute('x', String(n.w - 8)); kindEl.setAttribute('y', String(n.h / 2 + 4));
+        kindEl.setAttribute('text-anchor', 'end');
+        kindEl.textContent = (sym.kind || '').slice(0, 4).toUpperCase();
+        g.appendChild(kindEl);
     }
 
-    // Expand chip (+ / −) on primary neighbor pills — click to fetch and merge
-    // one more hop outward along the same direction as this pill's group.
-    // Secondary pills intentionally have no chip — clicking them promotes them
-    // to the new center instead, which is cleaner than cascading expansions.
-    if (n.isPill && n.group && !n.isSecondary) {
-        _svBuildExpandChip(g, n);
-    }
-
-    // Parse-error badge (X in a red circle) on nodes whose source couldn't
-    // be parsed cleanly. Positioned in the bottom-right corner of the node.
-    if (n.hasError) {
-        const NS2 = 'http://www.w3.org/2000/svg';
-        const badge = document.createElementNS(NS2, 'g');
+    if (sym.has_error || sym.parse_error) {
+        const badge = document.createElementNS(NS, 'g');
         badge.setAttribute('class', 'sv-error-badge');
-        badge.setAttribute('transform', `translate(${n.w - 12},${n.h - 12})`);
-        const disc = document.createElementNS(NS2, 'circle');
-        disc.setAttribute('r', '9');
+        badge.setAttribute('transform', `translate(${n.w - 10},${n.h - 10})`);
+        const disc = document.createElementNS(NS, 'circle');
+        disc.setAttribute('r', '8');
         disc.setAttribute('fill', '#ef4444');
         disc.setAttribute('stroke', '#1b1c19');
-        disc.setAttribute('stroke-width', '1.5');
+        disc.setAttribute('stroke-width', '1.4');
         badge.appendChild(disc);
-        const xm = document.createElementNS(NS2, 'text');
+        const xm = document.createElementNS(NS, 'text');
         xm.setAttribute('class', 'sv-error-x');
         xm.setAttribute('text-anchor', 'middle');
         xm.setAttribute('y', '4');
         xm.setAttribute('fill', '#fff');
         xm.textContent = '✕';
         badge.appendChild(xm);
-        const tipText = n.parseError ? `Parse issue: ${n.parseError}` : 'Parse issue — symbols may be incomplete';
-        const title = document.createElementNS(NS2, 'title');
-        title.textContent = tipText;
+        const title = document.createElementNS(NS, 'title');
+        title.textContent = sym.parse_error || 'Parse issue — symbols may be incomplete';
         badge.appendChild(title);
         g.appendChild(badge);
     }
 
     return g;
-}
-
-// Build the PUBLIC/PRIVATE toggle chips in the card header row.
-function _svBuildSectionChips(g, n, pub, priv) {
-    const NS = 'http://www.w3.org/2000/svg';
-    const chipY = 38;
-    let chipX = 10;
-    const chipCfg = [
-        { key: 'public',  label: 'PUBLIC',  count: pub.length,  collapsed: n.pubCollapsed,  color: '#34d399' },
-        { key: 'private', label: 'PRIVATE', count: priv.length, collapsed: n.privCollapsed, color: '#f87171' },
-    ];
-    for (const c of chipCfg) {
-        if (!c.count) continue;
-        const chip = document.createElementNS(NS, 'g');
-        chip.setAttribute('class', 'sv-section-chip' + (c.collapsed ? ' sv-chip-collapsed' : ''));
-        chip.dataset.section = c.key;
-        chip.dataset.cardid  = n.id;
-        chip.setAttribute('transform', `translate(${chipX},${chipY})`);
-
-        const labelText = `${c.label} ${c.count}${c.collapsed ? ' ▸' : ' ▾'}`;
-        const w = labelText.length * 6.2 + 14;
-        const bg = document.createElementNS(NS, 'rect');
-        bg.setAttribute('x', '0'); bg.setAttribute('y', '-10');
-        bg.setAttribute('width', String(w)); bg.setAttribute('height', '18');
-        bg.setAttribute('rx', '9');
-        bg.setAttribute('class', 'sv-chip-bg');
-        bg.setAttribute('stroke', c.color);
-        chip.appendChild(bg);
-
-        const tx = document.createElementNS(NS, 'text');
-        tx.setAttribute('x', String(w / 2));
-        tx.setAttribute('y', '3');
-        tx.setAttribute('text-anchor', 'middle');
-        tx.setAttribute('class', 'sv-chip-text');
-        tx.setAttribute('fill', c.color);
-        tx.textContent = labelText;
-        chip.appendChild(tx);
-
-        chip.addEventListener('click', (ev) => {
-            ev.stopPropagation();
-            _svToggleSection(n.id, c.key);
-        });
-        g.appendChild(chip);
-        chipX += w + 6;
-    }
-}
-
-// Arrange member rows, either single-column stacked or two-column (public left, private right).
-function _svBuildMemberRows(g, n, pub, priv) {
-    const NS = 'http://www.w3.org/2000/svg';
-    const pubVisible  = n.pubCollapsed  ? [] : pub;
-    const privVisible = n.privCollapsed ? [] : priv;
-
-    if (n.useTwoCol) {
-        const colW = (n.w - _SV_COLUMN_GAP - _SV_CARD_PAD_X * 2) / 2;
-        _svRenderMemberColumn(g, n, pubVisible,  _SV_CARD_PAD_X,                                 colW, 'public');
-        _svRenderMemberColumn(g, n, privVisible, _SV_CARD_PAD_X + colW + _SV_COLUMN_GAP,         colW, 'private');
-        return;
-    }
-    // Single-column: public first, then private.
-    let y = _SV_CARD_PAD_TOP;
-    y = _svRenderMemberRowRange(g, n, pubVisible,  8, n.w - 16, y);
-    y = _svRenderMemberRowRange(g, n, privVisible, 8, n.w - 16, y);
-}
-
-function _svRenderMemberColumn(g, n, list, x, colW, section) {
-    let y = _SV_CARD_PAD_TOP;
-    for (const m of list) {
-        g.appendChild(_svRenderMember(n, m, x, y, colW, section));
-        y += _SV_MEMBER_H + _SV_MEMBER_GAP;
-    }
-}
-
-function _svRenderMemberRowRange(g, n, list, x, rowW, startY) {
-    let y = startY;
-    for (const m of list) {
-        g.appendChild(_svRenderMember(n, m, x, y, rowW, m.is_public === false ? 'private' : 'public'));
-        y += _SV_MEMBER_H + _SV_MEMBER_GAP;
-    }
-    return y;
-}
-
-function _svRenderMember(n, m, x, y, rowW, section) {
-    const NS = 'http://www.w3.org/2000/svg';
-    const mg = document.createElementNS(NS, 'g');
-    mg.setAttribute('class', 'sv-member sv-member-' + section);
-    mg.dataset.symid = m.id;
-    mg.setAttribute('transform', `translate(${x},${y})`);
-
-    const mBg = document.createElementNS(NS, 'rect');
-    mBg.setAttribute('class', 'sv-member-bg');
-    mBg.setAttribute('x', '0'); mBg.setAttribute('y', '0');
-    mBg.setAttribute('width',  String(rowW));
-    mBg.setAttribute('height', String(_SV_MEMBER_H));
-    mBg.setAttribute('rx', '6');
-    mg.appendChild(mBg);
-
-    const mDot = document.createElementNS(NS, 'circle');
-    mDot.setAttribute('class', 'sv-member-dot');
-    mDot.setAttribute('cx', '12');
-    mDot.setAttribute('cy', String(_SV_MEMBER_H / 2));
-    mDot.setAttribute('r', '4');
-    mDot.setAttribute('fill', _svKindColor(m.kind));
-    mg.appendChild(mDot);
-
-    const mName = document.createElementNS(NS, 'text');
-    mName.setAttribute('class', 'sv-member-name');
-    mName.setAttribute('x', '22');
-    mName.setAttribute('y', String(_SV_MEMBER_H / 2 + 4));
-    mName.textContent = _svClipText(m.name, rowW - 60);
-    mg.appendChild(mName);
-
-    const access = m.is_public === false ? 'PRIV' : 'PUB';
-    const accessEl = document.createElementNS(NS, 'text');
-    accessEl.setAttribute('class', `sv-member-access sv-access-${access.toLowerCase()}`);
-    accessEl.setAttribute('x', String(rowW - 8));
-    accessEl.setAttribute('y', String(_SV_MEMBER_H / 2 + 4));
-    accessEl.setAttribute('text-anchor', 'end');
-    accessEl.textContent = access;
-    mg.appendChild(accessEl);
-
-    if (n.activeMemberId && m.id === n.activeMemberId) {
-        mg.classList.add('sv-member-active');
-    }
-    if (m.has_error) {
-        mg.classList.add('sv-member-error');
-        const NS2 = 'http://www.w3.org/2000/svg';
-        const mark = document.createElementNS(NS2, 'text');
-        mark.setAttribute('class', 'sv-member-error-mark');
-        mark.setAttribute('x', String(rowW - 34));
-        mark.setAttribute('y', String(_SV_MEMBER_H / 2 + 4));
-        mark.setAttribute('text-anchor', 'end');
-        mark.textContent = '✕';
-        const t = document.createElementNS(NS2, 'title');
-        t.textContent = 'Parse issue in this symbol';
-        mark.appendChild(t);
-        mg.appendChild(mark);
-    }
-    return mg;
-}
-
-function _svToggleSection(cardId, section) {
-    const key = `${cardId}|${section}`;
-    if (_svState.collapsedSections.has(key)) {
-        _svState.collapsedSections.delete(key);
-    } else {
-        _svState.collapsedSections.add(key);
-    }
-    // Re-run the model build + animated render; preserve the current pan/zoom.
-    if (_svState.active && _svState.active !== '__overview__') {
-        _svFetchAndRender(_svState.active, { preserveView: true });
-    }
-}
-
-// ── Local expansion: +N hop ─────────────────────────────────────────────
-// Places a small chip on the outer edge of a neighbor pill; clicking it
-// fetches that pill's /symbol-graph and keeps the neighbors on the same
-// side (e.g. a right-side pill contributes its outgoing edges further right).
-function _svBuildExpandChip(g, n) {
-    const NS = 'http://www.w3.org/2000/svg';
-    const chip = document.createElementNS(NS, 'g');
-    chip.setAttribute('class', 'sv-expand-chip');
-    chip.dataset.pillid = n.id;
-    chip.dataset.group  = n.group;
-
-    // Position the chip on the outer edge of the pill.
-    let cx, cy;
-    if (n.group === 'right')      { cx = n.w;      cy = n.h / 2; }
-    else if (n.group === 'left')  { cx = 0;        cy = n.h / 2; }
-    else if (n.group === 'up')    { cx = n.w / 2;  cy = 0;       }
-    else                          { cx = n.w / 2;  cy = n.h;     }  // down
-    chip.setAttribute('transform', `translate(${cx},${cy})`);
-
-    const disc = document.createElementNS(NS, 'circle');
-    disc.setAttribute('r', '8');
-    disc.setAttribute('fill', 'var(--panel, #161715)');
-    disc.setAttribute('stroke', 'var(--accent, #dfa745)');
-    disc.setAttribute('stroke-width', '1.4');
-    chip.appendChild(disc);
-
-    const tx = document.createElementNS(NS, 'text');
-    tx.setAttribute('class', 'sv-expand-chip-text');
-    tx.setAttribute('text-anchor', 'middle');
-    tx.setAttribute('y', '4');
-    tx.textContent = n.expanded ? '−' : '+';
-    chip.appendChild(tx);
-
-    const title = document.createElementNS(NS, 'title');
-    title.textContent = n.expanded ? 'Collapse this branch' : 'Expand one more hop';
-    chip.appendChild(title);
-
-    chip.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        _svToggleExpansion(n);
-    });
-    g.appendChild(chip);
-}
-
-async function _svToggleExpansion(pill) {
-    if (_svState.expansions.has(pill.id)) {
-        _svState.expansions.delete(pill.id);
-        // Also drop any cascades anchored on this pill — a collapse should not
-        // leave orphan grandchildren visible.
-        for (const [pid, exp] of Array.from(_svState.expansions.entries())) {
-            if (exp && exp.parentTrail && exp.parentTrail.includes(pill.id)) {
-                _svState.expansions.delete(pid);
-            }
-        }
-        if (_svState.active && _svState.active !== '__overview__') {
-            _svFetchAndRender(_svState.active, { preserveView: true });
-        }
-        return;
-    }
-
-    const jid = _svState.jobId || window.JOB_ID;
-    if (!jid) return;
-    try {
-        const resp = await fetch(`/symbol-graph?job=${encodeURIComponent(jid)}&sym=${encodeURIComponent(pill.id)}`);
-        const data = await resp.json();
-        if (!data || data.error) return;
-
-        // Pick edges heading in the same direction this pill sits on.
-        // right / up pills contribute outgoing neighbors; left / down pills
-        // contribute incoming. Mirrors the primary 5-way layout semantics.
-        const pool = (pill.group === 'right' || pill.group === 'up')
-            ? (data.outgoing || [])
-            : (data.incoming || []);
-
-        const neighbors = [];
-        for (const item of pool) {
-            if (!item || !item.sym) continue;
-            const sym = item.sym;
-            neighbors.push({
-                id:         sym.id,
-                name:       sym.name,
-                kind:       sym.kind,
-                file:       sym.file,
-                line:       sym.line,
-                edgeType:   item.edge_type,
-                edgeCount:  item.count,
-                edgeFile:   item.edge_file,
-                edgeLine:   item.edge_line,
-                edgeLines:  Array.isArray(item.edge_lines) && item.edge_lines.length
-                              ? item.edge_lines
-                              : [item.edge_line],
-                direction:  (pill.group === 'right' || pill.group === 'up') ? 'out' : 'in',
-                hasError:   !!sym.has_error,
-                parseError: sym.parse_error || '',
-            });
-        }
-        _svState.expansions.set(pill.id, {
-            group:        pill.group,
-            neighbors,
-            parentTrail:  [pill.id],
-        });
-        if (_svState.active && _svState.active !== '__overview__') {
-            _svFetchAndRender(_svState.active, { preserveView: true });
-        }
-    } catch (err) {
-        /* swallow: expansion is a best-effort enhancement */
-    }
 }
 
 function _svClipText(s, maxPx) {
@@ -957,21 +816,20 @@ function _svClipText(s, maxPx) {
 // ── Edge drawing ──────────────────────────────────────────────────────────
 function _svAppendEdge(edgesG, labelsG, ed, from, to) {
     const NS = 'http://www.w3.org/2000/svg';
-    const fromBox = { x: from.currentX, y: from.currentY, w: from.data.w, h: from.data.h };
-    const toBox   = { x: to.currentX,   y: to.currentY,   w: to.data.w,   h: to.data.h };
+    const fromBox = { x: from.currentX + from.w / 2, y: from.currentY + from.h / 2, w: from.w, h: from.h };
+    const toBox   = { x: to.currentX   + to.w   / 2, y: to.currentY   + to.h   / 2, w: to.w,   h: to.h };
     const endpoints = _svComputeEndpoints(fromBox, toBox);
     const color = _svEdgeColor(ed.type);
 
     const path = document.createElementNS(NS, 'path');
-    path.setAttribute('class', `sv-edge sv-edge-${ed.type}` + (ed.secondary ? ' sv-edge-secondary' : ''));
+    path.setAttribute('class', `sv-edge sv-edge-${ed.type}` + (ed.external ? ' sv-edge-external' : ''));
     path.dataset.edgeid = ed.id;
-    const d = _svBuildEdgePath(endpoints);
-    path.setAttribute('d', d);
+    path.setAttribute('d', _svBuildEdgePath(endpoints));
     path.setAttribute('stroke', color);
-    path.setAttribute('stroke-width', ed.secondary ? '1.2' : '1.6');
+    path.setAttribute('stroke-width', ed.external ? '1.3' : '1.6');
     path.setAttribute('fill', 'none');
     path.setAttribute('marker-end', 'url(#sv-arrow)');
-    if (ed.secondary) path.setAttribute('stroke-dasharray', '4 3');
+    if (ed.external) path.setAttribute('stroke-dasharray', '5 3');
     path.style.color = color;
     path.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -981,46 +839,15 @@ function _svAppendEdge(edgesG, labelsG, ed, from, to) {
     path.addEventListener('mousemove',  (e) => _svMoveEdgeTip(e));
     path.addEventListener('mouseleave', () => _svHideEdgeTip());
     edgesG.appendChild(path);
-
-    // Count label for bundled edges.
-    if (ed.count > 1) {
-        const mid = _svMidpoint(endpoints);
-        const label = document.createElementNS(NS, 'g');
-        label.setAttribute('class', 'sv-edge-label');
-        label.setAttribute('transform', `translate(${mid.x},${mid.y})`);
-        const bg = document.createElementNS(NS, 'rect');
-        const txt = ed.count + 'x';
-        const w = txt.length * 7 + 8;
-        bg.setAttribute('x', String(-w / 2));
-        bg.setAttribute('y', '-8');
-        bg.setAttribute('width',  String(w));
-        bg.setAttribute('height', '16');
-        bg.setAttribute('rx', '4');
-        bg.setAttribute('fill', 'var(--panel, #161715)');
-        bg.setAttribute('stroke', color);
-        bg.setAttribute('stroke-width', '1');
-        label.appendChild(bg);
-        const t = document.createElementNS(NS, 'text');
-        t.setAttribute('class', 'sv-edge-label-text');
-        t.setAttribute('x', '0');
-        t.setAttribute('y', '4');
-        t.setAttribute('text-anchor', 'middle');
-        t.setAttribute('fill', color);
-        t.textContent = txt;
-        label.appendChild(t);
-        labelsG.appendChild(label);
-    }
 }
 
 function _svComputeEndpoints(from, to) {
-    // Compute attachment points on the bounding-box perimeter for each node.
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     const absDx = Math.abs(dx);
     const absDy = Math.abs(dy);
     const fromSide = absDx > absDy ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'bottom' : 'top');
     const toSide   = absDx > absDy ? (dx > 0 ? 'left'  : 'right') : (dy > 0 ? 'top'    : 'bottom');
-
     const sx = from.x + _svSideOffsetX(fromSide, from.w);
     const sy = from.y + _svSideOffsetY(fromSide, from.h);
     const ex = to.x   + _svSideOffsetX(toSide,   to.w);
@@ -1037,56 +864,30 @@ function _svSideOffsetY(side, h) {
     if (side === 'bottom') return  h / 2;
     return 0;
 }
-
-function _svBuildEdgePath({ sx, sy, ex, ey, fromSide }) {
-    // Simple cubic-bezier. Control point offset depends on attachment side.
+function _svBuildEdgePath({ sx, sy, ex, ey, fromSide, toSide }) {
     const dx = ex - sx;
     const dy = ey - sy;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const curve = Math.min(140, Math.max(28, dist * 0.35));
-
+    const curve = Math.min(120, Math.max(32, dist * 0.35));
     let cx1 = sx, cy1 = sy, cx2 = ex, cy2 = ey;
-    if (fromSide === 'left')  { cx1 = sx - curve; }
-    if (fromSide === 'right') { cx1 = sx + curve; }
-    if (fromSide === 'top')   { cy1 = sy - curve; }
-    if (fromSide === 'bottom'){ cy1 = sy + curve; }
-
-    const toSide = _svOppositeSide(fromSide);
-    if (toSide === 'left')  { cx2 = ex - curve; }
-    if (toSide === 'right') { cx2 = ex + curve; }
-    if (toSide === 'top')   { cy2 = ey - curve; }
-    if (toSide === 'bottom'){ cy2 = ey + curve; }
+    if (fromSide === 'left')   cx1 = sx - curve;
+    if (fromSide === 'right')  cx1 = sx + curve;
+    if (fromSide === 'top')    cy1 = sy - curve;
+    if (fromSide === 'bottom') cy1 = sy + curve;
+    if (toSide === 'left')     cx2 = ex - curve;
+    if (toSide === 'right')    cx2 = ex + curve;
+    if (toSide === 'top')      cy2 = ey - curve;
+    if (toSide === 'bottom')   cy2 = ey + curve;
     return `M ${sx} ${sy} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${ex} ${ey}`;
 }
 
-function _svOppositeSide(side) {
-    return { left: 'right', right: 'left', top: 'bottom', bottom: 'top' }[side] || 'left';
-}
-
-function _svMidpoint({ sx, sy, ex, ey }) {
-    return { x: (sx + ex) / 2, y: (sy + ey) / 2 };
-}
-
-// ── Edge tooltip ──────────────────────────────────────────────────────────
+// ── Edge tooltip (reused from V2 Feature 5) ──────────────────────────────
 function _svShowEdgeTip(e, ed) {
     const tip = document.getElementById('sv-edge-tip');
     if (!tip) return;
-    const sites = Array.isArray(ed.edgeLines) && ed.edgeLines.length ? ed.edgeLines : [ed.edgeLine];
-    const nSites = sites.length;
-    const cursor = _svState.edgeJumpCursor.get(ed.id) || 0;
-    const currentLine = sites[cursor % Math.max(1, nSites)] || ed.edgeLine;
-    const lineStr = currentLine ? `:${currentLine}` : '';
-    const siteInfo = nSites > 1
-        ? `<span class="sv-tip-sites">${nSites} call sites &middot; next ${((cursor % nSites) + 1)}/${nSites}</span>`
-        : '';
-    const hint = nSites > 1
-        ? 'Click to cycle through call sites'
-        : 'Click to jump to source';
     tip.innerHTML = `<span class="sv-tip-type" style="color:${_svEdgeColor(ed.type)}">${_svEsc(ed.type)}</span>
-        <span class="sv-tip-count">&times;${ed.count}</span>
-        ${siteInfo}
-        <div class="sv-tip-site">${_svEsc(ed.edgeFile || '')}${lineStr}</div>
-        <div class="sv-tip-hint">${hint}</div>`;
+        ${ed.external ? '<span class="sv-tip-sites">cross-file</span>' : ''}
+        <div class="sv-tip-hint">Click to jump or switch file</div>`;
     tip.hidden = false;
     _svMoveEdgeTip(e);
 }
@@ -1102,78 +903,73 @@ function _svHideEdgeTip() {
 }
 
 // ── Click handlers ────────────────────────────────────────────────────────
-function _svBindNodeClicks(liveMap) {
+function _svBindNodeClicks() {
     const viewport = _svState.viewport;
     if (!viewport) return;
-    const nodes = viewport.querySelectorAll('.sv-node');
-    nodes.forEach(el => {
+    viewport.querySelectorAll('.sv-node').forEach(el => {
         if (el.dataset.boundClick === '1') return;
         el.dataset.boundClick = '1';
         el.addEventListener('click', (e) => {
-            // Members take priority over the card container.
-            const memberEl = e.target.closest('.sv-member');
-            if (memberEl && el.contains(memberEl)) {
-                e.stopPropagation();
-                const mid = memberEl.dataset.symid;
-                if (mid) _svHandleMemberClick(mid);
-                return;
-            }
+            // Compound toggle and in-card method hits propagate via stopPropagation.
             const sid = el.dataset.symid;
             if (!sid) return;
-            _svHandleNodeClick(sid);
+            _svHandleNodeClick(sid, el);
         });
     });
 }
 
-function _svHandleNodeClick(symId) {
-    // Clicking the current center → jump code panel to its definition.
+function _svHandleNodeClick(symId, el) {
     const model = _svState.currentGraph;
     if (!model) return;
-    if (model.center && model.center.id === symId) {
-        const c = model.center;
-        if (c.file && typeof loadFileInPanel === 'function') {
-            loadFileInPanel(c.file, null);
-            if (c.line && typeof jumpToLine === 'function') {
-                setTimeout(() => jumpToLine(c.line), 150);
-            }
-        }
+    const node = model.byNodeId[symId];
+    if (!node) return;
+
+    if (node.isGhost) {
+        // Switch to that file and focus the ghost symbol
+        symViewActivate(symId);
         return;
     }
-    // Otherwise promote the neighbor to the new center.
-    symViewActivate(symId);
-}
 
-function _svHandleMemberClick(memberId) {
-    if (!window.DATA || !DATA.symbol_index) return;
-    const s = DATA.symbol_index[memberId];
-    if (s && s.file && typeof loadFileInPanel === 'function') {
-        loadFileInPanel(s.file, null);
-        if (s.line && typeof jumpToLine === 'function') {
-            setTimeout(() => jumpToLine(s.line), 150);
+    // Jump code panel to this symbol's definition
+    const sym = node.sym || {};
+    if (sym.file && typeof loadFileInPanel === 'function') {
+        loadFileInPanel(sym.file, null);
+        if (sym.line && typeof jumpToLine === 'function') {
+            setTimeout(() => jumpToLine(sym.line), 150);
         }
     }
-    // Keep the center as the owning class but highlight this member.
-    const el = _svState.viewport && _svState.viewport.querySelector(`.sv-member[data-symid="${CSS.escape(memberId)}"]`);
-    if (el) {
-        _svState.viewport.querySelectorAll('.sv-member-active').forEach(x => x.classList.remove('sv-member-active'));
-        el.classList.add('sv-member-active');
-    }
+
+    // If this node is already focused, do nothing extra (avoid flicker).
+    if (_svState.focusId === symId) return;
+    _svState.focusId = symId;
+    _svState.detailSectionCollapsed.clear();
+    _svState.edgeJumpCursor.clear();
+    _svApplyFocus();
 }
 
 function _svHandleEdgeClick(ed) {
     if (!ed) return;
-    const file  = ed.edgeFile;
-    const sites = Array.isArray(ed.edgeLines) && ed.edgeLines.length ? ed.edgeLines : [ed.edgeLine];
-    const cursor = _svState.edgeJumpCursor.get(ed.id) || 0;
-    const line = sites[cursor % Math.max(1, sites.length)] || ed.edgeLine;
-    _svState.edgeJumpCursor.set(ed.id, (cursor + 1) % Math.max(1, sites.length));
-    if (file && typeof loadFileInPanel === 'function') {
-        loadFileInPanel(file, null);
-        if (line && typeof jumpToLine === 'function') {
-            setTimeout(() => jumpToLine(line), 150);
-        }
+    const model = _svState.currentGraph;
+    if (!model) return;
+    // Prefer the target of the edge as navigation anchor. For external edges,
+    // activate the foreign symbol (switches file).
+    const targetId = ed.origTo || ed.to;
+    const tNode = model.byNodeId[targetId];
+    if (tNode && tNode.isGhost) {
+        symViewActivate(targetId);
+    } else if (tNode) {
+        _svHandleNodeClick(targetId);
     }
-    // Refresh the tooltip so the user sees the cursor advance.
-    const tip = document.getElementById('sv-edge-tip');
-    if (tip && !tip.hidden) _svShowEdgeTip({ clientX: parseFloat(tip.style.left) || 0, clientY: parseFloat(tip.style.top) || 0 }, ed);
+}
+
+// Compound class toggle (expand/collapse methods)
+function _svToggleCompound(classId) {
+    if (_svState.compoundCollapsed.has(classId)) {
+        _svState.compoundCollapsed.delete(classId);
+    } else {
+        _svState.compoundCollapsed.add(classId);
+    }
+    if (_svState.fileRel) {
+        _svLoadFileGraph(_svState.fileRel, { pendingFocus: _svState.focusId });
+    }
 }

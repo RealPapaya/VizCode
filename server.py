@@ -1757,6 +1757,10 @@ class Handler(BaseHTTPRequestHandler):
                         'is_public':    s.get('is_public', True),
                         'access_level': 'public' if s.get('is_public', True) else 'private',
                         'has_error':    bool(s.get('parse_error')),
+                        'signature':    s.get('signature', ''),
+                        'docstring':    s.get('docstring', ''),
+                        'decorators':   s.get('decorators', []),
+                        'is_static':    s.get('is_static', False),
                     }
                     for s in sym_index.values()
                     if s.get('parent') == sname and s.get('file') == sfile
@@ -1774,10 +1778,15 @@ class Handler(BaseHTTPRequestHandler):
                     'kind':         s['kind'],
                     'file':         s['file'],
                     'line':         s['line'],
+                    'end_line':     s.get('end_line', s.get('line', 0)),
                     'is_public':    s['is_public'],
                     'access_level': 'public' if s.get('is_public', True) else 'private',
                     'module':       s['module'],
                     'parent':       s['parent'],
+                    'signature':    s.get('signature', ''),
+                    'docstring':    s.get('docstring', ''),
+                    'decorators':   s.get('decorators', []),
+                    'is_static':    s.get('is_static', False),
                     'has_error':    bool(s.get('parse_error')),
                     'parse_error':  s.get('parse_error'),
                 }
@@ -1986,19 +1995,22 @@ class Handler(BaseHTTPRequestHandler):
 
         elif p == '/symbol-file':
             # ── Per-file symbol index + intra-file call edges ─────────────────
-            # GET /symbol-file?job=JID&file=path/to/file.cpp
+            # GET /symbol-file?job=JID&file=path/to/file.cpp[&include_external=1]
             # Returns all symbol_index entries for the file, plus symbol_edges
-            # that connect two symbols both inside that file.
-            # Used by struct_view.js to enrich the class-grid with backend symbols.
+            # that connect two symbols both inside that file.  When
+            # include_external=1 is set, edges that cross the file boundary are
+            # returned in a separate `external_edges` array (for ghost-pill
+            # rendering of cross-file relationships).
             jid = qs.get('job',  [''])[0]
             rel = qs.get('file', [''])[0].strip()
+            include_external = qs.get('include_external', ['0'])[0] == '1'
 
             with JOBS_LOCK:
                 job = JOBS.get(jid, {})
             graph_data = job.get('data')
 
             if not graph_data or not rel:
-                self.json_resp({'symbols': [], 'edges': []})
+                self.json_resp({'symbols': [], 'edges': [], 'external_edges': []})
                 return
 
             sym_index = graph_data.get('symbol_index', {})
@@ -2018,10 +2030,44 @@ class Handler(BaseHTTPRequestHandler):
                 if e['from'] in file_sym_ids and e['to'] in file_sym_ids
             ]
 
+            # Edges crossing the file boundary (exactly one endpoint in file).
+            external_edges = []
+            external_syms  = {}
+            if include_external:
+                for e in sym_edges:
+                    f_in = e['from'] in file_sym_ids
+                    t_in = e['to']   in file_sym_ids
+                    if f_in == t_in:
+                        continue  # both or neither — not a crossing edge
+                    external_edges.append({
+                        'from':           e['from'],
+                        'to':             e['to'],
+                        'type':           e.get('type', 'call'),
+                        'source_in_file': f_in,
+                    })
+                    # Attach a compact summary of the foreign endpoint so the
+                    # client can render a ghost pill without a second round-trip.
+                    foreign_id = e['to'] if f_in else e['from']
+                    if foreign_id not in external_syms:
+                        fs = sym_index.get(foreign_id)
+                        if fs:
+                            external_syms[foreign_id] = {
+                                'id':       fs.get('id', foreign_id),
+                                'name':     fs.get('name', ''),
+                                'kind':     fs.get('kind', ''),
+                                'file':     fs.get('file', ''),
+                                'line':     fs.get('line', 0),
+                                'module':   fs.get('module', ''),
+                                'parent':   fs.get('parent'),
+                                'has_error': bool(fs.get('parse_error')),
+                            }
+
             self.json_resp({
-                'file':    rel,
-                'symbols': list(file_syms.values()),
-                'edges':   file_edges,
+                'file':           rel,
+                'symbols':        list(file_syms.values()),
+                'edges':          file_edges,
+                'external_edges': external_edges,
+                'external_syms':  external_syms,
             })
 
         elif p == '/jobs':
