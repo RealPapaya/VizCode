@@ -1,12 +1,15 @@
-"""pytest shared fixtures for CodeViz test suite."""
+"""pytest shared fixtures for VizCode test suite."""
 import sys
 import os
 from pathlib import Path
 
-# ─── Add project root to sys.path so parsers and analyze_viz are importable ───
+# ─── Add src/ and src/core/ so all modules are importable ────────────────────
 PROJECT_ROOT = Path(__file__).parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+SRC_DIR      = PROJECT_ROOT / 'src'
+CORE_DIR     = SRC_DIR / 'core'
+for _p in (str(CORE_DIR), str(SRC_DIR), str(PROJECT_ROOT)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 import pytest
 

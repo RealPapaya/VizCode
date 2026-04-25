@@ -31,14 +31,20 @@ if sys.platform == "win32":
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 SCRIPT_DIR     = Path(__file__).resolve().parent
-LOCAL_DATA_DIR = SCRIPT_DIR / ".local"
+ROOT_DIR       = SCRIPT_DIR.parent
+LOCAL_DATA_DIR = ROOT_DIR / ".local"
 LOCAL_DATA_DIR.mkdir(exist_ok=True)
-SERVER_PY    = SCRIPT_DIR / "server.py"
+SERVER_PY    = SCRIPT_DIR / "server" / "server.py"
 HISTORY_FILE = LOCAL_DATA_DIR / "vizcode_history.json"
 SERVER_LOG   = LOCAL_DATA_DIR / "vizcode_server.log"
 DEFAULT_PORT = 7777
 PORT         = DEFAULT_PORT
 BASE_URL     = f"http://localhost:{PORT}"
+
+# ─── Ensure src/core/ is importable (analyze_viz, analytics_helpers, …) ───────
+_CORE_DIR = str(SCRIPT_DIR / "core")
+if _CORE_DIR not in sys.path:
+    sys.path.insert(0, _CORE_DIR)
 
 # ─── ANSI ─────────────────────────────────────────────────────────────────────
 IS_WIN = sys.platform == "win32"
@@ -435,7 +441,7 @@ def start_server(tui: TUI):
         try: log_fp.flush(); log_fp.close()
         except: pass
 
-    kw: dict = dict(cwd=str(SCRIPT_DIR), stdout=log_fp, stderr=log_fp)
+    kw: dict = dict(cwd=str(ROOT_DIR), stdout=log_fp, stderr=log_fp)
     if IS_WIN:
         cnw = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         if cnw: kw["creationflags"] = cnw
@@ -552,7 +558,7 @@ def _run_analysis(label: str, trigger_fn, save_fn=None, skip_report_stage=True, 
                 # SCRIPT_DIR / vizcode.py --scan-only already does build_graph
                 # + generate_report and writes .local/vizcode_report.md.
                 result = subprocess.run(
-                    [sys.executable, str(SERVER_PY.parent / "vizcode.py"),
+                    [sys.executable, str(SCRIPT_DIR / "vizcode.py"),
                      report_path, "--scan-only"],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.PIPE,

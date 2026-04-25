@@ -17,15 +17,25 @@ from urllib.error import URLError, HTTPError
 from typing import Dict, Optional
 
 
-# Import sibling module — prefer analyze_viz (new), fall back to analyze_bios
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# ─── Path setup ──────────────────────────────────────────────────────────────
+# server.py lives at src/server/; project root is two levels up.
+_SERVER_DIR = os.path.dirname(os.path.abspath(__file__))   # .../VizCode/src/server
+_SRC_DIR    = os.path.dirname(_SERVER_DIR)                 # .../VizCode/src
+_ROOT_DIR   = os.path.dirname(_SRC_DIR)                    # .../VizCode
+_CORE_DIR   = os.path.join(_SRC_DIR, 'core')               # .../VizCode/src/core
+# Make core/ and src/ importable (analyze_viz, detector, parse_memo, parsers)
+for _p in (_CORE_DIR, _SRC_DIR):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+# Import core analyser — prefer analyze_viz (new), fall back to analyze_bios
 try:
     import analyze_viz as analyze_bios
 except ImportError:
     import analyze_bios
 
 PORT = 7777
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SCRIPT_DIR = _ROOT_DIR   # project root (used by serve_disk for relative paths)
 
 # job_id -> { pct, msg, done, error, stats, data, root }
 JOBS: dict = {}
@@ -124,7 +134,7 @@ def _build_search_index(jid: str, root: str):
 
 
 # Cleanup old .result_*.html files left from previous server design
-for _f in Path(SCRIPT_DIR).glob('.result_*.html'):
+for _f in Path(_ROOT_DIR).glob('.result_*.html'):
     try:
         _f.unlink()
     except FileNotFoundError:
@@ -479,7 +489,7 @@ class Handler(BaseHTTPRequestHandler):
         qs = parse_qs(parsed.query)
 
         if p == '/':
-            self.serve_disk('launcher.html', 'text/html')
+            self.serve_disk(os.path.join('static', 'launcher.html'), 'text/html')
 
         elif p.startswith('/static/'):
             filename = p[len('/static/'):]

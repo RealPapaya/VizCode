@@ -65,4 +65,4 @@ set PYTHONUTF8=1
 
 cls
 
-python vizcode.py %*
+python src\vizcode.py %*

@@ -37,9 +37,19 @@ def _console_print(*args, **kwargs):
     if flush:
         stream.flush()
 # ─── Pluggable parsers ────────────────────────────────────────────────────────
-_PARSER_DIR = Path(__file__).parent / 'parsers'
-if str(_PARSER_DIR.parent) not in sys.path:
-    sys.path.insert(0, str(_PARSER_DIR.parent))
+# Layout:  <root>/src/core/analyze_viz.py
+#          <root>/src/parsers/            ← language parsers
+#          <root>/src/core/detector.py    ← sibling
+#          <root>/src/core/parse_memo.py  ← sibling
+_CORE_DIR   = Path(__file__).parent                 # .../VizCode/src/core
+_SRC_DIR    = _CORE_DIR.parent                      # .../VizCode/src
+_ROOT_DIR   = _SRC_DIR.parent                       # .../VizCode
+_PARSER_DIR = _SRC_DIR / 'parsers'                  # .../VizCode/src/parsers
+# • _SRC_DIR in sys.path  → enables `from parsers.xxx import`
+# • _CORE_DIR in sys.path → enables `from detector import`, `import parse_memo`
+for _p in (str(_SRC_DIR), str(_CORE_DIR)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 try:
     from parsers.bios_parser   import scan_bios, BIOS_EXTENSIONS as _BIOS_EXTENSIONS
@@ -2206,7 +2216,7 @@ HTML_TEMPLATE = HTML_SKELETON
 # ─── build_html ───────────────────────────────────────────────────────────────
 def build_html(data: dict, job_id: str = None) -> str:
     """Read shared static assets and embed them inline into the HTML skeleton."""
-    base = Path(__file__).parent / 'static'
+    base = _ROOT_DIR / 'static'
     css_assets = [base / 'viz.css', base / 'themes.css', base / 'symbol_view' / 'symbol_view.css', base / 'viz_chat.css']
     js_assets = [
         base / 'i18n.js',
