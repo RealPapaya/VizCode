@@ -41,10 +41,15 @@ DEFAULT_PORT = 7777
 PORT         = DEFAULT_PORT
 BASE_URL     = f"http://localhost:{PORT}"
 
-# ─── Ensure src/core/ is importable (analyze_viz, analytics_helpers, …) ───────
-_CORE_DIR = str(SCRIPT_DIR / "core")
-if _CORE_DIR not in sys.path:
-    sys.path.insert(0, _CORE_DIR)
+# ─── Ensure project modules are importable from any launch location ────────────
+_IMPORT_DIRS = (
+    str(ROOT_DIR),
+    str(SCRIPT_DIR / "server"),
+    str(SCRIPT_DIR / "core"),
+)
+for _import_dir in _IMPORT_DIRS:
+    if _import_dir not in sys.path:
+        sys.path.insert(0, _import_dir)
 
 # ─── ANSI ─────────────────────────────────────────────────────────────────────
 IS_WIN = sys.platform == "win32"

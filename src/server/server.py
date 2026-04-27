@@ -23,8 +23,8 @@ _SERVER_DIR = os.path.dirname(os.path.abspath(__file__))   # .../VizCode/src/ser
 _SRC_DIR    = os.path.dirname(_SERVER_DIR)                 # .../VizCode/src
 _ROOT_DIR   = os.path.dirname(_SRC_DIR)                    # .../VizCode
 _CORE_DIR   = os.path.join(_SRC_DIR, 'core')               # .../VizCode/src/core
-# Make core/ and src/ importable (analyze_viz, detector, parse_memo, parsers)
-for _p in (_CORE_DIR, _SRC_DIR):
+# Make project modules importable no matter where server.py is launched from.
+for _p in (_ROOT_DIR, _SERVER_DIR, _CORE_DIR, _SRC_DIR):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 

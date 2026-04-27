@@ -19,6 +19,12 @@ from __future__ import annotations
 import sys
 import os
 from pathlib import Path
+_HERE = Path(__file__).resolve().parent
+_ROOT = _HERE.parent
+for _import_dir in (_ROOT, _ROOT / "src", _ROOT / "src" / "server", _ROOT / "src" / "core"):
+    _import_dir_str = str(_import_dir)
+    if _import_dir_str not in sys.path:
+        sys.path.insert(0, _import_dir_str)
 
 # ─── ANSI helpers (reuse vizcode.py palette) ─────────────────────────────────
 

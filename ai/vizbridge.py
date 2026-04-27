@@ -30,8 +30,16 @@ from typing import Iterator
 # ─── path bootstrap (allow running from project root) ────────────────────────
 _HERE = Path(__file__).parent
 _ROOT = _HERE.parent
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
+_IMPORT_DIRS = (
+    _ROOT,
+    _ROOT / "src",
+    _ROOT / "src" / "server",
+    _ROOT / "src" / "core",
+)
+for _import_dir in _IMPORT_DIRS:
+    _import_dir_str = str(_import_dir)
+    if _import_dir_str not in sys.path:
+        sys.path.insert(0, _import_dir_str)
 
 # Import tool implementations from mcp_server (no MCP protocol needed)
 from mcp_server import (
