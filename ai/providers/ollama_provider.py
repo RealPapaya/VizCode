@@ -85,53 +85,60 @@ class OllamaProvider(BaseProvider):
         saw_native_tool_call = False
         streaming_text_enabled = False
 
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            for line in resp:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = json.loads(line.decode("utf-8"))
-                except json.JSONDecodeError:
-                    continue
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                for line in resp:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        obj = json.loads(line.decode("utf-8"))
+                    except json.JSONDecodeError:
+                        continue
 
-                message = obj.get("message", {})
-                role    = message.get("role", "")
+                    message = obj.get("message", {})
+                    role    = message.get("role", "")
 
-                # Text content delta
-                content = message.get("content", "")
-                if content:
-                    text_chunks.append(content)
-                    if streaming_text_enabled:
-                        yield {"type": "delta", "text": content}
-                    else:
-                        pending_text_chunks.append(content)
+                    # Text content delta
+                    content = message.get("content", "")
+                    if content:
+                        text_chunks.append(content)
+                        if streaming_text_enabled:
+                            yield {"type": "delta", "text": content}
+                        else:
+                            pending_text_chunks.append(content)
 
-                # Tool calls (Ollama uses OpenAI-compatible format)
-                for tc in (message.get("tool_calls") or []):
-                    saw_native_tool_call = True
-                    if not streaming_text_enabled and pending_text_chunks:
-                        for chunk in pending_text_chunks:
-                            yield {"type": "delta", "text": chunk}
-                        pending_text_chunks.clear()
-                        streaming_text_enabled = True
-                    fn   = tc.get("function", {})
-                    args = fn.get("arguments", {})
-                    if isinstance(args, str):
-                        try:
-                            args = json.loads(args)
-                        except json.JSONDecodeError:
-                            args = {}
-                    yield {
-                        "type":  "tool_use",
-                        "id":    tc.get("id", fn.get("name", "")),
-                        "name":  fn.get("name", ""),
-                        "input": args,
-                    }
+                    # Tool calls (Ollama uses OpenAI-compatible format)
+                    for tc in (message.get("tool_calls") or []):
+                        saw_native_tool_call = True
+                        if not streaming_text_enabled and pending_text_chunks:
+                            for chunk in pending_text_chunks:
+                                yield {"type": "delta", "text": chunk}
+                            pending_text_chunks.clear()
+                            streaming_text_enabled = True
+                        fn   = tc.get("function", {})
+                        args = fn.get("arguments", {})
+                        if isinstance(args, str):
+                            try:
+                                args = json.loads(args)
+                            except json.JSONDecodeError:
+                                args = {}
+                        yield {
+                            "type":  "tool_use",
+                            "id":    tc.get("id", fn.get("name", "")),
+                            "name":  fn.get("name", ""),
+                            "input": args,
+                        }
 
-                # Stream done
-                if obj.get("done"):
-                    break
+                    # Stream done
+                    if obj.get("done"):
+                        break
+        except urllib.error.HTTPError as exc:
+            if exc.code == 400:
+                preview = raw.decode("utf-8", errors="replace")
+                print("[OllamaProvider] HTTP 400 request preview:")
+                print(preview[:4000])
+            raise
 
         if not saw_native_tool_call and tool_names:
             synthetic_calls = _extract_textual_tool_calls("".join(text_chunks), tool_names)
@@ -171,17 +178,21 @@ def _to_ollama_messages(messages: list[dict], system: str) -> list[dict]:
             else:
                 text_parts = [c["text"] for c in content if c.get("type") == "text"]
                 tool_calls = []
+                tool_index = 0
                 for c in content:
                     if c.get("type") == "tool_use":
                         tool_input = c.get("input", {})
                         if not isinstance(tool_input, dict):
                             tool_input = {}
                         tool_calls.append({
+                            "type": "function",
                             "function": {
+                                "index":     tool_index,
                                 "name":      c["name"],
                                 "arguments": tool_input,
                             },
                         })
+                        tool_index += 1
                 oai_msg: dict = {"role": "assistant", "content": " ".join(text_parts)}
                 if tool_calls:
                     oai_msg["tool_calls"] = tool_calls
