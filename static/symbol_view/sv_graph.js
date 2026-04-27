@@ -328,15 +328,10 @@ function _svBuildFileGraphModel(resp, fileRel) {
         g.setNode(cls.id, { width: d.w, height: d.h });
     }
 
-    // Child methods — add only if not collapsed so dagre ranks them among
-    // edge targets correctly; when collapsed we still render them inside the
-    // compound but don't expose as discrete dagre nodes.
-    for (const m of methods) {
-        const parentDim = classDims[m._parentId];
-        if (!parentDim || parentDim.collapsed) continue;
-        g.setNode(m.id, { width: parentDim.innerW, height: _SV_METHOD_H });
-        g.setParent(m.id, m._parentId);
-    }
+    // Methods are NOT added to dagre — their positions are computed manually
+    // from the parent class compound after dagre.layout(). This avoids dagre
+    // compound height mismatch bugs where dagre expands the compound beyond our
+    // pre-calculated d.h, causing methods to appear outside the SVG rect.
 
     // Top-level functions / fields
     const topLevelDims = new Map();
@@ -361,17 +356,19 @@ function _svBuildFileGraphModel(resp, fileRel) {
         ghostIds.push(gid);
     }
 
-    // Intra-file edges. Dagre needs both endpoints as nodes.
+    // Intra-file edges.
+    // SVG endpoints: redirect only COLLAPSED methods → parent class.
+    // Dagre endpoints: redirect ALL methods → parent class (methods aren't in dagre).
     const modelEdges = [];
     for (const e of edges) {
-        // If either endpoint is a method inside a collapsed class, redirect to
-        // the compound class so the edge still has a visible anchor.
         const fromId = _svRedirectIfCollapsed(e.from, methods, classDims);
         const toId   = _svRedirectIfCollapsed(e.to,   methods, classDims);
-        if (!g.hasNode(fromId) || !g.hasNode(toId)) continue;
         if (fromId === toId) continue;
+        const dagreFrom = _svToCompoundId(fromId, methods, classDims);
+        const dagreTo   = _svToCompoundId(toId,   methods, classDims);
+        if (!g.hasNode(dagreFrom) || !g.hasNode(dagreTo)) continue;
+        if (dagreFrom !== dagreTo) g.setEdge(dagreFrom, dagreTo);
         const id = `e|${fromId}|${toId}|${e.type}`;
-        g.setEdge(fromId, toId);
         modelEdges.push({
             id, from: fromId, to: toId, type: e.type,
             origFrom: e.from, origTo: e.to, external: false,
@@ -382,9 +379,11 @@ function _svBuildFileGraphModel(resp, fileRel) {
     for (const e of extEdges) {
         const fromId = byId[e.from] ? _svRedirectIfCollapsed(e.from, methods, classDims) : e.from;
         const toId   = byId[e.to]   ? _svRedirectIfCollapsed(e.to,   methods, classDims) : e.to;
-        if (!g.hasNode(fromId) || !g.hasNode(toId)) continue;
+        const dagreFrom = byId[fromId] ? _svToCompoundId(fromId, methods, classDims) : fromId;
+        const dagreTo   = byId[toId]   ? _svToCompoundId(toId,   methods, classDims) : toId;
+        if (!g.hasNode(dagreFrom) || !g.hasNode(dagreTo)) continue;
+        if (dagreFrom !== dagreTo) g.setEdge(dagreFrom, dagreTo);
         const id = `e|${fromId}|${toId}|${e.type}|ext`;
-        g.setEdge(fromId, toId);
         modelEdges.push({
             id, from: fromId, to: toId, type: e.type,
             origFrom: e.from, origTo: e.to, external: true,
@@ -397,17 +396,13 @@ function _svBuildFileGraphModel(resp, fileRel) {
         ...classes.map(cls => {
             const info = g.node(cls.id);
             const dim = classDims[cls.id];
-            const shiftIds = [cls.id];
-            if (!dim.collapsed) {
-                for (const m of dim.methods) shiftIds.push(m.id);
-            }
             return {
                 id: cls.id,
                 x: info.x - dim.w / 2,
                 y: info.y - dim.h / 2,
                 w: dim.w,
                 h: dim.h,
-                shiftIds,
+                shiftIds: [cls.id],  // methods derive positions from class; no separate entry
             };
         }),
         ...topFuncs.map(f => {
@@ -436,6 +431,27 @@ function _svBuildFileGraphModel(resp, fileRel) {
         }),
     ]);
 
+    // Compute method positions manually from each class compound's final position.
+    // This guarantees methods always sit exactly within the class SVG rect,
+    // independent of dagre's compound height algorithm.
+    const methodPos = new Map();
+    for (const cls of classes) {
+        const d = classDims[cls.id];
+        if (d.collapsed || !d.methods.length) continue;
+        const info = g.node(cls.id);
+        const clsOff = rootOffsets.get(cls.id) || { dx: 0, dy: 0 };
+        const clsX = info.x - d.w / 2 + clsOff.dx;
+        const clsY = info.y - d.h / 2 + clsOff.dy;
+        d.methods.forEach((m, idx) => {
+            methodPos.set(m.id, {
+                x: clsX + (d.w - d.innerW) / 2,
+                y: clsY + _SV_CLASS_PAD_TOP + idx * (_SV_METHOD_H + _SV_METHOD_GAP),
+                w: d.innerW,
+                h: _SV_METHOD_H,
+            });
+        });
+    }
+
     // Collect node records with positions.
     const nodes = [];
 
@@ -461,20 +477,20 @@ function _svBuildFileGraphModel(resp, fileRel) {
     for (const m of methods) {
         const parentDim = classDims[m._parentId];
         if (!parentDim || parentDim.collapsed) continue;
-        const info = g.node(m.id);
-        const offset = rootOffsets.get(m.id) || { dx: 0, dy: 0 };
+        const pos = methodPos.get(m.id);
+        if (!pos) continue;
         nodes.push({
-            id:          m.id,
-            sym:         m,
-            kind:        m.kind,
-            isMethod:    true,
-            parentId:    m._parentId,
-            x:           info.x - parentDim.innerW / 2 + offset.dx,
-            y:           info.y - _SV_METHOD_H / 2 + offset.dy,
-            w:           parentDim.innerW,
-            h:           _SV_METHOD_H,
-            cx:          info.x + offset.dx,
-            cy:          info.y + offset.dy,
+            id:       m.id,
+            sym:      m,
+            kind:     m.kind,
+            isMethod: true,
+            parentId: m._parentId,
+            x:        pos.x,
+            y:        pos.y,
+            w:        pos.w,
+            h:        pos.h,
+            cx:       pos.x + pos.w / 2,
+            cy:       pos.y + pos.h / 2,
         });
     }
     for (const f of topFuncs) {
@@ -565,6 +581,13 @@ function _svRedirectIfCollapsed(symId, methods, classDims) {
     return symId;
 }
 
+// Always redirect a method id → its parent class id (used for dagre edge routing,
+// since method nodes aren't added to dagre; only class compound nodes are).
+function _svToCompoundId(symId, methods, classDims) {
+    const m = methods.find(x => x.id === symId);
+    return (m && classDims[m._parentId]) ? m._parentId : symId;
+}
+
 // ── Render + animate ──────────────────────────────────────────────────────
 function _svRenderFileGraph(newModel) {
     const svg      = _svState.svg;
@@ -577,7 +600,8 @@ function _svRenderFileGraph(newModel) {
     const cardsG  = viewport.querySelector('.sv-cards');
     const edgesG  = viewport.querySelector('.sv-edges');
     const labelsG = viewport.querySelector('.sv-edge-labels');
-    if (!cardsG || !edgesG) return;
+    const ghostsG = viewport.querySelector('.sv-ghosts');
+    if (!cardsG || !edgesG || !ghostsG) return;
 
     const prev = _svState.currentGraph;
     const oldById = new Map();
@@ -607,7 +631,8 @@ function _svRenderFileGraph(newModel) {
             });
         } else {
             const el = _svCreateNodeEl(n);
-            cardsG.appendChild(el);
+            const targetG = n.isGhost ? ghostsG : cardsG;
+            targetG.appendChild(el);
             el.style.opacity = '0';
             live.set(n.id, {
                 x0: n.x, y0: n.y, x1: n.x, y1: n.y,
@@ -626,6 +651,7 @@ function _svRenderFileGraph(newModel) {
         }
     }
 
+    // Clear stale edges immediately — must not appear during card animation.
     edgesG.innerHTML  = '';
     labelsG.innerHTML = '';
 
@@ -645,14 +671,9 @@ function _svRenderFileGraph(newModel) {
         for (const X of exits) {
             X.el.style.opacity = String(X.startOpacity * (1 - e));
         }
-        edgesG.innerHTML  = '';
-        labelsG.innerHTML = '';
-        for (const ed of newModel.edges) {
-            const from = live.get(ed.from);
-            const to   = live.get(ed.to);
-            if (!from || !to) continue;
-            _svAppendEdge(edgesG, labelsG, ed, from, to);
-        }
+        // Edges are NOT rebuilt per-frame — built once after cards land (below).
+        // This is the only approach that guarantees edges never precede cards,
+        // regardless of CSS transitions or rAF timing jitter.
         if (t < 1) {
             requestAnimationFrame(frame);
         } else {
@@ -671,6 +692,36 @@ function _svRenderFileGraph(newModel) {
             }
             _svBindNodeClicks();
             _svApplyFocus({ noHistory: true });
+
+            // Build edges at final, stable positions and fade them in.
+            // Doing this after cards have fully landed guarantees edges never
+            // appear before cards (Bug 1 fix).
+            edgesG.innerHTML  = '';
+            labelsG.innerHTML = '';
+            for (const ed of newModel.edges) {
+                const from = live.get(ed.from);
+                const to   = live.get(ed.to);
+                if (!from || !to) continue;
+                _svAppendEdge(edgesG, labelsG, ed, from, to);
+            }
+            // Apply focus-scope classes to freshly built edges.
+            _svApplyFocus({ noHistory: true });
+            const EDGE_DUR = 220;
+            const edgeT0 = performance.now();
+            edgesG.style.opacity  = '0';
+            labelsG.style.opacity = '0';
+            function edgeFade(eNow) {
+                const et = Math.min(1, (eNow - edgeT0) / EDGE_DUR);
+                const ee = _svEase(et);
+                edgesG.style.opacity  = String(ee);
+                labelsG.style.opacity = String(ee);
+                if (et < 1) requestAnimationFrame(edgeFade);
+                else {
+                    edgesG.style.opacity  = '';
+                    labelsG.style.opacity = '';
+                }
+            }
+            requestAnimationFrame(edgeFade);
         }
     }
     requestAnimationFrame(frame);
@@ -705,30 +756,63 @@ function _svFitViewport(model) {
 }
 
 // ── Focus system ──────────────────────────────────────────────────────────
+
+// BFS hop distances from startId through the adjacency map.
+function _svBfsDistances(adj, startId) {
+    const dist = new Map([[startId, 0]]);
+    const q = [startId];
+    while (q.length) {
+        const id = q.shift();
+        const d = dist.get(id);
+        for (const nb of (adj.get(id) || [])) {
+            if (!dist.has(nb)) { dist.set(nb, d + 1); q.push(nb); }
+        }
+    }
+    return dist;
+}
+
+// Opacity by BFS hop distance: 0/1-hop = full, 2-hop = dim, 3-hop = dimmer, 4+= ghost.
+const _SV_OPACITY_BY_DIST = [1, 1, 0.35, 0.18, 0.08];
+
 function _svApplyFocus(_opts) {
     const model = _svState.currentGraph;
     const viewport = _svState.viewport;
     if (!model || !viewport) return;
     const focusId = _svState.focusId;
 
-    // 1-hop scope
+    let dist = null;
     const inScope = new Set();
     if (focusId) {
-        inScope.add(focusId);
-        const near = model.adj.get(focusId);
-        if (near) for (const id of near) inScope.add(id);
+        dist = _svBfsDistances(model.adj, focusId);
+        for (const [id, d] of dist) {
+            if (d <= 1) inScope.add(id);
+        }
     }
 
-    // Apply node classes
+    // Apply node classes + BFS-based inline opacity.
     for (const n of model.nodes) {
         if (!n.el) continue;
         n.el.classList.remove('sv-focus', 'sv-in-focus-scope', 'sv-faded');
-        if (!focusId) continue;
-        if (n.id === focusId) n.el.classList.add('sv-focus');
-        else if (inScope.has(n.id)) n.el.classList.add('sv-in-focus-scope');
-        else n.el.classList.add('sv-faded');
+        if (!focusId) {
+            n.el.style.opacity = '';  // clear inline → CSS default (1)
+            continue;
+        }
+        if (n.id === focusId) {
+            // Focus node is hidden — the in-place expanding card overlays it.
+            n.el.style.opacity = '0';
+            n.el.classList.add('sv-focus');
+        } else {
+            const d = dist ? dist.get(n.id) : undefined;
+            const op = d === undefined
+                ? _SV_OPACITY_BY_DIST[4]
+                : (_SV_OPACITY_BY_DIST[Math.min(d, 4)] ?? _SV_OPACITY_BY_DIST[4]);
+            n.el.style.opacity = String(op);
+            if (inScope.has(n.id)) n.el.classList.add('sv-in-focus-scope');
+            else n.el.classList.add('sv-faded');
+        }
     }
-    // Apply edge classes
+
+    // Apply edge classes.
     const edgesG = viewport.querySelector('.sv-edges');
     if (edgesG) {
         edgesG.querySelectorAll('path.sv-edge').forEach(p => {
@@ -745,7 +829,6 @@ function _svApplyFocus(_opts) {
         });
     }
 
-    // Rich detail card on the focused node
     _svUpdateFocusDetailCard();
     _svSyncNavBtns();
 }
@@ -753,44 +836,68 @@ function _svApplyFocus(_opts) {
 function _svUpdateFocusDetailCard() {
     const model = _svState.currentGraph;
     if (!model) return;
-    // Remove any existing detail card
     const viewport = _svState.viewport;
+
+    // Fade out and remove any existing detail card.
     const old = viewport.querySelector('.sv-focus-detail');
-    if (old) old.remove();
+    if (old) {
+        const prevId = old.dataset.focusnodeid;
+        // Restore the hidden node's opacity so it can be seen / re-styled by _svApplyFocus.
+        if (prevId && prevId !== _svState.focusId) {
+            const prevNode = model.byNodeId[prevId];
+            if (prevNode && prevNode.el) prevNode.el.style.opacity = '';
+        }
+        old.style.transition = 'opacity 220ms ease';
+        old.style.opacity = '0';
+        const toRemove = old;
+        setTimeout(() => { if (toRemove.parentNode) toRemove.remove(); }, 230);
+    }
 
     const focusId = _svState.focusId;
-    if (!focusId) return;
+    if (!focusId) {
+        // Unfocused — camera returns to fit-all.
+        if (model.nodes.length) _svFitViewport(model);
+        return;
+    }
+
     const node = model.byNodeId[focusId];
     if (!node || !node.el) return;
     const sym = node.sym || {};
 
-    // Compute metrics from current model
+    // Compute edge metrics.
     let callers = 0, callees = 0;
     for (const e of model.edges) {
-        const hitsFocus = (e.from === focusId || e.origFrom === focusId || e.to === focusId || e.origTo === focusId);
-        if (!hitsFocus) continue;
+        const hits = e.from === focusId || e.origFrom === focusId
+                  || e.to   === focusId || e.origTo   === focusId;
+        if (!hits) continue;
         if (e.from === focusId || e.origFrom === focusId) callees++;
         else callers++;
     }
     const lineCount = Math.max(1, (sym.end_line || sym.line || 1) - (sym.line || 1) + 1);
 
-    // Build detail card DOM (HTML-via-foreignObject so text wrapping works)
     const NS = 'http://www.w3.org/2000/svg';
     const fo = document.createElementNS(NS, 'foreignObject');
     fo.setAttribute('class', 'sv-focus-detail');
+    fo.dataset.focusnodeid = focusId;
+
     const collapsed = _svState.detailSectionCollapsed;
-    const cardW = _svClamp(node.w + 52, _SV_DETAIL_MIN_W, _SV_DETAIL_MAX_W);
+    const cardW = _svClamp(Math.max(node.w + 52, 260), _SV_DETAIL_MIN_W, _SV_DETAIL_MAX_W);
     const cardH = _svEstimateDetailCardHeight(sym, collapsed);
-    const cardPos = _svGetCardPlacement(node, model, cardW, cardH);
-    fo.setAttribute('x', String(cardPos.x));
-    fo.setAttribute('y', String(cardPos.y));
-    fo.setAttribute('width',  String(cardW));
-    fo.setAttribute('height', String(cardH));
+
+    // Position: horizontally centered on the node, top-aligned.
+    const cardX = node.x + (node.w - cardW) / 2;
+    const cardY = node.y;
+
+    fo.setAttribute('x',      String(cardX));
+    fo.setAttribute('y',      String(cardY));
+    fo.setAttribute('width',  String(node.w));   // start == node width
+    fo.setAttribute('height', String(node.h));   // start == node height
+
     const sigHidden = collapsed.has('signature');
     const docHidden = collapsed.has('docstring');
     const metHidden = collapsed.has('metrics');
 
-    const xhtml = `
+    fo.innerHTML = `
       <div xmlns="http://www.w3.org/1999/xhtml" class="sv-fd-card">
         <div class="sv-fd-header">
           <span class="sv-kind-dot" style="background:${_svKindColor(sym.kind)}"></span>
@@ -829,24 +936,80 @@ function _svUpdateFocusDetailCard() {
           </div>
         </div>
       </div>`;
-    fo.innerHTML = xhtml;
+
     const cardsG = viewport.querySelector('.sv-cards');
     cardsG.appendChild(fo);
 
-    // Chevron click toggles — delegate to foreignObject child
+    // Chevron click toggles.
     fo.querySelectorAll('.sv-fd-section-hd').forEach(hd => {
-        hd.addEventListener('click', (ev) => {
+        hd.addEventListener('click', ev => {
             ev.stopPropagation();
             const key = hd.dataset.section;
             if (!key) return;
-            if (_svState.detailSectionCollapsed.has(key)) {
-                _svState.detailSectionCollapsed.delete(key);
-            } else {
-                _svState.detailSectionCollapsed.add(key);
-            }
+            if (_svState.detailSectionCollapsed.has(key)) _svState.detailSectionCollapsed.delete(key);
+            else _svState.detailSectionCollapsed.add(key);
             _svUpdateFocusDetailCard();
         });
     });
+
+    // Animate foreignObject from node size → full card size (in-place expand).
+    const t0 = performance.now();
+    const startW = node.w, startH = node.h;
+    function growFrame(now) {
+        const t = Math.min(1, (now - t0) / _SV_DUR_MS);
+        const e = _svEase(t);
+        fo.setAttribute('width',  String(startW + (cardW - startW) * e));
+        fo.setAttribute('height', String(startH + (cardH - startH) * e));
+        if (t < 1) requestAnimationFrame(growFrame);
+    }
+    requestAnimationFrame(growFrame);
+
+    // Animate camera to center focus scope + expanded card in viewport.
+    _svAnimateCameraToFocusScope(focusId, model, cardX, cardW, cardH);
+}
+
+// Smoothly pan+zoom so that the focused node, its 1-hop neighbours, and the
+// expanded detail card all fit comfortably within the visible SVG area.
+function _svAnimateCameraToFocusScope(focusId, model, cardX, cardW, cardH) {
+    const scopeIds = new Set([focusId]);
+    const near = model.adj.get(focusId);
+    if (near) for (const id of near) scopeIds.add(id);
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const n of model.nodes) {
+        if (!scopeIds.has(n.id)) continue;
+        minX = Math.min(minX, n.x);       minY = Math.min(minY, n.y);
+        maxX = Math.max(maxX, n.x + n.w); maxY = Math.max(maxY, n.y + n.h);
+    }
+    if (!Number.isFinite(minX)) return;
+
+    // Expand bounds to include the detail card footprint.
+    const focusNode = model.byNodeId[focusId];
+    if (focusNode) {
+        minX = Math.min(minX, cardX - 8);
+        maxX = Math.max(maxX, cardX + cardW + 8);
+        maxY = Math.max(maxY, focusNode.y + cardH + 8);
+    }
+
+    const svg = _svState.svg;
+    const rect = svg.getBoundingClientRect();
+    const margin = 72;
+    const worldW = maxX - minX;
+    const worldH = maxY - minY;
+    const targetK = Math.min(2.5,
+        (rect.width  - margin * 2) / (worldW || 1),
+        (rect.height - margin * 2) / (worldH || 1)
+    );
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    _svAnimateValue(
+        _svState.zoom,
+        { k: targetK,
+          x: rect.width  / 2 - cx * targetK,
+          y: rect.height / 2 - cy * targetK },
+        _SV_DUR_MS,
+        _svApplyZoom
+    );
 }
 
 function _svDocExcerpt(doc) {
@@ -883,6 +1046,15 @@ function _svCreateNodeEl(n) {
     rect.setAttribute('width',  String(n.w));
     rect.setAttribute('height', String(n.h));
     rect.setAttribute('rx', n.isField ? '14' : n.isCompound ? '10' : '8');
+    if (n.isGhost) {
+        // Ghost node backgrounds are nearly transparent in CSS (rgba(...,0.05)),
+        // which lets edge lines show through even though sv-ghosts is a higher
+        // z-layer. Override fill inline with enough opacity to occlude edges.
+        rect.style.fill        = 'var(--sv-ghost-bg, #141e30)';
+        rect.style.fillOpacity = '0.92';
+        // Capture pointer events even on transparent area (Bug 2: click-through fix).
+        rect.setAttribute('pointer-events', 'all');
+    }
     g.appendChild(rect);
 
     // Colored accent bar on the left

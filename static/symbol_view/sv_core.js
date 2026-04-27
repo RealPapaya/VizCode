@@ -116,6 +116,7 @@ function _svEnsureDom() {
             <g class="sv-edges"></g>
             <g class="sv-edge-labels"></g>
             <g class="sv-cards"></g>
+            <g class="sv-ghosts"></g>
           </g>
         </svg>
         <div id="sv-empty" hidden>
@@ -146,6 +147,7 @@ function _svInitPanZoom() {
     const svg = _svState.svg;
     if (!svg) return;
     let isPanning = false;
+    let didPan    = false;
     let panStart  = null;
 
     svg.addEventListener('wheel', (e) => {
@@ -166,11 +168,13 @@ function _svInitPanZoom() {
     svg.addEventListener('mousedown', (e) => {
         if (e.target !== svg && !e.target.classList.contains('sv-viewport')) return;
         isPanning = true;
+        didPan    = false;
         panStart  = { x: e.clientX - _svState.zoom.x, y: e.clientY - _svState.zoom.y };
         svg.style.cursor = 'grabbing';
     });
     window.addEventListener('mousemove', (e) => {
         if (!isPanning) return;
+        didPan = true;
         _svState.zoom.x = e.clientX - panStart.x;
         _svState.zoom.y = e.clientY - panStart.y;
         _svApplyZoom();
@@ -179,6 +183,19 @@ function _svInitPanZoom() {
         if (!isPanning) return;
         isPanning = false;
         svg.style.cursor = '';
+    });
+
+    // Click on blank canvas (not on a node/edge) → clear focus and restore camera.
+    svg.addEventListener('click', (e) => {
+        if (didPan) return;
+        const onBackground = e.target === svg
+            || e.target === _svState.viewport
+            || e.target.classList.contains('sv-edges')
+            || e.target.classList.contains('sv-edge-labels');
+        if (onBackground && _svState.focusId) {
+            _svState.focusId = null;
+            if (typeof _svApplyFocus === 'function') _svApplyFocus();
+        }
     });
 }
 
