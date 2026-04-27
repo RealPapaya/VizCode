@@ -214,13 +214,25 @@ async function _svLoadFileGraph(fileRel, opts) {
             if (empty) empty.hidden = false;
             return;
         }
-        const model = _svBuildFileGraphModel(data, fileRel);
-        _svUpdateBreadcrumbFile(fileRel, model);
-        _svRenderFileGraph(model);
-        if (opts && opts.pendingFocus && model.byId[opts.pendingFocus]) {
+        _svState.currentData = data;
+        const baseModel = _svBuildFileGraphModel(data, fileRel);
+        baseModel.fileRel = fileRel;
+        _svUpdateBreadcrumbFile(fileRel, baseModel);
+
+        if (opts && opts.pendingFocus && baseModel.byNodeId[opts.pendingFocus]) {
             _svState.focusId = opts.pendingFocus;
+            const fNode = baseModel.byNodeId[opts.pendingFocus];
+            const fSym  = fNode.sym || {};
+            const cardW = _svClamp(Math.max(fNode.w + 52, 260), _SV_DETAIL_MIN_W, _SV_DETAIL_MAX_W);
+            const cardH = _svEstimateDetailCardHeight(fSym, _svState.detailSectionCollapsed);
+            const focusModel = _svBuildFileGraphModel(data, fileRel, { focusId: opts.pendingFocus, cardW, cardH });
+            focusModel.fileRel = fileRel;
+            _svUpdateBreadcrumbFile(fileRel, focusModel);
+            _svRenderFileGraph(focusModel);
+        } else {
+            _svState.focusId = null;
+            _svRenderFileGraph(baseModel);
         }
-        _svApplyFocus({ noHistory: true });
     } catch (err) {
         if (empty) {
             empty.hidden = false;
@@ -230,6 +242,30 @@ async function _svLoadFileGraph(fileRel, opts) {
     } finally {
         _svShowLoading(false);
     }
+}
+
+// Rebuild the file graph with (or without) a focus card and re-render.
+// Called whenever focusId changes within the same file.
+function _svRebuildForFocus() {
+    const focusId = _svState.focusId;
+    const data    = _svState.currentData;
+    const fileRel = _svState.fileRel;
+    if (!data || !fileRel) { _svApplyFocus(); return; }
+
+    let focusOpts = null;
+    if (focusId) {
+        const curModel = _svState.currentGraph;
+        const curNode  = curModel && curModel.byNodeId[focusId];
+        const sym  = curNode ? (curNode.sym || {}) : {};
+        const refW = curNode ? curNode.w : 200;
+        const cardW = _svClamp(Math.max(refW + 52, 260), _SV_DETAIL_MIN_W, _SV_DETAIL_MAX_W);
+        const cardH = _svEstimateDetailCardHeight(sym, _svState.detailSectionCollapsed);
+        focusOpts = { focusId, cardW, cardH };
+    }
+    const model = _svBuildFileGraphModel(data, fileRel, focusOpts);
+    model.fileRel = fileRel;
+    _svUpdateBreadcrumbFile(fileRel, model);
+    _svRenderFileGraph(model);
 }
 
 function _svShowLoading(on) {
@@ -250,7 +286,7 @@ function _svUpdateBreadcrumbFile(fileRel, model) {
 }
 
 // ── Model: classify symbols and run dagre layout ──────────────────────────
-function _svBuildFileGraphModel(resp, fileRel) {
+function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
     const symbols = resp.symbols || [];
     const edges   = resp.edges || [];
     const extEdges = resp.external_edges || [];
@@ -260,22 +296,49 @@ function _svBuildFileGraphModel(resp, fileRel) {
     for (const s of symbols) byId[s.id] = s;
 
     // Classify: classes (compound), methods (nested), top-level functions / fields.
+    // When focusOpts is provided the focused node is extracted from its category:
+    // it becomes a standalone focus-card in topFuncs. If it was a class, its
+    // methods lose their parent and also fall into topFuncs as orphaned nodes.
     const classes  = [];
     const methods  = [];
     const topFuncs = [];
     const classById = {};
-    for (const s of symbols) {
-        if (_SV_CARD_KINDS.has(s.kind)) {
+    const focusSym = focusOpts ? byId[focusOpts.focusId] : null;
+
+    if (focusSym) {
+        for (const s of symbols) {
+            if (!_SV_CARD_KINDS.has(s.kind) || s.id === focusSym.id) continue;
             classes.push(s);
             classById[s.name] = s;
         }
-    }
-    for (const s of symbols) {
-        if (_SV_CARD_KINDS.has(s.kind)) continue;
-        if (s.parent && classById[s.parent]) {
-            methods.push({ ...s, _parentId: classById[s.parent].id });
-        } else {
-            topFuncs.push(s);
+        for (const s of symbols) {
+            if (_SV_CARD_KINDS.has(s.kind)) {
+                if (s.id === focusSym.id) topFuncs.push({ ...s, _isFocusCard: true });
+                continue;
+            }
+            if (s.id === focusSym.id) {
+                topFuncs.push({ ...s, _isFocusCard: true });
+            } else if (s.parent && classById[s.parent]) {
+                methods.push({ ...s, _parentId: classById[s.parent].id });
+            } else {
+                // Orphaned: parent is the focused class → standalone node.
+                topFuncs.push(s);
+            }
+        }
+    } else {
+        for (const s of symbols) {
+            if (_SV_CARD_KINDS.has(s.kind)) {
+                classes.push(s);
+                classById[s.name] = s;
+            }
+        }
+        for (const s of symbols) {
+            if (_SV_CARD_KINDS.has(s.kind)) continue;
+            if (s.parent && classById[s.parent]) {
+                methods.push({ ...s, _parentId: classById[s.parent].id });
+            } else {
+                topFuncs.push(s);
+            }
         }
     }
 
@@ -340,13 +403,19 @@ function _svBuildFileGraphModel(resp, fileRel) {
     // compound height mismatch bugs where dagre expands the compound beyond our
     // pre-calculated d.h, causing methods to appear outside the SVG rect.
 
-    // Top-level functions / fields
+    // Top-level functions / fields (plus the focus card when in focus mode)
     const topLevelDims = new Map();
     for (const f of topFuncs) {
-        const isField = f.kind === 'field' || f.kind === 'variable' || f.kind === 'constant' || f.kind === 'property';
-        const w = _svMeasureTopLevelWidth(f, isField);
-        const h = isField ? _SV_FIELD_H : _SV_FUNC_H;
-        topLevelDims.set(f.id, { w, h });
+        let w, h;
+        if (f._isFocusCard) {
+            w = focusOpts.cardW;
+            h = focusOpts.cardH;
+        } else {
+            const isField = f.kind === 'field' || f.kind === 'variable' || f.kind === 'constant' || f.kind === 'property';
+            w = _svMeasureTopLevelWidth(f, isField);
+            h = isField ? _SV_FIELD_H : _SV_FUNC_H;
+        }
+        topLevelDims.set(f.id, { w, h, isFocusCard: !!f._isFocusCard });
         g.setNode(f.id, { width: w, height: h });
     }
 
@@ -507,21 +576,23 @@ function _svBuildFileGraphModel(resp, fileRel) {
     for (const f of topFuncs) {
         const info = g.node(f.id);
         const dim = topLevelDims.get(f.id);
-        const isField = !!dim && dim.h === _SV_FIELD_H;
+        const isFocusCard = !!(dim && dim.isFocusCard);
+        const isField = !isFocusCard && !!dim && dim.h === _SV_FIELD_H;
         const w = dim ? dim.w : (isField ? _SV_FIELD_W : _SV_FUNC_W);
         const h = dim ? dim.h : (isField ? _SV_FIELD_H : _SV_FUNC_H);
         const offset = rootOffsets.get(f.id) || { dx: 0, dy: 0 };
         nodes.push({
-            id:        f.id,
-            sym:       f,
-            kind:      f.kind,
-            isTopLevel: true,
-            isField,
-            x:         info.x - w / 2 + offset.dx,
-            y:         info.y - h / 2 + offset.dy,
+            id:          f.id,
+            sym:         f,
+            kind:        f.kind,
+            isTopLevel:  !isFocusCard,
+            isField:     isField,
+            isFocusCard: isFocusCard,
+            x:           info.x - w / 2 + offset.dx,
+            y:           info.y - h / 2 + offset.dy,
             w, h,
-            cx:        info.x + offset.dx,
-            cy:        info.y + offset.dy,
+            cx:          info.x + offset.dx,
+            cy:          info.y + offset.dy,
         });
     }
     for (const gid of ghostIds) {
@@ -573,14 +644,36 @@ function _svBuildFileGraphModel(resp, fileRel) {
     const byNodeId = {};
     for (const n of nodes) byNodeId[n.id] = n;
 
+    // Focus-mode: ensure the focus card is adjacent to its parent class (method)
+    // or to its orphaned methods (class), for BFS scope rendering.
+    if (focusSym) {
+        if (!adj.has(focusSym.id)) adj.set(focusSym.id, new Set());
+        if (focusSym.parent && classById[focusSym.parent]) {
+            const parentId = classById[focusSym.parent].id;
+            if (!adj.has(parentId)) adj.set(parentId, new Set());
+            adj.get(focusSym.id).add(parentId);
+            adj.get(parentId).add(focusSym.id);
+        } else if (_SV_CARD_KINDS.has(focusSym.kind)) {
+            for (const f of topFuncs) {
+                if (!f._isFocusCard && f.parent === focusSym.name) {
+                    if (!adj.has(f.id)) adj.set(f.id, new Set());
+                    adj.get(focusSym.id).add(f.id);
+                    adj.get(f.id).add(focusSym.id);
+                }
+            }
+        }
+    }
+
     return {
         fileRel,
         nodes,
-        edges:  modelEdges,
+        edges:       modelEdges,
         byId,
         byNodeId,
         adj,
         extSyms,
+        hasFocusCard: !!(focusSym),
+        focusNodeId:  focusSym ? focusSym.id : null,
     };
 }
 
@@ -600,13 +693,15 @@ function _svToCompoundId(symId, methods, classDims) {
 }
 
 // ── Render + animate ──────────────────────────────────────────────────────
+let _svCurRenderModel = null;  // set at start of each _svRenderFileGraph call
+
 function _svRenderFileGraph(newModel) {
     const svg      = _svState.svg;
     const viewport = _svState.viewport;
     if (!svg || !viewport) return;
 
+    _svCurRenderModel = newModel;
     svg.style.display = '';
-    _svFitViewport(newModel);
 
     const cardsG  = viewport.querySelector('.sv-cards');
     const edgesG  = viewport.querySelector('.sv-edges');
@@ -614,9 +709,25 @@ function _svRenderFileGraph(newModel) {
     const ghostsG = viewport.querySelector('.sv-ghosts');
     if (!cardsG || !edgesG || !ghostsG) return;
 
+    // Remove any residual floating focus card from the old overlay approach.
+    const oldFocusCard = viewport.querySelector('.sv-focus-detail');
+    if (oldFocusCard) oldFocusCard.remove();
+
+    // Detect file change before camera or DOM work.
     const prev = _svState.currentGraph;
+    const sameFile = prev && prev.fileRel === newModel.fileRel;
+    if (!sameFile) {
+        cardsG.innerHTML  = '';
+        ghostsG.innerHTML = '';
+        _svState.currentGraph = null;
+        _svFitViewport(newModel);           // new file → snap camera immediately
+    } else {
+        // Same file (focus / unfocus / re-layout) → smoothly animate camera.
+        _svAnimateValue(_svState.zoom, _svComputeTargetZoom(newModel), _SV_DUR_MS, _svApplyZoom);
+    }
+
     const oldById = new Map();
-    if (prev) {
+    if (sameFile && prev) {
         for (const n of prev.nodes) oldById.set(n.id, n);
     }
 
@@ -625,12 +736,25 @@ function _svRenderFileGraph(newModel) {
     for (const n of newModel.nodes) {
         const was = oldById.get(n.id);
         if (was && was.el) {
+            const wasFocusCard = !!was.isFocusCard;
+            const nowFocusCard = !!n.isFocusCard;
             const needRebuild = (was.isCompound !== !!n.isCompound)
                 || (n.isCompound && was.collapsed !== n.collapsed)
-                || (was.sym && n.sym && was.sym.name !== n.sym.name);
+                || (was.sym && n.sym && was.sym.name !== n.sym.name)
+                || (wasFocusCard !== nowFocusCard)
+                || (n.isCompound && was.methods && n.methods && was.methods.length !== n.methods.length);
+            let w0 = was.w, h0 = was.h;
             let el = was.el;
             if (needRebuild) {
                 const fresh = _svCreateNodeEl(n);
+                // Start focus card foreignObject at old (small) node size so it grows.
+                if (nowFocusCard) {
+                    const fo = fresh.querySelector('.sv-focus-card-fo');
+                    if (fo) {
+                        fo.setAttribute('width',  String(was.w));
+                        fo.setAttribute('height', String(was.h));
+                    }
+                }
                 el.replaceWith(fresh);
                 el = fresh;
             } else {
@@ -638,7 +762,9 @@ function _svRenderFileGraph(newModel) {
             }
             live.set(n.id, {
                 x0: was.x, y0: was.y, x1: n.x, y1: n.y,
-                w: n.w, h: n.h, fadeIn: false, el, data: n,
+                w0, h0, w1: n.w, h1: n.h,
+                w: n.w, h: n.h,
+                fadeIn: false, el, data: n,
             });
         } else {
             const el = _svCreateNodeEl(n);
@@ -647,7 +773,9 @@ function _svRenderFileGraph(newModel) {
             el.style.opacity = '0';
             live.set(n.id, {
                 x0: n.x, y0: n.y, x1: n.x, y1: n.y,
-                w: n.w, h: n.h, fadeIn: true, el, data: n,
+                w0: n.w, h0: n.h, w1: n.w, h1: n.h,
+                w: n.w, h: n.h,
+                fadeIn: true, el, data: n,
             });
         }
     }
@@ -678,13 +806,20 @@ function _svRenderFileGraph(newModel) {
             L.currentY = y;
             L.el.setAttribute('transform', `translate(${x},${y})`);
             if (L.fadeIn) L.el.style.opacity = String(e);
+            // Animate foreignObject size for focus card morphing.
+            if (L.data.isFocusCard && L.w0 !== L.w1) {
+                const fw = L.w0 + (L.w1 - L.w0) * e;
+                const fh = L.h0 + (L.h1 - L.h0) * e;
+                const fo = L.el.querySelector('.sv-focus-card-fo');
+                if (fo) {
+                    fo.setAttribute('width',  String(fw));
+                    fo.setAttribute('height', String(fh));
+                }
+            }
         }
         for (const X of exits) {
             X.el.style.opacity = String(X.startOpacity * (1 - e));
         }
-        // Edges are NOT rebuilt per-frame — built once after cards land (below).
-        // This is the only approach that guarantees edges never precede cards,
-        // regardless of CSS transitions or rAF timing jitter.
         if (t < 1) {
             requestAnimationFrame(frame);
         } else {
@@ -693,10 +828,16 @@ function _svRenderFileGraph(newModel) {
                 L.el.setAttribute('transform', `translate(${L.x1},${L.y1})`);
                 L.el.style.opacity = '1';
                 L.data.el = L.el;
+                // Snap focus card foreignObject to final size.
+                if (L.data.isFocusCard) {
+                    const fo = L.el.querySelector('.sv-focus-card-fo');
+                    if (fo) {
+                        fo.setAttribute('width',  String(L.w1));
+                        fo.setAttribute('height', String(L.h1));
+                    }
+                }
             }
             _svState.currentGraph = newModel;
-            // Re-attach live refs so subsequent focus changes know where each
-            // node currently sits.
             for (const n of newModel.nodes) {
                 const L = live.get(n.id);
                 if (L) n.el = L.el;
@@ -705,8 +846,6 @@ function _svRenderFileGraph(newModel) {
             _svApplyFocus({ noHistory: true });
 
             // Build edges at final, stable positions and fade them in.
-            // Doing this after cards have fully landed guarantees edges never
-            // appear before cards (Bug 1 fix).
             edgesG.innerHTML  = '';
             labelsG.innerHTML = '';
             for (const ed of newModel.edges) {
@@ -715,7 +854,6 @@ function _svRenderFileGraph(newModel) {
                 if (!from || !to) continue;
                 _svAppendEdge(edgesG, labelsG, ed, from, to);
             }
-            // Apply focus-scope classes to freshly built edges.
             _svApplyFocus({ noHistory: true });
             const EDGE_DUR = 220;
             const edgeT0 = performance.now();
@@ -766,6 +904,52 @@ function _svFitViewport(model) {
     _svApplyZoom();
 }
 
+function _svComputeTargetZoom(model) {
+    const svg = _svState.svg;
+    if (!svg || !model || !model.nodes.length) return { ..._svState.zoom };
+    const rect   = svg.getBoundingClientRect();
+    const margin = 64;
+
+    if (model.hasFocusCard && model.focusNodeId) {
+        const focusId  = model.focusNodeId;
+        const scopeIds = new Set([focusId]);
+        const near = model.adj.get(focusId);
+        if (near) for (const id of near) scopeIds.add(id);
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const n of model.nodes) {
+            if (!scopeIds.has(n.id)) continue;
+            if (n.x < minX) minX = n.x;         if (n.y < minY) minY = n.y;
+            if (n.x + n.w > maxX) maxX = n.x + n.w;
+            if (n.y + n.h > maxY) maxY = n.y + n.h;
+        }
+        if (!Number.isFinite(minX)) return _svComputeFitAllZoom(model, rect, margin);
+        const k = Math.min(2.5,
+            (rect.width  - margin * 2) / Math.max(1, maxX - minX),
+            (rect.height - margin * 2) / Math.max(1, maxY - minY)
+        );
+        return { k,
+            x: rect.width  / 2 - ((minX + maxX) / 2) * k,
+            y: rect.height / 2 - ((minY + maxY) / 2) * k };
+    }
+    return _svComputeFitAllZoom(model, rect, margin);
+}
+
+function _svComputeFitAllZoom(model, rect, margin) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const n of model.nodes) {
+        if (n.x < minX) minX = n.x;         if (n.y < minY) minY = n.y;
+        if (n.x + n.w > maxX) maxX = n.x + n.w;
+        if (n.y + n.h > maxY) maxY = n.y + n.h;
+    }
+    const w = maxX - minX, h = maxY - minY;
+    const k = Math.max(0.15, Math.min(1,
+        (rect.width  - margin * 2) / Math.max(1, w),
+        (rect.height - margin * 2) / Math.max(1, h)
+    ));
+    return { k, x: rect.width / 2 - (minX + w / 2) * k, y: rect.height / 2 - (minY + h / 2) * k };
+}
+
 // ── Focus system ──────────────────────────────────────────────────────────
 
 // BFS hop distances from startId through the adjacency map.
@@ -809,8 +993,8 @@ function _svApplyFocus(_opts) {
             continue;
         }
         if (n.id === focusId) {
-            // Focus node is hidden — the in-place expanding card overlays it.
-            n.el.style.opacity = '0';
+            // Focus card IS the visible card — keep fully opaque.
+            n.el.style.opacity = '';
             n.el.classList.add('sv-focus');
         } else {
             const d = dist ? dist.get(n.id) : undefined;
@@ -840,70 +1024,61 @@ function _svApplyFocus(_opts) {
         });
     }
 
-    _svUpdateFocusDetailCard();
     _svSyncNavBtns();
 }
 
-function _svUpdateFocusDetailCard() {
-    const model = _svState.currentGraph;
-    if (!model) return;
-    const viewport = _svState.viewport;
+function _svDocExcerpt(doc) {
+    const lines = String(doc || '').trim().split(/\r?\n/).filter(Boolean).slice(0, 2);
+    return lines.map(l => `<div>${_svEsc(l)}</div>`).join('');
+}
 
-    // Fade out and remove any existing detail card.
-    const old = viewport.querySelector('.sv-focus-detail');
-    if (old) {
-        const prevId = old.dataset.focusnodeid;
-        // Restore the hidden node's opacity so it can be seen / re-styled by _svApplyFocus.
-        if (prevId && prevId !== _svState.focusId) {
-            const prevNode = model.byNodeId[prevId];
-            if (prevNode && prevNode.el) prevNode.el.style.opacity = '';
-        }
-        old.style.transition = 'opacity 220ms ease';
-        old.style.opacity = '0';
-        const toRemove = old;
-        setTimeout(() => { if (toRemove.parentNode) toRemove.remove(); }, 230);
+// ── Node creation (SVG) ───────────────────────────────────────────────────
+function _svNodeClass(n) {
+    const kind = n.kind || 'default';
+    const classes = ['sv-node', `sv-kind-${kind}`];
+    if (n.isCompound)   classes.push('sv-compound');
+    if (n.isMethod)     classes.push('sv-method');
+    if (n.isTopLevel)   classes.push('sv-top');
+    if (n.isField)      classes.push('sv-field');
+    if (n.isGhost)      classes.push('sv-ghost');
+    if (n.isFocusCard)  classes.push('sv-focus-card');
+    if (n.sym && n.sym.is_static) classes.push('sv-static');
+    if (n.sym && Array.isArray(n.sym.decorators) && n.sym.decorators.includes('override')) {
+        classes.push('sv-override');
     }
+    return classes.join(' ');
+}
 
-    const focusId = _svState.focusId;
-    if (!focusId) {
-        // Unfocused — camera returns to fit-all.
-        if (model.nodes.length) _svFitViewport(model);
-        return;
-    }
+function _svCreateFocusCardEl(n) {
+    const NS  = 'http://www.w3.org/2000/svg';
+    const g   = document.createElementNS(NS, 'g');
+    g.setAttribute('class', _svNodeClass(n));
+    g.dataset.symid = n.id;
+    g.setAttribute('transform', `translate(${n.x},${n.y})`);
 
-    const node = model.byNodeId[focusId];
-    if (!node || !node.el) return;
-    const sym = node.sym || {};
+    const sym     = n.sym || {};
+    const focusId = n.id;
+    const model   = _svCurRenderModel;
 
-    // Compute edge metrics.
     let callers = 0, callees = 0;
-    for (const e of model.edges) {
-        const hits = e.from === focusId || e.origFrom === focusId
-                  || e.to   === focusId || e.origTo   === focusId;
-        if (!hits) continue;
-        if (e.from === focusId || e.origFrom === focusId) callees++;
-        else callers++;
+    if (model) {
+        for (const e of model.edges) {
+            const hits = e.from === focusId || e.origFrom === focusId
+                      || e.to   === focusId || e.origTo   === focusId;
+            if (!hits) continue;
+            if (e.from === focusId || e.origFrom === focusId) callees++;
+            else callers++;
+        }
     }
     const lineCount = Math.max(1, (sym.end_line || sym.line || 1) - (sym.line || 1) + 1);
 
-    const NS = 'http://www.w3.org/2000/svg';
     const fo = document.createElementNS(NS, 'foreignObject');
-    fo.setAttribute('class', 'sv-focus-detail');
-    fo.dataset.focusnodeid = focusId;
+    fo.setAttribute('class', 'sv-focus-card-fo');
+    fo.setAttribute('x', '0'); fo.setAttribute('y', '0');
+    fo.setAttribute('width',  String(n.w));
+    fo.setAttribute('height', String(n.h));
 
     const collapsed = _svState.detailSectionCollapsed;
-    const cardW = _svClamp(Math.max(node.w + 52, 260), _SV_DETAIL_MIN_W, _SV_DETAIL_MAX_W);
-    const cardH = _svEstimateDetailCardHeight(sym, collapsed);
-
-    // Position: horizontally centered on the node, top-aligned.
-    const cardX = node.x + (node.w - cardW) / 2;
-    const cardY = node.y;
-
-    fo.setAttribute('x',      String(cardX));
-    fo.setAttribute('y',      String(cardY));
-    fo.setAttribute('width',  String(node.w));   // start == node width
-    fo.setAttribute('height', String(node.h));   // start == node height
-
     const sigHidden = collapsed.has('signature');
     const docHidden = collapsed.has('docstring');
     const metHidden = collapsed.has('metrics');
@@ -948,10 +1123,6 @@ function _svUpdateFocusDetailCard() {
         </div>
       </div>`;
 
-    const cardsG = viewport.querySelector('.sv-cards');
-    cardsG.appendChild(fo);
-
-    // Chevron click toggles.
     fo.querySelectorAll('.sv-fd-section-hd').forEach(hd => {
         hd.addEventListener('click', ev => {
             ev.stopPropagation();
@@ -959,92 +1130,17 @@ function _svUpdateFocusDetailCard() {
             if (!key) return;
             if (_svState.detailSectionCollapsed.has(key)) _svState.detailSectionCollapsed.delete(key);
             else _svState.detailSectionCollapsed.add(key);
-            _svUpdateFocusDetailCard();
+            _svRebuildForFocus();
         });
     });
 
-    // Animate foreignObject from node size → full card size (in-place expand).
-    const t0 = performance.now();
-    const startW = node.w, startH = node.h;
-    function growFrame(now) {
-        const t = Math.min(1, (now - t0) / _SV_DUR_MS);
-        const e = _svEase(t);
-        fo.setAttribute('width',  String(startW + (cardW - startW) * e));
-        fo.setAttribute('height', String(startH + (cardH - startH) * e));
-        if (t < 1) requestAnimationFrame(growFrame);
-    }
-    requestAnimationFrame(growFrame);
-
-    // Animate camera to center focus scope + expanded card in viewport.
-    _svAnimateCameraToFocusScope(focusId, model, cardX, cardW, cardH);
-}
-
-// Smoothly pan+zoom so that the focused node, its 1-hop neighbours, and the
-// expanded detail card all fit comfortably within the visible SVG area.
-function _svAnimateCameraToFocusScope(focusId, model, cardX, cardW, cardH) {
-    const scopeIds = new Set([focusId]);
-    const near = model.adj.get(focusId);
-    if (near) for (const id of near) scopeIds.add(id);
-
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const n of model.nodes) {
-        if (!scopeIds.has(n.id)) continue;
-        minX = Math.min(minX, n.x);       minY = Math.min(minY, n.y);
-        maxX = Math.max(maxX, n.x + n.w); maxY = Math.max(maxY, n.y + n.h);
-    }
-    if (!Number.isFinite(minX)) return;
-
-    // Expand bounds to include the detail card footprint.
-    const focusNode = model.byNodeId[focusId];
-    if (focusNode) {
-        minX = Math.min(minX, cardX - 8);
-        maxX = Math.max(maxX, cardX + cardW + 8);
-        maxY = Math.max(maxY, focusNode.y + cardH + 8);
-    }
-
-    const svg = _svState.svg;
-    const rect = svg.getBoundingClientRect();
-    const margin = 72;
-    const worldW = maxX - minX;
-    const worldH = maxY - minY;
-    const targetK = Math.min(2.5,
-        (rect.width  - margin * 2) / (worldW || 1),
-        (rect.height - margin * 2) / (worldH || 1)
-    );
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
-    _svAnimateValue(
-        _svState.zoom,
-        { k: targetK,
-          x: rect.width  / 2 - cx * targetK,
-          y: rect.height / 2 - cy * targetK },
-        _SV_DUR_MS,
-        _svApplyZoom
-    );
-}
-
-function _svDocExcerpt(doc) {
-    const lines = String(doc || '').trim().split(/\r?\n/).filter(Boolean).slice(0, 2);
-    return lines.map(l => `<div>${_svEsc(l)}</div>`).join('');
-}
-
-// ── Node creation (SVG) ───────────────────────────────────────────────────
-function _svNodeClass(n) {
-    const kind = n.kind || 'default';
-    const classes = ['sv-node', `sv-kind-${kind}`];
-    if (n.isCompound) classes.push('sv-compound');
-    if (n.isMethod)   classes.push('sv-method');
-    if (n.isTopLevel) classes.push('sv-top');
-    if (n.isField)    classes.push('sv-field');
-    if (n.isGhost)    classes.push('sv-ghost');
-    if (n.sym && n.sym.is_static) classes.push('sv-static');
-    if (n.sym && Array.isArray(n.sym.decorators) && n.sym.decorators.includes('override')) {
-        classes.push('sv-override');
-    }
-    return classes.join(' ');
+    g.appendChild(fo);
+    return g;
 }
 
 function _svCreateNodeEl(n) {
+    if (n.isFocusCard) return _svCreateFocusCardEl(n);
+
     const NS = 'http://www.w3.org/2000/svg';
     const g  = document.createElementNS(NS, 'g');
     g.setAttribute('class', _svNodeClass(n));
@@ -1358,7 +1454,7 @@ function _svHandleNodeClick(symId, el) {
     _svState.focusId = symId;
     _svState.detailSectionCollapsed.clear();
     _svState.edgeJumpCursor.clear();
-    _svApplyFocus();
+    _svRebuildForFocus();
 }
 
 function _svHandleEdgeClick(ed) {

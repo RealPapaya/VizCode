@@ -502,9 +502,15 @@
 
 /* ── Focus detail card (foreignObject HTML) ───────────────────────── */
 .sv-focus-detail {
-    overflow: hidden;   /* clips card content during grow animation */
+    overflow: visible;
     pointer-events: auto;
 }
+
+.sv-focus-card-fo {
+    overflow: hidden;
+    pointer-events: auto;
+}
+
 
 .sv-fd-card {
     background: var(--panel, #161715);

@@ -21,6 +21,7 @@ const _svState = {
     viewport:  null,
     zoom:      { k: 1, x: 0, y: 0 },
     currentGraph: null,      // last rendered file graph model
+    currentData:  null,      // raw /symbol-file response for the current file
     searchOpen: false,
     searchCache: new Map(),
     hiddenEdgeTypes: new Set(),
@@ -28,7 +29,7 @@ const _svState = {
     detailSectionCollapsed: new Set(),   // "signature" | "docstring" | "metrics"
     compoundCollapsed: new Set(),        // class compound ids whose methods are hidden
     _collapseAllOnLoad: true,            // when true, next load collapses all classes by default
-    showExternal: true,                  // when false, ghost (external) nodes are hidden
+    showExternal: false,                 // when false, ghost (external) nodes are hidden
     _legendSnap: null,
 
     // Back-compat alias — viz_code_panel.js / viz_graph.js / viz_sidebar.js
@@ -205,7 +206,8 @@ function _svInitPanZoom() {
             || e.target.classList.contains('sv-edge-labels');
         if (onBackground && _svState.focusId) {
             _svState.focusId = null;
-            if (typeof _svApplyFocus === 'function') _svApplyFocus();
+            if (typeof _svRebuildForFocus === 'function') _svRebuildForFocus();
+            else if (typeof _svApplyFocus === 'function') _svApplyFocus();
         }
     });
 }
@@ -262,6 +264,8 @@ function symViewOpen(fileRel) {
     if (!root) return;
     const cy = document.getElementById('cy');
     if (cy) cy.style.display = 'none';
+    const ls = document.getElementById('layout-switcher');
+    if (ls) ls.style.display = 'none';
     root.classList.add('active');
     _svSaveLegend();
     _svHideLegend();
@@ -294,6 +298,8 @@ function symViewActivate(symId) {
     if (!root) return;
     const cy = document.getElementById('cy');
     if (cy) cy.style.display = 'none';
+    const ls = document.getElementById('layout-switcher');
+    if (ls) ls.style.display = 'none';
     root.classList.add('active');
     _svSaveLegend();
     _svHideLegend();
@@ -324,6 +330,8 @@ function symViewClose() {
     if (root) root.classList.remove('active');
     const cy = document.getElementById('cy');
     if (cy) cy.style.display = '';
+    const ls = document.getElementById('layout-switcher');
+    if (ls) ls.style.display = '';
 
     _svState.fileRel = null;
     _svState.focusId = null;
@@ -372,6 +380,8 @@ function _svJumpTo(snap) {
         if (typeof _svLoadFileGraph === 'function') {
             _svLoadFileGraph(_svState.fileRel, { pendingFocus: _svState.focusId });
         }
+    } else if (typeof _svRebuildForFocus === 'function') {
+        _svRebuildForFocus();
     } else if (typeof _svApplyFocus === 'function') {
         _svApplyFocus();
     }
@@ -383,7 +393,8 @@ function _svSetFocus(symId) {
     _svState.focusId = symId;
     _svState.detailSectionCollapsed.clear();
     _svState.edgeJumpCursor.clear();
-    if (typeof _svApplyFocus === 'function') _svApplyFocus();
+    if (typeof _svRebuildForFocus === 'function') _svRebuildForFocus();
+    else if (typeof _svApplyFocus === 'function') _svApplyFocus();
     _svSyncNavBtns();
 }
 
@@ -497,7 +508,8 @@ window.svHighlightLine = function (lineIdx) {
     _svState.focusId = best.id;
     _svState.detailSectionCollapsed.clear();
     _svState.edgeJumpCursor.clear();
-    if (typeof _svApplyFocus === 'function') _svApplyFocus({ noHistory: true });
+    if (typeof _svRebuildForFocus === 'function') _svRebuildForFocus();
+    else if (typeof _svApplyFocus === 'function') _svApplyFocus({ noHistory: true });
     _svSyncNavBtns();
 };
 
