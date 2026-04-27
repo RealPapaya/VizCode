@@ -240,13 +240,13 @@ function _svShowLoading(on) {
 
 function _svUpdateBreadcrumbFile(fileRel, model) {
     const brd = document.getElementById('sv-breadcrumb');
-    if (!brd) return;
-    const n = model && model.nodes ? model.nodes.length : 0;
-    const e = model && model.edges ? model.edges.length : 0;
-    brd.innerHTML = `
-      <span class="sv-bc-kind">File</span>
-      <span class="sv-bc-name">${_svEsc(fileRel)}</span>
-      <span class="sv-bc-file">${n} symbols · ${e} edges</span>`;
+    if (brd) brd.textContent = fileRel || '';
+    const stats = document.getElementById('sv-stats');
+    if (stats && model) {
+        const n = model.nodes ? model.nodes.length : 0;
+        const e = model.edges ? model.edges.length : 0;
+        stats.textContent = `${n} symbols · ${e} edges`;
+    }
 }
 
 // ── Model: classify symbols and run dagre layout ──────────────────────────
@@ -277,6 +277,13 @@ function _svBuildFileGraphModel(resp, fileRel) {
         } else {
             topFuncs.push(s);
         }
+    }
+
+    // Default: collapse all classes when first loading a file.
+    if (_svState._collapseAllOnLoad) {
+        _svState._collapseAllOnLoad = false;
+        _svState.compoundCollapsed.clear();
+        for (const cls of classes) _svState.compoundCollapsed.add(cls.id);
     }
 
     // Use dagre for positions. Compound classes contain their methods.
@@ -346,14 +353,16 @@ function _svBuildFileGraphModel(resp, fileRel) {
     // Ghost nodes for external endpoints (one per foreign symbol referenced).
     const ghostIds = [];
     const ghostDims = new Map();
-    for (const gid of Object.keys(extSyms)) {
-        if (byId[gid]) continue;  // skip if it somehow sits inside file_syms
-        const gs = extSyms[gid];
-        byId[gid] = { ...gs, _ghost: true };
-        const w = _svMeasureGhostWidth(gs);
-        ghostDims.set(gid, { w, h: _SV_GHOST_H });
-        g.setNode(gid, { width: w, height: _SV_GHOST_H });
-        ghostIds.push(gid);
+    if (_svState.showExternal) {
+        for (const gid of Object.keys(extSyms)) {
+            if (byId[gid]) continue;  // skip if it somehow sits inside file_syms
+            const gs = extSyms[gid];
+            byId[gid] = { ...gs, _ghost: true };
+            const w = _svMeasureGhostWidth(gs);
+            ghostDims.set(gid, { w, h: _SV_GHOST_H });
+            g.setNode(gid, { width: w, height: _SV_GHOST_H });
+            ghostIds.push(gid);
+        }
     }
 
     // Intra-file edges.
@@ -376,18 +385,20 @@ function _svBuildFileGraphModel(resp, fileRel) {
     }
 
     // External edges — cross-file.
-    for (const e of extEdges) {
-        const fromId = byId[e.from] ? _svRedirectIfCollapsed(e.from, methods, classDims) : e.from;
-        const toId   = byId[e.to]   ? _svRedirectIfCollapsed(e.to,   methods, classDims) : e.to;
-        const dagreFrom = byId[fromId] ? _svToCompoundId(fromId, methods, classDims) : fromId;
-        const dagreTo   = byId[toId]   ? _svToCompoundId(toId,   methods, classDims) : toId;
-        if (!g.hasNode(dagreFrom) || !g.hasNode(dagreTo)) continue;
-        if (dagreFrom !== dagreTo) g.setEdge(dagreFrom, dagreTo);
-        const id = `e|${fromId}|${toId}|${e.type}|ext`;
-        modelEdges.push({
-            id, from: fromId, to: toId, type: e.type,
-            origFrom: e.from, origTo: e.to, external: true,
-        });
+    if (_svState.showExternal) {
+        for (const e of extEdges) {
+            const fromId = byId[e.from] ? _svRedirectIfCollapsed(e.from, methods, classDims) : e.from;
+            const toId   = byId[e.to]   ? _svRedirectIfCollapsed(e.to,   methods, classDims) : e.to;
+            const dagreFrom = byId[fromId] ? _svToCompoundId(fromId, methods, classDims) : fromId;
+            const dagreTo   = byId[toId]   ? _svToCompoundId(toId,   methods, classDims) : toId;
+            if (!g.hasNode(dagreFrom) || !g.hasNode(dagreTo)) continue;
+            if (dagreFrom !== dagreTo) g.setEdge(dagreFrom, dagreTo);
+            const id = `e|${fromId}|${toId}|${e.type}|ext`;
+            modelEdges.push({
+                id, from: fromId, to: toId, type: e.type,
+                origFrom: e.from, origTo: e.to, external: true,
+            });
+        }
     }
 
     dagre.layout(g);
@@ -1144,7 +1155,8 @@ function _svCreateNodeEl(n) {
 
         const name = document.createElementNS(NS, 'text');
         name.setAttribute('class', 'sv-node-name sv-mono');
-        name.setAttribute('x', '24'); name.setAttribute('y', String(n.h / 2 + 4));
+        name.setAttribute('x', '24'); name.setAttribute('y', String(n.h / 2));
+        name.setAttribute('dominant-baseline', 'middle');
         name.textContent = _svClipText(sym.name, n.w - 80);
         g.appendChild(name);
 
@@ -1152,7 +1164,8 @@ function _svCreateNodeEl(n) {
         const accessEl = document.createElementNS(NS, 'text');
         accessEl.setAttribute('class', `sv-access sv-access-${access.toLowerCase()}`);
         accessEl.setAttribute('x', String(n.w - 10));
-        accessEl.setAttribute('y', String(n.h / 2 + 4));
+        accessEl.setAttribute('y', String(n.h / 2));
+        accessEl.setAttribute('dominant-baseline', 'middle');
         accessEl.setAttribute('text-anchor', 'end');
         accessEl.textContent = access;
         g.appendChild(accessEl);
@@ -1167,13 +1180,15 @@ function _svCreateNodeEl(n) {
 
         const name = document.createElementNS(NS, 'text');
         name.setAttribute('class', 'sv-node-name sv-mono');
-        name.setAttribute('x', '26'); name.setAttribute('y', String(n.h / 2 + 4));
+        name.setAttribute('x', '26'); name.setAttribute('y', String(n.h / 2));
+        name.setAttribute('dominant-baseline', 'middle');
         name.textContent = _svClipText(sym.name, n.w - 60);
         g.appendChild(name);
 
         const kindEl = document.createElementNS(NS, 'text');
         kindEl.setAttribute('class', 'sv-pill-kind');
-        kindEl.setAttribute('x', String(n.w - 8)); kindEl.setAttribute('y', String(n.h / 2 + 4));
+        kindEl.setAttribute('x', String(n.w - 8)); kindEl.setAttribute('y', String(n.h / 2));
+        kindEl.setAttribute('dominant-baseline', 'middle');
         kindEl.setAttribute('text-anchor', 'end');
         kindEl.textContent = (sym.kind || '').slice(0, 4).toUpperCase();
         g.appendChild(kindEl);
@@ -1371,4 +1386,26 @@ function _svToggleCompound(classId) {
     if (_svState.fileRel) {
         _svLoadFileGraph(_svState.fileRel, { pendingFocus: _svState.focusId });
     }
+}
+
+function _svExpandAll() {
+    _svState.compoundCollapsed.clear();
+    if (_svState.fileRel) _svLoadFileGraph(_svState.fileRel, { pendingFocus: _svState.focusId });
+}
+
+function _svCollapseAll() {
+    const model = _svState.currentGraph;
+    if (model) {
+        for (const n of model.nodes) {
+            if (n.isCompound) _svState.compoundCollapsed.add(n.id);
+        }
+    }
+    if (_svState.fileRel) _svLoadFileGraph(_svState.fileRel, { pendingFocus: _svState.focusId });
+}
+
+function _svToggleExternal() {
+    _svState.showExternal = !_svState.showExternal;
+    const btn = document.getElementById('sv-ext-btn');
+    if (btn) btn.classList.toggle('sv-btn-active', _svState.showExternal);
+    if (_svState.fileRel) _svLoadFileGraph(_svState.fileRel, { pendingFocus: _svState.focusId });
 }

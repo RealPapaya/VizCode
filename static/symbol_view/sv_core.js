@@ -27,6 +27,8 @@ const _svState = {
     edgeJumpCursor: new Map(),
     detailSectionCollapsed: new Set(),   // "signature" | "docstring" | "metrics"
     compoundCollapsed: new Set(),        // class compound ids whose methods are hidden
+    _collapseAllOnLoad: true,            // when true, next load collapses all classes by default
+    showExternal: true,                  // when false, ghost (external) nodes are hidden
     _legendSnap: null,
 
     // Back-compat alias — viz_code_panel.js / viz_graph.js / viz_sidebar.js
@@ -89,42 +91,47 @@ function _svEnsureDom() {
 
     root.innerHTML = `
       <div id="sv-toolbar">
-        <div id="sv-nav-group">
+        <div class="sv-tb-top">
+          <span class="sv-tb-title">Symbol View</span>
+          <span id="sv-breadcrumb"></span>
+          <button id="sv-close-btn" title="Close Symbol View">&times;</button>
+        </div>
+        <div class="sv-tb-actions">
           <button id="sv-back-btn" title="Back" disabled>&larr;</button>
           <button id="sv-fwd-btn"  title="Forward" disabled>&rarr;</button>
           <button id="sv-unfocus-btn" title="Clear focus" style="display:none">&#9005;</button>
-          <div id="sv-breadcrumb"></div>
+          <button id="sv-expand-all-btn" title="Expand all classes">Expand All</button>
+          <button id="sv-collapse-all-btn" title="Collapse all classes">Collapse All</button>
+          <button id="sv-ext-btn" title="Show/hide external symbols">External Symbol</button>
+          <div id="sv-search-wrap">
+            <span id="sv-search-icon">&#128269;</span>
+            <input id="sv-search-input" type="text" placeholder="Search symbols…" autocomplete="off" spellcheck="false" />
+            <button id="sv-search-clear" style="display:none">&times;</button>
+            <div id="sv-search-results" hidden></div>
+          </div>
+          <span id="sv-stats" class="sv-tb-stats"></span>
         </div>
-        <div id="sv-search-wrap">
-          <span id="sv-search-icon">&#128269;</span>
-          <input id="sv-search-input" type="text" placeholder="Search symbols…" autocomplete="off" spellcheck="false" />
-          <button id="sv-search-clear" style="display:none">&times;</button>
-          <div id="sv-search-results" hidden></div>
-        </div>
-        <button id="sv-close-btn" title="Close Structure View">&times;</button>
       </div>
-      <div id="sv-body">
-        <svg id="sv-svg" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <marker id="sv-arrow" viewBox="0 0 10 10" refX="9" refY="5"
-                    markerWidth="6" markerHeight="6" orient="auto-start-reverse"
-                    markerUnits="userSpaceOnUse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
-            </marker>
-          </defs>
-          <g class="sv-viewport">
-            <g class="sv-edges"></g>
-            <g class="sv-edge-labels"></g>
-            <g class="sv-cards"></g>
-            <g class="sv-ghosts"></g>
-          </g>
-        </svg>
-        <div id="sv-empty" hidden>
-          <div class="sv-empty-icon">&#10697;</div>
-          <div class="sv-empty-msg">No file loaded</div>
-        </div>
-        <div id="sv-edge-tip" hidden></div>
+      <svg id="sv-svg" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="sv-arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="6" markerHeight="6" orient="auto-start-reverse"
+                  markerUnits="userSpaceOnUse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+          </marker>
+        </defs>
+        <g class="sv-viewport">
+          <g class="sv-edges"></g>
+          <g class="sv-edge-labels"></g>
+          <g class="sv-cards"></g>
+          <g class="sv-ghosts"></g>
+        </g>
+      </svg>
+      <div id="sv-empty" hidden>
+        <div class="sv-empty-icon">&#10697;</div>
+        <div class="sv-empty-msg">No file loaded</div>
       </div>
+      <div id="sv-edge-tip" hidden></div>
     `;
 
     _svState.svg      = root.querySelector('#sv-svg');
@@ -136,6 +143,10 @@ function _svEnsureDom() {
         if (_svState.focusId) _svSetFocus(null);
     };
     root.querySelector('#sv-close-btn').onclick = symViewClose;
+    root.querySelector('#sv-expand-all-btn').onclick  = _svExpandAll;
+    root.querySelector('#sv-collapse-all-btn').onclick = _svCollapseAll;
+    root.querySelector('#sv-ext-btn').onclick = _svToggleExternal;
+    root.querySelector('#sv-ext-btn').classList.toggle('sv-btn-active', _svState.showExternal);
 
     _svInitPanZoom();
     if (typeof _svInitSearch === 'function') _svInitSearch();
@@ -260,6 +271,7 @@ function symViewOpen(fileRel) {
     _svState.focusId = null;
     _svState.detailSectionCollapsed.clear();
     _svState.compoundCollapsed.clear();
+    _svState._collapseAllOnLoad = true;
     _svState.edgeJumpCursor.clear();
     _svSyncActive();
 
@@ -293,6 +305,7 @@ function symViewActivate(symId) {
         _svState.focusId = symId;
         _svState.detailSectionCollapsed.clear();
         _svState.compoundCollapsed.clear();
+        _svState._collapseAllOnLoad = true;
         _svState.edgeJumpCursor.clear();
         _svSyncActive();
         if (typeof _svLoadFileGraph === 'function') {
