@@ -29,6 +29,7 @@ const _svState = {
     searchCache: new Map(),
     hiddenEdgeTypes: new Set(),
     edgeJumpCursor: new Map(),
+    selectedEdgeId: null,
     detailSectionCollapsed: new Set(),   // "signature" | "docstring" | "metrics"
     compoundCollapsed: new Set(),        // class compound ids whose methods are hidden
     _collapseAllOnLoad: true,            // when true, next load collapses all classes by default
@@ -280,6 +281,7 @@ function symViewOpen(fileRel) {
     _svState.compoundCollapsed.clear();
     _svState._collapseAllOnLoad = true;
     _svState.edgeJumpCursor.clear();
+    _svState.selectedEdgeId = null;
     _svState.baseLayoutSnapshot = null;
     _svState.focusLayoutSnapshot = null;
     _svState.activeAnimationToken += 1;
@@ -319,6 +321,7 @@ function symViewActivate(symId) {
         _svState.compoundCollapsed.clear();
         _svState._collapseAllOnLoad = true;
         _svState.edgeJumpCursor.clear();
+        _svState.selectedEdgeId = null;
         _svState.baseLayoutSnapshot = null;
         _svState.focusLayoutSnapshot = null;
         _svState.activeAnimationToken += 1;
@@ -407,6 +410,7 @@ function _svSetFocus(symId) {
     _svState.focusId = symId;
     _svState.detailSectionCollapsed.clear();
     _svState.edgeJumpCursor.clear();
+    _svState.selectedEdgeId = null;
     if (typeof _svRebuildForFocus === 'function') _svRebuildForFocus();
     else if (typeof _svApplyFocus === 'function') _svApplyFocus();
     _svSyncNavBtns();
@@ -522,6 +526,7 @@ window.svHighlightLine = function (lineIdx) {
     _svState.focusId = best.id;
     _svState.detailSectionCollapsed.clear();
     _svState.edgeJumpCursor.clear();
+    _svState.selectedEdgeId = null;
     if (typeof _svRebuildForFocus === 'function') _svRebuildForFocus();
     else if (typeof _svApplyFocus === 'function') _svApplyFocus({ noHistory: true });
     _svSyncNavBtns();

@@ -2127,13 +2127,13 @@ body {
 }
 
 .access-public {
-    background: #061a0e;
-    color: #4ade80
+    background: rgba(61, 46, 0, 0.92);
+    color: #fbbf24
 }
 
 .access-private {
-    background: #1a0606;
-    color: #f87171
+    background: rgba(30, 58, 95, 0.92);
+    color: #60a5fa
 }
 
 .fv-center-pills {
@@ -2179,6 +2179,16 @@ body {
 .pill-gray {
     background: #1e2433;
     color: #94a3b8
+}
+
+.pill-public {
+    background: #3d2e00;
+    color: #fbbf24
+}
+
+.pill-private {
+    background: #1e3a5f;
+    color: #60a5fa
 }
 
 /* Active pill — the currently focused function */

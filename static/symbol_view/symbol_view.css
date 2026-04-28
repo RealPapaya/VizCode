@@ -351,6 +351,16 @@
     fill: var(--panel2, #1b1c19);
 }
 
+.sv-node.sv-method-public .sv-node-bg {
+    fill: rgba(251, 191, 36, 0.08);
+    stroke: #fbbf24;
+}
+
+.sv-node.sv-method-private .sv-node-bg {
+    fill: rgba(96, 165, 250, 0.08);
+    stroke: #60a5fa;
+}
+
 .sv-node.sv-focus-pill .sv-node-bg {
     fill: rgba(223, 167, 69, 0.08);
     stroke: rgba(223, 167, 69, 0.75);
@@ -358,17 +368,51 @@
 }
 
 .sv-node.sv-focus-pill.sv-focus-pill-pub .sv-node-bg {
-    fill: rgba(52, 211, 153, 0.1);
-    stroke: rgba(52, 211, 153, 0.75);
+    fill: rgba(251, 191, 36, 0.1);
+    stroke: #fbbf24;
 }
 
 .sv-node.sv-focus-pill.sv-focus-pill-pri .sv-node-bg {
-    fill: rgba(248, 113, 113, 0.1);
-    stroke: rgba(248, 113, 113, 0.75);
+    fill: rgba(96, 165, 250, 0.1);
+    stroke: #60a5fa;
 }
 
 .sv-pill-name {
     font-size: 12px;
+}
+
+.sv-section-label,
+.sv-section-divider {
+    pointer-events: none;
+    user-select: none;
+}
+
+.sv-section-label {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.sv-section-label-public {
+    fill: #f1cf6b;
+}
+
+.sv-section-label-private {
+    fill: #8dbdff;
+}
+
+.sv-section-divider {
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+}
+
+.sv-section-divider-public {
+    stroke: rgba(251, 191, 36, 0.34);
+}
+
+.sv-section-divider-private {
+    stroke: rgba(96, 165, 250, 0.34);
 }
 
 /* Accent bar is suppressed for method pill nodes and focus pill nodes via JS;
@@ -458,8 +502,8 @@
     dominant-baseline: middle;
 }
 
-.sv-access-pub  { fill: #34d399; }
-.sv-access-priv { fill: #f87171; }
+.sv-access-pub  { fill: #fbbf24; }
+.sv-access-priv { fill: #60a5fa; }
 
 .sv-compound-toggle {
     cursor: pointer;
@@ -523,11 +567,11 @@
 }
 
 .sv-method-group-guide-pub {
-    stroke: rgba(52, 211, 153, 0.45);
+    stroke: rgba(251, 191, 36, 0.45);
 }
 
 .sv-method-group-guide-pri {
-    stroke: rgba(248, 113, 113, 0.45);
+    stroke: rgba(96, 165, 250, 0.45);
 }
 
 /* ── SVG: edges ───────────────────────────────────────────────────── */
@@ -537,6 +581,11 @@
     vector-effect: non-scaling-stroke;
     transition: opacity 780ms cubic-bezier(0.22, 1, 0.36, 1),
                 stroke-width 0.24s ease;
+}
+
+.sv-edge-hit {
+    cursor: pointer;
+    fill: none;
 }
 
 .sv-edge:hover {
@@ -561,6 +610,12 @@
 .sv-edge.sv-edge-in-scope {
     opacity: 0.95;
     stroke-width: 2.1;
+}
+
+.sv-edge.sv-edge-selected {
+    opacity: 1;
+    stroke-width: 2.8 !important;
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.16));
 }
 
 .sv-edge.sv-edge-faded {
@@ -760,6 +815,13 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
     font-size: 11px;
+}
+
+.sv-tip-access {
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text, #eae8e3);
 }
 
 .sv-tip-count {

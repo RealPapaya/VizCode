@@ -2130,7 +2130,7 @@ function showFuncView(fileRel, funcs, edges, centerIdx) {
     fv.classList.add('active');
 
     const accessCls = center.is_public ? 'access-public' : 'access-private';
-    const accessLbl = center.is_public ? '🔓 PUBLIC' : '🔒 PRIVATE';
+    const accessTone = center.is_public ? 'PUBLIC' : 'PRIVATE';
 
     const fileName = fileRel.split('/').pop();   // just the filename, e.g. "Dhcp4Driver.c"
 
@@ -2139,7 +2139,7 @@ function showFuncView(fileRel, funcs, edges, centerIdx) {
 
     let pillHtml = '';
     funcs.slice(0, 24).forEach((f, i) => {
-        const baseCls = f.is_efiapi ? 'pill-yellow' : f.is_public ? 'pill-blue' : 'pill-gray';
+        const baseCls = f.is_public ? 'pill-public' : 'pill-private';
         const activeCls = i === centerIdx ? ' pill-active' : '';
         pillHtml += `<span class="pill ${baseCls}${activeCls}" id="pill-${i}" data-func-idx="${i}">${f.label}</span>`;
     });
@@ -2151,7 +2151,7 @@ function showFuncView(fileRel, funcs, edges, centerIdx) {
     </div>
     <div class="fv-center">
       <div class="fv-center-header">${fileName}</div>
-      <div class="access-strip ${accessCls}">${accessLbl}</div>
+      <div class="access-strip ${accessCls}">${accessTone}</div>
       <div class="fv-center-pills">${pillHtml}</div>
     </div>
     <div class="fv-col">
@@ -2167,8 +2167,8 @@ function showFuncView(fileRel, funcs, edges, centerIdx) {
 }
 
 function fnCard(f, idx) {
-    const cls = f.is_efiapi ? 'pill-yellow' : f.is_public ? 'pill-blue' : 'pill-gray';
-    const lbl = f.is_efiapi ? 'EFIAPI' : f.is_public ? 'public' : 'static';
+    const cls = f.is_public ? 'pill-public' : 'pill-private';
+    const lbl = f.is_public ? 'PUBLIC' : 'PRIVATE';
     // Use data-func-idx; fileRel is read from fv.dataset.fileRel in the click handler
     return `<div class="fv-node" data-func-idx="${idx}">
     <div class="fn-name">${f.label}</div>

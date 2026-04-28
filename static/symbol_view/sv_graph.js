@@ -10,14 +10,20 @@
 const _SV_CLASS_PAD_X   = 16;
 const _SV_CLASS_PAD_TOP = 46;
 const _SV_CLASS_PAD_BOT = 14;
+const _SV_CLASS_INNER_LEFT = 14;
 const _SV_CLASS_MIN_W   = 232;
 const _SV_CLASS_MAX_W   = 560;
-const _SV_METHOD_W      = 200;
+const _SV_METHOD_W      = 112;
 const _SV_METHOD_MAX_W  = 320;
 const _SV_METHOD_H      = 34;
 const _SV_METHOD_GAP    = 6;
+const _SV_SECTION_LABEL_H = 14;
+const _SV_SECTION_GAP     = 8;
+const _SV_SECTION_BODY_GAP = 10;
+const _SV_SECTION_DIVIDER_GAP = 8;
+const _SV_SECTION_SPLIT_GAP = 14;
 const _SV_PILL_H        = 30;
-const _SV_PILL_MIN_W    = 86;
+const _SV_PILL_MIN_W    = 64;
 const _SV_PILL_MAX_W    = 220;
 const _SV_FUNC_W        = 220;
 const _SV_FUNC_MAX_W    = 340;
@@ -57,8 +63,7 @@ function _svClamp(value, min, max) {
 }
 
 function _svMeasureMethodWidth(sym) {
-    const accessW = sym && sym.is_public === false ? 48 : 44;
-    const raw = _svMeasureText(sym && sym.name, 13) + accessW + 44;
+    const raw = _svMeasureText(sym && sym.name, 13) + 42;
     return _svClamp(raw, _SV_METHOD_W, _SV_METHOD_MAX_W);
 }
 
@@ -80,6 +85,66 @@ function _svMeasureGhostWidth(sym) {
 function _svMeasurePillWidth(sym) {
     const raw = _svMeasureText(sym && sym.name, 13) + 34;
     return _svClamp(raw, _SV_PILL_MIN_W, _SV_PILL_MAX_W);
+}
+
+function _svBuildMethodSections(methods) {
+    const publicNodes = [];
+    const privateNodes = [];
+    for (const method of (methods || [])) {
+        if (method && method.is_public === false) privateNodes.push(method);
+        else publicNodes.push(method);
+    }
+
+    const sections = [];
+    if (publicNodes.length) sections.push({ key: 'public', label: 'PUBLIC', methods: publicNodes });
+    if (privateNodes.length) sections.push({ key: 'private', label: 'PRIVATE', methods: privateNodes });
+    return sections;
+}
+
+function _svAccessGroup(sym) {
+    if (!sym || typeof sym.is_public !== 'boolean') return '';
+    return sym.is_public ? 'public' : 'private';
+}
+
+function _svAccessStroke(access) {
+    if (access === 'public') return '#fbbf24';
+    if (access === 'private') return '#60a5fa';
+    return '';
+}
+
+function _svResolveEdgeStroke(ed, fromNode) {
+    const sourceAccess = ed && ed.sourceAccess ? ed.sourceAccess : _svAccessGroup(fromNode && fromNode.sym);
+    return _svAccessStroke(sourceAccess) || _svEdgeColor(ed.type);
+}
+
+function _svResolveSelectedEdgeStroke(ed, fromNode) {
+    const sourceAccess = ed && ed.sourceAccess ? ed.sourceAccess : _svAccessGroup(fromNode && fromNode.sym);
+    if (sourceAccess === 'public') return '#ffd76a';
+    if (sourceAccess === 'private') return '#8cc7ff';
+    return '#f0b060';
+}
+
+function _svAccessTitle(access) {
+    if (access === 'public') return 'PUBLIC';
+    if (access === 'private') return 'PRIVATE';
+    return 'UNKNOWN';
+}
+
+function _svEdgeVerb(type) {
+    if (type === 'call') return 'calls';
+    if (type === 'inheritance') return 'inherits from';
+    if (type === 'implements') return 'implements';
+    if (type === 'override') return 'overrides';
+    if (type === 'import') return 'imports';
+    if (type === 'include') return 'includes';
+    if (type === 'type_usage') return 'uses type';
+    if (type === 'member') return 'references member';
+    return String(type || 'connects to').replace(/_/g, ' ');
+}
+
+function _svEdgeAccessSummary(ed) {
+    if (!ed || !ed.sourceAccess || !ed.targetAccess) return '';
+    return `${_svAccessTitle(ed.sourceAccess)} ${_svEdgeVerb(ed.type)} ${_svAccessTitle(ed.targetAccess)}`;
 }
 
 function _svEstimateDetailCardHeight(sym, collapsed) {
@@ -886,12 +951,17 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
     for (const cls of classes) {
         const collapsed = _svState.compoundCollapsed.has(cls.id);
         const clsMethods = methods.filter(m => m._parentId === cls.id);
+        const sections = _svBuildMethodSections(clsMethods);
+        const methodWidths = new Map(clsMethods.map(m => [m.id, _svMeasureMethodWidth(m)]));
         const innerW = clsMethods.length
-            ? Math.max(_SV_METHOD_W, ...clsMethods.map(m => _svMeasureMethodWidth(m)))
+            ? Math.max(...clsMethods.map(m => methodWidths.get(m.id) || _SV_METHOD_W))
             : _SV_METHOD_W;
         const headerW = _svMeasureText(cls.name, 15) + 96;
+        const sectionLabelW = sections.length
+            ? Math.max(...sections.map(section => _svMeasureText(section.label, 10) + 24))
+            : 0;
         const w = _svClamp(
-            Math.max(headerW, innerW + _SV_CLASS_PAD_X * 2),
+            Math.max(headerW, innerW + _SV_CLASS_PAD_X * 2, sectionLabelW + _SV_CLASS_PAD_X * 2),
             _SV_CLASS_MIN_W,
             _SV_CLASS_MAX_W
         );
@@ -901,16 +971,23 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
         } else if (!clsMethods.length) {
             h = _SV_CLASS_PAD_TOP + _SV_CLASS_PAD_BOT + 18;
         } else {
-            h = _SV_CLASS_PAD_TOP
-              + clsMethods.length * (_SV_METHOD_H + _SV_METHOD_GAP)
-              + _SV_CLASS_PAD_BOT;
+            h = _SV_CLASS_PAD_TOP + _SV_SECTION_GAP + _SV_CLASS_PAD_BOT;
+            sections.forEach((section, idx) => {
+                h += _SV_SECTION_LABEL_H;
+                h += _SV_SECTION_BODY_GAP;
+                h += section.methods.length * _SV_METHOD_H;
+                h += Math.max(0, section.methods.length - 1) * _SV_METHOD_GAP;
+                h += idx === sections.length - 1 ? 0 : _SV_SECTION_SPLIT_GAP;
+            });
         }
         classDims[cls.id] = {
             w,
             h,
             methods: clsMethods,
+            sections,
             collapsed,
-            innerW: Math.max(_SV_METHOD_W, w - _SV_CLASS_PAD_X * 2),
+            methodWidths,
+            innerW: Math.max(innerW, Math.min(_SV_METHOD_MAX_W, w - _SV_CLASS_PAD_X * 2)),
         };
     }
 
@@ -969,10 +1046,13 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
         const dagreTo   = _svToCompoundId(toId,   methods, classDims);
         if (!g.hasNode(dagreFrom) || !g.hasNode(dagreTo)) continue;
         if (dagreFrom !== dagreTo) g.setEdge(dagreFrom, dagreTo);
+        const sourceAccess = _svAccessGroup(byId[fromId] || byId[e.from]);
+        const targetAccess = _svAccessGroup(byId[toId] || byId[e.to]);
         const id = `e|${fromId}|${toId}|${e.type}`;
         modelEdges.push({
             id, from: fromId, to: toId, type: e.type,
             origFrom: e.from, origTo: e.to, external: false,
+            sourceAccess, targetAccess,
         });
     }
 
@@ -985,10 +1065,13 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
             const dagreTo   = byId[toId]   ? _svToCompoundId(toId,   methods, classDims) : toId;
             if (!g.hasNode(dagreFrom) || !g.hasNode(dagreTo)) continue;
             if (dagreFrom !== dagreTo) g.setEdge(dagreFrom, dagreTo);
+            const sourceAccess = _svAccessGroup(byId[fromId] || byId[e.from]);
+            const targetAccess = _svAccessGroup(byId[toId] || byId[e.to]);
             const id = `e|${fromId}|${toId}|${e.type}|ext`;
             modelEdges.push({
                 id, from: fromId, to: toId, type: e.type,
                 origFrom: e.from, origTo: e.to, external: true,
+                sourceAccess, targetAccess,
             });
         }
     }
@@ -1045,13 +1128,24 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
         const clsOff = rootOffsets.get(cls.id) || { dx: 0, dy: 0 };
         const clsX = info.x - d.w / 2 + clsOff.dx;
         const clsY = info.y - d.h / 2 + clsOff.dy;
-        d.methods.forEach((m, idx) => {
-            methodPos.set(m.id, {
-                x: clsX + (d.w - d.innerW) / 2,
-                y: clsY + _SV_CLASS_PAD_TOP + idx * (_SV_METHOD_H + _SV_METHOD_GAP),
-                w: d.innerW,
-                h: _SV_METHOD_H,
+        let cursorY = clsY + _SV_CLASS_PAD_TOP;
+        d.sections.forEach((section, sectionIdx) => {
+            cursorY += _SV_SECTION_GAP;
+            section.labelY = cursorY;
+            section.dividerY = cursorY + _SV_SECTION_DIVIDER_GAP;
+            cursorY += _SV_SECTION_LABEL_H + _SV_SECTION_BODY_GAP + _SV_SECTION_DIVIDER_GAP;
+            section.methods.forEach((m, methodIdx) => {
+                const methodW = d.methodWidths.get(m.id) || _SV_METHOD_W;
+                methodPos.set(m.id, {
+                    x: clsX + _SV_CLASS_INNER_LEFT,
+                    y: cursorY,
+                    w: methodW,
+                    h: _SV_METHOD_H,
+                });
+                cursorY += _SV_METHOD_H;
+                if (methodIdx !== section.methods.length - 1) cursorY += _SV_METHOD_GAP;
             });
+            if (sectionIdx !== d.sections.length - 1) cursorY += _SV_SECTION_SPLIT_GAP;
         });
     }
 
@@ -1069,6 +1163,7 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
             isCompound:  true,
             collapsed:   d.collapsed,
             methods:     d.methods,
+            sections:    d.sections,
             x:           info.x - d.w / 2 + offset.dx,
             y:           info.y - d.h / 2 + offset.dy,
             w:           d.w,
@@ -1550,7 +1645,7 @@ function _svApplyFocus(_opts) {
     const edgesG = viewport.querySelector('.sv-edges');
     if (edgesG) {
         edgesG.querySelectorAll('path.sv-edge').forEach(p => {
-            p.classList.remove('sv-edge-in-scope', 'sv-edge-faded');
+            p.classList.remove('sv-edge-in-scope', 'sv-edge-faded', 'sv-edge-selected');
             if (!focusId) return;
             const eid = p.dataset.edgeid;
             const ed = model.edges.find(e => e.id === eid);
@@ -1560,6 +1655,10 @@ function _svApplyFocus(_opts) {
             if (touchesFocus) p.classList.add('sv-edge-in-scope');
             else if (inScope.has(ed.from) && inScope.has(ed.to)) p.classList.add('sv-edge-in-scope');
             else p.classList.add('sv-edge-faded');
+            const selected = _svState.selectedEdgeId && eid === _svState.selectedEdgeId;
+            p.setAttribute('stroke', selected ? (p.dataset.selectedColor || p.dataset.baseColor || '') : (p.dataset.baseColor || ''));
+            p.style.color = selected ? (p.dataset.selectedColor || p.dataset.baseColor || '') : (p.dataset.baseColor || '');
+            if (selected) p.classList.add('sv-edge-selected');
         });
     }
 
@@ -1577,6 +1676,7 @@ function _svNodeClass(n) {
     const classes = ['sv-node', `sv-kind-${kind}`];
     if (n.isCompound)   classes.push('sv-compound');
     if (n.isMethod)     classes.push('sv-method');
+    if (n.isMethod && n.sym) classes.push(n.sym.is_public === false ? 'sv-method-private' : 'sv-method-public');
     if (n.isTopLevel)   classes.push('sv-top');
     if (n.isField)      classes.push('sv-field');
     if (n.isGhost)      classes.push('sv-ghost');
@@ -1750,6 +1850,27 @@ function _svCreateNodeEl(n) {
         kindEl.textContent = (sym.kind || '').toUpperCase();
         g.appendChild(kindEl);
 
+        if (!n.collapsed && n.sections && n.sections.length) {
+            for (const section of n.sections) {
+                const labelEl = document.createElementNS(NS, 'text');
+                labelEl.setAttribute('class', `sv-section-label sv-section-label-${section.key}`);
+                labelEl.setAttribute('x', String(_SV_CLASS_INNER_LEFT));
+                labelEl.setAttribute('y', String(section.labelY));
+                labelEl.setAttribute('dominant-baseline', 'hanging');
+                labelEl.textContent = section.label;
+                g.appendChild(labelEl);
+
+                const lineX = _SV_CLASS_INNER_LEFT + _svMeasureText(section.label, 10) + 12;
+                const divider = document.createElementNS(NS, 'line');
+                divider.setAttribute('class', `sv-section-divider sv-section-divider-${section.key}`);
+                divider.setAttribute('x1', String(lineX));
+                divider.setAttribute('y1', String(section.dividerY));
+                divider.setAttribute('x2', String(n.w - 16));
+                divider.setAttribute('y2', String(section.dividerY));
+                g.appendChild(divider);
+            }
+        }
+
         // Collapse/expand chip for the compound class methods
         if (n.methods && n.methods.length) {
             const chip = document.createElementNS(NS, 'g');
@@ -1818,18 +1939,8 @@ function _svCreateNodeEl(n) {
         name.setAttribute('class', 'sv-node-name sv-mono');
         name.setAttribute('x', '24'); name.setAttribute('y', String(n.h / 2));
         name.setAttribute('dominant-baseline', 'middle');
-        name.textContent = _svClipText(sym.name, n.w - 80);
+        name.textContent = _svClipText(sym.name, n.w - 38);
         g.appendChild(name);
-
-        const access = sym.is_public === false ? 'PRIV' : 'PUB';
-        const accessEl = document.createElementNS(NS, 'text');
-        accessEl.setAttribute('class', `sv-access sv-access-${access.toLowerCase()}`);
-        accessEl.setAttribute('x', String(n.w - 10));
-        accessEl.setAttribute('y', String(n.h / 2));
-        accessEl.setAttribute('dominant-baseline', 'middle');
-        accessEl.setAttribute('text-anchor', 'end');
-        accessEl.textContent = access;
-        g.appendChild(accessEl);
     } else {
         // Top-level function or field
         const dot = document.createElementNS(NS, 'circle');
@@ -1894,25 +2005,46 @@ function _svAppendEdge(edgesG, labelsG, ed, from, to) {
     const fromBox = { x: from.currentX + from.w / 2, y: from.currentY + from.h / 2, w: from.w, h: from.h };
     const toBox   = { x: to.currentX   + to.w   / 2, y: to.currentY   + to.h   / 2, w: to.w,   h: to.h };
     const endpoints = _svComputeEndpoints(fromBox, toBox);
-    const color = _svEdgeColor(ed.type);
+    const color = _svResolveEdgeStroke(ed, from);
+    const selectedColor = _svResolveSelectedEdgeStroke(ed, from);
+    const pathData = _svBuildEdgePath(endpoints);
+
+    function bindEdgeEvents(el) {
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            _svHandleEdgeClick(ed);
+        });
+        el.addEventListener('mouseenter', (e) => _svShowEdgeTip(e, ed));
+        el.addEventListener('mousemove',  (e) => _svMoveEdgeTip(e));
+        el.addEventListener('mouseleave', () => _svHideEdgeTip());
+    }
+
+    const hitPath = document.createElementNS(NS, 'path');
+    hitPath.setAttribute('class', 'sv-edge-hit');
+    hitPath.dataset.edgeid = ed.id;
+    hitPath.setAttribute('d', pathData);
+    hitPath.setAttribute('stroke', 'transparent');
+    hitPath.setAttribute('stroke-width', ed.external ? '14' : '16');
+    hitPath.setAttribute('fill', 'none');
+    hitPath.setAttribute('pointer-events', 'stroke');
+    bindEdgeEvents(hitPath);
+    edgesG.appendChild(hitPath);
 
     const path = document.createElementNS(NS, 'path');
     path.setAttribute('class', `sv-edge sv-edge-${ed.type}` + (ed.external ? ' sv-edge-external' : ''));
     path.dataset.edgeid = ed.id;
-    path.setAttribute('d', _svBuildEdgePath(endpoints));
+    path.dataset.baseColor = color;
+    path.dataset.selectedColor = selectedColor;
+    if (ed.sourceAccess) path.dataset.sourceAccess = ed.sourceAccess;
+    if (ed.targetAccess) path.dataset.targetAccess = ed.targetAccess;
+    path.setAttribute('d', pathData);
     path.setAttribute('stroke', color);
-    path.setAttribute('stroke-width', ed.external ? '1.3' : '1.6');
+    path.setAttribute('stroke-width', ed.external ? '1.4' : '1.85');
     path.setAttribute('fill', 'none');
     path.setAttribute('marker-end', 'url(#sv-arrow)');
     if (ed.external) path.setAttribute('stroke-dasharray', '5 3');
     path.style.color = color;
-    path.addEventListener('click', (e) => {
-        e.stopPropagation();
-        _svHandleEdgeClick(ed);
-    });
-    path.addEventListener('mouseenter', (e) => _svShowEdgeTip(e, ed));
-    path.addEventListener('mousemove',  (e) => _svMoveEdgeTip(e));
-    path.addEventListener('mouseleave', () => _svHideEdgeTip());
+    bindEdgeEvents(path);
     edgesG.appendChild(path);
 }
 
@@ -1960,7 +2092,9 @@ function _svBuildEdgePath({ sx, sy, ex, ey, fromSide, toSide }) {
 function _svShowEdgeTip(e, ed) {
     const tip = document.getElementById('sv-edge-tip');
     if (!tip) return;
-    tip.innerHTML = `<span class="sv-tip-type" style="color:${_svEdgeColor(ed.type)}">${_svEsc(ed.type)}</span>
+    const accessSummary = _svEdgeAccessSummary(ed);
+    tip.innerHTML = `<span class="sv-tip-type" style="color:${_svResolveEdgeStroke(ed)}">${_svEsc(ed.type)}</span>
+        ${accessSummary ? `<div class="sv-tip-access">${_svEsc(accessSummary)}</div>` : ''}
         ${ed.external ? '<span class="sv-tip-sites">cross-file</span>' : ''}
         <div class="sv-tip-hint">Click to jump or switch file</div>`;
     tip.hidden = false;
@@ -2019,20 +2153,48 @@ function _svHandleNodeClick(symId, el) {
     _svState.focusId = symId;
     _svState.detailSectionCollapsed.clear();
     _svState.edgeJumpCursor.clear();
+    _svState.selectedEdgeId = null;
     _svRebuildForFocus();
 }
 
-function _svHandleEdgeClick(ed) {
+async function _svHandleEdgeClick(ed) {
     if (!ed) return;
     const model = _svState.currentGraph;
     if (!model) return;
-    // Prefer the target of the edge as navigation anchor. For external edges,
-    // activate the foreign symbol (switches file).
+    _svState.selectedEdgeId = ed.id || null;
+    _svApplyFocus();
+
+    const sourceId = ed.origFrom || ed.from;
     const targetId = ed.origTo || ed.to;
+    const sNode = model.byNodeId[sourceId];
     const tNode = model.byNodeId[targetId];
+    const sourceSym = (sNode && sNode.sym) || model.byId[sourceId] || null;
+    const targetSym = (tNode && tNode.sym) || model.byId[targetId] || null;
+
+    if (sourceSym && sourceSym.file && typeof loadFileInPanel === 'function') {
+        await loadFileInPanel(sourceSym.file, null);
+        if (sourceSym.name && typeof jumpToFunc === 'function') {
+            requestAnimationFrame(() => jumpToFunc(sourceSym.name, targetSym && targetSym.name ? targetSym.name : null));
+            return;
+        }
+        if (sourceSym.line && typeof jumpToLine === 'function') {
+            requestAnimationFrame(() => jumpToLine(sourceSym.line));
+            return;
+        }
+    }
+
     if (tNode && tNode.isGhost) {
         symViewActivate(targetId);
-    } else if (tNode) {
+        return;
+    }
+    if (targetSym && targetSym.file && typeof loadFileInPanel === 'function') {
+        await loadFileInPanel(targetSym.file, null);
+        if (targetSym.line && typeof jumpToLine === 'function') {
+            requestAnimationFrame(() => jumpToLine(targetSym.line));
+            return;
+        }
+    }
+    if (tNode) {
         _svHandleNodeClick(targetId);
     }
 }
