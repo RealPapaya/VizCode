@@ -371,6 +371,11 @@
     font-size: 12px;
 }
 
+/* Accent bar is suppressed for method pill nodes and focus pill nodes via JS;
+   this rule is a belt-and-suspenders guard. */
+.sv-node.sv-method    .sv-node-accent,
+.sv-node.sv-focus-pill .sv-node-accent { display: none; }
+
 .sv-node.sv-field .sv-node-bg {
     fill: rgba(96, 165, 250, 0.08);
 }
@@ -712,6 +717,15 @@
     font-size: 11px;
     color: var(--text, #eae8e3);
     font-family: inherit;
+    cursor: default;
+    user-select: none;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.sv-fd-metric:hover {
+    border-color: var(--accent, #dfa745);
+    color: var(--accent, #dfa745);
+    background: rgba(223, 167, 69, 0.08);
 }
 
 /* ── Parse-error badge (preserved from V2 F7) ────────────────────── */

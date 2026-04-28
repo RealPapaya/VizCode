@@ -1258,6 +1258,11 @@ function _svRenderFileGraph(newModel) {
     const ghostsG = viewport.querySelector('.sv-ghosts');
     if (!cardsG || !edgesG || !ghostsG) return;
 
+    // Chip overlay layer — sits above sv-cards and sv-ghosts so compound toggle
+    // buttons always render on top of method-row pill nodes.
+    const chipsG = viewport.querySelector('.sv-chip-layer');
+    if (chipsG) chipsG.innerHTML = '';
+
     // Remove any residual floating focus card from the old overlay approach.
     const oldFocusCard = viewport.querySelector('.sv-focus-detail');
     if (oldFocusCard) oldFocusCard.remove();
@@ -1348,6 +1353,20 @@ function _svRenderFileGraph(newModel) {
     edgesG.innerHTML  = '';
     labelsG.innerHTML = '';
 
+    // Attach compound toggle chips to the chip overlay layer. Each chip carries
+    // its own absolute transform (node position + fixed offset within the header).
+    if (chipsG) {
+        for (const [, L] of live) {
+            const chip = L.el._chipEl;
+            if (!chip) continue;
+            L.chip  = chip;
+            L.chipOX = typeof L.el._chipOX === 'number' ? L.el._chipOX : 0;
+            L.chipOY = typeof L.el._chipOY === 'number' ? L.el._chipOY : 0;
+            chip.setAttribute('transform', `translate(${L.x0 + L.chipOX},${L.y0 + L.chipOY})`);
+            chipsG.appendChild(chip);
+        }
+    }
+
     const DUR = _SV_DUR_MS;
     const t0  = performance.now();
     function frame(now) {
@@ -1360,6 +1379,7 @@ function _svRenderFileGraph(newModel) {
             L.currentX = x;
             L.currentY = y;
             L.el.setAttribute('transform', `translate(${x},${y})`);
+            if (L.chip) L.chip.setAttribute('transform', `translate(${x + L.chipOX},${y + L.chipOY})`);
             if (L.fadeIn) L.el.style.opacity = String(e);
             // Animate foreignObject size for focus card morphing.
             if (L.data.isFocusCard && L.w0 !== L.w1) {
@@ -1384,6 +1404,7 @@ function _svRenderFileGraph(newModel) {
                 L.el.setAttribute('transform', `translate(${L.x1},${L.y1})`);
                 L.el.style.opacity = '1';
                 L.data.el = L.el;
+                if (L.chip) L.chip.setAttribute('transform', `translate(${L.x1 + L.chipOX},${L.y1 + L.chipOY})`);
                 // Snap focus card foreignObject to final size.
                 if (L.data.isFocusCard) {
                     const fo = L.el.querySelector('.sv-focus-card-fo');
@@ -1446,7 +1467,7 @@ function _svComputeTargetZoom(model) {
     if (!bounds) return { ..._svState.zoom };
     const w = Math.max(1, bounds.maxX - bounds.minX);
     const h = Math.max(1, bounds.maxY - bounds.minY);
-    const maxScale = model.hasFocusCard ? 2.5 : 1;
+    const maxScale = 1.0;  // cap at 1× — focus card uses foreignObject HTML which blurs above 1×
     const k = Math.max(0.15, Math.min(maxScale, rect.width / w, rect.height / h));
     return {
         k,
@@ -1672,7 +1693,7 @@ function _svCreateNodeEl(n) {
     rect.setAttribute('x', '0'); rect.setAttribute('y', '0');
     rect.setAttribute('width',  String(n.w));
     rect.setAttribute('height', String(n.h));
-    rect.setAttribute('rx', n.isField ? '14' : n.isCompound ? '10' : '8');
+    rect.setAttribute('rx', n.isField ? '14' : n.isCompound ? '10' : (n.isMethod || n.isFocusPill) ? '15' : '8');
     if (n.isGhost) {
         // Ghost node backgrounds are nearly transparent in CSS (rgba(...,0.05)),
         // which lets edge lines show through even though sv-ghosts is a higher
@@ -1690,7 +1711,8 @@ function _svCreateNodeEl(n) {
     bar.setAttribute('x', '0'); bar.setAttribute('y', '0');
     bar.setAttribute('width', '4'); bar.setAttribute('height', String(n.h));
     bar.setAttribute('fill', _svKindColor(n.kind));
-    g.appendChild(bar);
+    // Accent bar — shown on compound/top-level nodes; suppressed for method pills and focus pills
+    if (!n.isMethod && !n.isFocusPill) g.appendChild(bar);
 
     const sym = n.sym || {};
 
@@ -1757,7 +1779,11 @@ function _svCreateNodeEl(n) {
                 ev.stopPropagation();
                 _svToggleCompound(n.id);
             });
-            g.appendChild(chip);
+            // Store chip for the dedicated sv-chip-layer (rendered above method rows,
+            // fixing the z-order occlusion of the toggle button by the top method node).
+            g._chipEl = chip;
+            g._chipOX = n.w - 32;
+            g._chipOY = 34;
 
             if (n.collapsed) {
                 const hint = document.createElementNS(NS, 'text');

@@ -130,6 +130,7 @@ function _svEnsureDom() {
           <g class="sv-edge-labels"></g>
           <g class="sv-cards"></g>
           <g class="sv-ghosts"></g>
+          <g class="sv-chip-layer"></g>
         </g>
       </svg>
       <div id="sv-empty" hidden>
