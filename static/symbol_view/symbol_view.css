@@ -11,6 +11,8 @@
     font-family: inherit;
     color: var(--text, #eae8e3);
     z-index: 20;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 #sym-view.active { display: block; }

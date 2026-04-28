@@ -120,12 +120,6 @@ function _svEnsureDom() {
           <button id="sv-expand-all-btn" title="Expand all classes">Expand All</button>
           <button id="sv-collapse-all-btn" title="Collapse all classes">Collapse All</button>
           <button id="sv-ext-btn" title="Show/hide external symbols">External Symbol</button>
-          <div id="sv-search-wrap">
-            <span id="sv-search-icon">&#128269;</span>
-            <input id="sv-search-input" type="text" placeholder="Search symbols…" autocomplete="off" spellcheck="false" />
-            <button id="sv-search-clear" style="display:none">&times;</button>
-            <div id="sv-search-results" hidden></div>
-          </div>
           <span id="sv-stats" class="sv-tb-stats"></span>
         </div>
       </div>

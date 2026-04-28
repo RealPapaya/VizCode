@@ -31,6 +31,8 @@
             background-image:
                 radial-gradient(ellipse 80% 60% at 50% -10%, color-mix(in srgb, var(--accent) 15%, transparent) 0%, transparent 70%);
             padding: 24px;
+            user-select: none;
+            -webkit-user-select: none;
         }
 
         #bg-canvas {
@@ -762,6 +764,8 @@
             renderRecentsFor('npm');
             initPreferences();
             applyLauncherLang(getSavedLang());
+            // Prevent right-click context menu on the launcher page
+            document.addEventListener('contextmenu', e => e.preventDefault());
         };
 
         const DEFAULT_UI_FONT = "'Inter', 'Segoe UI', system-ui, sans-serif";

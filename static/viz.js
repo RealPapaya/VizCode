@@ -240,6 +240,10 @@ window.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('search').addEventListener('input', onSearch);
                 document.addEventListener('keydown', onKey);
                 document.addEventListener('click', () => hideCtxMenu());
+                // Prevent default browser context menu everywhere.
+                // L1/L2 right-click (Cytoscape cxttap → onNodeRightClick) is unaffected
+                // because it fires through Cytoscape's own event system, not the DOM contextmenu event.
+                document.addEventListener('contextmenu', e => e.preventDefault());
 
                 // Code panel init
                 initCodePanel();

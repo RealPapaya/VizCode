@@ -32,7 +32,9 @@ body {
     height: 100vh;
     overflow: hidden;
     display: flex;
-    flex-direction: column
+    flex-direction: column;
+    user-select: none;
+    -webkit-user-select: none
 }
 
 /* ── Top Bar ── */
@@ -1735,6 +1737,21 @@ body {
     width: 0;
     /* force to 0 then grow — guarantees scrollbar appears */
     min-width: 100%;
+    /* Allow text selection inside code panel */
+    user-select: text;
+    -webkit-user-select: text;
+    cursor: text;
+}
+
+/* Custom selection color for code panel — accent-tinted highlight */
+#cp-code-wrap ::selection {
+    background: color-mix(in srgb, var(--accent) 28%, transparent);
+    color: inherit;
+}
+
+#cp-code-wrap ::-moz-selection {
+    background: color-mix(in srgb, var(--accent) 28%, transparent);
+    color: inherit;
 }
 
 #cp-code-wrap pre {
