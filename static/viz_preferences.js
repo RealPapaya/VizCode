@@ -13,6 +13,7 @@ const _PREFS = {
         layoutL2: 'biosviz_layout_l2',    // default layout for L2 call-flow
         shapeMode: 'vc_shape_mode',
         edgeTypeLabels: 'biosviz_edge_type_labels',
+        svEdgeStyle: 'vc_sv_edge_style',  // Symbol View edge routing: 'bezier' | 'orthogonal'
     },
     DEFAULTS: {
         font: "'JetBrains Mono', monospace", lang: 'en',
@@ -22,6 +23,7 @@ const _PREFS = {
         layoutL2: 'dagre-lr',  // Hierarchy LR — best for call-flow
         shapeMode: 'simple',
         edgeTypeLabels: false,
+        svEdgeStyle: 'bezier',
     },
     get(k) {
         try {
@@ -367,7 +369,7 @@ function applyCyTheme(theme) {
 
 function _applyThemeModuleColors(th) {
     if (!window.DATA || !Array.isArray(window.DATA.modules)) return;
-    
+
     // 0. Read the 10 module colors from the currently applied CSS theme, with fallback for aggressive browsers caching themes.css
     const DEFAULT_PALETTES = {
         dark: ['#dfa745', '#849646', '#d16d6a', '#5f8b9e', '#9d7e79', '#c28b5e', '#7b947c', '#8c6e8f', '#b8a663', '#a76a5c'],
@@ -382,7 +384,7 @@ function _applyThemeModuleColors(th) {
         const c = style.getPropertyValue(`--m${i}`).trim();
         pal.push(c || fallback[i - 1]);
     }
-    
+
     // 1. Update global data wrapper
     window.DATA.modules.forEach((m, idx) => {
         if (m.id !== '_root') {
@@ -455,8 +457,8 @@ function _updateCodevizPref(key, value) {
 }
 
 const _PREF_THEME_PALETTES = {
-    dark:      { bg: '#0f110e', panel: '#161715', accent: '#dfa745', text: '#eae8e3', muted: '#6a6860', card: '#1e1f1c', name: 'Dark' },
-    claude:    { bg: '#1a1410', panel: '#211810', accent: '#d4704a', text: '#f0e8df', muted: '#6a5a50', card: '#251b11', name: 'Dawn' },
+    dark: { bg: '#0f110e', panel: '#161715', accent: '#dfa745', text: '#eae8e3', muted: '#6a6860', card: '#1e1f1c', name: 'Dark' },
+    claude: { bg: '#1a1410', panel: '#211810', accent: '#d4704a', text: '#f0e8df', muted: '#6a5a50', card: '#251b11', name: 'Dawn' },
     parchment: { bg: '#f9f4ef', panel: '#eaddcf', accent: '#8c7851', text: '#020826', muted: '#9c8c78', card: '#ede8e0', name: 'Parchment' },
 };
 
@@ -535,6 +537,16 @@ function _buildPrefModalHTML() {
             </div>
           </div>
           <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:12px;">
+            <div style="${LS}color:var(--accent);">Symbol View</div>
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              <label for="pref-sv-edge-style" style="${LS}">Edge Routing Style</label>
+              <select id="pref-sv-edge-style" style="${SS}">
+                <option value="bezier">Bezier Curves</option>
+                <option value="orthogonal">Orthogonal</option>
+              </select>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:12px;">
             <div style="${LS}color:var(--accent);" data-i18n="sectionLayout">Default Layout</div>
             <div style="display:flex;flex-direction:column;gap:5px;">
               <label for="pref-layout-l0" style="${LS}" data-i18n="layoutL0Label">Module (L0)</label>
@@ -587,13 +599,13 @@ function _buildPrefModalHTML() {
 // ─── Layout Preview ───────────────────────────────────────────────────────────
 
 const _LAYOUT_INFO_KEYS = {
-    'dagre-lr':   { algo: 'layoutInfo_dagreLR_algo',    best: 'layoutInfo_dagreLR_best',    pros: 'layoutInfo_dagreLR_pros',    cons: 'layoutInfo_dagreLR_cons'    },
-    'dagre-tb':   { algo: 'layoutInfo_dagreTB_algo',    best: 'layoutInfo_dagreTB_best',    pros: 'layoutInfo_dagreTB_pros',    cons: 'layoutInfo_dagreTB_cons'    },
-    'cose':       { algo: 'layoutInfo_cose_algo',       best: 'layoutInfo_cose_best',       pros: 'layoutInfo_cose_pros',       cons: 'layoutInfo_cose_cons'       },
-    'fcose':      { algo: 'layoutInfo_fcose_algo',      best: 'layoutInfo_fcose_best',      pros: 'layoutInfo_fcose_pros',      cons: 'layoutInfo_fcose_cons'      },
-    'cola':       { algo: 'layoutInfo_cola_algo',       best: 'layoutInfo_cola_best',       pros: 'layoutInfo_cola_pros',       cons: 'layoutInfo_cola_cons'       },
-    'elk-layered':{ algo: 'layoutInfo_elkLayered_algo', best: 'layoutInfo_elkLayered_best', pros: 'layoutInfo_elkLayered_pros', cons: 'layoutInfo_elkLayered_cons' },
-    'elk-stress': { algo: 'layoutInfo_elkStress_algo',  best: 'layoutInfo_elkStress_best',  pros: 'layoutInfo_elkStress_pros',  cons: 'layoutInfo_elkStress_cons'  },
+    'dagre-lr': { algo: 'layoutInfo_dagreLR_algo', best: 'layoutInfo_dagreLR_best', pros: 'layoutInfo_dagreLR_pros', cons: 'layoutInfo_dagreLR_cons' },
+    'dagre-tb': { algo: 'layoutInfo_dagreTB_algo', best: 'layoutInfo_dagreTB_best', pros: 'layoutInfo_dagreTB_pros', cons: 'layoutInfo_dagreTB_cons' },
+    'cose': { algo: 'layoutInfo_cose_algo', best: 'layoutInfo_cose_best', pros: 'layoutInfo_cose_pros', cons: 'layoutInfo_cose_cons' },
+    'fcose': { algo: 'layoutInfo_fcose_algo', best: 'layoutInfo_fcose_best', pros: 'layoutInfo_fcose_pros', cons: 'layoutInfo_fcose_cons' },
+    'cola': { algo: 'layoutInfo_cola_algo', best: 'layoutInfo_cola_best', pros: 'layoutInfo_cola_pros', cons: 'layoutInfo_cola_cons' },
+    'elk-layered': { algo: 'layoutInfo_elkLayered_algo', best: 'layoutInfo_elkLayered_best', pros: 'layoutInfo_elkLayered_pros', cons: 'layoutInfo_elkLayered_cons' },
+    'elk-stress': { algo: 'layoutInfo_elkStress_algo', best: 'layoutInfo_elkStress_best', pros: 'layoutInfo_elkStress_pros', cons: 'layoutInfo_elkStress_cons' },
 };
 
 function _previewLayout(id) {
@@ -609,30 +621,76 @@ function _previewLayout(id) {
       ${row('layoutInfoAlgorithm', keys.algo)}
       <div style="border-top:1px solid var(--border);margin:2px 0;"></div>
       ${row('layoutInfoBestFor', keys.best)}
-      ${row('layoutInfoPros',    keys.pros)}
-      ${row('layoutInfoCons',    keys.cons)}
+      ${row('layoutInfoPros', keys.pros)}
+      ${row('layoutInfoCons', keys.cons)}
     </div>`;
 }
 
 // ─── Setting Previews ─────────────────────────────────────────────────────────
 
+// ─── Setting Previews ─────────────────────────────────────────────────────────
+
+function _previewSvEdgeStyle(value) {
+    // Mini SVG showing two nodes connected with either bezier or orthogonal routing.
+    const isBezier = value === 'bezier';
+    const color = 'var(--accent)';
+    // Two pairs of nodes. Top pair: left→right. Bottom pair: right→left crossing.
+    const nodes = [
+        { x: 20, y: 40, w: 70, h: 24, label: 'A' },
+        { x: 180, y: 20, w: 70, h: 24, label: 'B' },
+        { x: 20, y: 100, w: 70, h: 24, label: 'C' },
+        { x: 180, y: 80, w: 70, h: 24, label: 'D' },
+    ];
+    function nodeSvg(n) {
+        return `<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="5" fill="var(--panel2)" stroke="var(--border)" stroke-width="1"/>
+                <text x="${n.x + n.w / 2}" y="${n.y + 15}" text-anchor="middle" font-size="10" fill="var(--muted)">${n.label}</text>`;
+    }
+    // Edge A→B and C→D
+    function edgePath(from, to) {
+        const sx = from.x + from.w, sy = from.y + from.h / 2;
+        const ex = to.x, ey = to.y + to.h / 2;
+        if (isBezier) {
+            const dist = ex - sx;
+            const c = Math.min(80, Math.max(20, dist * 0.4));
+            return `M ${sx} ${sy} C ${sx + c} ${sy}, ${ex - c} ${ey}, ${ex} ${ey}`;
+        } else {
+            // Orthogonal: right → mid → down → right
+            const mx = (sx + ex) / 2;
+            const r = 5;
+            const goDown = ey > sy;
+            const vs = goDown ? r : -r;
+            return `M ${sx} ${sy} H ${mx - r} Q ${mx} ${sy} ${mx} ${sy + vs} V ${ey - vs} Q ${mx} ${ey} ${mx + r} ${ey} H ${ex}`;
+        }
+    }
+    const arrow = `<defs><marker id="pv-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${color}"/></marker></defs>`;
+    const edgeStyle = `stroke="${color}" stroke-width="1.5" fill="none" marker-end="url(#pv-arr)"`;
+    return `<svg viewBox="0 0 270 136" width="270" height="136" style="display:block;overflow:visible;">
+        ${arrow}
+        ${nodes.map(nodeSvg).join('')}
+        <path d="${edgePath(nodes[0], nodes[1])}" ${edgeStyle}/>
+        <path d="${edgePath(nodes[2], nodes[3])}" ${edgeStyle}/>
+        <text x="135" y="128" text-anchor="middle" font-size="10" fill="var(--muted)">${isBezier ? 'Bezier Curves' : 'Orthogonal'}</text>
+    </svg>`;
+}
+
 function _showPrefPreview(id, value) {
-    const area  = document.getElementById('pref-preview-area');
+    const area = document.getElementById('pref-preview-area');
     const label = document.getElementById('pref-preview-label');
-    const hint  = document.getElementById('pref-preview-hint');
+    const hint = document.getElementById('pref-preview-hint');
     if (!area) return;
     const PREVIEWS = {
-        'font-select':        { fn: _previewFont,      lk: 'fontLabel',       hk: 'fontPreviewHint' },
-        'pref-theme-select':  { fn: _previewTheme,     lk: 'themeLabel',      hk: 'themePreviewHint' },
-        'pref-lang-select':   { fn: _previewLang,      lk: 'langLabel',       hk: 'langPreviewHint' },
-        'pref-node-style':    { fn: _previewNodeStyle, lk: 'nodeStyleLabel',  hk: 'nodeStylePreviewHint' },
-        'pref-ext-files':     { fn: _previewExtFiles,  lk: 'extFilesAlways',  hk: 'extFilesAlwaysDesc' },
-        'pref-ext-funcs':     { fn: _previewExtFuncs,  lk: 'extFuncsAlways',  hk: 'extFuncsAlwaysDesc' },
+        'font-select': { fn: _previewFont, lk: 'fontLabel', hk: 'fontPreviewHint' },
+        'pref-theme-select': { fn: _previewTheme, lk: 'themeLabel', hk: 'themePreviewHint' },
+        'pref-lang-select': { fn: _previewLang, lk: 'langLabel', hk: 'langPreviewHint' },
+        'pref-node-style': { fn: _previewNodeStyle, lk: 'nodeStyleLabel', hk: 'nodeStylePreviewHint' },
+        'pref-ext-files': { fn: _previewExtFiles, lk: 'extFilesAlways', hk: 'extFilesAlwaysDesc' },
+        'pref-ext-funcs': { fn: _previewExtFuncs, lk: 'extFuncsAlways', hk: 'extFuncsAlwaysDesc' },
         'pref-edge-type-labels': { fn: _previewEdgeTypeLabels, lk: 'edgeTypeLabelsDefault', hk: 'edgeTypeLabelsDefaultDesc' },
-        'pref-ext-expand':    { fn: _previewExtExpand, lk: 'extExpandDefault',hk: 'extExpandDefaultDesc' },
-        'pref-layout-l0':     { fn: _previewLayout, lk: 'layoutL0Label', hk: null },
-        'pref-layout-l1':     { fn: _previewLayout, lk: 'layoutL1Label', hk: null },
-        'pref-layout-l2':     { fn: _previewLayout, lk: 'layoutL2Label', hk: null },
+        'pref-ext-expand': { fn: _previewExtExpand, lk: 'extExpandDefault', hk: 'extExpandDefaultDesc' },
+        'pref-sv-edge-style': { fn: _previewSvEdgeStyle, lk: 'sectionLayout', hk: null },
+        'pref-layout-l0': { fn: _previewLayout, lk: 'layoutL0Label', hk: null },
+        'pref-layout-l1': { fn: _previewLayout, lk: 'layoutL1Label', hk: null },
+        'pref-layout-l2': { fn: _previewLayout, lk: 'layoutL2Label', hk: null },
     };
     const cfg = PREVIEWS[id];
     if (!cfg) return;
@@ -651,6 +709,7 @@ function _showPrefPreview(id, value) {
 const _PREF_PREVIEW_SELECT_IDS = new Set([
     'font-select', 'pref-theme-select', 'pref-lang-select',
     'pref-node-style', 'pref-ext-files', 'pref-ext-funcs', 'pref-edge-type-labels', 'pref-ext-expand',
+    'pref-sv-edge-style',
     'pref-layout-l0', 'pref-layout-l1', 'pref-layout-l2',
 ]);
 let _prefDropdownDocBound = false;
@@ -856,7 +915,7 @@ function _previewFont(v) {
 
 function _previewLang(v) {
     const LABELS = {
-        en:    ['Files', 'Modules', 'Functions', 'Settings', 'Done'],
+        en: ['Files', 'Modules', 'Functions', 'Settings', 'Done'],
         'zh-tw': ['\u6a94\u6848', '\u6a21\u7d44', '\u51fd\u6578', '\u8a2d\u5b9a', '\u5b8c\u6210'],
     };
     const items = LABELS[v] || LABELS.en;
@@ -910,10 +969,10 @@ function _previewExtFiles(v) {
       <line x1="64" y1="38" x2="88" y2="28" stroke="var(--muted)" stroke-width="1.5" opacity="0.5"/>
       <line x1="64" y1="48" x2="88" y2="66" stroke="var(--muted)" stroke-width="1.5" opacity="0.5"/>
       ${on
-        ? `<rect x="166" y="28" width="56" height="26" rx="4" fill="var(--muted)" opacity="0.4" stroke="var(--muted)" stroke-width="1" stroke-dasharray="4 2"/>
+            ? `<rect x="166" y="28" width="56" height="26" rx="4" fill="var(--muted)" opacity="0.4" stroke="var(--muted)" stroke-width="1" stroke-dasharray="4 2"/>
            <text x="194" y="45" text-anchor="middle" fill="var(--text)" font-size="8" font-family="monospace" opacity="0.65">os.path</text>
            <line x1="144" y1="28" x2="166" y2="38" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 2" opacity="0.45"/>`
-        : `<text x="194" y="38" text-anchor="middle" fill="var(--muted)" font-size="9" opacity="0.35">&#x2205;</text>`}
+            : `<text x="194" y="38" text-anchor="middle" fill="var(--muted)" font-size="9" opacity="0.35">&#x2205;</text>`}
       <text x="115" y="115" text-anchor="middle" fill="${on ? '#dfa745' : 'var(--muted)'}" font-size="10" font-family="monospace">${on ? 'External files visible' : 'External files hidden'}</text>
       <text x="115" y="130" text-anchor="middle" fill="var(--muted)" font-size="9" font-family="monospace">Dependency Map (L1)</text>
     </svg>`;
@@ -932,13 +991,13 @@ function _previewExtFuncs(v) {
       <line x1="67" y1="55" x2="103" y2="43" stroke="var(--muted)" stroke-width="1.2" opacity="0.5"/>
       <line x1="67" y1="75" x2="103" y2="87" stroke="var(--muted)" stroke-width="1.2" opacity="0.5"/>
       ${on
-        ? `<circle cx="185" cy="38" r="14" fill="var(--muted)" opacity="0.25" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 2"/>
+            ? `<circle cx="185" cy="38" r="14" fill="var(--muted)" opacity="0.25" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 2"/>
            <text x="185" y="42" text-anchor="middle" fill="var(--text)" font-size="7" font-family="monospace" opacity="0.6">os.walk</text>
            <circle cx="185" cy="92" r="14" fill="var(--muted)" opacity="0.25" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 2"/>
            <text x="185" y="96" text-anchor="middle" fill="var(--text)" font-size="7" font-family="monospace" opacity="0.6">re.match</text>
            <line x1="134" y1="40" x2="172" y2="40" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 2" opacity="0.4"/>
            <line x1="134" y1="90" x2="172" y2="90" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 2" opacity="0.4"/>`
-        : `<text x="185" y="65" text-anchor="middle" fill="var(--muted)" font-size="9" opacity="0.35">&#x2205;</text>`}
+            : `<text x="185" y="65" text-anchor="middle" fill="var(--muted)" font-size="9" opacity="0.35">&#x2205;</text>`}
       <text x="115" y="118" text-anchor="middle" fill="${on ? '#dfa745' : 'var(--muted)'}" font-size="10" font-family="monospace">${on ? 'External funcs visible' : 'External funcs hidden'}</text>
       <text x="115" y="132" text-anchor="middle" fill="var(--muted)" font-size="9" font-family="monospace">Call Flow (L2)</text>
     </svg>`;
@@ -953,9 +1012,9 @@ function _previewEdgeTypeLabels(v) {
       <text x="188" y="65" text-anchor="middle" fill="#fff" font-size="9" font-family="monospace">utils.py</text>
       <line x1="68" y1="61" x2="162" y2="61" stroke="#c084fc" stroke-width="2"/>
       ${on
-        ? `<rect x="92" y="49" width="46" height="18" rx="5" fill="#111827" opacity="0.9"/>
+            ? `<rect x="92" y="49" width="46" height="18" rx="5" fill="#111827" opacity="0.9"/>
            <text x="115" y="61" text-anchor="middle" fill="#e5e7eb" font-size="8" font-family="monospace">Include</text>`
-        : `<text x="115" y="57" text-anchor="middle" fill="var(--muted)" font-size="10" font-family="monospace" opacity="0.55">&#x2205;</text>`}
+            : `<text x="115" y="57" text-anchor="middle" fill="var(--muted)" font-size="10" font-family="monospace" opacity="0.55">&#x2205;</text>`}
       <text x="115" y="116" text-anchor="middle" fill="${on ? '#dfa745' : 'var(--muted)'}" font-size="10" font-family="monospace">${on ? 'Edge type labels visible' : 'Edge type labels hidden'}</text>
       <text x="115" y="130" text-anchor="middle" fill="var(--muted)" font-size="9" font-family="monospace">Dependency Map (L1)</text>
     </svg>`;
@@ -1026,7 +1085,7 @@ function initPreferences() {
     const extFilesSel = document.getElementById('pref-ext-files');
     const extFuncsSel = document.getElementById('pref-ext-funcs');
     const edgeTypeLabelsSel = document.getElementById('pref-edge-type-labels');
-    const expandSel   = document.getElementById('pref-ext-expand');
+    const expandSel = document.getElementById('pref-ext-expand');
 
     if (extFilesSel) extFilesSel.value = String(_PREFS.get('extFiles'));
     if (extFuncsSel) extFuncsSel.value = String(_PREFS.get('extFuncs'));
@@ -1102,6 +1161,20 @@ function initPreferences() {
     if (layoutL1Sel) layoutL1Sel.addEventListener('change', e => { _PREFS.set('layoutL1', e.target.value); });
     if (layoutL2Sel) layoutL2Sel.addEventListener('change', e => { _PREFS.set('layoutL2', e.target.value); });
 
+    // Symbol View edge style
+    const svEdgeStyleSel = document.getElementById('pref-sv-edge-style');
+    if (svEdgeStyleSel) {
+        svEdgeStyleSel.value = _PREFS.get('svEdgeStyle');
+        svEdgeStyleSel.addEventListener('change', e => {
+            _PREFS.set('svEdgeStyle', e.target.value);
+            // Re-render the Symbol View if it's currently open.
+            if (typeof _svState !== 'undefined' && _svState.fileRel &&
+                typeof _svLoadFileGraph === 'function') {
+                _svLoadFileGraph(_svState.fileRel);
+            }
+        });
+    }
+
     // Node style
     const nodeStyleSel = document.getElementById('pref-node-style');
     if (nodeStyleSel) {
@@ -1117,6 +1190,7 @@ function initPreferences() {
         fontSel, themeSel, langSel, nodeStyleSel,
         extFilesSel, extFuncsSel, edgeTypeLabelsSel, expandSel,
         layoutL0Sel, layoutL1Sel, layoutL2Sel,
+        svEdgeStyleSel,
     ]);
 }
 

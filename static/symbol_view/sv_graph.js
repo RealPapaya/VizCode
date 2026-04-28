@@ -7,48 +7,48 @@
 'use strict';
 
 // ── Layout constants ──────────────────────────────────────────────────────
-const _SV_CLASS_PAD_X   = 16;
+const _SV_CLASS_PAD_X = 16;
 const _SV_CLASS_PAD_TOP = 46;
 const _SV_CLASS_PAD_BOT = 14;
 const _SV_CLASS_INNER_LEFT = 14;
-const _SV_CLASS_MIN_W   = 232;
-const _SV_CLASS_MAX_W   = 560;
-const _SV_METHOD_W      = 112;
-const _SV_METHOD_MAX_W  = 320;
-const _SV_METHOD_H      = 34;
-const _SV_METHOD_GAP    = 6;
+const _SV_CLASS_MIN_W = 232;
+const _SV_CLASS_MAX_W = 560;
+const _SV_METHOD_W = 112;
+const _SV_METHOD_MAX_W = 320;
+const _SV_METHOD_H = 34;
+const _SV_METHOD_GAP = 6;
 const _SV_SECTION_LABEL_H = 14;
-const _SV_SECTION_GAP     = 8;
+const _SV_SECTION_GAP = 8;
 const _SV_SECTION_BODY_GAP = 10;
 const _SV_SECTION_DIVIDER_GAP = 8;
 const _SV_SECTION_SPLIT_GAP = 14;
-const _SV_PILL_H        = 30;
-const _SV_PILL_MIN_W    = 64;
-const _SV_PILL_MAX_W    = 220;
-const _SV_FUNC_W        = 220;
-const _SV_FUNC_MAX_W    = 340;
-const _SV_FUNC_H        = 42;
-const _SV_FIELD_W       = 180;
-const _SV_FIELD_MAX_W   = 300;
-const _SV_FIELD_H       = 28;
-const _SV_GHOST_W       = 220;
-const _SV_GHOST_MAX_W   = 360;
-const _SV_GHOST_H       = 52;
+const _SV_PILL_H = 30;
+const _SV_PILL_MIN_W = 64;
+const _SV_PILL_MAX_W = 220;
+const _SV_FUNC_W = 220;
+const _SV_FUNC_MAX_W = 340;
+const _SV_FUNC_H = 42;
+const _SV_FIELD_W = 180;
+const _SV_FIELD_MAX_W = 300;
+const _SV_FIELD_H = 28;
+const _SV_GHOST_W = 220;
+const _SV_GHOST_MAX_W = 360;
+const _SV_GHOST_H = 52;
 
-const _SV_FOCUS_SIG_H   = 36;   // detail row heights (each collapsible)
-const _SV_FOCUS_DOC_H   = 46;
-const _SV_FOCUS_MET_H   = 28;
+const _SV_FOCUS_SIG_H = 36;   // detail row heights (each collapsible)
+const _SV_FOCUS_DOC_H = 46;
+const _SV_FOCUS_MET_H = 28;
 
 const _SV_LAYOUT_NODESEP = 42;
 const _SV_LAYOUT_RANKSEP = 128;
-const _SV_LAYOUT_MARGIN  = 56;
-const _SV_COLLISION_PAD  = 24;
+const _SV_LAYOUT_MARGIN = 56;
+const _SV_COLLISION_PAD = 24;
 
-const _SV_DETAIL_GAP      = 24;
-const _SV_DETAIL_MIN_W    = 280;
-const _SV_DETAIL_MAX_W    = 420;
-const _SV_DETAIL_MIN_H    = 170;
-const _SV_DETAIL_MAX_H    = 560;
+const _SV_DETAIL_GAP = 24;
+const _SV_DETAIL_MIN_W = 280;
+const _SV_DETAIL_MAX_W = 420;
+const _SV_DETAIL_MIN_H = 170;
+const _SV_DETAIL_MAX_H = 560;
 const _SV_DETAIL_VIEW_PAD = 18;
 
 const _SV_CH_W = 7.1;
@@ -192,9 +192,9 @@ function _svVisibleWorldBounds() {
     }
     const rect = svg.getBoundingClientRect();
     return {
-        left:   (-zoom.x) / zoom.k,
-        top:    (-zoom.y) / zoom.k,
-        right:  (rect.width - zoom.x) / zoom.k,
+        left: (-zoom.x) / zoom.k,
+        top: (-zoom.y) / zoom.k,
+        right: (rect.width - zoom.x) / zoom.k,
         bottom: (rect.height - zoom.y) / zoom.k,
     };
 }
@@ -637,9 +637,9 @@ function _svCollectFocusBuckets(model, resp, focusId) {
 
     for (const ed of model.edges) {
         const touchesOut = ed.from === focusId || ed.origFrom === focusId;
-        const touchesIn  = ed.to === focusId || ed.origTo === focusId;
+        const touchesIn = ed.to === focusId || ed.origTo === focusId;
         if (touchesOut && ed.to !== focusId) assign(model.byNodeId[ed.to], 'outgoing');
-        if (touchesIn  && ed.from !== focusId) assign(model.byNodeId[ed.from], 'incoming');
+        if (touchesIn && ed.from !== focusId) assign(model.byNodeId[ed.from], 'incoming');
     }
 
     for (const linkedId of (model.adj.get(focusId) || [])) {
@@ -778,7 +778,7 @@ function _svBuildFocusLayoutModel(baseModel, resp, focusOpts) {
 // ── Entry: load a file's graph ────────────────────────────────────────────
 // opts.pendingFocus — focus this symbol as soon as the graph lands.
 async function _svLoadFileGraph(fileRel, opts) {
-    const svg   = _svState.svg;
+    const svg = _svState.svg;
     const empty = document.getElementById('sv-empty');
     if (!svg) return;
     svg.style.display = '';
@@ -789,7 +789,7 @@ async function _svLoadFileGraph(fileRel, opts) {
 
     _svShowLoading(true);
     try {
-        const url  = `/symbol-file?job=${encodeURIComponent(jid)}&file=${encodeURIComponent(fileRel)}&include_external=1`;
+        const url = `/symbol-file?job=${encodeURIComponent(jid)}&file=${encodeURIComponent(fileRel)}&include_external=1`;
         const resp = await fetch(url);
         const data = await resp.json();
         if (!data || !Array.isArray(data.symbols)) {
@@ -807,7 +807,7 @@ async function _svLoadFileGraph(fileRel, opts) {
         if (opts && opts.pendingFocus && _svState.baseLayoutSnapshot.byNodeId[opts.pendingFocus]) {
             _svState.focusId = opts.pendingFocus;
             const fNode = _svState.baseLayoutSnapshot.byNodeId[opts.pendingFocus];
-            const fSym  = fNode.sym || {};
+            const fSym = fNode.sym || {};
             const cardW = _svClamp(Math.max(fNode.w + 52, 260), _SV_DETAIL_MIN_W, _SV_DETAIL_MAX_W);
             const cardH = _svGetDetailCardHeight(fSym, opts.pendingFocus, cardW);
             const focusModel = _svBuildFocusLayoutModel(
@@ -838,7 +838,7 @@ async function _svLoadFileGraph(fileRel, opts) {
 // Called whenever focusId changes within the same file.
 function _svRebuildForFocus() {
     const focusId = _svState.focusId;
-    const data    = _svState.currentData;
+    const data = _svState.currentData;
     const fileRel = _svState.fileRel;
     if (!data || !fileRel) { _svApplyFocus(); return; }
 
@@ -868,7 +868,7 @@ function _svRebuildForFocus() {
         return;
     }
 
-    const sym   = baseNode.sym || {};
+    const sym = baseNode.sym || {};
     const cardW = _svClamp(Math.max(baseNode.w + 52, 260), _SV_DETAIL_MIN_W, _SV_DETAIL_MAX_W);
     const cardH = _svGetDetailCardHeight(sym, focusId, cardW);
     const model = _svBuildFocusLayoutModel(
@@ -902,9 +902,9 @@ function _svUpdateBreadcrumbFile(fileRel, model) {
 // ── Model: classify symbols and run dagre layout ──────────────────────────
 function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
     const symbols = resp.symbols || [];
-    const edges   = resp.edges || [];
+    const edges = resp.edges || [];
     const extEdges = resp.external_edges || [];
-    const extSyms  = resp.external_syms  || {};
+    const extSyms = resp.external_syms || {};
 
     const byId = {};
     for (const s of symbols) byId[s.id] = s;
@@ -913,8 +913,8 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
     // When focusOpts is provided the focused node is extracted from its category:
     // it becomes a standalone focus-card in topFuncs. If it was a class, its
     // methods lose their parent and also fall into topFuncs as orphaned nodes.
-    const classes  = [];
-    const methods  = [];
+    const classes = [];
+    const methods = [];
     const topFuncs = [];
     const classById = {};
     const focusSym = focusOpts ? byId[focusOpts.focusId] : null;
@@ -966,11 +966,11 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
     // Use dagre for positions. Compound classes contain their methods.
     const g = new dagre.graphlib.Graph({ compound: true });
     g.setGraph({
-        rankdir:  'LR',
-        nodesep:  _SV_LAYOUT_NODESEP,
-        ranksep:  _SV_LAYOUT_RANKSEP,
-        marginx:  _SV_LAYOUT_MARGIN,
-        marginy:  _SV_LAYOUT_MARGIN,
+        rankdir: 'LR',
+        nodesep: _SV_LAYOUT_NODESEP,
+        ranksep: _SV_LAYOUT_RANKSEP,
+        marginx: _SV_LAYOUT_MARGIN,
+        marginy: _SV_LAYOUT_MARGIN,
     });
     g.setDefaultEdgeLabel(() => ({}));
 
@@ -1070,10 +1070,10 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
     const edgeMap = new Map();
     for (const e of edges) {
         const fromId = _svRedirectIfCollapsed(e.from, methods, classDims);
-        const toId   = _svRedirectIfCollapsed(e.to,   methods, classDims);
+        const toId = _svRedirectIfCollapsed(e.to, methods, classDims);
         if (fromId === toId) continue;
         const dagreFrom = _svToCompoundId(fromId, methods, classDims);
-        const dagreTo   = _svToCompoundId(toId,   methods, classDims);
+        const dagreTo = _svToCompoundId(toId, methods, classDims);
         if (!g.hasNode(dagreFrom) || !g.hasNode(dagreTo)) continue;
         if (dagreFrom !== dagreTo) g.setEdge(dagreFrom, dagreTo);
         const sourceAccess = _svAccessGroup(byId[fromId] || byId[e.from]);
@@ -1095,9 +1095,9 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
     if (_svState.showExternal) {
         for (const e of extEdges) {
             const fromId = byId[e.from] ? _svRedirectIfCollapsed(e.from, methods, classDims) : e.from;
-            const toId   = byId[e.to]   ? _svRedirectIfCollapsed(e.to,   methods, classDims) : e.to;
+            const toId = byId[e.to] ? _svRedirectIfCollapsed(e.to, methods, classDims) : e.to;
             const dagreFrom = byId[fromId] ? _svToCompoundId(fromId, methods, classDims) : fromId;
-            const dagreTo   = byId[toId]   ? _svToCompoundId(toId,   methods, classDims) : toId;
+            const dagreTo = byId[toId] ? _svToCompoundId(toId, methods, classDims) : toId;
             if (!g.hasNode(dagreFrom) || !g.hasNode(dagreTo)) continue;
             if (dagreFrom !== dagreTo) g.setEdge(dagreFrom, dagreTo);
             const sourceAccess = _svAccessGroup(byId[fromId] || byId[e.from]);
@@ -1172,7 +1172,7 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
             cursorY += _SV_SECTION_GAP;
             // labelY / dividerY must be relative to the class node's top-left (SVG
             // renders them inside translate(clsX, clsY), so absolute coords double-offset).
-            section.labelY   = cursorY - clsY;
+            section.labelY = cursorY - clsY;
             section.dividerY = cursorY - clsY + _SV_SECTION_DIVIDER_GAP;
             cursorY += _SV_SECTION_LABEL_H + _SV_SECTION_BODY_GAP + _SV_SECTION_DIVIDER_GAP;
             section.methods.forEach((m, methodIdx) => {
@@ -1195,22 +1195,22 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
 
     for (const cls of classes) {
         const info = g.node(cls.id);
-        const d    = classDims[cls.id];
+        const d = classDims[cls.id];
         const offset = rootOffsets.get(cls.id) || { dx: 0, dy: 0 };
         nodes.push({
-            id:          cls.id,
-            sym:         cls,
-            kind:        cls.kind,
-            isCompound:  true,
-            collapsed:   d.collapsed,
-            methods:     d.methods,
-            sections:    d.sections,
-            x:           info.x - d.w / 2 + offset.dx,
-            y:           info.y - d.h / 2 + offset.dy,
-            w:           d.w,
-            h:           d.h,
-            cx:          info.x + offset.dx,
-            cy:          info.y + offset.dy,
+            id: cls.id,
+            sym: cls,
+            kind: cls.kind,
+            isCompound: true,
+            collapsed: d.collapsed,
+            methods: d.methods,
+            sections: d.sections,
+            x: info.x - d.w / 2 + offset.dx,
+            y: info.y - d.h / 2 + offset.dy,
+            w: d.w,
+            h: d.h,
+            cx: info.x + offset.dx,
+            cy: info.y + offset.dy,
         });
     }
     for (const m of methods) {
@@ -1219,17 +1219,17 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
         const pos = methodPos.get(m.id);
         if (!pos) continue;
         nodes.push({
-            id:       m.id,
-            sym:      m,
-            kind:     m.kind,
+            id: m.id,
+            sym: m,
+            kind: m.kind,
             isMethod: true,
             parentId: m._parentId,
-            x:        pos.x,
-            y:        pos.y,
-            w:        pos.w,
-            h:        pos.h,
-            cx:       pos.x + pos.w / 2,
-            cy:       pos.y + pos.h / 2,
+            x: pos.x,
+            y: pos.y,
+            w: pos.w,
+            h: pos.h,
+            cx: pos.x + pos.w / 2,
+            cy: pos.y + pos.h / 2,
         });
     }
     for (const f of topFuncs) {
@@ -1241,17 +1241,17 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
         const h = dim ? dim.h : (isField ? _SV_FIELD_H : _SV_FUNC_H);
         const offset = rootOffsets.get(f.id) || { dx: 0, dy: 0 };
         nodes.push({
-            id:          f.id,
-            sym:         f,
-            kind:        f.kind,
-            isTopLevel:  !isFocusCard,
-            isField:     isField,
+            id: f.id,
+            sym: f,
+            kind: f.kind,
+            isTopLevel: !isFocusCard,
+            isField: isField,
             isFocusCard: isFocusCard,
-            x:           info.x - w / 2 + offset.dx,
-            y:           info.y - h / 2 + offset.dy,
+            x: info.x - w / 2 + offset.dx,
+            y: info.y - h / 2 + offset.dy,
             w, h,
-            cx:          info.x + offset.dx,
-            cy:          info.y + offset.dy,
+            cx: info.x + offset.dx,
+            cy: info.y + offset.dy,
         });
     }
     for (const gid of ghostIds) {
@@ -1259,16 +1259,16 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
         const dim = ghostDims.get(gid) || { w: _SV_GHOST_W, h: _SV_GHOST_H };
         const offset = rootOffsets.get(gid) || { dx: 0, dy: 0 };
         nodes.push({
-            id:       gid,
-            sym:      byId[gid],
-            kind:     byId[gid].kind || 'class',
-            isGhost:  true,
-            x:        info.x - dim.w / 2 + offset.dx,
-            y:        info.y - dim.h / 2 + offset.dy,
-            w:        dim.w,
-            h:        dim.h,
-            cx:       info.x + offset.dx,
-            cy:       info.y + offset.dy,
+            id: gid,
+            sym: byId[gid],
+            kind: byId[gid].kind || 'class',
+            isGhost: true,
+            x: info.x - dim.w / 2 + offset.dx,
+            y: info.y - dim.h / 2 + offset.dy,
+            w: dim.w,
+            h: dim.h,
+            cx: info.x + offset.dx,
+            cy: info.y + offset.dy,
         });
     }
 
@@ -1276,7 +1276,7 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
     const adj = new Map();
     for (const e of modelEdges) {
         if (!adj.has(e.from)) adj.set(e.from, new Set());
-        if (!adj.has(e.to))   adj.set(e.to,   new Set());
+        if (!adj.has(e.to)) adj.set(e.to, new Set());
         adj.get(e.from).add(e.to);
         adj.get(e.to).add(e.from);
         // Methods also count as 1-hop from their class compound when focus is
@@ -1295,7 +1295,7 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
     // Parent-child adjacency (class ↔ its methods).
     for (const m of methods) {
         if (!adj.has(m._parentId)) adj.set(m._parentId, new Set());
-        if (!adj.has(m.id))        adj.set(m.id, new Set());
+        if (!adj.has(m.id)) adj.set(m.id, new Set());
         adj.get(m._parentId).add(m.id);
         adj.get(m.id).add(m._parentId);
     }
@@ -1326,7 +1326,7 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
     return {
         fileRel,
         nodes,
-        edges:       modelEdges,
+        edges: modelEdges,
         byId,
         byNodeId,
         adj,
@@ -1334,7 +1334,7 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
         layoutMode: focusSym ? 'focus' : 'base',
         cameraBounds: _svComputeRectBounds(nodes, focusSym ? _SV_CAMERA_PAD : 64),
         hasFocusCard: !!(focusSym),
-        focusNodeId:  focusSym ? focusSym.id : null,
+        focusNodeId: focusSym ? focusSym.id : null,
     };
 }
 
@@ -1381,15 +1381,15 @@ function _svAnimateCameraToModel(model, token, immediate) {
 }
 
 function _svRenderFileGraph(newModel) {
-    const svg      = _svState.svg;
+    const svg = _svState.svg;
     const viewport = _svState.viewport;
     if (!svg || !viewport) return;
 
     _svCurRenderModel = newModel;
     svg.style.display = '';
 
-    const cardsG  = viewport.querySelector('.sv-cards');
-    const edgesG  = viewport.querySelector('.sv-edges');
+    const cardsG = viewport.querySelector('.sv-cards');
+    const edgesG = viewport.querySelector('.sv-edges');
     const labelsG = viewport.querySelector('.sv-edge-labels');
     const ghostsG = viewport.querySelector('.sv-ghosts');
     if (!cardsG || !edgesG || !ghostsG) return;
@@ -1409,7 +1409,7 @@ function _svRenderFileGraph(newModel) {
     const canReusePrev = !!(sameFile && prev && prev.nodes.every(n => !n.el || n.el.isConnected));
     const animToken = ++_svState.activeAnimationToken;
     if (!canReusePrev) {
-        cardsG.innerHTML  = '';
+        cardsG.innerHTML = '';
         ghostsG.innerHTML = '';
         _svState.currentGraph = null;
     }
@@ -1444,7 +1444,7 @@ function _svRenderFileGraph(newModel) {
                 if (nowFocusCard) {
                     const fo = fresh.querySelector('.sv-focus-card-fo');
                     if (fo) {
-                        fo.setAttribute('width',  String(was.w));
+                        fo.setAttribute('width', String(was.w));
                         fo.setAttribute('height', String(was.h));
                     }
                 }
@@ -1486,7 +1486,7 @@ function _svRenderFileGraph(newModel) {
     }
 
     // Clear stale edges immediately — must not appear during card animation.
-    edgesG.innerHTML  = '';
+    edgesG.innerHTML = '';
     labelsG.innerHTML = '';
 
     // Attach compound toggle chips to the chip overlay layer. Each chip carries
@@ -1495,7 +1495,7 @@ function _svRenderFileGraph(newModel) {
         for (const [, L] of live) {
             const chip = L.el._chipEl;
             if (!chip) continue;
-            L.chip  = chip;
+            L.chip = chip;
             L.chipOX = typeof L.el._chipOX === 'number' ? L.el._chipOX : 0;
             L.chipOY = typeof L.el._chipOY === 'number' ? L.el._chipOY : 0;
             chip.setAttribute('transform', `translate(${L.x0 + L.chipOX},${L.y0 + L.chipOY})`);
@@ -1504,7 +1504,7 @@ function _svRenderFileGraph(newModel) {
     }
 
     const DUR = _SV_DUR_MS;
-    const t0  = performance.now();
+    const t0 = performance.now();
     function frame(now) {
         if (animToken !== _svState.activeAnimationToken) return;
         const t = Math.min(1, (now - t0) / DUR);
@@ -1523,7 +1523,7 @@ function _svRenderFileGraph(newModel) {
                 const fh = L.h0 + (L.h1 - L.h0) * e;
                 const fo = L.el.querySelector('.sv-focus-card-fo');
                 if (fo) {
-                    fo.setAttribute('width',  String(fw));
+                    fo.setAttribute('width', String(fw));
                     fo.setAttribute('height', String(fh));
                 }
             }
@@ -1545,7 +1545,7 @@ function _svRenderFileGraph(newModel) {
                 if (L.data.isFocusCard) {
                     const fo = L.el.querySelector('.sv-focus-card-fo');
                     if (fo) {
-                        fo.setAttribute('width',  String(L.w1));
+                        fo.setAttribute('width', String(L.w1));
                         fo.setAttribute('height', String(L.h1));
                     }
                 }
@@ -1559,28 +1559,31 @@ function _svRenderFileGraph(newModel) {
             _svApplyFocus({ noHistory: true });
 
             // Build edges at final, stable positions and fade them in.
-            edgesG.innerHTML  = '';
+            edgesG.innerHTML = '';
             labelsG.innerHTML = '';
+            // Collect all node live-positions for obstacle-aware routing.
+            const nodeRects = new Map();
+            for (const [nid, L] of live) nodeRects.set(nid, L);
             for (const ed of newModel.edges) {
                 const from = live.get(ed.from);
-                const to   = live.get(ed.to);
+                const to = live.get(ed.to);
                 if (!from || !to) continue;
-                _svAppendEdge(edgesG, labelsG, ed, from, to);
+                _svAppendEdge(edgesG, labelsG, ed, from, to, nodeRects);
             }
             _svApplyFocus({ noHistory: true });
             const EDGE_DUR = 220;
             const edgeT0 = performance.now();
-            edgesG.style.opacity  = '0';
+            edgesG.style.opacity = '0';
             labelsG.style.opacity = '0';
             function edgeFade(eNow) {
                 if (animToken !== _svState.activeAnimationToken) return;
                 const et = Math.min(1, (eNow - edgeT0) / EDGE_DUR);
                 const ee = _svEase(et);
-                edgesG.style.opacity  = String(ee);
+                edgesG.style.opacity = String(ee);
                 labelsG.style.opacity = String(ee);
                 if (et < 1) requestAnimationFrame(edgeFade);
                 else {
-                    edgesG.style.opacity  = '';
+                    edgesG.style.opacity = '';
                     labelsG.style.opacity = '';
                 }
             }
@@ -1693,8 +1696,8 @@ function _svApplyFocus(_opts) {
 
             // selectedEdgeId and metricHighlight apply regardless of whether a node is focused.
             const metricMatch = metricHL && ed && focusId && (
-                (metricHL === 'callers'  && (ed.to   === focusId || ed.origTo   === focusId)) ||
-                (metricHL === 'callees'  && (ed.from === focusId || ed.origFrom === focusId))
+                (metricHL === 'callers' && (ed.to === focusId || ed.origTo === focusId)) ||
+                (metricHL === 'callees' && (ed.from === focusId || ed.origFrom === focusId))
             );
             const selected = (ed && _svState.selectedEdgeId && eid === _svState.selectedEdgeId) || !!metricMatch;
             if (selected) {
@@ -1727,14 +1730,14 @@ function _svDocExcerpt(doc) {
 function _svNodeClass(n) {
     const kind = n.kind || 'default';
     const classes = ['sv-node', `sv-kind-${kind}`];
-    if (n.isCompound)   classes.push('sv-compound');
-    if (n.isMethod)     classes.push('sv-method');
+    if (n.isCompound) classes.push('sv-compound');
+    if (n.isMethod) classes.push('sv-method');
     if (n.isMethod && n.sym) classes.push(n.sym.is_public === false ? 'sv-method-private' : 'sv-method-public');
-    if (n.isTopLevel)   classes.push('sv-top');
-    if (n.isField)      classes.push('sv-field');
-    if (n.isGhost)      classes.push('sv-ghost');
-    if (n.isFocusCard)  classes.push('sv-focus-card');
-    if (n.isFocusPill)  classes.push('sv-focus-pill');
+    if (n.isTopLevel) classes.push('sv-top');
+    if (n.isField) classes.push('sv-field');
+    if (n.isGhost) classes.push('sv-ghost');
+    if (n.isFocusCard) classes.push('sv-focus-card');
+    if (n.isFocusPill) classes.push('sv-focus-pill');
     if (n.focusPillGroup) classes.push(`sv-focus-pill-${n.focusPillGroup}`);
     if (n.sym && n.sym.is_static) classes.push('sv-static');
     if (n.sym && Array.isArray(n.sym.decorators) && n.sym.decorators.includes('override')) {
@@ -1850,7 +1853,7 @@ function _svUpdateFocusCardInPlace(fo, n, focusId) {
     if (model) {
         for (const e of model.edges) {
             const out = e.from === focusId || e.origFrom === focusId;
-            const inc = e.to   === focusId || e.origTo   === focusId;
+            const inc = e.to === focusId || e.origTo === focusId;
             if (out && !inc) callees++;
             else if (inc && !out) callers++;
         }
@@ -1889,21 +1892,21 @@ function _svBindFocusCardEvents(fo, n, focusId) {
 }
 
 function _svCreateFocusCardEl(n) {
-    const NS  = 'http://www.w3.org/2000/svg';
-    const g   = document.createElementNS(NS, 'g');
+    const NS = 'http://www.w3.org/2000/svg';
+    const g = document.createElementNS(NS, 'g');
     g.setAttribute('class', _svNodeClass(n));
     g.dataset.symid = n.id;
     g.setAttribute('transform', `translate(${n.x},${n.y})`);
 
-    const sym     = n.sym || {};
+    const sym = n.sym || {};
     const focusId = n.id;
-    const model   = _svCurRenderModel;
+    const model = _svCurRenderModel;
 
     let callers = 0, callees = 0;
     if (model) {
         for (const e of model.edges) {
             const hits = e.from === focusId || e.origFrom === focusId
-                      || e.to   === focusId || e.origTo   === focusId;
+                || e.to === focusId || e.origTo === focusId;
             if (!hits) continue;
             if (e.from === focusId || e.origFrom === focusId) callees++;
             else callers++;
@@ -1914,7 +1917,7 @@ function _svCreateFocusCardEl(n) {
     const fo = document.createElementNS(NS, 'foreignObject');
     fo.setAttribute('class', 'sv-focus-card-fo');
     fo.setAttribute('x', '0'); fo.setAttribute('y', '0');
-    fo.setAttribute('width',  String(n.w));
+    fo.setAttribute('width', String(n.w));
     fo.setAttribute('height', String(n.h));
 
     fo.innerHTML = _svFocusCardMarkup(sym, { callers, callees, lineCount, collapsed: _svState.detailSectionCollapsed, isMethod: n.isMethod });
@@ -1929,7 +1932,7 @@ function _svCreateNodeEl(n) {
     if (n.isFocusCard) return _svCreateFocusCardEl(n);
 
     const NS = 'http://www.w3.org/2000/svg';
-    const g  = document.createElementNS(NS, 'g');
+    const g = document.createElementNS(NS, 'g');
     g.setAttribute('class', _svNodeClass(n));
     g.dataset.symid = n.id;
     g.setAttribute('transform', `translate(${n.x},${n.y})`);
@@ -1937,14 +1940,14 @@ function _svCreateNodeEl(n) {
     const rect = document.createElementNS(NS, 'rect');
     rect.setAttribute('class', 'sv-node-bg');
     rect.setAttribute('x', '0'); rect.setAttribute('y', '0');
-    rect.setAttribute('width',  String(n.w));
+    rect.setAttribute('width', String(n.w));
     rect.setAttribute('height', String(n.h));
     rect.setAttribute('rx', n.isField ? '14' : n.isCompound ? '10' : (n.isMethod || n.isFocusPill) ? '15' : '8');
     if (n.isGhost) {
         // Ghost node backgrounds are nearly transparent in CSS (rgba(...,0.05)),
         // which lets edge lines show through even though sv-ghosts is a higher
         // z-layer. Override fill inline with enough opacity to occlude edges.
-        rect.style.fill        = 'var(--sv-ghost-bg, #141e30)';
+        rect.style.fill = 'var(--sv-ghost-bg, #141e30)';
         rect.style.fillOpacity = '0.92';
         // Capture pointer events even on transparent area (Bug 2: click-through fix).
         rect.setAttribute('pointer-events', 'all');
@@ -2146,18 +2149,26 @@ function _svClipText(s, maxPx) {
 }
 
 // ── Edge drawing ──────────────────────────────────────────────────────────
-function _svAppendEdge(edgesG, labelsG, ed, from, to) {
+function _svAppendEdge(edgesG, labelsG, ed, from, to, nodeRects) {
     const NS = 'http://www.w3.org/2000/svg';
     const fromNode = from.data || {};
-    const toNode   = to.data   || {};
+    const toNode = to.data || {};
     const forcedFromSide = (fromNode.isMethod || fromNode.isFocusPill) ? 'right' : null;
-    const forcedToSide   = (toNode.isMethod   || toNode.isFocusPill)   ? 'left'  : null;
+    const forcedToSide = (toNode.isMethod || toNode.isFocusPill) ? 'left' : null;
     const fromBox = { x: from.currentX + from.w / 2, y: from.currentY + from.h / 2, w: from.w, h: from.h };
-    const toBox   = { x: to.currentX   + to.w   / 2, y: to.currentY   + to.h   / 2, w: to.w,   h: to.h };
+    const toBox = { x: to.currentX + to.w / 2, y: to.currentY + to.h / 2, w: to.w, h: to.h };
     const endpoints = _svComputeEndpoints(fromBox, toBox, forcedFromSide, forcedToSide);
+    // Build obstacle list for routing: every node except the two endpoints.
+    const obstacles = [];
+    if (nodeRects) {
+        for (const [nid, nr] of nodeRects) {
+            if (nid === ed.from || nid === ed.to) continue;
+            obstacles.push({ x: nr.currentX, y: nr.currentY, w: nr.w, h: nr.h });
+        }
+    }
     const color = _svResolveEdgeStroke(ed, from);
     const selectedColor = _svResolveSelectedEdgeStroke(ed, from);
-    const { path: pathData, mx: edgeMx, my: edgeMy } = _svBuildEdgePath(endpoints);
+    const { path: pathData, mx: edgeMx, my: edgeMy } = _svBuildEdgePath(endpoints, obstacles);
 
     function bindEdgeEvents(el) {
         el.addEventListener('click', (e) => {
@@ -2165,7 +2176,7 @@ function _svAppendEdge(edgesG, labelsG, ed, from, to) {
             _svHandleEdgeClick(ed);
         });
         el.addEventListener('mouseenter', (e) => _svShowEdgeTip(e, ed));
-        el.addEventListener('mousemove',  (e) => _svMoveEdgeTip(e));
+        el.addEventListener('mousemove', (e) => _svMoveEdgeTip(e));
         el.addEventListener('mouseleave', () => _svHideEdgeTip());
     }
 
@@ -2215,42 +2226,123 @@ function _svComputeEndpoints(from, to, forcedFromSide, forcedToSide) {
     const absDx = Math.abs(dx);
     const absDy = Math.abs(dy);
     const fromSide = forcedFromSide || (absDx > absDy ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'bottom' : 'top'));
-    const toSide   = forcedToSide   || (absDx > absDy ? (dx > 0 ? 'left'  : 'right') : (dy > 0 ? 'top'    : 'bottom'));
+    const toSide = forcedToSide || (absDx > absDy ? (dx > 0 ? 'left' : 'right') : (dy > 0 ? 'top' : 'bottom'));
     const sx = from.x + _svSideOffsetX(fromSide, from.w);
     const sy = from.y + _svSideOffsetY(fromSide, from.h);
-    const ex = to.x   + _svSideOffsetX(toSide,   to.w);
-    const ey = to.y   + _svSideOffsetY(toSide,   to.h);
+    const ex = to.x + _svSideOffsetX(toSide, to.w);
+    const ey = to.y + _svSideOffsetY(toSide, to.h);
     return { sx, sy, ex, ey, fromSide, toSide };
 }
 function _svSideOffsetX(side, w) {
-    if (side === 'left')  return -w / 2;
-    if (side === 'right') return  w / 2;
+    if (side === 'left') return -w / 2;
+    if (side === 'right') return w / 2;
     return 0;
 }
 function _svSideOffsetY(side, h) {
-    if (side === 'top')    return -h / 2;
-    if (side === 'bottom') return  h / 2;
+    if (side === 'top') return -h / 2;
+    if (side === 'bottom') return h / 2;
     return 0;
 }
-function _svBuildEdgePath({ sx, sy, ex, ey, fromSide, toSide }) {
+function _svBuildEdgePath(endpoints, obstacles) {
+    const style = (typeof _PREFS !== 'undefined') ? _PREFS.get('svEdgeStyle') : 'bezier';
+    if (style === 'orthogonal') return _svBuildOrthogonalPath(endpoints, obstacles);
+    return _svBuildBezierPath(endpoints);
+}
+
+function _svBuildBezierPath({ sx, sy, ex, ey, fromSide, toSide }) {
     const dx = ex - sx;
     const dy = ey - sy;
     const dist = Math.sqrt(dx * dx + dy * dy);
     const curve = Math.min(120, Math.max(32, dist * 0.35));
     let cx1 = sx, cy1 = sy, cx2 = ex, cy2 = ey;
-    if (fromSide === 'left')   cx1 = sx - curve;
-    if (fromSide === 'right')  cx1 = sx + curve;
-    if (fromSide === 'top')    cy1 = sy - curve;
+    if (fromSide === 'left') cx1 = sx - curve;
+    if (fromSide === 'right') cx1 = sx + curve;
+    if (fromSide === 'top') cy1 = sy - curve;
     if (fromSide === 'bottom') cy1 = sy + curve;
-    if (toSide === 'left')     cx2 = ex - curve;
-    if (toSide === 'right')    cx2 = ex + curve;
-    if (toSide === 'top')      cy2 = ey - curve;
-    if (toSide === 'bottom')   cy2 = ey + curve;
-    // Cubic bezier midpoint at t=0.5: B(0.5) = 1/8*P0 + 3/8*P1 + 3/8*P2 + 1/8*P3
-    const mx = 0.125*sx + 0.375*cx1 + 0.375*cx2 + 0.125*ex;
-    const my = 0.125*sy + 0.375*cy1 + 0.375*cy2 + 0.125*ey;
+    if (toSide === 'left') cx2 = ex - curve;
+    if (toSide === 'right') cx2 = ex + curve;
+    if (toSide === 'top') cy2 = ey - curve;
+    if (toSide === 'bottom') cy2 = ey + curve;
+    // Cubic bezier midpoint at t=0.5
+    const mx = 0.125 * sx + 0.375 * cx1 + 0.375 * cx2 + 0.125 * ex;
+    const my = 0.125 * sy + 0.375 * cy1 + 0.375 * cy2 + 0.125 * ey;
     return { path: `M ${sx} ${sy} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${ex} ${ey}`, mx, my };
 }
+
+// ── Orthogonal routing with obstacle avoidance ──────────
+// Routing: H → clear vertical bus → H with rounded corners (R=14).
+// The bus X is chosen to avoid all obstacle node rects.
+function _svBuildOrthogonalPath({ sx, sy, ex, ey }, obstacles) {
+    const R = 14;   // corner rounding radius (larger = smoother)
+    const CLEAR = 14;   // clearance padding around obstacle rects
+
+    const yLo = Math.min(sy, ey);
+    const yHi = Math.max(sy, ey);
+
+    // Nearly flat — straight line, no elbow needed.
+    if (Math.abs(ey - sy) < 2) {
+        return { path: `M ${sx} ${sy} H ${ex}`, mx: (sx + ex) / 2, my: sy };
+    }
+
+    // ── Candidate bus X positions ────────────────────────────────────
+    // Try: midpoint first, then left/right edges of every obstacle.
+    // Sort by proximity to midpoint so routing stays natural.
+    const midX = (sx + ex) / 2;
+    const cands = new Set();
+    cands.add(midX);
+    if (obstacles) {
+        for (const o of obstacles) {
+            cands.add(o.x - CLEAR - R);
+            cands.add(o.x + o.w + CLEAR + R);
+        }
+    }
+    // For back-edges (ex < sx), also try far-right beyond all nodes.
+    const lo = Math.min(sx, ex);
+    const hi = Math.max(sx, ex);
+    if (ex < sx && obstacles && obstacles.length) {
+        const farRight = Math.max(...obstacles.map(o => o.x + o.w), sx) + CLEAR + R * 2;
+        cands.add(farRight);
+    }
+
+    // Check whether a vertical line at bx clears all obstacles.
+    function busXClear(bx) {
+        if (!obstacles || !obstacles.length) return true;
+        for (const o of obstacles) {
+            if (bx <= o.x - CLEAR || bx >= o.x + o.w + CLEAR) continue;
+            if (yHi <= o.y - CLEAR || yLo >= o.y + o.h + CLEAR) continue;
+            return false;
+        }
+        return true;
+    }
+
+    // Prefer candidates inside [lo, hi]; fallback to outside.
+    const inside = [...cands].filter(x => x > lo + R && x < hi - R)
+        .sort((a, b) => Math.abs(a - midX) - Math.abs(b - midX));
+    const outside = [...cands].filter(x => x <= lo + R || x >= hi - R)
+        .sort((a, b) => Math.abs(a - midX) - Math.abs(b - midX));
+
+    let busX = midX;
+    for (const c of [...inside, ...outside]) {
+        if (busXClear(c)) { busX = c; break; }
+    }
+
+    // ── Build path ───────────────────────────────────────────────
+    // Shape: sx → busX (H), elbow (Q), ey level (V), elbow (Q), ex (H).
+    const goDown = ey >= sy;
+    const vs = goDown ? R : -R;   // vertical sign for arc tangent
+
+    const path = [
+        `M ${sx} ${sy}`,
+        `H ${busX - R}`,
+        `Q ${busX} ${sy} ${busX} ${sy + vs}`,
+        `V ${ey - vs}`,
+        `Q ${busX} ${ey} ${busX + R} ${ey}`,
+        `H ${ex}`,
+    ].join(' ');
+
+    return { path, mx: busX, my: (sy + ey) / 2 };
+}
+
 
 // ── Edge tooltip (reused from V2 Feature 5) ──────────────────────────────
 function _svShowEdgeTip(e, ed) {
@@ -2268,7 +2360,7 @@ function _svMoveEdgeTip(e) {
     const tip = document.getElementById('sv-edge-tip');
     if (!tip || tip.hidden) return;
     tip.style.left = (e.clientX + 14) + 'px';
-    tip.style.top  = (e.clientY + 14) + 'px';
+    tip.style.top = (e.clientY + 14) + 'px';
 }
 function _svHideEdgeTip() {
     const tip = document.getElementById('sv-edge-tip');
