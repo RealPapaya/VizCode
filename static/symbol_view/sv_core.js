@@ -31,6 +31,7 @@ const _svState = {
     hiddenEdgeTypes: new Set(),
     edgeJumpCursor: new Map(),
     selectedEdgeId: null,
+    metricHighlight: null,          // 'callers' | 'callees' | null — metrics-click edge highlight
     focusCardHeightOverrides: new Map(),
     detailSectionCollapsed: new Set(),   // "signature" | "docstring" | "metrics"
     compoundCollapsed: new Set(),        // class compound ids whose methods are hidden
@@ -129,10 +130,10 @@ function _svEnsureDom() {
           </marker>
         </defs>
         <g class="sv-viewport">
-          <g class="sv-edges"></g>
-          <g class="sv-edge-labels"></g>
           <g class="sv-cards"></g>
           <g class="sv-ghosts"></g>
+          <g class="sv-edges"></g>
+          <g class="sv-edge-labels"></g>
           <g class="sv-chip-layer"></g>
         </g>
       </svg>
@@ -213,7 +214,9 @@ function _svInitPanZoom() {
         const onBackground = e.target === svg
             || e.target === _svState.viewport
             || e.target.classList.contains('sv-edges')
-            || e.target.classList.contains('sv-edge-labels');
+            || e.target.classList.contains('sv-edge-labels')
+            || e.target.classList.contains('sv-cards')
+            || e.target.classList.contains('sv-ghosts');
         if (onBackground && _svState.focusId) {
             _svState.focusId = null;
             if (typeof _svRebuildForFocus === 'function') _svRebuildForFocus();

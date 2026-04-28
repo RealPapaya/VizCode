@@ -350,8 +350,7 @@
 }
 
 .sv-node.sv-compound:hover .sv-node-bg {
-    stroke: var(--accent, #dfa745);
-    filter: drop-shadow(0 6px 18px rgba(223, 167, 69, 0.16));
+    filter: drop-shadow(0 6px 18px rgba(223, 167, 69, 0.22));
 }
 
 /* Methods and top-level functions */
@@ -605,7 +604,7 @@
 /* ── Focus system ─────────────────────────────────────────────────── */
 .sv-node.sv-focus .sv-node-bg {
     stroke-width: 2.2;
-    stroke: var(--accent, #dfa745);
+    filter: drop-shadow(0 0 6px rgba(223, 167, 69, 0.45));
 }
 
 .sv-node.sv-in-focus-scope .sv-node-bg {
@@ -619,6 +618,13 @@
 .sv-edge.sv-edge-in-scope {
     opacity: 0.95;
     stroke-width: 2.1;
+}
+
+.sv-edge-count {
+    font-size: 10px;
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    fill: var(--muted, #93918b);
+    dominant-baseline: auto;
 }
 
 .sv-edge.sv-edge-selected {
@@ -786,7 +792,17 @@
     transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 
-.sv-fd-metric:hover {
+.sv-fd-metric-clickable {
+    cursor: pointer;
+}
+
+.sv-fd-metric-clickable:hover {
+    border-color: var(--accent, #dfa745);
+    color: var(--accent, #dfa745);
+    background: rgba(223, 167, 69, 0.08);
+}
+
+.sv-fd-metric:not(.sv-fd-metric-clickable):hover {
     border-color: var(--accent, #dfa745);
     color: var(--accent, #dfa745);
     background: rgba(223, 167, 69, 0.08);

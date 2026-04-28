@@ -1000,10 +1000,12 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
         } else if (!clsMethods.length) {
             h = _SV_CLASS_PAD_TOP + _SV_CLASS_PAD_BOT + 18;
         } else {
-            h = _SV_CLASS_PAD_TOP + _SV_SECTION_GAP + _SV_CLASS_PAD_BOT;
+            h = _SV_CLASS_PAD_TOP + _SV_CLASS_PAD_BOT;
             sections.forEach((section, idx) => {
+                h += _SV_SECTION_GAP;           // matches position calc: added per section
                 h += _SV_SECTION_LABEL_H;
                 h += _SV_SECTION_BODY_GAP;
+                h += _SV_SECTION_DIVIDER_GAP;   // matches position calc: was missing
                 h += section.methods.length * _SV_METHOD_H;
                 h += Math.max(0, section.methods.length - 1) * _SV_METHOD_GAP;
                 h += idx === sections.length - 1 ? 0 : _SV_SECTION_SPLIT_GAP;
@@ -1063,10 +1065,10 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
         }
     }
 
-    // Intra-file edges.
+    // Intra-file edges. Deduplicate same from/to/type into one edge with callCount.
     // SVG endpoints: redirect only COLLAPSED methods → parent class.
     // Dagre endpoints: redirect ALL methods → parent class (methods aren't in dagre).
-    const modelEdges = [];
+    const edgeMap = new Map();
     for (const e of edges) {
         const fromId = _svRedirectIfCollapsed(e.from, methods, classDims);
         const toId   = _svRedirectIfCollapsed(e.to,   methods, classDims);
@@ -1078,12 +1080,17 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
         const sourceAccess = _svAccessGroup(byId[fromId] || byId[e.from]);
         const targetAccess = _svAccessGroup(byId[toId] || byId[e.to]);
         const id = `e|${fromId}|${toId}|${e.type}`;
-        modelEdges.push({
-            id, from: fromId, to: toId, type: e.type,
-            origFrom: e.from, origTo: e.to, external: false,
-            sourceAccess, targetAccess,
-        });
+        if (edgeMap.has(id)) {
+            edgeMap.get(id).callCount++;
+        } else {
+            edgeMap.set(id, {
+                id, from: fromId, to: toId, type: e.type,
+                origFrom: e.from, origTo: e.to, external: false,
+                sourceAccess, targetAccess, callCount: 1,
+            });
+        }
     }
+    const modelEdges = Array.from(edgeMap.values());
 
     // External edges — cross-file.
     if (_svState.showExternal) {
@@ -1097,11 +1104,15 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
             const sourceAccess = _svAccessGroup(byId[fromId] || byId[e.from]);
             const targetAccess = _svAccessGroup(byId[toId] || byId[e.to]);
             const id = `e|${fromId}|${toId}|${e.type}|ext`;
-            modelEdges.push({
-                id, from: fromId, to: toId, type: e.type,
-                origFrom: e.from, origTo: e.to, external: true,
-                sourceAccess, targetAccess,
-            });
+            const existing = modelEdges.find(x => x.id === id);
+            if (existing) { existing.callCount++; }
+            else {
+                modelEdges.push({
+                    id, from: fromId, to: toId, type: e.type,
+                    origFrom: e.from, origTo: e.to, external: true,
+                    sourceAccess, targetAccess, callCount: 1,
+                });
+            }
         }
     }
 
@@ -1160,14 +1171,16 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
         let cursorY = clsY + _SV_CLASS_PAD_TOP;
         d.sections.forEach((section, sectionIdx) => {
             cursorY += _SV_SECTION_GAP;
-            section.labelY = cursorY;
-            section.dividerY = cursorY + _SV_SECTION_DIVIDER_GAP;
+            // labelY / dividerY must be relative to the class node's top-left (SVG
+            // renders them inside translate(clsX, clsY), so absolute coords double-offset).
+            section.labelY   = cursorY - clsY;
+            section.dividerY = cursorY - clsY + _SV_SECTION_DIVIDER_GAP;
             cursorY += _SV_SECTION_LABEL_H + _SV_SECTION_BODY_GAP + _SV_SECTION_DIVIDER_GAP;
             section.methods.forEach((m, methodIdx) => {
                 const methodW = d.methodWidths.get(m.id) || _SV_METHOD_W;
                 methodPos.set(m.id, {
                     x: clsX + _SV_CLASS_INNER_LEFT,
-                    y: cursorY,
+                    y: cursorY,         // method nodes are top-level SVG elements, need absolute
                     w: methodW,
                     h: _SV_METHOD_H,
                 });
@@ -1672,22 +1685,34 @@ function _svApplyFocus(_opts) {
 
     // Apply edge classes.
     const edgesG = viewport.querySelector('.sv-edges');
+    const metricHL = _svState.metricHighlight;
     if (edgesG) {
         edgesG.querySelectorAll('path.sv-edge').forEach(p => {
             p.classList.remove('sv-edge-in-scope', 'sv-edge-faded', 'sv-edge-selected');
-            if (!focusId) return;
             const eid = p.dataset.edgeid;
             const ed = model.edges.find(e => e.id === eid);
-            if (!ed) return;
+
+            // selectedEdgeId and metricHighlight apply regardless of whether a node is focused.
+            const metricMatch = metricHL && ed && focusId && (
+                (metricHL === 'callers'  && (ed.to   === focusId || ed.origTo   === focusId)) ||
+                (metricHL === 'callees'  && (ed.from === focusId || ed.origFrom === focusId))
+            );
+            const selected = (ed && _svState.selectedEdgeId && eid === _svState.selectedEdgeId) || !!metricMatch;
+            if (selected) {
+                p.setAttribute('stroke', p.dataset.selectedColor || p.dataset.baseColor || '');
+                p.style.color = p.dataset.selectedColor || p.dataset.baseColor || '';
+                p.classList.add('sv-edge-selected');
+            } else {
+                p.setAttribute('stroke', p.dataset.baseColor || '');
+                p.style.color = p.dataset.baseColor || '';
+            }
+
+            if (!focusId || !ed) return;
             const touchesFocus = (ed.from === focusId) || (ed.to === focusId)
                 || (ed.origFrom === focusId) || (ed.origTo === focusId);
             if (touchesFocus) p.classList.add('sv-edge-in-scope');
             else if (inScope.has(ed.from) && inScope.has(ed.to)) p.classList.add('sv-edge-in-scope');
             else p.classList.add('sv-edge-faded');
-            const selected = _svState.selectedEdgeId && eid === _svState.selectedEdgeId;
-            p.setAttribute('stroke', selected ? (p.dataset.selectedColor || p.dataset.baseColor || '') : (p.dataset.baseColor || ''));
-            p.style.color = selected ? (p.dataset.selectedColor || p.dataset.baseColor || '') : (p.dataset.baseColor || '');
-            if (selected) p.classList.add('sv-edge-selected');
         });
     }
 
@@ -1809,12 +1834,57 @@ function _svFocusCardMarkup(sym, opts = {}) {
             <span class="sv-fd-section-title">metrics</span>
           </div>
           <div class="sv-fd-section-body">
-            <span class="sv-fd-metric">${lineCount} lines</span>
-            <span class="sv-fd-metric">&#8595; ${callers} callers</span>
-            <span class="sv-fd-metric">&#8593; ${callees} callees</span>
+            <span class="sv-fd-metric" data-metric="lines">${lineCount} lines</span>
+            <span class="sv-fd-metric sv-fd-metric-clickable" data-metric="callers">&#8595;${callers > 1 ? ' &#215;' + callers : ''} callers</span>
+            <span class="sv-fd-metric sv-fd-metric-clickable" data-metric="callees">&#8593;${callees > 1 ? ' &#215;' + callees : ''} callees</span>
           </div>
         </div>
       </div>`;
+}
+
+function _svUpdateFocusCardInPlace(fo, n, focusId) {
+    const sym = n.sym || {};
+    const model = _svState.currentGraph;
+    let callers = 0, callees = 0;
+    if (model) {
+        for (const e of model.edges) {
+            const out = e.from === focusId || e.origFrom === focusId;
+            const inc = e.to   === focusId || e.origTo   === focusId;
+            if (out && !inc) callees++;
+            else if (inc && !out) callers++;
+        }
+    }
+    const lineCount = Math.max(1, (sym.end_line || sym.line || 1) - (sym.line || 1) + 1);
+    fo.innerHTML = _svFocusCardMarkup(sym, { callers, callees, lineCount, collapsed: _svState.detailSectionCollapsed });
+    const card = fo.firstElementChild;
+    if (card) {
+        const newH = _svClamp(Math.ceil(card.scrollHeight + 2), _SV_DETAIL_MIN_H, _SV_DETAIL_MAX_H);
+        fo.setAttribute('height', String(newH));
+    }
+    _svBindFocusCardEvents(fo, n, focusId);
+}
+
+function _svBindFocusCardEvents(fo, n, focusId) {
+    fo.querySelectorAll('.sv-fd-section-hd').forEach(hd => {
+        hd.addEventListener('click', ev => {
+            ev.stopPropagation();
+            const key = hd.dataset.section;
+            if (!key) return;
+            if (_svState.detailSectionCollapsed.has(key)) _svState.detailSectionCollapsed.delete(key);
+            else _svState.detailSectionCollapsed.add(key);
+            _svUpdateFocusCardInPlace(fo, n, focusId);
+        });
+    });
+    fo.querySelectorAll('.sv-fd-metric[data-metric]').forEach(el => {
+        el.addEventListener('click', ev => {
+            ev.stopPropagation();
+            const metric = el.dataset.metric;
+            if (metric === 'callers' || metric === 'callees') {
+                _svState.metricHighlight = _svState.metricHighlight === metric ? null : metric;
+                _svApplyFocus();
+            }
+        });
+    });
 }
 
 function _svCreateFocusCardEl(n) {
@@ -1846,62 +1916,9 @@ function _svCreateFocusCardEl(n) {
     fo.setAttribute('width',  String(n.w));
     fo.setAttribute('height', String(n.h));
 
-    const collapsed = _svState.detailSectionCollapsed;
-    const sigHidden = collapsed.has('signature');
-    const docHidden = collapsed.has('docstring');
-    const metHidden = collapsed.has('metrics');
+    fo.innerHTML = _svFocusCardMarkup(sym, { callers, callees, lineCount, collapsed: _svState.detailSectionCollapsed });
 
-    fo.innerHTML = `
-      <div xmlns="http://www.w3.org/1999/xhtml" class="sv-fd-card">
-        <div class="sv-fd-header">
-          <span class="sv-kind-dot" style="background:${_svKindColor(sym.kind)}"></span>
-          <span class="sv-fd-name">${_svEsc(sym.name || '')}</span>
-          <span class="sv-fd-kind">${_svEsc(sym.kind || '')}</span>
-        </div>
-        <div class="sv-fd-sub">
-          ${_svEsc(sym.file || '')}${sym.line ? ':' + sym.line : ''}
-          ${sym.module ? ' · ' + _svEsc(sym.module) : ''}
-        </div>
-        ${sym.signature ? `
-          <div class="sv-fd-section ${sigHidden ? 'sv-fd-collapsed' : ''}" data-section="signature">
-            <div class="sv-fd-section-hd" data-section="signature">
-              <span class="sv-fd-chev">${sigHidden ? '▸' : '▾'}</span>
-              <span class="sv-fd-section-title">signature</span>
-            </div>
-            <div class="sv-fd-section-body"><code>${_svEsc(sym.signature)}</code></div>
-          </div>` : ''}
-        ${sym.docstring ? `
-          <div class="sv-fd-section ${docHidden ? 'sv-fd-collapsed' : ''}" data-section="docstring">
-            <div class="sv-fd-section-hd" data-section="docstring">
-              <span class="sv-fd-chev">${docHidden ? '▸' : '▾'}</span>
-              <span class="sv-fd-section-title">docstring</span>
-            </div>
-            <div class="sv-fd-section-body">${_svDocExcerpt(sym.docstring)}</div>
-          </div>` : ''}
-        <div class="sv-fd-section ${metHidden ? 'sv-fd-collapsed' : ''}" data-section="metrics">
-          <div class="sv-fd-section-hd" data-section="metrics">
-            <span class="sv-fd-chev">${metHidden ? '▸' : '▾'}</span>
-            <span class="sv-fd-section-title">metrics</span>
-          </div>
-          <div class="sv-fd-section-body">
-            <span class="sv-fd-metric">${lineCount} lines</span>
-            <span class="sv-fd-metric">↓ ${callers} callers</span>
-            <span class="sv-fd-metric">↑ ${callees} callees</span>
-          </div>
-        </div>
-      </div>`;
-    fo.innerHTML = _svFocusCardMarkup(sym, { callers, callees, lineCount, collapsed });
-
-    fo.querySelectorAll('.sv-fd-section-hd').forEach(hd => {
-        hd.addEventListener('click', ev => {
-            ev.stopPropagation();
-            const key = hd.dataset.section;
-            if (!key) return;
-            if (_svState.detailSectionCollapsed.has(key)) _svState.detailSectionCollapsed.delete(key);
-            else _svState.detailSectionCollapsed.add(key);
-            _svRebuildForFocus();
-        });
-    });
+    _svBindFocusCardEvents(fo, n, focusId);
 
     g.appendChild(fo);
     return g;
@@ -2130,12 +2147,16 @@ function _svClipText(s, maxPx) {
 // ── Edge drawing ──────────────────────────────────────────────────────────
 function _svAppendEdge(edgesG, labelsG, ed, from, to) {
     const NS = 'http://www.w3.org/2000/svg';
+    const fromNode = from.data || {};
+    const toNode   = to.data   || {};
+    const forcedFromSide = (fromNode.isMethod || fromNode.isFocusPill) ? 'right' : null;
+    const forcedToSide   = (toNode.isMethod   || toNode.isFocusPill)   ? 'left'  : null;
     const fromBox = { x: from.currentX + from.w / 2, y: from.currentY + from.h / 2, w: from.w, h: from.h };
     const toBox   = { x: to.currentX   + to.w   / 2, y: to.currentY   + to.h   / 2, w: to.w,   h: to.h };
-    const endpoints = _svComputeEndpoints(fromBox, toBox);
+    const endpoints = _svComputeEndpoints(fromBox, toBox, forcedFromSide, forcedToSide);
     const color = _svResolveEdgeStroke(ed, from);
     const selectedColor = _svResolveSelectedEdgeStroke(ed, from);
-    const pathData = _svBuildEdgePath(endpoints);
+    const { path: pathData, mx: edgeMx, my: edgeMy } = _svBuildEdgePath(endpoints);
 
     function bindEdgeEvents(el) {
         el.addEventListener('click', (e) => {
@@ -2170,19 +2191,30 @@ function _svAppendEdge(edgesG, labelsG, ed, from, to) {
     path.setAttribute('stroke-width', ed.external ? '1.4' : '1.85');
     path.setAttribute('fill', 'none');
     path.setAttribute('marker-end', 'url(#sv-arrow)');
+    path.setAttribute('pointer-events', 'none');  // hit area is the invisible hitPath
     if (ed.external) path.setAttribute('stroke-dasharray', '5 3');
     path.style.color = color;
-    bindEdgeEvents(path);
     edgesG.appendChild(path);
+
+    if (ed.callCount > 1 && labelsG) {
+        const lbl = document.createElementNS(NS, 'text');
+        lbl.setAttribute('class', 'sv-edge-count');
+        lbl.setAttribute('x', String(edgeMx));
+        lbl.setAttribute('y', String(edgeMy - 7));
+        lbl.setAttribute('text-anchor', 'middle');
+        lbl.setAttribute('pointer-events', 'none');
+        lbl.textContent = `×${ed.callCount}`;
+        labelsG.appendChild(lbl);
+    }
 }
 
-function _svComputeEndpoints(from, to) {
+function _svComputeEndpoints(from, to, forcedFromSide, forcedToSide) {
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     const absDx = Math.abs(dx);
     const absDy = Math.abs(dy);
-    const fromSide = absDx > absDy ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'bottom' : 'top');
-    const toSide   = absDx > absDy ? (dx > 0 ? 'left'  : 'right') : (dy > 0 ? 'top'    : 'bottom');
+    const fromSide = forcedFromSide || (absDx > absDy ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'bottom' : 'top'));
+    const toSide   = forcedToSide   || (absDx > absDy ? (dx > 0 ? 'left'  : 'right') : (dy > 0 ? 'top'    : 'bottom'));
     const sx = from.x + _svSideOffsetX(fromSide, from.w);
     const sy = from.y + _svSideOffsetY(fromSide, from.h);
     const ex = to.x   + _svSideOffsetX(toSide,   to.w);
@@ -2213,7 +2245,10 @@ function _svBuildEdgePath({ sx, sy, ex, ey, fromSide, toSide }) {
     if (toSide === 'right')    cx2 = ex + curve;
     if (toSide === 'top')      cy2 = ey - curve;
     if (toSide === 'bottom')   cy2 = ey + curve;
-    return `M ${sx} ${sy} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${ex} ${ey}`;
+    // Cubic bezier midpoint at t=0.5: B(0.5) = 1/8*P0 + 3/8*P1 + 3/8*P2 + 1/8*P3
+    const mx = 0.125*sx + 0.375*cx1 + 0.375*cx2 + 0.125*ex;
+    const my = 0.125*sy + 0.375*cy1 + 0.375*cy2 + 0.125*ey;
+    return { path: `M ${sx} ${sy} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${ex} ${ey}`, mx, my };
 }
 
 // ── Edge tooltip (reused from V2 Feature 5) ──────────────────────────────
@@ -2282,6 +2317,7 @@ function _svHandleNodeClick(symId, el) {
     _svState.detailSectionCollapsed.clear();
     _svState.edgeJumpCursor.clear();
     _svState.selectedEdgeId = null;
+    _svState.metricHighlight = null;
     _svRebuildForFocus();
 }
 
