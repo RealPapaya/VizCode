@@ -30,6 +30,7 @@ const _svState = {
     hiddenEdgeTypes: new Set(),
     edgeJumpCursor: new Map(),
     selectedEdgeId: null,
+    focusCardHeightOverrides: new Map(),
     detailSectionCollapsed: new Set(),   // "signature" | "docstring" | "metrics"
     compoundCollapsed: new Set(),        // class compound ids whose methods are hidden
     _collapseAllOnLoad: true,            // when true, next load collapses all classes by default

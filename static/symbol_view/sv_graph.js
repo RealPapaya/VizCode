@@ -48,7 +48,7 @@ const _SV_DETAIL_GAP      = 24;
 const _SV_DETAIL_MIN_W    = 280;
 const _SV_DETAIL_MAX_W    = 420;
 const _SV_DETAIL_MIN_H    = 170;
-const _SV_DETAIL_MAX_H    = 420;
+const _SV_DETAIL_MAX_H    = 560;
 const _SV_DETAIL_VIEW_PAD = 18;
 
 const _SV_CH_W = 7.1;
@@ -153,6 +153,40 @@ function _svEstimateDetailCardHeight(sym, collapsed) {
     if (sym && sym.docstring) height += collapsed.has('docstring') ? 30 : _SV_FOCUS_DOC_H;
     height += collapsed.has('metrics') ? 30 : (_SV_FOCUS_MET_H + 12);
     return _svClamp(height, _SV_DETAIL_MIN_H, _SV_DETAIL_MAX_H);
+}
+
+function _svDetailCardStateKey(focusId, collapsed) {
+    const hidden = Array.from(collapsed || []).sort().join(',');
+    return `${focusId || ''}|${hidden}`;
+}
+
+function _svGetDetailCardHeight(sym, focusId) {
+    const estimated = _svEstimateDetailCardHeight(sym, _svState.detailSectionCollapsed);
+    const key = _svDetailCardStateKey(focusId, _svState.detailSectionCollapsed);
+    const override = _svState.focusCardHeightOverrides.get(key) || 0;
+    return _svClamp(Math.max(estimated, override), _SV_DETAIL_MIN_H, _SV_DETAIL_MAX_H);
+}
+
+function _svMeasureRenderedDetailCardHeight(nodeEl) {
+    if (!nodeEl) return 0;
+    const card = nodeEl.querySelector('.sv-fd-card');
+    if (!card) return 0;
+    return Math.ceil(card.scrollHeight + 2);
+}
+
+function _svMaybeExpandMeasuredFocusCard(model) {
+    const focusId = _svState.focusId;
+    if (!focusId || !model || !model.byNodeId) return false;
+    const node = model.byNodeId[focusId];
+    if (!node || !node.isFocusCard || !node.el) return false;
+    const measured = _svClamp(_svMeasureRenderedDetailCardHeight(node.el), _SV_DETAIL_MIN_H, _SV_DETAIL_MAX_H);
+    if (!measured || measured <= node.h + 2) return false;
+    const key = _svDetailCardStateKey(focusId, _svState.detailSectionCollapsed);
+    const prior = _svState.focusCardHeightOverrides.get(key) || 0;
+    if (measured <= prior + 2) return false;
+    _svState.focusCardHeightOverrides.set(key, measured);
+    _svRebuildForFocus();
+    return true;
 }
 
 function _svVisibleWorldBounds() {
@@ -781,7 +815,7 @@ async function _svLoadFileGraph(fileRel, opts) {
             const fNode = _svState.baseLayoutSnapshot.byNodeId[opts.pendingFocus];
             const fSym  = fNode.sym || {};
             const cardW = _svClamp(Math.max(fNode.w + 52, 260), _SV_DETAIL_MIN_W, _SV_DETAIL_MAX_W);
-            const cardH = _svEstimateDetailCardHeight(fSym, _svState.detailSectionCollapsed);
+            const cardH = _svGetDetailCardHeight(fSym, opts.pendingFocus);
             const focusModel = _svBuildFocusLayoutModel(
                 _svState.baseLayoutSnapshot,
                 data,
@@ -842,7 +876,7 @@ function _svRebuildForFocus() {
 
     const sym   = baseNode.sym || {};
     const cardW = _svClamp(Math.max(baseNode.w + 52, 260), _SV_DETAIL_MIN_W, _SV_DETAIL_MAX_W);
-    const cardH = _svEstimateDetailCardHeight(sym, _svState.detailSectionCollapsed);
+    const cardH = _svGetDetailCardHeight(sym, focusId);
     const model = _svBuildFocusLayoutModel(
         _svState.baseLayoutSnapshot,
         data,
@@ -1514,6 +1548,7 @@ function _svRenderFileGraph(newModel) {
                 const L = live.get(n.id);
                 if (L) n.el = L.el;
             }
+            if (_svMaybeExpandMeasuredFocusCard(newModel)) return;
             _svBindNodeClicks();
             _svApplyFocus({ noHistory: true });
 
