@@ -9,12 +9,41 @@ Usage: python server.py [port]   (default port 7777)
 
 import sys, os, json, threading, uuid, time, re
 import zipfile, tarfile, tempfile, shutil, subprocess, io
-from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 from typing import Dict, Optional
+
+
+def _fatal_startup_error(message: str, *, details: Optional[str] = None, exit_code: int = 1) -> "None":
+    sys.stderr.write(f"{message}\n")
+    if details:
+        sys.stderr.write(f"{details.rstrip()}\n")
+    raise SystemExit(exit_code)
+
+
+try:
+    import http.server as _http_server
+except Exception as exc:
+    _fatal_startup_error(
+        "VIZCODE server could not import Python's stdlib module 'http.server'.",
+        details=(
+            f"Python executable: {sys.executable}\n"
+            f"Python version: {sys.version.split()[0]}\n"
+            f"Import error: {exc.__class__.__name__}: {exc}\n"
+            "Use a standard Python 3 installation and avoid naming local modules 'http.py'."
+        ),
+    )
+
+HTTPServer = _http_server.HTTPServer
+BaseHTTPRequestHandler = _http_server.BaseHTTPRequestHandler
+ThreadingHTTPServer = getattr(_http_server, 'ThreadingHTTPServer', None)
+
+if ThreadingHTTPServer is None:
+    class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+        daemon_threads = True
 
 
 # ─── Path setup ──────────────────────────────────────────────────────────────
@@ -1673,7 +1702,7 @@ class Handler(BaseHTTPRequestHandler):
             sym_name = sym['name']
             CONTEXT  = 3   # lines of context around each match
 
-            def _read_snippet(rel_path: str, target_line: int) -> dict | None:
+            def _read_snippet(rel_path: str, target_line: int) -> Optional[dict]:
                 try:
                     abs_path = os.path.normpath(os.path.join(root_dir, rel_path))
                     lines = Path(abs_path).read_text(encoding='utf-8', errors='replace').splitlines()
@@ -2530,9 +2559,30 @@ class Handler(BaseHTTPRequestHandler):
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 def main():
+    if sys.version_info < (3, 6):
+        _fatal_startup_error(
+            'VIZCODE requires Python 3.6 or newer.',
+            details=f'Current interpreter: {sys.executable} ({sys.version.split()[0]})',
+        )
+
     threading.Thread(target=_reap_loop, daemon=True, name='temp-reaper').start()
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else PORT
-    server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
+    try:
+        port = int(sys.argv[1]) if len(sys.argv) > 1 else PORT
+    except ValueError:
+        _fatal_startup_error(
+            'Invalid port argument.',
+            details='Usage: python server.py [port]',
+            exit_code=2,
+        )
+
+    try:
+        server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
+    except OSError as exc:
+        _fatal_startup_error(
+            f'VIZCODE server could not bind to 127.0.0.1:{port}.',
+            details=f'{exc.__class__.__name__}: {exc}',
+        )
+
     url = f'http://localhost:{port}'
     print('-----------------------------------------')
     print(f'  VIZCODE V4 -> {url}')

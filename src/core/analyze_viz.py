@@ -15,7 +15,7 @@ Backward compatible: still importable as analyze_bios (server.py alias).
 import os, re, json, sys, argparse
 from pathlib import Path
 from collections import defaultdict, Counter
-from typing import Dict
+from typing import Dict, Optional
 
 def _console_safe(text, stream=None):
     stream = stream or sys.stdout
@@ -571,7 +571,7 @@ KNOWN_SYS_FUNCS: Dict[str, str] = {
 # ─── All BIOS/UEFI/AMI/C parsers → parsers/bios_parser.py ──────────────────────
 
 # ─── scan_file ────────────────────────────────────────────────────────────────
-def scan_file(filepath: str, root: str, _memo: dict | None = None):
+def scan_file(filepath: str, root: str, _memo: Optional[dict] = None):
     """
     Returns (includes_or_refs, funcdefs, funccalls, bios_extra_dict, func_calls_by_func, symbol_defs)
     bios_extra_dict varies by file type; None for C/H/ASM.

@@ -432,6 +432,43 @@ def _select_port() -> int:
 def is_server_running() -> bool:
     return _probe_server(PORT)
 
+def _summarize_server_start_failure(details: str) -> str:
+    text = (details or "").strip()
+    if not text:
+        return ""
+
+    lines = [line.rstrip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return ""
+
+    filtered: List[str] = []
+    last_is_traceback = False
+    for line in lines:
+        if line == "Traceback (most recent call last):":
+            if last_is_traceback:
+                continue
+            last_is_traceback = True
+        else:
+            last_is_traceback = False
+        filtered.append(line)
+
+    joined = "\n".join(filtered)
+    marker = "VIZCODE server could not import Python's stdlib module 'http.server'."
+    if marker in joined:
+        return (
+            "The selected Python runtime cannot load stdlib module 'http.server'.\n"
+            "Check that VizCode is using a normal Python 3 installation and that no local file shadows stdlib modules.\n"
+            + "\n".join(filtered[-4:])
+        )
+
+    if "requires Python 3.6 or newer" in joined:
+        return "\n".join(filtered[-2:])
+
+    if "could not bind to 127.0.0.1:" in joined:
+        return "\n".join(filtered[-2:])
+
+    return "\n".join(filtered[-8:])
+
 def start_server(tui: TUI):
     global _server_proc
     port = _select_port()
@@ -466,9 +503,10 @@ def start_server(tui: TUI):
         details = ""
         try:    details = SERVER_LOG.read_text(encoding="utf-8", errors="replace").strip()
         except: pass
+        summary = _summarize_server_start_failure(details)
         raise RuntimeError(
-            f"Server failed to start on port {PORT}."
-            + (("\n" + details[-1200:]) if details else "")
+            f"Server failed to start on port {port}."
+            + (("\n" + summary) if summary else "")
         )
 
 def stop_server():
