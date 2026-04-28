@@ -88,6 +88,14 @@ function _svKindColor(kind) {
     return _SV_KIND_COLOR[kind] || _SV_KIND_COLOR.default;
 }
 
+function _svSymDotColor(sym, isMethod) {
+    const kind = sym && sym.kind;
+    if (isMethod && (kind === 'method' || kind === 'function')) {
+        return sym.is_public === false ? '#e8762a' : '#60a5fa';
+    }
+    return _svKindColor(kind);
+}
+
 function _svEdgeColor(type) {
     return _SV_EDGE_COLOR[type] || _SV_EDGE_COLOR.default;
 }

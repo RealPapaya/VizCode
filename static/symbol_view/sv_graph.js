@@ -671,7 +671,6 @@ function _svBuildFocusLayoutModel(baseModel, resp, focusOpts) {
     focusNode.isFocusCard = true;
     focusNode.isCompound = false;
     focusNode.isTopLevel = false;
-    focusNode.isMethod = false;
     focusNode.isField = false;
     focusNode.x = centerCx - focusOpts.cardW / 2;
     focusNode.y = centerCy - focusOpts.cardH / 2;
@@ -1752,10 +1751,11 @@ function _svFocusCardMarkupLegacy(sym, opts = {}) {
     const sigHidden = collapsed.has('signature');
     const docHidden = collapsed.has('docstring');
     const metHidden = collapsed.has('metrics');
+    const dotColor = _svSymDotColor(sym, opts.isMethod);
     return `
-      <div xmlns="http://www.w3.org/1999/xhtml" class="sv-fd-card">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="sv-fd-card" style="border-color:${dotColor}">
         <div class="sv-fd-header">
-          <span class="sv-kind-dot" style="background:${_svKindColor(sym.kind)}"></span>
+          <span class="sv-kind-dot" style="background:${dotColor}"></span>
           <span class="sv-fd-name">${_svEsc(sym.name || '')}</span>
           <span class="sv-fd-kind">${_svEsc(sym.kind || '')}</span>
         </div>
@@ -1801,10 +1801,11 @@ function _svFocusCardMarkup(sym, opts = {}) {
     const sigHidden = collapsed.has('signature');
     const docHidden = collapsed.has('docstring');
     const metHidden = collapsed.has('metrics');
+    const dotColor = _svSymDotColor(sym, opts.isMethod);
     return `
-      <div xmlns="http://www.w3.org/1999/xhtml" class="sv-fd-card">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="sv-fd-card" style="border-color:${dotColor}">
         <div class="sv-fd-header">
-          <span class="sv-kind-dot" style="background:${_svKindColor(sym.kind)}"></span>
+          <span class="sv-kind-dot" style="background:${dotColor}"></span>
           <span class="sv-fd-name">${_svEsc(sym.name || '')}</span>
           <span class="sv-fd-kind">${_svEsc(sym.kind || '')}</span>
         </div>
@@ -1855,7 +1856,7 @@ function _svUpdateFocusCardInPlace(fo, n, focusId) {
         }
     }
     const lineCount = Math.max(1, (sym.end_line || sym.line || 1) - (sym.line || 1) + 1);
-    fo.innerHTML = _svFocusCardMarkup(sym, { callers, callees, lineCount, collapsed: _svState.detailSectionCollapsed });
+    fo.innerHTML = _svFocusCardMarkup(sym, { callers, callees, lineCount, collapsed: _svState.detailSectionCollapsed, isMethod: n.isMethod });
     const card = fo.firstElementChild;
     if (card) {
         const newH = _svClamp(Math.ceil(card.scrollHeight + 2), _SV_DETAIL_MIN_H, _SV_DETAIL_MAX_H);
@@ -1916,7 +1917,7 @@ function _svCreateFocusCardEl(n) {
     fo.setAttribute('width',  String(n.w));
     fo.setAttribute('height', String(n.h));
 
-    fo.innerHTML = _svFocusCardMarkup(sym, { callers, callees, lineCount, collapsed: _svState.detailSectionCollapsed });
+    fo.innerHTML = _svFocusCardMarkup(sym, { callers, callees, lineCount, collapsed: _svState.detailSectionCollapsed, isMethod: n.isMethod });
 
     _svBindFocusCardEvents(fo, n, focusId);
 
@@ -1956,8 +1957,8 @@ function _svCreateNodeEl(n) {
     bar.setAttribute('x', '0'); bar.setAttribute('y', '0');
     bar.setAttribute('width', '4'); bar.setAttribute('height', String(n.h));
     bar.setAttribute('fill', _svKindColor(n.kind));
-    // Accent bar — shown on compound/top-level nodes; suppressed for method pills and focus pills
-    if (!n.isMethod && !n.isFocusPill) g.appendChild(bar);
+    // Accent bar — shown only on ghost (external) nodes
+    if (n.isGhost) g.appendChild(bar);
 
     const sym = n.sym || {};
 
@@ -2077,7 +2078,7 @@ function _svCreateNodeEl(n) {
         dot.setAttribute('class', 'sv-node-dot');
         dot.setAttribute('cx', '14'); dot.setAttribute('cy', String(n.h / 2));
         dot.setAttribute('r', '4');
-        dot.setAttribute('fill', _svKindColor(n.kind));
+        dot.setAttribute('fill', _svSymDotColor(n.sym, n.isMethod));
         g.appendChild(dot);
 
         const name = document.createElementNS(NS, 'text');
@@ -2092,7 +2093,7 @@ function _svCreateNodeEl(n) {
         dot.setAttribute('class', 'sv-node-dot');
         dot.setAttribute('cx', '14'); dot.setAttribute('cy', String(n.h / 2));
         dot.setAttribute('r', '5');
-        dot.setAttribute('fill', _svKindColor(n.kind));
+        dot.setAttribute('fill', _svSymDotColor(n.sym, n.isMethod));
         g.appendChild(dot);
 
         const name = document.createElementNS(NS, 'text');
