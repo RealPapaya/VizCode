@@ -100,7 +100,7 @@ function _refreshContextMenuChrome() {
         'ctx-copy': 'copyPath',
         'ctx-open-code': 'viewSource',
         'ctx-vscode': 'openInVSCode',
-        'ctx-module-only': 'onlyThisModule',
+        'ctx-reveal-explorer': 'revealInExplorer',
         'ctx-pin': 'pinNode',
     };
     Object.entries(items).forEach(([id, key]) => {

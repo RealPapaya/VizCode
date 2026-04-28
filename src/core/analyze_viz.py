@@ -2018,12 +2018,12 @@ HTML_SKELETON = """\
 </div>
 
 <div id="ctx-menu">
-  <div class="ctx-item" id="ctx-copy" data-i18n="copyPath">📋 Copy path</div>
-  <div class="ctx-item" id="ctx-open-code" data-i18n="viewSource">📄 View source</div>
-  <div class="ctx-item" id="ctx-vscode" data-i18n="openInVSCode">↗ Open in VS Code</div>
+  <div class="ctx-item" id="ctx-copy"><span class="ctx-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span> <span data-i18n="copyPath">Copy path</span></div>
+  <div class="ctx-item" id="ctx-open-code"><span class="ctx-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span> <span data-i18n="viewSource">View source</span></div>
+  <div class="ctx-item" id="ctx-vscode"><span class="ctx-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span> <span data-i18n="openInVSCode">Open in VS Code</span></div>
+  <div class="ctx-item" id="ctx-reveal-explorer"><span class="ctx-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg></span> <span data-i18n="revealInExplorer">Reveal in Explorer</span></div>
   <div class="ctx-sep"></div>
-  <div class="ctx-item" id="ctx-module-only" data-i18n="onlyThisModule">🔍 Only this module</div>
-  <div class="ctx-item" id="ctx-pin" data-i18n="pinNode">📌 Pin node</div>
+  <div class="ctx-item" id="ctx-pin"><span class="ctx-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg></span> <span data-i18n="pinNode">Pin node</span></div>
 </div>
 <div id="tooltip"></div>
 

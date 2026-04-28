@@ -333,7 +333,7 @@ function onNodeRightClick(ev, node) {
 
     document.getElementById('ctx-copy').onclick = () => {
         const d = node.data();
-        navigator.clipboard?.writeText(d._f?.path || d._m?.id || d.label).catch(() => { });
+        navigator.clipboard?.writeText(_absPath(d._f?.path || '') || d._m?.id || d.label).catch(() => { });
         hideCtxMenu();
     };
     document.getElementById('ctx-open-code').onclick = () => {
@@ -351,9 +351,13 @@ function onNodeRightClick(ev, node) {
         }
         hideCtxMenu();
     };
-    document.getElementById('ctx-module-only').onclick = () => {
+    document.getElementById('ctx-reveal-explorer').onclick = () => {
         const d = node.data();
-        if (d._t === 'module') drillToModule(d._m.id);
+        const path = d._f?.path || '';
+        if (path) {
+            _sbSwitchToExplorer();
+            revealSidebarExplorerPath(path, 'file');
+        }
         hideCtxMenu();
     };
     document.getElementById('ctx-pin').onclick = () => {
@@ -365,6 +369,87 @@ function onNodeRightClick(ev, node) {
 }
 
 function hideCtxMenu() { document.getElementById('ctx-menu').style.display = 'none'; }
+
+// ─── Shared path opener (calls server /open-path) ─────────────────────────
+function _absPath(relPath) {
+    const root = (DATA?.stats?.root || '').replace(/\\/g, '/').replace(/\/$/, '');
+    return root + '/' + relPath;
+}
+
+function _openPath(relPath, action) {
+    if (!relPath) return;
+    // vscode:// opens directly in browser, no server needed
+    const root = DATA?.stats?.root || '';
+    const abs = root.replace(/\//g, '\\') + '\\' + relPath.replace(/\//g, '\\');
+    window.open(`vscode://file/${abs}`);
+}
+
+// ─── Helper: switch sidebar to Explorer tab ───────────────────────────
+function _sbSwitchToExplorer() {
+    const tab = document.querySelector('.sb-tab[data-tab="explorer"]');
+    if (tab) tab.click();
+}
+
+// ─── Explorer sidebar context menu ─────────────────────────────────────────
+let _expCtxMenu = null;
+const _svgCopy   = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+const _svgFile   = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+const _svgVscode = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>';
+const _svgFolder = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>';
+
+function _showExplorerCtxMenu(e, filePath, isFolder) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!_expCtxMenu) {
+        _expCtxMenu = document.createElement('div');
+        _expCtxMenu.id = 'exp-ctx-menu';
+        _expCtxMenu.innerHTML = `
+            <div class="ctx-item" id="exp-ctx-copy"><span class="ctx-icon">${_svgCopy}</span>Copy full path</div>
+            <div class="ctx-item" id="exp-ctx-view"><span class="ctx-icon">${_svgFile}</span>View source</div>
+            <div class="ctx-item" id="exp-ctx-vscode"><span class="ctx-icon">${_svgVscode}</span>Open in VS Code</div>
+            <div class="ctx-sep"></div>
+            <div class="ctx-item" id="exp-ctx-folder"><span class="ctx-icon">${_svgFolder}</span>Show in Explorer</div>`;
+        document.body.appendChild(_expCtxMenu);
+        document.addEventListener('click', (ev) => {
+            if (_expCtxMenu && !_expCtxMenu.contains(ev.target)) {
+                _expCtxMenu.style.display = 'none';
+            }
+        });
+    }
+    const viewEl = document.getElementById('exp-ctx-view');
+    if (viewEl) viewEl.style.display = isFolder ? 'none' : '';
+
+    document.getElementById('exp-ctx-copy').onclick = (ev) => {
+        ev.stopPropagation();
+        navigator.clipboard?.writeText(_absPath(filePath)).catch(() => {});
+        _expCtxMenu.style.display = 'none';
+    };
+    document.getElementById('exp-ctx-view').onclick = (ev) => {
+        ev.stopPropagation();
+        if (!isFolder && typeof loadFileInPanel === 'function') loadFileInPanel(filePath);
+        _expCtxMenu.style.display = 'none';
+    };
+    document.getElementById('exp-ctx-vscode').onclick = (ev) => {
+        ev.stopPropagation();
+        _openPath(filePath);
+        _expCtxMenu.style.display = 'none';
+    };
+    document.getElementById('exp-ctx-folder').onclick = (ev) => {
+        ev.stopPropagation();
+        _sbSwitchToExplorer();
+        if (typeof revealSidebarExplorerPath === 'function') {
+            revealSidebarExplorerPath(filePath, isFolder ? 'folder' : 'file');
+        }
+        _expCtxMenu.style.display = 'none';
+    };
+
+    // Position (keep in viewport)
+    const W = window.innerWidth, H = window.innerHeight;
+    _expCtxMenu.style.display = 'block';
+    const mw = _expCtxMenu.offsetWidth || 190, mh = _expCtxMenu.offsetHeight || 140;
+    _expCtxMenu.style.left = (e.clientX + mw > W ? W - mw - 6 : e.clientX) + 'px';
+    _expCtxMenu.style.top  = (e.clientY + mh > H ? H - mh - 6 : e.clientY) + 'px';
+}
 
 // ─── Tooltip ──────────────────────────────────────────────────────────────────
 

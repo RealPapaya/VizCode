@@ -2443,6 +2443,49 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.json_resp({'error': str(e)}, 500)
 
+        elif p == '/open-path':
+            # Reveal a file/folder in OS file explorer, or open in VS Code.
+            # Body: { job_id, path, action: 'reveal' | 'vscode' | 'folder' }
+            try:
+                body = _read_json_body(self)
+                jid    = body.get('job_id', '')
+                rel    = body.get('path', '')
+                action = body.get('action', 'reveal')
+                with JOBS_LOCK:
+                    job = JOBS.get(jid, {})
+                root = job.get('root', '')
+                if not root or not rel:
+                    self.json_resp({'error': 'Missing job_id or path'}, 400)
+                    return
+                abs_path = os.path.normpath(os.path.join(root, rel))
+                root_norm = os.path.normpath(root)
+                if not (abs_path.startswith(root_norm + os.sep) or abs_path == root_norm):
+                    self.json_resp({'error': 'Path traversal not allowed'}, 403)
+                    return
+                if action == 'vscode':
+                    uri = 'vscode://file/' + abs_path.replace('\\', '/')
+                    if sys.platform.startswith('win'):
+                        subprocess.Popen(['cmd', '/c', 'start', '', uri], shell=False)
+                    elif sys.platform == 'darwin':
+                        subprocess.Popen(['open', uri])
+                    else:
+                        subprocess.Popen(['xdg-open', uri])
+                elif action == 'folder':
+                    folder = abs_path if os.path.isdir(abs_path) else os.path.dirname(abs_path)
+                    _open_folder_in_explorer(folder)
+                else:  # reveal
+                    if sys.platform.startswith('win'):
+                        # /select, and path must be ONE argument (no space separator)
+                        subprocess.Popen(['explorer', f'/select,{abs_path}'])
+                    elif sys.platform == 'darwin':
+                        subprocess.Popen(['open', '-R', abs_path])
+                    else:
+                        folder = abs_path if os.path.isdir(abs_path) else os.path.dirname(abs_path)
+                        subprocess.Popen(['xdg-open', folder])
+                self.json_resp({'ok': True})
+            except Exception as e:
+                self.json_resp({'error': str(e)}, 500)
+
         elif p == '/chat-stream':
             # ── VizBridge: SSE streaming chat ─────────────────────────────────
             length = int(self.headers.get('Content-Length', 0))
