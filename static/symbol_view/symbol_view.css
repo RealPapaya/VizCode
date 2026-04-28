@@ -301,11 +301,10 @@
 .sv-node {
     cursor: pointer;
     pointer-events: all;
-    transition:
-        opacity 550ms cubic-bezier(0.65, 0, 0.35, 1),
-        transform 550ms cubic-bezier(0.65, 0, 0.35, 1);
+    transition: opacity 550ms cubic-bezier(0.65, 0, 0.35, 1);
     transform-origin: center;
     transform-box: fill-box;
+    will-change: opacity;
 }
 
 .sv-node .sv-node-bg {
@@ -509,6 +508,8 @@
 .sv-focus-card-fo {
     overflow: hidden;
     pointer-events: auto;
+    will-change: width, height;
+    transform: translateZ(0);
 }
 
 
@@ -524,6 +525,8 @@
     font-size: 13px;
     color: var(--text, #eae8e3);
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+    will-change: width, height, transform;
+    backface-visibility: hidden;
 }
 
 .sv-fd-header {

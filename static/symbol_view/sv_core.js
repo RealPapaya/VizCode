@@ -22,6 +22,9 @@ const _svState = {
     zoom:      { k: 1, x: 0, y: 0 },
     currentGraph: null,      // last rendered file graph model
     currentData:  null,      // raw /symbol-file response for the current file
+    baseLayoutSnapshot: null,
+    focusLayoutSnapshot: null,
+    activeAnimationToken: 0,
     searchOpen: false,
     searchCache: new Map(),
     hiddenEdgeTypes: new Set(),
@@ -277,6 +280,9 @@ function symViewOpen(fileRel) {
     _svState.compoundCollapsed.clear();
     _svState._collapseAllOnLoad = true;
     _svState.edgeJumpCursor.clear();
+    _svState.baseLayoutSnapshot = null;
+    _svState.focusLayoutSnapshot = null;
+    _svState.activeAnimationToken += 1;
     _svSyncActive();
 
     if (typeof _svLoadFileGraph === 'function') {
@@ -313,6 +319,9 @@ function symViewActivate(symId) {
         _svState.compoundCollapsed.clear();
         _svState._collapseAllOnLoad = true;
         _svState.edgeJumpCursor.clear();
+        _svState.baseLayoutSnapshot = null;
+        _svState.focusLayoutSnapshot = null;
+        _svState.activeAnimationToken += 1;
         _svSyncActive();
         if (typeof _svLoadFileGraph === 'function') {
             _svLoadFileGraph(sym.file, { pendingFocus: symId });
@@ -336,6 +345,10 @@ function symViewClose() {
     _svState.fileRel = null;
     _svState.focusId = null;
     _svState.currentGraph = null;
+    _svState.currentData = null;
+    _svState.baseLayoutSnapshot = null;
+    _svState.focusLayoutSnapshot = null;
+    _svState.activeAnimationToken += 1;
     _svSyncActive();
     _svRestoreLegend();
     _svSyncNavBtns();
@@ -375,6 +388,7 @@ function _svJumpTo(snap) {
     _svState.detailSectionCollapsed.clear();
     _svState.compoundCollapsed.clear();
     _svState.edgeJumpCursor.clear();
+    _svState.focusLayoutSnapshot = null;
     _svSyncActive();
     if (_svState.fileRel && _svState.fileRel !== prevFile) {
         if (typeof _svLoadFileGraph === 'function') {

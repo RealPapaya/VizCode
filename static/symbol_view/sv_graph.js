@@ -193,6 +193,412 @@ function _svGetCardPlacement(node, model, cardW, cardH) {
     return { x: best.x, y: best.y };
 }
 
+const _SV_FOCUS_RING_GAP = 46;
+const _SV_FOCUS_LANE_GAP = 14;
+const _SV_FOCUS_REPEL_PAD = 28;
+const _SV_CAMERA_PAD = 96;
+
+function _svIsFieldKind(kind) {
+    return kind === 'field' || kind === 'variable' || kind === 'constant' || kind === 'property';
+}
+
+function _svCloneAdj(adj) {
+    const copy = new Map();
+    for (const [id, links] of (adj || new Map())) {
+        copy.set(id, new Set(links || []));
+    }
+    return copy;
+}
+
+function _svCloneGraphModel(model) {
+    const nodes = (model.nodes || []).map(n => ({
+        ...n,
+        methods: Array.isArray(n.methods) ? n.methods.slice() : n.methods,
+        el: null,
+    }));
+    const byNodeId = {};
+    for (const n of nodes) byNodeId[n.id] = n;
+    return {
+        ...model,
+        nodes,
+        edges: (model.edges || []).map(e => ({ ...e })),
+        byId: { ...(model.byId || {}) },
+        adj: _svCloneAdj(model.adj),
+        byNodeId,
+        cameraBounds: model.cameraBounds ? { ...model.cameraBounds } : null,
+    };
+}
+
+function _svUpdateNodeCenter(node) {
+    node.cx = node.x + node.w / 2;
+    node.cy = node.y + node.h / 2;
+    return node;
+}
+
+function _svRectFromNode(node) {
+    return { x: node.x, y: node.y, w: node.w, h: node.h };
+}
+
+function _svComputeRectBounds(items, pad = 0) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const item of (items || [])) {
+        if (!item) continue;
+        const x = item.x;
+        const y = item.y;
+        const w = item.w || 0;
+        const h = item.h || 0;
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x + w);
+        maxY = Math.max(maxY, y + h);
+    }
+    if (!Number.isFinite(minX)) return null;
+    return {
+        minX: minX - pad,
+        minY: minY - pad,
+        maxX: maxX + pad,
+        maxY: maxY + pad,
+    };
+}
+
+function _svFocusNodeSort(nodes) {
+    return nodes.slice().sort((a, b) => {
+        const ay = Number.isFinite(a.y) ? a.y : 0;
+        const by = Number.isFinite(b.y) ? b.y : 0;
+        if (ay !== by) return ay - by;
+        const ax = Number.isFinite(a.x) ? a.x : 0;
+        const bx = Number.isFinite(b.x) ? b.x : 0;
+        if (ax !== bx) return ax - bx;
+        const al = a.sym && a.sym.line ? a.sym.line : 0;
+        const bl = b.sym && b.sym.line ? b.sym.line : 0;
+        if (al !== bl) return al - bl;
+        return String((a.sym && a.sym.name) || a.id).localeCompare(String((b.sym && b.sym.name) || b.id));
+    });
+}
+
+function _svEnsureAdjLink(model, a, b) {
+    if (!a || !b) return;
+    if (!model.adj.has(a)) model.adj.set(a, new Set());
+    if (!model.adj.has(b)) model.adj.set(b, new Set());
+    model.adj.get(a).add(b);
+    model.adj.get(b).add(a);
+}
+
+function _svFindOwnerNode(model, node) {
+    if (!node) return null;
+    if (node.parentId && model.byNodeId[node.parentId]) return model.byNodeId[node.parentId];
+    const sym = node.sym || {};
+    if (!sym.parent || !sym.file) return null;
+    return model.nodes.find(n =>
+        _SV_CARD_KINDS.has(n.kind) &&
+        n.sym &&
+        n.sym.name === sym.parent &&
+        n.sym.file === sym.file
+    ) || null;
+}
+
+function _svBuildSyntheticMemberNode(sym, originNode) {
+    const isField = _svIsFieldKind(sym.kind);
+    const isMethod = !isField;
+    const w = isMethod ? _svMeasureMethodWidth(sym) : _svMeasureTopLevelWidth(sym, isField);
+    const h = isMethod ? _SV_METHOD_H : (isField ? _SV_FIELD_H : _SV_FUNC_H);
+    return {
+        id: sym.id,
+        sym,
+        kind: sym.kind,
+        isMethod,
+        isField,
+        isTopLevel: !isMethod,
+        parentId: originNode.id,
+        synthetic: true,
+        x: originNode.cx - w / 2,
+        y: originNode.cy - h / 2,
+        w,
+        h,
+        cx: originNode.cx,
+        cy: originNode.cy,
+        enterCx: originNode.cx,
+        enterCy: originNode.cy,
+    };
+}
+
+function _svPlaceVerticalLane(nodes, x, centerY) {
+    if (!nodes.length) return [];
+    const totalH = nodes.reduce((sum, n) => sum + n.h, 0) + _SV_FOCUS_LANE_GAP * (nodes.length - 1);
+    let y = centerY - totalH / 2;
+    const rects = [];
+    for (const node of nodes) {
+        node.x = x;
+        node.y = y;
+        _svUpdateNodeCenter(node);
+        rects.push(_svRectFromNode(node));
+        y += node.h + _SV_FOCUS_LANE_GAP;
+    }
+    return rects;
+}
+
+function _svPlaceHorizontalLane(nodes, y, centerX) {
+    if (!nodes.length) return [];
+    const totalW = nodes.reduce((sum, n) => sum + n.w, 0) + _SV_FOCUS_LANE_GAP * (nodes.length - 1);
+    let x = centerX - totalW / 2;
+    const rects = [];
+    for (const node of nodes) {
+        node.x = x;
+        node.y = y;
+        _svUpdateNodeCenter(node);
+        rects.push(_svRectFromNode(node));
+        x += node.w + _SV_FOCUS_LANE_GAP;
+    }
+    return rects;
+}
+
+function _svGetCompoundGroupNodes(model, rootNode, fixedIds) {
+    if (!rootNode || !rootNode.isCompound) return [rootNode].filter(Boolean);
+    return model.nodes.filter(n => n.id === rootNode.id || (n.parentId === rootNode.id && !fixedIds.has(n.id)));
+}
+
+function _svRectFromBounds(bounds) {
+    return bounds ? {
+        x: bounds.minX,
+        y: bounds.minY,
+        w: bounds.maxX - bounds.minX,
+        h: bounds.maxY - bounds.minY,
+    } : null;
+}
+
+function _svTranslateNodes(nodes, dx, dy) {
+    for (const node of nodes) {
+        node.x += dx;
+        node.y += dy;
+        _svUpdateNodeCenter(node);
+    }
+}
+
+function _svPushNodeGroupAwayFromRects(groupNodes, rects, focusCx, focusCy) {
+    let rect = _svRectFromBounds(_svComputeRectBounds(groupNodes, 0));
+    if (!rect) return null;
+    for (let pass = 0; pass < 10; pass++) {
+        let moved = false;
+        for (const blocker of rects) {
+            if (!_svRectsOverlap(rect, blocker, _SV_FOCUS_REPEL_PAD)) continue;
+            const rcx = blocker.x + blocker.w / 2;
+            const rcy = blocker.y + blocker.h / 2;
+            let dx = rect.x + rect.w / 2 - rcx;
+            let dy = rect.y + rect.h / 2 - rcy;
+            if (dx === 0 && dy === 0) {
+                dx = rect.x + rect.w / 2 - focusCx;
+                dy = rect.y + rect.h / 2 - focusCy;
+                if (dx === 0 && dy === 0) dx = 1;
+            }
+            let nextRect = { ...rect };
+            if (Math.abs(dx) >= Math.abs(dy)) {
+                nextRect.x = dx >= 0
+                    ? blocker.x + blocker.w + _SV_FOCUS_REPEL_PAD
+                    : blocker.x - rect.w - _SV_FOCUS_REPEL_PAD;
+            } else {
+                nextRect.y = dy >= 0
+                    ? blocker.y + blocker.h + _SV_FOCUS_REPEL_PAD
+                    : blocker.y - rect.h - _SV_FOCUS_REPEL_PAD;
+            }
+            _svTranslateNodes(groupNodes, nextRect.x - rect.x, nextRect.y - rect.y);
+            rect = nextRect;
+            moved = true;
+        }
+        if (!moved) break;
+    }
+    return rect;
+}
+
+function _svCollectFocusBuckets(model, resp, focusId) {
+    const focusNode = model.byNodeId[focusId];
+    const buckets = {
+        parents: [],
+        children: [],
+        incoming: [],
+        outgoing: [],
+        related: [],
+    };
+    const priority = { related: 0, outgoing: 1, incoming: 2, children: 3, parents: 4 };
+    const assigned = new Map();
+
+    function removeFromBucket(bucketName, nodeId) {
+        const arr = buckets[bucketName];
+        const idx = arr.findIndex(n => n.id === nodeId);
+        if (idx >= 0) arr.splice(idx, 1);
+    }
+
+    function assign(node, bucketName) {
+        if (!node || node.id === focusId) return;
+        const nextPrio = priority[bucketName];
+        const prev = assigned.get(node.id);
+        if (prev && prev.priority >= nextPrio) return;
+        if (prev) removeFromBucket(prev.bucket, node.id);
+        assigned.set(node.id, { bucket: bucketName, priority: nextPrio });
+        buckets[bucketName].push(node);
+    }
+
+    const owner = _svFindOwnerNode(model, focusNode);
+    if (owner) assign(owner, 'parents');
+
+    if (_SV_CARD_KINDS.has(focusNode.kind) && resp && Array.isArray(resp.symbols)) {
+        const focusSym = focusNode.sym || {};
+        const children = resp.symbols
+            .filter(s => s.parent === focusSym.name && s.file === focusSym.file)
+            .sort((a, b) => (a.line || 0) - (b.line || 0));
+        for (const sym of children) {
+            let childNode = model.byNodeId[sym.id];
+            if (!childNode) {
+                childNode = _svBuildSyntheticMemberNode(sym, focusNode);
+                model.nodes.push(childNode);
+                model.byNodeId[childNode.id] = childNode;
+                model.byId[childNode.id] = sym;
+            }
+            _svEnsureAdjLink(model, focusId, childNode.id);
+            assign(childNode, 'children');
+        }
+    }
+
+    for (const ed of model.edges) {
+        const touchesOut = ed.from === focusId || ed.origFrom === focusId;
+        const touchesIn  = ed.to === focusId || ed.origTo === focusId;
+        if (touchesOut && ed.to !== focusId) assign(model.byNodeId[ed.to], 'outgoing');
+        if (touchesIn  && ed.from !== focusId) assign(model.byNodeId[ed.from], 'incoming');
+    }
+
+    for (const linkedId of (model.adj.get(focusId) || [])) {
+        assign(model.byNodeId[linkedId], 'related');
+    }
+
+    return {
+        parents: _svFocusNodeSort(buckets.parents),
+        children: _svFocusNodeSort(buckets.children),
+        incoming: _svFocusNodeSort(buckets.incoming),
+        outgoing: _svFocusNodeSort(buckets.outgoing),
+        related: _svFocusNodeSort(buckets.related),
+    };
+}
+
+function _svBuildFocusLayoutModel(baseModel, resp, focusOpts) {
+    const model = _svCloneGraphModel(baseModel);
+    for (const node of model.nodes) {
+        node.baseX = node.x;
+        node.baseY = node.y;
+        node.baseCx = node.cx;
+        node.baseCy = node.cy;
+    }
+    const focusNode = model.byNodeId[focusOpts.focusId];
+    if (!focusNode) return model;
+
+    const centerCx = focusNode.cx;
+    const centerCy = focusNode.cy;
+    focusNode.isFocusCard = true;
+    focusNode.isCompound = false;
+    focusNode.isTopLevel = false;
+    focusNode.isMethod = false;
+    focusNode.isField = false;
+    focusNode.x = centerCx - focusOpts.cardW / 2;
+    focusNode.y = centerCy - focusOpts.cardH / 2;
+    focusNode.w = focusOpts.cardW;
+    focusNode.h = focusOpts.cardH;
+    _svUpdateNodeCenter(focusNode);
+
+    const buckets = _svCollectFocusBuckets(model, resp, focusOpts.focusId);
+    const leftNodes = buckets.incoming;
+    const rightNodes = buckets.outgoing;
+    const topNodes = buckets.parents;
+    const bottomNodes = buckets.children.concat(buckets.related.filter(n =>
+        !buckets.children.some(child => child.id === n.id)
+    ));
+
+    const laneRects = [];
+    laneRects.push(_svRectFromNode(focusNode));
+
+    if (leftNodes.length) {
+        const maxW = Math.max(...leftNodes.map(n => n.w));
+        _svPlaceVerticalLane(
+            leftNodes,
+            focusNode.x - _SV_FOCUS_RING_GAP - maxW,
+            centerCy
+        );
+    }
+    if (rightNodes.length) {
+        _svPlaceVerticalLane(
+            rightNodes,
+            focusNode.x + focusNode.w + _SV_FOCUS_RING_GAP,
+            centerCy
+        );
+    }
+    if (topNodes.length) {
+        const maxH = Math.max(...topNodes.map(n => n.h));
+        _svPlaceHorizontalLane(
+            topNodes,
+            focusNode.y - _SV_FOCUS_RING_GAP - maxH,
+            centerCx
+        );
+    }
+    if (bottomNodes.length) {
+        _svPlaceHorizontalLane(
+            bottomNodes,
+            focusNode.y + focusNode.h + _SV_FOCUS_RING_GAP,
+            centerCx
+        );
+    }
+
+    const fixedIds = new Set([
+        focusOpts.focusId,
+        ...leftNodes.map(n => n.id),
+        ...rightNodes.map(n => n.id),
+        ...topNodes.map(n => n.id),
+        ...bottomNodes.map(n => n.id),
+    ]);
+
+    const fixedGroups = [focusNode, ...leftNodes, ...rightNodes, ...topNodes, ...bottomNodes];
+    for (const node of fixedGroups) {
+        if (!node || !node.isCompound) continue;
+        const dx = node.x - (Number.isFinite(node.baseX) ? node.baseX : node.x);
+        const dy = node.y - (Number.isFinite(node.baseY) ? node.baseY : node.y);
+        for (const member of model.nodes) {
+            if (member.parentId !== node.id || fixedIds.has(member.id)) continue;
+            member.x = (Number.isFinite(member.baseX) ? member.baseX : member.x) + dx;
+            member.y = (Number.isFinite(member.baseY) ? member.baseY : member.y) + dy;
+            _svUpdateNodeCenter(member);
+        }
+    }
+
+    for (const node of fixedGroups) {
+        laneRects.push(..._svGetCompoundGroupNodes(model, node, fixedIds).map(_svRectFromNode));
+    }
+
+    const movable = model.nodes
+        .filter(n => !fixedIds.has(n.id))
+        .filter(n => !(n.parentId && model.byNodeId[n.parentId]))
+        .sort((a, b) => {
+            const da = Math.hypot((a.cx || 0) - centerCx, (a.cy || 0) - centerCy);
+            const db = Math.hypot((b.cx || 0) - centerCx, (b.cy || 0) - centerCy);
+            return da - db;
+        });
+    const blockers = laneRects.slice();
+    for (const node of movable) {
+        const groupNodes = _svGetCompoundGroupNodes(model, node, fixedIds);
+        const rect = _svPushNodeGroupAwayFromRects(groupNodes, blockers, centerCx, centerCy);
+        if (rect) blockers.push(rect);
+    }
+
+    model.layoutMode = 'focus';
+    model.hasFocusCard = true;
+    model.focusNodeId = focusOpts.focusId;
+    const cameraNodes = [];
+    for (const node of fixedGroups) {
+        cameraNodes.push(..._svGetCompoundGroupNodes(model, node, fixedIds));
+    }
+    model.cameraBounds = _svComputeRectBounds(
+        cameraNodes,
+        _SV_CAMERA_PAD
+    );
+    return model;
+}
+
 // ── Entry: load a file's graph ────────────────────────────────────────────
 // opts.pendingFocus — focus this symbol as soon as the graph lands.
 async function _svLoadFileGraph(fileRel, opts) {
@@ -217,21 +623,29 @@ async function _svLoadFileGraph(fileRel, opts) {
         _svState.currentData = data;
         const baseModel = _svBuildFileGraphModel(data, fileRel);
         baseModel.fileRel = fileRel;
+        baseModel.layoutMode = 'base';
         _svUpdateBreadcrumbFile(fileRel, baseModel);
+        _svState.baseLayoutSnapshot = _svCloneGraphModel(baseModel);
+        _svState.focusLayoutSnapshot = null;
 
-        if (opts && opts.pendingFocus && baseModel.byNodeId[opts.pendingFocus]) {
+        if (opts && opts.pendingFocus && _svState.baseLayoutSnapshot.byNodeId[opts.pendingFocus]) {
             _svState.focusId = opts.pendingFocus;
-            const fNode = baseModel.byNodeId[opts.pendingFocus];
+            const fNode = _svState.baseLayoutSnapshot.byNodeId[opts.pendingFocus];
             const fSym  = fNode.sym || {};
             const cardW = _svClamp(Math.max(fNode.w + 52, 260), _SV_DETAIL_MIN_W, _SV_DETAIL_MAX_W);
             const cardH = _svEstimateDetailCardHeight(fSym, _svState.detailSectionCollapsed);
-            const focusModel = _svBuildFileGraphModel(data, fileRel, { focusId: opts.pendingFocus, cardW, cardH });
+            const focusModel = _svBuildFocusLayoutModel(
+                _svState.baseLayoutSnapshot,
+                data,
+                { focusId: opts.pendingFocus, cardW, cardH }
+            );
             focusModel.fileRel = fileRel;
+            _svState.focusLayoutSnapshot = _svCloneGraphModel(focusModel);
             _svUpdateBreadcrumbFile(fileRel, focusModel);
             _svRenderFileGraph(focusModel);
         } else {
             _svState.focusId = null;
-            _svRenderFileGraph(baseModel);
+            _svRenderFileGraph(_svCloneGraphModel(_svState.baseLayoutSnapshot));
         }
     } catch (err) {
         if (empty) {
@@ -252,18 +666,42 @@ function _svRebuildForFocus() {
     const fileRel = _svState.fileRel;
     if (!data || !fileRel) { _svApplyFocus(); return; }
 
-    let focusOpts = null;
-    if (focusId) {
-        const curModel = _svState.currentGraph;
-        const curNode  = curModel && curModel.byNodeId[focusId];
-        const sym  = curNode ? (curNode.sym || {}) : {};
-        const refW = curNode ? curNode.w : 200;
-        const cardW = _svClamp(Math.max(refW + 52, 260), _SV_DETAIL_MIN_W, _SV_DETAIL_MAX_W);
-        const cardH = _svEstimateDetailCardHeight(sym, _svState.detailSectionCollapsed);
-        focusOpts = { focusId, cardW, cardH };
+    let baseModel = _svState.baseLayoutSnapshot;
+    if (!baseModel || baseModel.fileRel !== fileRel) {
+        baseModel = _svBuildFileGraphModel(data, fileRel);
+        baseModel.fileRel = fileRel;
+        baseModel.layoutMode = 'base';
+        _svState.baseLayoutSnapshot = _svCloneGraphModel(baseModel);
     }
-    const model = _svBuildFileGraphModel(data, fileRel, focusOpts);
+
+    if (!focusId) {
+        _svState.focusLayoutSnapshot = null;
+        const model = _svCloneGraphModel(_svState.baseLayoutSnapshot);
+        model.fileRel = fileRel;
+        _svUpdateBreadcrumbFile(fileRel, model);
+        _svRenderFileGraph(model);
+        return;
+    }
+
+    const baseNode = _svState.baseLayoutSnapshot.byNodeId[focusId];
+    if (!baseNode) {
+        const fallback = _svCloneGraphModel(_svState.baseLayoutSnapshot);
+        fallback.fileRel = fileRel;
+        _svUpdateBreadcrumbFile(fileRel, fallback);
+        _svRenderFileGraph(fallback);
+        return;
+    }
+
+    const sym   = baseNode.sym || {};
+    const cardW = _svClamp(Math.max(baseNode.w + 52, 260), _SV_DETAIL_MIN_W, _SV_DETAIL_MAX_W);
+    const cardH = _svEstimateDetailCardHeight(sym, _svState.detailSectionCollapsed);
+    const model = _svBuildFocusLayoutModel(
+        _svState.baseLayoutSnapshot,
+        data,
+        { focusId, cardW, cardH }
+    );
     model.fileRel = fileRel;
+    _svState.focusLayoutSnapshot = _svCloneGraphModel(model);
     _svUpdateBreadcrumbFile(fileRel, model);
     _svRenderFileGraph(model);
 }
@@ -672,6 +1110,8 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
         byNodeId,
         adj,
         extSyms,
+        layoutMode: focusSym ? 'focus' : 'base',
+        cameraBounds: _svComputeRectBounds(nodes, focusSym ? _SV_CAMERA_PAD : 64),
         hasFocusCard: !!(focusSym),
         focusNodeId:  focusSym ? focusSym.id : null,
     };
@@ -695,6 +1135,30 @@ function _svToCompoundId(symId, methods, classDims) {
 // ── Render + animate ──────────────────────────────────────────────────────
 let _svCurRenderModel = null;  // set at start of each _svRenderFileGraph call
 
+function _svAnimateCameraToModel(model, token, immediate) {
+    const targetZoom = _svComputeTargetZoom(model);
+    if (immediate) {
+        _svState.zoom.k = targetZoom.k;
+        _svState.zoom.x = targetZoom.x;
+        _svState.zoom.y = targetZoom.y;
+        _svApplyZoom();
+        return;
+    }
+    const start = { k: _svState.zoom.k, x: _svState.zoom.x, y: _svState.zoom.y };
+    const t0 = performance.now();
+    function frame(now) {
+        if (token !== _svState.activeAnimationToken) return;
+        const t = Math.min(1, (now - t0) / _SV_DUR_MS);
+        const e = _svEase(t);
+        _svState.zoom.k = start.k + (targetZoom.k - start.k) * e;
+        _svState.zoom.x = start.x + (targetZoom.x - start.x) * e;
+        _svState.zoom.y = start.y + (targetZoom.y - start.y) * e;
+        _svApplyZoom();
+        if (t < 1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+}
+
 function _svRenderFileGraph(newModel) {
     const svg      = _svState.svg;
     const viewport = _svState.viewport;
@@ -716,18 +1180,21 @@ function _svRenderFileGraph(newModel) {
     // Detect file change before camera or DOM work.
     const prev = _svState.currentGraph;
     const sameFile = prev && prev.fileRel === newModel.fileRel;
-    if (!sameFile) {
+    const canReusePrev = !!(sameFile && prev && prev.nodes.every(n => !n.el || n.el.isConnected));
+    const animToken = ++_svState.activeAnimationToken;
+    if (!canReusePrev) {
         cardsG.innerHTML  = '';
         ghostsG.innerHTML = '';
         _svState.currentGraph = null;
-        _svFitViewport(newModel);           // new file → snap camera immediately
+    }
+    if (!sameFile) {
+        _svAnimateCameraToModel(newModel, animToken, true);
     } else {
-        // Same file (focus / unfocus / re-layout) → smoothly animate camera.
-        _svAnimateValue(_svState.zoom, _svComputeTargetZoom(newModel), _SV_DUR_MS, _svApplyZoom);
+        _svAnimateCameraToModel(newModel, animToken, false);
     }
 
     const oldById = new Map();
-    if (sameFile && prev) {
+    if (canReusePrev && prev) {
         for (const n of prev.nodes) oldById.set(n.id, n);
     }
 
@@ -771,8 +1238,10 @@ function _svRenderFileGraph(newModel) {
             const targetG = n.isGhost ? ghostsG : cardsG;
             targetG.appendChild(el);
             el.style.opacity = '0';
+            const startCx = Number.isFinite(n.enterCx) ? n.enterCx : (n.cx || (n.x + n.w / 2));
+            const startCy = Number.isFinite(n.enterCy) ? n.enterCy : (n.cy || (n.y + n.h / 2));
             live.set(n.id, {
-                x0: n.x, y0: n.y, x1: n.x, y1: n.y,
+                x0: startCx - n.w / 2, y0: startCy - n.h / 2, x1: n.x, y1: n.y,
                 w0: n.w, h0: n.h, w1: n.w, h1: n.h,
                 w: n.w, h: n.h,
                 fadeIn: true, el, data: n,
@@ -781,7 +1250,7 @@ function _svRenderFileGraph(newModel) {
     }
 
     const exits = [];
-    if (prev) {
+    if (canReusePrev && prev) {
         const newIds = new Set(newModel.nodes.map(n => n.id));
         for (const o of prev.nodes) {
             if (!newIds.has(o.id) && o.el) {
@@ -797,6 +1266,7 @@ function _svRenderFileGraph(newModel) {
     const DUR = _SV_DUR_MS;
     const t0  = performance.now();
     function frame(now) {
+        if (animToken !== _svState.activeAnimationToken) return;
         const t = Math.min(1, (now - t0) / DUR);
         const e = _svEase(t);
         for (const [, L] of live) {
@@ -823,6 +1293,7 @@ function _svRenderFileGraph(newModel) {
         if (t < 1) {
             requestAnimationFrame(frame);
         } else {
+            if (animToken !== _svState.activeAnimationToken) return;
             for (const X of exits) X.el.remove();
             for (const [, L] of live) {
                 L.el.setAttribute('transform', `translate(${L.x1},${L.y1})`);
@@ -860,6 +1331,7 @@ function _svRenderFileGraph(newModel) {
             edgesG.style.opacity  = '0';
             labelsG.style.opacity = '0';
             function edgeFade(eNow) {
+                if (animToken !== _svState.activeAnimationToken) return;
                 const et = Math.min(1, (eNow - edgeT0) / EDGE_DUR);
                 const ee = _svEase(et);
                 edgesG.style.opacity  = String(ee);
@@ -878,76 +1350,37 @@ function _svRenderFileGraph(newModel) {
 }
 
 function _svFitViewport(model) {
-    const svg = _svState.svg;
-    if (!svg || !model || !model.nodes.length) return;
-    const rect = svg.getBoundingClientRect();
-
-    let minX =  Infinity, minY =  Infinity;
-    let maxX = -Infinity, maxY = -Infinity;
-    for (const n of model.nodes) {
-        if (n.x < minX) minX = n.x;
-        if (n.y < minY) minY = n.y;
-        if (n.x + n.w > maxX) maxX = n.x + n.w;
-        if (n.y + n.h > maxY) maxY = n.y + n.h;
-    }
-    const w = maxX - minX;
-    const h = maxY - minY;
-    const margin = 40;
-    const k = Math.min(
-        1,
-        (rect.width  - margin * 2) / w,
-        (rect.height - margin * 2) / h,
-    );
-    _svState.zoom.k = Math.max(0.15, k);
-    _svState.zoom.x = rect.width  / 2 - (minX + w / 2) * _svState.zoom.k;
-    _svState.zoom.y = rect.height / 2 - (minY + h / 2) * _svState.zoom.k;
-    _svApplyZoom();
+    _svAnimateCameraToModel(model, ++_svState.activeAnimationToken, true);
 }
 
 function _svComputeTargetZoom(model) {
     const svg = _svState.svg;
     if (!svg || !model || !model.nodes.length) return { ..._svState.zoom };
-    const rect   = svg.getBoundingClientRect();
-    const margin = 64;
-
-    if (model.hasFocusCard && model.focusNodeId) {
-        const focusId  = model.focusNodeId;
-        const scopeIds = new Set([focusId]);
-        const near = model.adj.get(focusId);
-        if (near) for (const id of near) scopeIds.add(id);
-
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const n of model.nodes) {
-            if (!scopeIds.has(n.id)) continue;
-            if (n.x < minX) minX = n.x;         if (n.y < minY) minY = n.y;
-            if (n.x + n.w > maxX) maxX = n.x + n.w;
-            if (n.y + n.h > maxY) maxY = n.y + n.h;
-        }
-        if (!Number.isFinite(minX)) return _svComputeFitAllZoom(model, rect, margin);
-        const k = Math.min(2.5,
-            (rect.width  - margin * 2) / Math.max(1, maxX - minX),
-            (rect.height - margin * 2) / Math.max(1, maxY - minY)
-        );
-        return { k,
-            x: rect.width  / 2 - ((minX + maxX) / 2) * k,
-            y: rect.height / 2 - ((minY + maxY) / 2) * k };
-    }
-    return _svComputeFitAllZoom(model, rect, margin);
+    const rect = svg.getBoundingClientRect();
+    const bounds = model.cameraBounds || _svComputeRectBounds(model.nodes, model.hasFocusCard ? _SV_CAMERA_PAD : 64);
+    if (!bounds) return { ..._svState.zoom };
+    const w = Math.max(1, bounds.maxX - bounds.minX);
+    const h = Math.max(1, bounds.maxY - bounds.minY);
+    const maxScale = model.hasFocusCard ? 2.5 : 1;
+    const k = Math.max(0.15, Math.min(maxScale, rect.width / w, rect.height / h));
+    return {
+        k,
+        x: rect.width / 2 - (bounds.minX + w / 2) * k,
+        y: rect.height / 2 - (bounds.minY + h / 2) * k,
+    };
 }
 
 function _svComputeFitAllZoom(model, rect, margin) {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const n of model.nodes) {
-        if (n.x < minX) minX = n.x;         if (n.y < minY) minY = n.y;
-        if (n.x + n.w > maxX) maxX = n.x + n.w;
-        if (n.y + n.h > maxY) maxY = n.y + n.h;
-    }
-    const w = maxX - minX, h = maxY - minY;
-    const k = Math.max(0.15, Math.min(1,
-        (rect.width  - margin * 2) / Math.max(1, w),
-        (rect.height - margin * 2) / Math.max(1, h)
-    ));
-    return { k, x: rect.width / 2 - (minX + w / 2) * k, y: rect.height / 2 - (minY + h / 2) * k };
+    const bounds = model.cameraBounds || _svComputeRectBounds(model.nodes, margin);
+    if (!bounds) return { ..._svState.zoom };
+    const w = Math.max(1, bounds.maxX - bounds.minX);
+    const h = Math.max(1, bounds.maxY - bounds.minY);
+    const k = Math.max(0.15, Math.min(1, rect.width / w, rect.height / h));
+    return {
+        k,
+        x: rect.width / 2 - (bounds.minX + w / 2) * k,
+        y: rect.height / 2 - (bounds.minY + h / 2) * k,
+    };
 }
 
 // ── Focus system ──────────────────────────────────────────────────────────
