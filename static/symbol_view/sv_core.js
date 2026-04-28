@@ -19,6 +19,7 @@ const _svState = {
     ready:     false,        // DOM mounted?
     svg:       null,
     viewport:  null,
+    measureHost: null,
     zoom:      { k: 1, x: 0, y: 0 },
     currentGraph: null,      // last rendered file graph model
     currentData:  null,      // raw /symbol-file response for the current file
@@ -139,11 +140,13 @@ function _svEnsureDom() {
         <div class="sv-empty-icon">&#10697;</div>
         <div class="sv-empty-msg">No file loaded</div>
       </div>
+      <div id="sv-card-measure" aria-hidden="true"></div>
       <div id="sv-edge-tip" hidden></div>
     `;
 
     _svState.svg      = root.querySelector('#sv-svg');
     _svState.viewport = root.querySelector('.sv-viewport');
+    _svState.measureHost = root.querySelector('#sv-card-measure');
 
     root.querySelector('#sv-back-btn').onclick    = _svGoBack;
     root.querySelector('#sv-fwd-btn').onclick     = _svGoForward;

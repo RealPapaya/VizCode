@@ -160,33 +160,28 @@ function _svDetailCardStateKey(focusId, collapsed) {
     return `${focusId || ''}|${hidden}`;
 }
 
-function _svGetDetailCardHeight(sym, focusId) {
+function _svGetDetailCardHeight(sym, focusId, cardW) {
     const estimated = _svEstimateDetailCardHeight(sym, _svState.detailSectionCollapsed);
     const key = _svDetailCardStateKey(focusId, _svState.detailSectionCollapsed);
-    const override = _svState.focusCardHeightOverrides.get(key) || 0;
+    let override = _svState.focusCardHeightOverrides.get(key) || 0;
+    if (!override && sym && cardW && _svState.measureHost) {
+        const lineCount = Math.max(1, (sym.end_line || sym.line || 1) - (sym.line || 1) + 1);
+        const host = _svState.measureHost;
+        host.style.width = `${cardW}px`;
+        host.innerHTML = _svFocusCardMarkup(sym, {
+            callers: 0,
+            callees: 0,
+            lineCount,
+            collapsed: _svState.detailSectionCollapsed,
+        });
+        const card = host.firstElementChild;
+        if (card) {
+            override = _svClamp(Math.ceil(card.scrollHeight + 2), _SV_DETAIL_MIN_H, _SV_DETAIL_MAX_H);
+            _svState.focusCardHeightOverrides.set(key, override);
+        }
+        host.innerHTML = '';
+    }
     return _svClamp(Math.max(estimated, override), _SV_DETAIL_MIN_H, _SV_DETAIL_MAX_H);
-}
-
-function _svMeasureRenderedDetailCardHeight(nodeEl) {
-    if (!nodeEl) return 0;
-    const card = nodeEl.querySelector('.sv-fd-card');
-    if (!card) return 0;
-    return Math.ceil(card.scrollHeight + 2);
-}
-
-function _svMaybeExpandMeasuredFocusCard(model) {
-    const focusId = _svState.focusId;
-    if (!focusId || !model || !model.byNodeId) return false;
-    const node = model.byNodeId[focusId];
-    if (!node || !node.isFocusCard || !node.el) return false;
-    const measured = _svClamp(_svMeasureRenderedDetailCardHeight(node.el), _SV_DETAIL_MIN_H, _SV_DETAIL_MAX_H);
-    if (!measured || measured <= node.h + 2) return false;
-    const key = _svDetailCardStateKey(focusId, _svState.detailSectionCollapsed);
-    const prior = _svState.focusCardHeightOverrides.get(key) || 0;
-    if (measured <= prior + 2) return false;
-    _svState.focusCardHeightOverrides.set(key, measured);
-    _svRebuildForFocus();
-    return true;
 }
 
 function _svVisibleWorldBounds() {
@@ -815,7 +810,7 @@ async function _svLoadFileGraph(fileRel, opts) {
             const fNode = _svState.baseLayoutSnapshot.byNodeId[opts.pendingFocus];
             const fSym  = fNode.sym || {};
             const cardW = _svClamp(Math.max(fNode.w + 52, 260), _SV_DETAIL_MIN_W, _SV_DETAIL_MAX_W);
-            const cardH = _svGetDetailCardHeight(fSym, opts.pendingFocus);
+            const cardH = _svGetDetailCardHeight(fSym, opts.pendingFocus, cardW);
             const focusModel = _svBuildFocusLayoutModel(
                 _svState.baseLayoutSnapshot,
                 data,
@@ -876,7 +871,7 @@ function _svRebuildForFocus() {
 
     const sym   = baseNode.sym || {};
     const cardW = _svClamp(Math.max(baseNode.w + 52, 260), _SV_DETAIL_MIN_W, _SV_DETAIL_MAX_W);
-    const cardH = _svGetDetailCardHeight(sym, focusId);
+    const cardH = _svGetDetailCardHeight(sym, focusId, cardW);
     const model = _svBuildFocusLayoutModel(
         _svState.baseLayoutSnapshot,
         data,
@@ -1548,7 +1543,6 @@ function _svRenderFileGraph(newModel) {
                 const L = live.get(n.id);
                 if (L) n.el = L.el;
             }
-            if (_svMaybeExpandMeasuredFocusCard(newModel)) return;
             _svBindNodeClicks();
             _svApplyFocus({ noHistory: true });
 
@@ -1725,6 +1719,104 @@ function _svNodeClass(n) {
     return classes.join(' ');
 }
 
+function _svFocusCardMarkupLegacy(sym, opts = {}) {
+    const callers = opts.callers || 0;
+    const callees = opts.callees || 0;
+    const lineCount = opts.lineCount || 1;
+    const collapsed = opts.collapsed || _svState.detailSectionCollapsed;
+    const sigHidden = collapsed.has('signature');
+    const docHidden = collapsed.has('docstring');
+    const metHidden = collapsed.has('metrics');
+    return `
+      <div xmlns="http://www.w3.org/1999/xhtml" class="sv-fd-card">
+        <div class="sv-fd-header">
+          <span class="sv-kind-dot" style="background:${_svKindColor(sym.kind)}"></span>
+          <span class="sv-fd-name">${_svEsc(sym.name || '')}</span>
+          <span class="sv-fd-kind">${_svEsc(sym.kind || '')}</span>
+        </div>
+        <div class="sv-fd-sub">
+          ${_svEsc(sym.file || '')}${sym.line ? ':' + sym.line : ''}
+          ${sym.module ? ' 繚 ' + _svEsc(sym.module) : ''}
+        </div>
+        ${sym.signature ? `
+          <div class="sv-fd-section ${sigHidden ? 'sv-fd-collapsed' : ''}" data-section="signature">
+            <div class="sv-fd-section-hd" data-section="signature">
+              <span class="sv-fd-chev">${sigHidden ? '▸' : '▾'}</span>
+              <span class="sv-fd-section-title">signature</span>
+            </div>
+            <div class="sv-fd-section-body"><code>${_svEsc(sym.signature)}</code></div>
+          </div>` : ''}
+        ${sym.docstring ? `
+          <div class="sv-fd-section ${docHidden ? 'sv-fd-collapsed' : ''}" data-section="docstring">
+            <div class="sv-fd-section-hd" data-section="docstring">
+              <span class="sv-fd-chev">${docHidden ? '▸' : '▾'}</span>
+              <span class="sv-fd-section-title">docstring</span>
+            </div>
+            <div class="sv-fd-section-body">${_svDocExcerpt(sym.docstring)}</div>
+          </div>` : ''}
+        <div class="sv-fd-section ${metHidden ? 'sv-fd-collapsed' : ''}" data-section="metrics">
+          <div class="sv-fd-section-hd" data-section="metrics">
+            <span class="sv-fd-chev">${metHidden ? '▸' : '▾'}</span>
+            <span class="sv-fd-section-title">metrics</span>
+          </div>
+          <div class="sv-fd-section-body">
+            <span class="sv-fd-metric">${lineCount} lines</span>
+            <span class="sv-fd-metric">↓ ${callers} callers</span>
+            <span class="sv-fd-metric">↑ ${callees} callees</span>
+          </div>
+        </div>
+      </div>`;
+}
+
+function _svFocusCardMarkup(sym, opts = {}) {
+    const callers = opts.callers || 0;
+    const callees = opts.callees || 0;
+    const lineCount = opts.lineCount || 1;
+    const collapsed = opts.collapsed || _svState.detailSectionCollapsed;
+    const sigHidden = collapsed.has('signature');
+    const docHidden = collapsed.has('docstring');
+    const metHidden = collapsed.has('metrics');
+    return `
+      <div xmlns="http://www.w3.org/1999/xhtml" class="sv-fd-card">
+        <div class="sv-fd-header">
+          <span class="sv-kind-dot" style="background:${_svKindColor(sym.kind)}"></span>
+          <span class="sv-fd-name">${_svEsc(sym.name || '')}</span>
+          <span class="sv-fd-kind">${_svEsc(sym.kind || '')}</span>
+        </div>
+        <div class="sv-fd-sub">
+          ${_svEsc(sym.file || '')}${sym.line ? ':' + sym.line : ''}
+          ${sym.module ? ' &middot; ' + _svEsc(sym.module) : ''}
+        </div>
+        ${sym.signature ? `
+          <div class="sv-fd-section ${sigHidden ? 'sv-fd-collapsed' : ''}" data-section="signature">
+            <div class="sv-fd-section-hd" data-section="signature">
+              <span class="sv-fd-chev">${sigHidden ? '&#9656;' : '&#9662;'}</span>
+              <span class="sv-fd-section-title">signature</span>
+            </div>
+            <div class="sv-fd-section-body"><code>${_svEsc(sym.signature)}</code></div>
+          </div>` : ''}
+        ${sym.docstring ? `
+          <div class="sv-fd-section ${docHidden ? 'sv-fd-collapsed' : ''}" data-section="docstring">
+            <div class="sv-fd-section-hd" data-section="docstring">
+              <span class="sv-fd-chev">${docHidden ? '&#9656;' : '&#9662;'}</span>
+              <span class="sv-fd-section-title">docstring</span>
+            </div>
+            <div class="sv-fd-section-body">${_svDocExcerpt(sym.docstring)}</div>
+          </div>` : ''}
+        <div class="sv-fd-section ${metHidden ? 'sv-fd-collapsed' : ''}" data-section="metrics">
+          <div class="sv-fd-section-hd" data-section="metrics">
+            <span class="sv-fd-chev">${metHidden ? '&#9656;' : '&#9662;'}</span>
+            <span class="sv-fd-section-title">metrics</span>
+          </div>
+          <div class="sv-fd-section-body">
+            <span class="sv-fd-metric">${lineCount} lines</span>
+            <span class="sv-fd-metric">&#8595; ${callers} callers</span>
+            <span class="sv-fd-metric">&#8593; ${callees} callees</span>
+          </div>
+        </div>
+      </div>`;
+}
+
 function _svCreateFocusCardEl(n) {
     const NS  = 'http://www.w3.org/2000/svg';
     const g   = document.createElementNS(NS, 'g');
@@ -1798,6 +1890,7 @@ function _svCreateFocusCardEl(n) {
           </div>
         </div>
       </div>`;
+    fo.innerHTML = _svFocusCardMarkup(sym, { callers, callees, lineCount, collapsed });
 
     fo.querySelectorAll('.sv-fd-section-hd').forEach(hd => {
         hd.addEventListener('click', ev => {

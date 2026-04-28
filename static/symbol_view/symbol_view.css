@@ -15,6 +15,15 @@
 
 #sym-view.active { display: block; }
 
+#sv-card-measure {
+    position: absolute;
+    left: -100000px;
+    top: -100000px;
+    visibility: hidden;
+    pointer-events: none;
+    overflow: visible;
+}
+
 /* ── Toolbar (L2-style floating panel) ────────────────────────────── */
 #sv-toolbar {
     position: absolute;
