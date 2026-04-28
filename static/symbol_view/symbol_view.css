@@ -301,7 +301,7 @@
 .sv-node {
     cursor: pointer;
     pointer-events: all;
-    transition: opacity 550ms cubic-bezier(0.65, 0, 0.35, 1);
+    transition: opacity 780ms cubic-bezier(0.22, 1, 0.36, 1);
     transform-origin: center;
     transform-box: fill-box;
     will-change: opacity;
@@ -312,7 +312,7 @@
     stroke: var(--border, #2c2d2a);
     stroke-width: 1.2;
     vector-effect: non-scaling-stroke;
-    transition: stroke 0.22s, filter 0.22s;
+    transition: stroke 0.3s ease, filter 0.3s ease;
 }
 
 .sv-node:hover .sv-node-bg {
@@ -340,10 +340,35 @@
     filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.35));
 }
 
+.sv-node.sv-compound:hover .sv-node-bg {
+    stroke: var(--accent, #dfa745);
+    filter: drop-shadow(0 6px 18px rgba(223, 167, 69, 0.16));
+}
+
 /* Methods and top-level functions */
 .sv-node.sv-method .sv-node-bg,
 .sv-node.sv-top    .sv-node-bg {
     fill: var(--panel2, #1b1c19);
+}
+
+.sv-node.sv-focus-pill .sv-node-bg {
+    fill: rgba(223, 167, 69, 0.08);
+    stroke: rgba(223, 167, 69, 0.75);
+    stroke-width: 1.2;
+}
+
+.sv-node.sv-focus-pill.sv-focus-pill-pub .sv-node-bg {
+    fill: rgba(52, 211, 153, 0.1);
+    stroke: rgba(52, 211, 153, 0.75);
+}
+
+.sv-node.sv-focus-pill.sv-focus-pill-pri .sv-node-bg {
+    fill: rgba(248, 113, 113, 0.1);
+    stroke: rgba(248, 113, 113, 0.75);
+}
+
+.sv-pill-name {
+    font-size: 12px;
 }
 
 .sv-node.sv-field .sv-node-bg {
@@ -431,13 +456,31 @@
 .sv-access-pub  { fill: #34d399; }
 .sv-access-priv { fill: #f87171; }
 
-.sv-compound-toggle { cursor: pointer; }
+.sv-compound-toggle {
+    cursor: pointer;
+    transform-box: fill-box;
+}
+
+.sv-compound-toggle-halo {
+    fill: none;
+    stroke: rgba(223, 167, 69, 0.55);
+    stroke-width: 1.2;
+    stroke-dasharray: 8 5;
+    opacity: 0;
+    filter: drop-shadow(0 0 7px rgba(223, 167, 69, 0.45));
+}
 
 .sv-compound-toggle rect {
     fill: rgba(223, 167, 69, 0.08);
     stroke: var(--accent, #dfa745);
     stroke-width: 1;
-    transition: fill 0.15s;
+    transition: fill 0.25s ease, stroke 0.25s ease;
+}
+
+.sv-node.sv-compound:hover .sv-compound-toggle-halo,
+.sv-compound-toggle:hover .sv-compound-toggle-halo {
+    opacity: 1;
+    animation: sv-chip-orbit 2.4s linear infinite;
 }
 
 .sv-compound-toggle:hover rect {
@@ -445,7 +488,7 @@
 }
 
 .sv-compound-toggle text {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     fill: var(--accent, #dfa745);
     font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
@@ -458,13 +501,37 @@
     fill: var(--muted, #93918b);
 }
 
+.sv-method-group-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    fill: var(--muted, #b4b0a7);
+    text-transform: uppercase;
+    pointer-events: none;
+}
+
+.sv-method-group-guide {
+    stroke: rgba(147, 145, 139, 0.28);
+    stroke-width: 1;
+    stroke-linecap: round;
+    pointer-events: none;
+}
+
+.sv-method-group-guide-pub {
+    stroke: rgba(52, 211, 153, 0.45);
+}
+
+.sv-method-group-guide-pri {
+    stroke: rgba(248, 113, 113, 0.45);
+}
+
 /* ── SVG: edges ───────────────────────────────────────────────────── */
 .sv-edge {
     cursor: pointer;
     opacity: 0.7;
     vector-effect: non-scaling-stroke;
-    transition: opacity 550ms cubic-bezier(0.65, 0, 0.35, 1),
-                stroke-width 0.18s;
+    transition: opacity 780ms cubic-bezier(0.22, 1, 0.36, 1),
+                stroke-width 0.24s ease;
 }
 
 .sv-edge:hover {
@@ -608,13 +675,18 @@
     overflow: hidden;
     overflow-wrap: anywhere;
     opacity: 1;
-    transition: max-height 550ms cubic-bezier(0.65, 0, 0.35, 1),
-                opacity    550ms cubic-bezier(0.65, 0, 0.35, 1);
+    transition: max-height 780ms cubic-bezier(0.22, 1, 0.36, 1),
+                opacity    780ms cubic-bezier(0.22, 1, 0.36, 1);
     padding: 6px 0 2px 16px;
     font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
     font-size: 12px;
     color: var(--text, #eae8e3);
     line-height: 1.5;
+}
+
+@keyframes sv-chip-orbit {
+    from { stroke-dashoffset: 0; }
+    to   { stroke-dashoffset: -26; }
 }
 
 .sv-fd-section-body code {

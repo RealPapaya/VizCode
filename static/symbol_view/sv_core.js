@@ -76,8 +76,9 @@ const _SV_EDGE_COLOR = {
 const _SV_CARD_KINDS = new Set(['class', 'struct', 'interface', 'enum']);
 
 // Animation duration applies to position tween, focus scale + fade, etc.
-// Bumped from V2's 280ms to V3's 550ms per user request ("戲劇").
-const _SV_DUR_MS = 550;
+// Slightly slower than V3's original pacing to give move/expand/collapse
+// animations more easing room near the end.
+const _SV_DUR_MS = 780;
 
 function _svKindColor(kind) {
     return _SV_KIND_COLOR[kind] || _SV_KIND_COLOR.default;
@@ -251,9 +252,7 @@ function _svAnimateValue(obj, target, durationMs, onStep) {
 
 // easeInOutQuint — more dramatic than cubic, per V3 animation spec.
 function _svEase(t) {
-    return t < 0.5
-        ? 16 * t * t * t * t * t
-        : 1 - Math.pow(-2 * t + 2, 5) / 2;
+    return 1 - Math.pow(1 - t, 4);
 }
 
 // ── Public entry points ────────────────────────────────────────────────────

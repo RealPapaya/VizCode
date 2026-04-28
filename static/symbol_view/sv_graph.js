@@ -8,14 +8,17 @@
 
 // ── Layout constants ──────────────────────────────────────────────────────
 const _SV_CLASS_PAD_X   = 16;
-const _SV_CLASS_PAD_TOP = 38;
+const _SV_CLASS_PAD_TOP = 46;
 const _SV_CLASS_PAD_BOT = 14;
 const _SV_CLASS_MIN_W   = 232;
-const _SV_CLASS_MAX_W   = 420;
+const _SV_CLASS_MAX_W   = 560;
 const _SV_METHOD_W      = 200;
 const _SV_METHOD_MAX_W  = 320;
 const _SV_METHOD_H      = 34;
 const _SV_METHOD_GAP    = 6;
+const _SV_PILL_H        = 30;
+const _SV_PILL_MIN_W    = 86;
+const _SV_PILL_MAX_W    = 220;
 const _SV_FUNC_W        = 220;
 const _SV_FUNC_MAX_W    = 340;
 const _SV_FUNC_H        = 42;
@@ -72,6 +75,11 @@ function _svMeasureGhostWidth(sym) {
     const path = (sym && sym.file ? sym.file : '') + (sym && sym.line ? ':' + sym.line : '');
     const pathW = _svMeasureText(path, 10) + 92;
     return _svClamp(Math.max(nameW, pathW), _SV_GHOST_W, _SV_GHOST_MAX_W);
+}
+
+function _svMeasurePillWidth(sym) {
+    const raw = _svMeasureText(sym && sym.name, 13) + 34;
+    return _svClamp(raw, _SV_PILL_MIN_W, _SV_PILL_MAX_W);
 }
 
 function _svEstimateDetailCardHeight(sym, collapsed) {
@@ -197,6 +205,7 @@ const _SV_FOCUS_RING_GAP = 46;
 const _SV_FOCUS_LANE_GAP = 14;
 const _SV_FOCUS_REPEL_PAD = 28;
 const _SV_CAMERA_PAD = 96;
+const _SV_FOCUS_BOTTOM_WRAP = 5;
 
 function _svIsFieldKind(kind) {
     return kind === 'field' || kind === 'variable' || kind === 'constant' || kind === 'property';
@@ -299,19 +308,18 @@ function _svFindOwnerNode(model, node) {
 }
 
 function _svBuildSyntheticMemberNode(sym, originNode) {
-    const isField = _svIsFieldKind(sym.kind);
-    const isMethod = !isField;
-    const w = isMethod ? _svMeasureMethodWidth(sym) : _svMeasureTopLevelWidth(sym, isField);
-    const h = isMethod ? _SV_METHOD_H : (isField ? _SV_FIELD_H : _SV_FUNC_H);
+    const w = _svMeasurePillWidth(sym);
+    const h = _SV_PILL_H;
     return {
         id: sym.id,
         sym,
         kind: sym.kind,
-        isMethod,
-        isField,
-        isTopLevel: !isMethod,
+        isMethod: true,
+        isField: false,
+        isTopLevel: false,
         parentId: originNode.id,
         synthetic: true,
+        isFocusPill: true,
         x: originNode.cx - w / 2,
         y: originNode.cy - h / 2,
         w,
@@ -350,6 +358,80 @@ function _svPlaceHorizontalLane(nodes, y, centerX) {
         rects.push(_svRectFromNode(node));
         x += node.w + _SV_FOCUS_LANE_GAP;
     }
+    return rects;
+}
+
+function _svPlaceHorizontalWrappedLane(nodes, startY, centerX, wrapCount) {
+    if (!nodes.length) return [];
+    const rows = [];
+    for (let i = 0; i < nodes.length; i += wrapCount) {
+        rows.push(nodes.slice(i, i + wrapCount));
+    }
+
+    const rects = [];
+    let y = startY;
+    for (const rowNodes of rows) {
+        const totalW = rowNodes.reduce((sum, n) => sum + n.w, 0) + _SV_FOCUS_LANE_GAP * (rowNodes.length - 1);
+        let x = centerX - totalW / 2;
+        let rowH = 0;
+        for (const node of rowNodes) {
+            node.x = x;
+            node.y = y;
+            _svUpdateNodeCenter(node);
+            rects.push(_svRectFromNode(node));
+            x += node.w + _SV_FOCUS_LANE_GAP;
+            rowH = Math.max(rowH, node.h);
+        }
+        y += rowH + _SV_FOCUS_LANE_GAP;
+    }
+    return rects;
+}
+
+function _svSplitBottomFocusNodes(nodes, focusId) {
+    const pub = [];
+    const pri = [];
+    const related = [];
+    for (const node of (nodes || [])) {
+        if (node && node.parentId === focusId) {
+            node.isFocusPill = true;
+            if (node.sym && node.sym.is_public === false) pri.push(node);
+            else pub.push(node);
+        } else {
+            related.push(node);
+        }
+    }
+    return { pub, pri, related };
+}
+
+function _svPlaceBottomFocusGroups(nodes, startY, centerX, focusId) {
+    const { pub, pri, related } = _svSplitBottomFocusNodes(nodes, focusId);
+    const rects = [];
+    let y = startY;
+
+    function placeGroup(groupNodes, label) {
+        if (!groupNodes.length) return;
+        groupNodes.forEach(node => {
+            node.focusPillGroup = label.toLowerCase();
+            node.isFocusPill = true;
+        });
+        rects.push(..._svPlaceHorizontalWrappedLane(groupNodes, y, centerX, _SV_FOCUS_BOTTOM_WRAP));
+        const bounds = _svComputeRectBounds(groupNodes, 0);
+        if (bounds) {
+            y = bounds.maxY + _SV_FOCUS_LANE_GAP + 10;
+        }
+    }
+
+    placeGroup(pub, 'PUB');
+    placeGroup(pri, 'PRI');
+
+    if (related.length) {
+        related.forEach(node => {
+            node.isFocusPill = false;
+            node.focusPillGroup = '';
+        });
+        rects.push(..._svPlaceHorizontalWrappedLane(related, y, centerX, _SV_FOCUS_BOTTOM_WRAP));
+    }
+
     return rects;
 }
 
@@ -538,10 +620,11 @@ function _svBuildFocusLayoutModel(baseModel, resp, focusOpts) {
         );
     }
     if (bottomNodes.length) {
-        _svPlaceHorizontalLane(
+        _svPlaceBottomFocusGroups(
             bottomNodes,
             focusNode.y + focusNode.h + _SV_FOCUS_RING_GAP,
-            centerCx
+            centerCx,
+            focusOpts.focusId
         );
     }
 
@@ -813,8 +896,10 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
             _SV_CLASS_MAX_W
         );
         let h;
-        if (collapsed || !clsMethods.length) {
-            h = _SV_CLASS_PAD_TOP + _SV_CLASS_PAD_BOT + (clsMethods.length ? 18 : 0);
+        if (collapsed) {
+            h = _SV_CLASS_PAD_TOP + _SV_CLASS_PAD_BOT + 18;
+        } else if (!clsMethods.length) {
+            h = _SV_CLASS_PAD_TOP + _SV_CLASS_PAD_BOT + 18;
         } else {
             h = _SV_CLASS_PAD_TOP
               + clsMethods.length * (_SV_METHOD_H + _SV_METHOD_GAP)
@@ -1475,6 +1560,8 @@ function _svNodeClass(n) {
     if (n.isField)      classes.push('sv-field');
     if (n.isGhost)      classes.push('sv-ghost');
     if (n.isFocusCard)  classes.push('sv-focus-card');
+    if (n.isFocusPill)  classes.push('sv-focus-pill');
+    if (n.focusPillGroup) classes.push(`sv-focus-pill-${n.focusPillGroup}`);
     if (n.sym && n.sym.is_static) classes.push('sv-static');
     if (n.sym && Array.isArray(n.sym.decorators) && n.sym.decorators.includes('override')) {
         classes.push('sv-override');
@@ -1631,7 +1718,7 @@ function _svCreateNodeEl(n) {
         const nameEl = document.createElementNS(NS, 'text');
         nameEl.setAttribute('class', 'sv-node-name');
         nameEl.setAttribute('x', '14'); nameEl.setAttribute('y', '22');
-        nameEl.textContent = _svClipText(sym.name, n.w - 80);
+        nameEl.textContent = _svClipText(sym.name, n.w - 108);
         g.appendChild(nameEl);
 
         const kindEl = document.createElementNS(NS, 'text');
@@ -1645,20 +1732,27 @@ function _svCreateNodeEl(n) {
         if (n.methods && n.methods.length) {
             const chip = document.createElementNS(NS, 'g');
             chip.setAttribute('class', 'sv-compound-toggle');
-            chip.setAttribute('transform', `translate(${n.w - 24}, 34)`);
+            chip.setAttribute('transform', `translate(${n.w - 32}, 34)`);
             chip.dataset.classid = n.id;
+            const chipHalo = document.createElementNS(NS, 'rect');
+            chipHalo.setAttribute('class', 'sv-compound-toggle-halo');
+            chipHalo.setAttribute('x', '-24'); chipHalo.setAttribute('y', '-14');
+            chipHalo.setAttribute('width', '48'); chipHalo.setAttribute('height', '28');
+            chipHalo.setAttribute('rx', '14');
+            chip.appendChild(chipHalo);
             const chipBg = document.createElementNS(NS, 'rect');
-            chipBg.setAttribute('x', '-18'); chipBg.setAttribute('y', '-9');
-            chipBg.setAttribute('width', '32'); chipBg.setAttribute('height', '18');
-            chipBg.setAttribute('rx', '9');
+            chipBg.setAttribute('x', '-21'); chipBg.setAttribute('y', '-11');
+            chipBg.setAttribute('width', '42'); chipBg.setAttribute('height', '22');
+            chipBg.setAttribute('rx', '11');
             chip.appendChild(chipBg);
             const chipTx = document.createElementNS(NS, 'text');
-            chipTx.setAttribute('x', '-2'); chipTx.setAttribute('y', '4');
+            chipTx.setAttribute('x', '0'); chipTx.setAttribute('y', '5');
             chipTx.setAttribute('text-anchor', 'middle');
             chipTx.textContent = n.collapsed
                 ? `+${n.methods.length}`
                 : `−${n.methods.length}`;
             chip.appendChild(chipTx);
+            if (!n.collapsed) chipTx.textContent = `-${n.methods.length}`;
             chip.addEventListener('click', (ev) => {
                 ev.stopPropagation();
                 _svToggleCompound(n.id);
@@ -1674,6 +1768,18 @@ function _svCreateNodeEl(n) {
                 g.appendChild(hint);
             }
         }
+    } else if (n.isFocusPill) {
+        const pillRect = g.querySelector('.sv-node-bg');
+        if (pillRect) pillRect.setAttribute('rx', '15');
+
+        const name = document.createElementNS(NS, 'text');
+        name.setAttribute('class', 'sv-node-name sv-mono sv-pill-name');
+        name.setAttribute('x', String(n.w / 2));
+        name.setAttribute('y', String(n.h / 2));
+        name.setAttribute('dominant-baseline', 'middle');
+        name.setAttribute('text-anchor', 'middle');
+        name.textContent = _svClipText(sym.name, n.w - 20);
+        g.appendChild(name);
     } else if (n.isMethod) {
         const dot = document.createElementNS(NS, 'circle');
         dot.setAttribute('class', 'sv-node-dot');
