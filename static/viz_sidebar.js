@@ -734,7 +734,10 @@ function buildFullTreeRows(container, node, depth) {
             buildFullTreeRows(children, child, depth + 1);
         }
 
-                row.addEventListener('click', e => {
+                row.addEventListener('contextmenu', e => {
+            if (typeof _showExplorerCtxMenu === 'function') _showExplorerCtxMenu(e, child.path, true);
+        });
+        row.addEventListener('click', e => {
             e.stopPropagation();
             const arrow = row.querySelector('.tree-arrow');
             const iconEl = row.querySelector('.subdir-icon');
@@ -770,7 +773,10 @@ function buildFullTreeRows(container, node, depth) {
             `<span class="file-icon">${_iconFile()}</span>` +
             `<span class="file-name" data-tip="${f.path}">${label}</span>`;
 
-                                row.addEventListener('click', e => {
+                                row.addEventListener('contextmenu', e => {
+            if (typeof _showExplorerCtxMenu === 'function') _showExplorerCtxMenu(e, f.path, false);
+        });
+        row.addEventListener('click', e => {
             e.stopPropagation();
             
             // Galaxy mode: highlight the node instead of navigating

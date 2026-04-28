@@ -9,12 +9,41 @@ Usage: python server.py [port]   (default port 7777)
 
 import sys, os, json, threading, uuid, time, re
 import zipfile, tarfile, tempfile, shutil, subprocess, io
-from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 from typing import Dict, Optional
+
+
+def _fatal_startup_error(message: str, *, details: Optional[str] = None, exit_code: int = 1) -> "None":
+    sys.stderr.write(f"{message}\n")
+    if details:
+        sys.stderr.write(f"{details.rstrip()}\n")
+    raise SystemExit(exit_code)
+
+
+try:
+    import http.server as _http_server
+except Exception as exc:
+    _fatal_startup_error(
+        "VIZCODE server could not import Python's stdlib module 'http.server'.",
+        details=(
+            f"Python executable: {sys.executable}\n"
+            f"Python version: {sys.version.split()[0]}\n"
+            f"Import error: {exc.__class__.__name__}: {exc}\n"
+            "Use a standard Python 3 installation and avoid naming local modules 'http.py'."
+        ),
+    )
+
+HTTPServer = _http_server.HTTPServer
+BaseHTTPRequestHandler = _http_server.BaseHTTPRequestHandler
+ThreadingHTTPServer = getattr(_http_server, 'ThreadingHTTPServer', None)
+
+if ThreadingHTTPServer is None:
+    class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+        daemon_threads = True
 
 
 # ─── Path setup ──────────────────────────────────────────────────────────────
@@ -23,8 +52,8 @@ _SERVER_DIR = os.path.dirname(os.path.abspath(__file__))   # .../VizCode/src/ser
 _SRC_DIR    = os.path.dirname(_SERVER_DIR)                 # .../VizCode/src
 _ROOT_DIR   = os.path.dirname(_SRC_DIR)                    # .../VizCode
 _CORE_DIR   = os.path.join(_SRC_DIR, 'core')               # .../VizCode/src/core
-# Make core/ and src/ importable (analyze_viz, detector, parse_memo, parsers)
-for _p in (_CORE_DIR, _SRC_DIR):
+# Make project modules importable no matter where server.py is launched from.
+for _p in (_ROOT_DIR, _SERVER_DIR, _CORE_DIR, _SRC_DIR):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
@@ -1673,7 +1702,7 @@ class Handler(BaseHTTPRequestHandler):
             sym_name = sym['name']
             CONTEXT  = 3   # lines of context around each match
 
-            def _read_snippet(rel_path: str, target_line: int) -> dict | None:
+            def _read_snippet(rel_path: str, target_line: int) -> Optional[dict]:
                 try:
                     abs_path = os.path.normpath(os.path.join(root_dir, rel_path))
                     lines = Path(abs_path).read_text(encoding='utf-8', errors='replace').splitlines()
@@ -2414,6 +2443,49 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.json_resp({'error': str(e)}, 500)
 
+        elif p == '/open-path':
+            # Reveal a file/folder in OS file explorer, or open in VS Code.
+            # Body: { job_id, path, action: 'reveal' | 'vscode' | 'folder' }
+            try:
+                body = _read_json_body(self)
+                jid    = body.get('job_id', '')
+                rel    = body.get('path', '')
+                action = body.get('action', 'reveal')
+                with JOBS_LOCK:
+                    job = JOBS.get(jid, {})
+                root = job.get('root', '')
+                if not root or not rel:
+                    self.json_resp({'error': 'Missing job_id or path'}, 400)
+                    return
+                abs_path = os.path.normpath(os.path.join(root, rel))
+                root_norm = os.path.normpath(root)
+                if not (abs_path.startswith(root_norm + os.sep) or abs_path == root_norm):
+                    self.json_resp({'error': 'Path traversal not allowed'}, 403)
+                    return
+                if action == 'vscode':
+                    uri = 'vscode://file/' + abs_path.replace('\\', '/')
+                    if sys.platform.startswith('win'):
+                        subprocess.Popen(['cmd', '/c', 'start', '', uri], shell=False)
+                    elif sys.platform == 'darwin':
+                        subprocess.Popen(['open', uri])
+                    else:
+                        subprocess.Popen(['xdg-open', uri])
+                elif action == 'folder':
+                    folder = abs_path if os.path.isdir(abs_path) else os.path.dirname(abs_path)
+                    _open_folder_in_explorer(folder)
+                else:  # reveal
+                    if sys.platform.startswith('win'):
+                        # /select, and path must be ONE argument (no space separator)
+                        subprocess.Popen(['explorer', f'/select,{abs_path}'])
+                    elif sys.platform == 'darwin':
+                        subprocess.Popen(['open', '-R', abs_path])
+                    else:
+                        folder = abs_path if os.path.isdir(abs_path) else os.path.dirname(abs_path)
+                        subprocess.Popen(['xdg-open', folder])
+                self.json_resp({'ok': True})
+            except Exception as e:
+                self.json_resp({'error': str(e)}, 500)
+
         elif p == '/chat-stream':
             # ── VizBridge: SSE streaming chat ─────────────────────────────────
             length = int(self.headers.get('Content-Length', 0))
@@ -2530,9 +2602,30 @@ class Handler(BaseHTTPRequestHandler):
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 def main():
+    if sys.version_info < (3, 6):
+        _fatal_startup_error(
+            'VIZCODE requires Python 3.6 or newer.',
+            details=f'Current interpreter: {sys.executable} ({sys.version.split()[0]})',
+        )
+
     threading.Thread(target=_reap_loop, daemon=True, name='temp-reaper').start()
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else PORT
-    server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
+    try:
+        port = int(sys.argv[1]) if len(sys.argv) > 1 else PORT
+    except ValueError:
+        _fatal_startup_error(
+            'Invalid port argument.',
+            details='Usage: python server.py [port]',
+            exit_code=2,
+        )
+
+    try:
+        server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
+    except OSError as exc:
+        _fatal_startup_error(
+            f'VIZCODE server could not bind to 127.0.0.1:{port}.',
+            details=f'{exc.__class__.__name__}: {exc}',
+        )
+
     url = f'http://localhost:{port}'
     print('-----------------------------------------')
     print(f'  VIZCODE V4 -> {url}')

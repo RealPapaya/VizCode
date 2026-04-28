@@ -19,14 +19,24 @@ const _svState = {
     ready:     false,        // DOM mounted?
     svg:       null,
     viewport:  null,
+    measureHost: null,
     zoom:      { k: 1, x: 0, y: 0 },
     currentGraph: null,      // last rendered file graph model
+    currentData:  null,      // raw /symbol-file response for the current file
+    baseLayoutSnapshot: null,
+    focusLayoutSnapshot: null,
+    activeAnimationToken: 0,
     searchOpen: false,
     searchCache: new Map(),
     hiddenEdgeTypes: new Set(),
     edgeJumpCursor: new Map(),
+    selectedEdgeId: null,
+    metricHighlight: null,          // 'callers' | 'callees' | null — metrics-click edge highlight
+    focusCardHeightOverrides: new Map(),
     detailSectionCollapsed: new Set(),   // "signature" | "docstring" | "metrics"
     compoundCollapsed: new Set(),        // class compound ids whose methods are hidden
+    _collapseAllOnLoad: true,            // when true, next load collapses all classes by default
+    showExternal: false,                 // when false, ghost (external) nodes are hidden
     _legendSnap: null,
 
     // Back-compat alias — viz_code_panel.js / viz_graph.js / viz_sidebar.js
@@ -70,11 +80,20 @@ const _SV_EDGE_COLOR = {
 const _SV_CARD_KINDS = new Set(['class', 'struct', 'interface', 'enum']);
 
 // Animation duration applies to position tween, focus scale + fade, etc.
-// Bumped from V2's 280ms to V3's 550ms per user request ("戲劇").
-const _SV_DUR_MS = 550;
+// Slightly slower than V3's original pacing to give move/expand/collapse
+// animations more easing room near the end.
+const _SV_DUR_MS = 780;
 
 function _svKindColor(kind) {
     return _SV_KIND_COLOR[kind] || _SV_KIND_COLOR.default;
+}
+
+function _svSymDotColor(sym, isMethod) {
+    const kind = sym && sym.kind;
+    if (isMethod && (kind === 'method' || kind === 'function')) {
+        return sym.is_public === false ? '#e8762a' : '#60a5fa';
+    }
+    return _svKindColor(kind);
 }
 
 function _svEdgeColor(type) {
@@ -89,45 +108,48 @@ function _svEnsureDom() {
 
     root.innerHTML = `
       <div id="sv-toolbar">
-        <div id="sv-nav-group">
+        <div class="sv-tb-top">
+          <span class="sv-tb-title">Symbol View</span>
+          <span id="sv-breadcrumb"></span>
+          <button id="sv-close-btn" title="Close Symbol View">&times;</button>
+        </div>
+        <div class="sv-tb-actions">
           <button id="sv-back-btn" title="Back" disabled>&larr;</button>
           <button id="sv-fwd-btn"  title="Forward" disabled>&rarr;</button>
           <button id="sv-unfocus-btn" title="Clear focus" style="display:none">&#9005;</button>
-          <div id="sv-breadcrumb"></div>
+          <button id="sv-expand-all-btn" title="Expand all classes">Expand All</button>
+          <button id="sv-collapse-all-btn" title="Collapse all classes">Collapse All</button>
+          <button id="sv-ext-btn" title="Show/hide external symbols">External Symbol</button>
+          <span id="sv-stats" class="sv-tb-stats"></span>
         </div>
-        <div id="sv-search-wrap">
-          <span id="sv-search-icon">&#128269;</span>
-          <input id="sv-search-input" type="text" placeholder="Search symbols…" autocomplete="off" spellcheck="false" />
-          <button id="sv-search-clear" style="display:none">&times;</button>
-          <div id="sv-search-results" hidden></div>
-        </div>
-        <button id="sv-close-btn" title="Close Structure View">&times;</button>
       </div>
-      <div id="sv-body">
-        <svg id="sv-svg" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <marker id="sv-arrow" viewBox="0 0 10 10" refX="9" refY="5"
-                    markerWidth="6" markerHeight="6" orient="auto-start-reverse"
-                    markerUnits="userSpaceOnUse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
-            </marker>
-          </defs>
-          <g class="sv-viewport">
-            <g class="sv-edges"></g>
-            <g class="sv-edge-labels"></g>
-            <g class="sv-cards"></g>
-          </g>
-        </svg>
-        <div id="sv-empty" hidden>
-          <div class="sv-empty-icon">&#10697;</div>
-          <div class="sv-empty-msg">No file loaded</div>
-        </div>
-        <div id="sv-edge-tip" hidden></div>
+      <svg id="sv-svg" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="sv-arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="6" markerHeight="6" orient="auto-start-reverse"
+                  markerUnits="userSpaceOnUse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+          </marker>
+        </defs>
+        <g class="sv-viewport">
+          <g class="sv-cards"></g>
+          <g class="sv-ghosts"></g>
+          <g class="sv-edges"></g>
+          <g class="sv-edge-labels"></g>
+          <g class="sv-chip-layer"></g>
+        </g>
+      </svg>
+      <div id="sv-empty" hidden>
+        <div class="sv-empty-icon">&#10697;</div>
+        <div class="sv-empty-msg">No file loaded</div>
       </div>
+      <div id="sv-card-measure" aria-hidden="true"></div>
+      <div id="sv-edge-tip" hidden></div>
     `;
 
     _svState.svg      = root.querySelector('#sv-svg');
     _svState.viewport = root.querySelector('.sv-viewport');
+    _svState.measureHost = root.querySelector('#sv-card-measure');
 
     root.querySelector('#sv-back-btn').onclick    = _svGoBack;
     root.querySelector('#sv-fwd-btn').onclick     = _svGoForward;
@@ -135,6 +157,10 @@ function _svEnsureDom() {
         if (_svState.focusId) _svSetFocus(null);
     };
     root.querySelector('#sv-close-btn').onclick = symViewClose;
+    root.querySelector('#sv-expand-all-btn').onclick  = _svExpandAll;
+    root.querySelector('#sv-collapse-all-btn').onclick = _svCollapseAll;
+    root.querySelector('#sv-ext-btn').onclick = _svToggleExternal;
+    root.querySelector('#sv-ext-btn').classList.toggle('sv-btn-active', _svState.showExternal);
 
     _svInitPanZoom();
     if (typeof _svInitSearch === 'function') _svInitSearch();
@@ -146,6 +172,7 @@ function _svInitPanZoom() {
     const svg = _svState.svg;
     if (!svg) return;
     let isPanning = false;
+    let didPan    = false;
     let panStart  = null;
 
     svg.addEventListener('wheel', (e) => {
@@ -166,11 +193,13 @@ function _svInitPanZoom() {
     svg.addEventListener('mousedown', (e) => {
         if (e.target !== svg && !e.target.classList.contains('sv-viewport')) return;
         isPanning = true;
+        didPan    = false;
         panStart  = { x: e.clientX - _svState.zoom.x, y: e.clientY - _svState.zoom.y };
         svg.style.cursor = 'grabbing';
     });
     window.addEventListener('mousemove', (e) => {
         if (!isPanning) return;
+        didPan = true;
         _svState.zoom.x = e.clientX - panStart.x;
         _svState.zoom.y = e.clientY - panStart.y;
         _svApplyZoom();
@@ -179,6 +208,22 @@ function _svInitPanZoom() {
         if (!isPanning) return;
         isPanning = false;
         svg.style.cursor = '';
+    });
+
+    // Click on blank canvas (not on a node/edge) → clear focus and restore camera.
+    svg.addEventListener('click', (e) => {
+        if (didPan) return;
+        const onBackground = e.target === svg
+            || e.target === _svState.viewport
+            || e.target.classList.contains('sv-edges')
+            || e.target.classList.contains('sv-edge-labels')
+            || e.target.classList.contains('sv-cards')
+            || e.target.classList.contains('sv-ghosts');
+        if (onBackground && _svState.focusId) {
+            _svState.focusId = null;
+            if (typeof _svRebuildForFocus === 'function') _svRebuildForFocus();
+            else if (typeof _svApplyFocus === 'function') _svApplyFocus();
+        }
     });
 }
 
@@ -218,9 +263,7 @@ function _svAnimateValue(obj, target, durationMs, onStep) {
 
 // easeInOutQuint — more dramatic than cubic, per V3 animation spec.
 function _svEase(t) {
-    return t < 0.5
-        ? 16 * t * t * t * t * t
-        : 1 - Math.pow(-2 * t + 2, 5) / 2;
+    return 1 - Math.pow(1 - t, 4);
 }
 
 // ── Public entry points ────────────────────────────────────────────────────
@@ -234,6 +277,8 @@ function symViewOpen(fileRel) {
     if (!root) return;
     const cy = document.getElementById('cy');
     if (cy) cy.style.display = 'none';
+    const ls = document.getElementById('layout-switcher');
+    if (ls) ls.style.display = 'none';
     root.classList.add('active');
     _svSaveLegend();
     _svHideLegend();
@@ -243,7 +288,12 @@ function symViewOpen(fileRel) {
     _svState.focusId = null;
     _svState.detailSectionCollapsed.clear();
     _svState.compoundCollapsed.clear();
+    _svState._collapseAllOnLoad = true;
     _svState.edgeJumpCursor.clear();
+    _svState.selectedEdgeId = null;
+    _svState.baseLayoutSnapshot = null;
+    _svState.focusLayoutSnapshot = null;
+    _svState.activeAnimationToken += 1;
     _svSyncActive();
 
     if (typeof _svLoadFileGraph === 'function') {
@@ -265,6 +315,8 @@ function symViewActivate(symId) {
     if (!root) return;
     const cy = document.getElementById('cy');
     if (cy) cy.style.display = 'none';
+    const ls = document.getElementById('layout-switcher');
+    if (ls) ls.style.display = 'none';
     root.classList.add('active');
     _svSaveLegend();
     _svHideLegend();
@@ -276,7 +328,12 @@ function symViewActivate(symId) {
         _svState.focusId = symId;
         _svState.detailSectionCollapsed.clear();
         _svState.compoundCollapsed.clear();
+        _svState._collapseAllOnLoad = true;
         _svState.edgeJumpCursor.clear();
+        _svState.selectedEdgeId = null;
+        _svState.baseLayoutSnapshot = null;
+        _svState.focusLayoutSnapshot = null;
+        _svState.activeAnimationToken += 1;
         _svSyncActive();
         if (typeof _svLoadFileGraph === 'function') {
             _svLoadFileGraph(sym.file, { pendingFocus: symId });
@@ -294,18 +351,29 @@ function symViewClose() {
     if (root) root.classList.remove('active');
     const cy = document.getElementById('cy');
     if (cy) cy.style.display = '';
+    const ls = document.getElementById('layout-switcher');
+    if (ls) ls.style.display = '';
 
     _svState.fileRel = null;
     _svState.focusId = null;
     _svState.currentGraph = null;
+    _svState.currentData = null;
+    _svState.baseLayoutSnapshot = null;
+    _svState.focusLayoutSnapshot = null;
+    _svState.activeAnimationToken += 1;
     _svSyncActive();
     _svRestoreLegend();
     _svSyncNavBtns();
     _svUpdateStructBtn(false);
 
-    const results = document.getElementById('sv-search-results');
+        const results = document.getElementById('sv-search-results');
     if (results) results.hidden = true;
     _svState.searchOpen = false;
+
+    // Sync topbar mode buttons to ensure Galaxy mode can be activated after closing Structure View
+    if (typeof syncTopbarModeButtons === 'function') {
+        syncTopbarModeButtons();
+    }
 }
 
 function _svPushHistory() {
@@ -337,11 +405,14 @@ function _svJumpTo(snap) {
     _svState.detailSectionCollapsed.clear();
     _svState.compoundCollapsed.clear();
     _svState.edgeJumpCursor.clear();
+    _svState.focusLayoutSnapshot = null;
     _svSyncActive();
     if (_svState.fileRel && _svState.fileRel !== prevFile) {
         if (typeof _svLoadFileGraph === 'function') {
             _svLoadFileGraph(_svState.fileRel, { pendingFocus: _svState.focusId });
         }
+    } else if (typeof _svRebuildForFocus === 'function') {
+        _svRebuildForFocus();
     } else if (typeof _svApplyFocus === 'function') {
         _svApplyFocus();
     }
@@ -353,7 +424,9 @@ function _svSetFocus(symId) {
     _svState.focusId = symId;
     _svState.detailSectionCollapsed.clear();
     _svState.edgeJumpCursor.clear();
-    if (typeof _svApplyFocus === 'function') _svApplyFocus();
+    _svState.selectedEdgeId = null;
+    if (typeof _svRebuildForFocus === 'function') _svRebuildForFocus();
+    else if (typeof _svApplyFocus === 'function') _svApplyFocus();
     _svSyncNavBtns();
 }
 
@@ -467,7 +540,9 @@ window.svHighlightLine = function (lineIdx) {
     _svState.focusId = best.id;
     _svState.detailSectionCollapsed.clear();
     _svState.edgeJumpCursor.clear();
-    if (typeof _svApplyFocus === 'function') _svApplyFocus({ noHistory: true });
+    _svState.selectedEdgeId = null;
+    if (typeof _svRebuildForFocus === 'function') _svRebuildForFocus();
+    else if (typeof _svApplyFocus === 'function') _svApplyFocus({ noHistory: true });
     _svSyncNavBtns();
 };
 

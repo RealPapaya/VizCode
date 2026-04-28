@@ -420,6 +420,19 @@
     color: var(--text);
     border: 1px solid var(--border);
     border-bottom-left-radius: 3px;
+    user-select: text;
+    -webkit-user-select: text;
+    cursor: auto;
+}
+
+.chat-msg-ai ::selection {
+    background: color-mix(in srgb, var(--accent) 28%, transparent);
+    color: inherit;
+}
+
+.chat-msg-ai ::-moz-selection {
+    background: color-mix(in srgb, var(--accent) 28%, transparent);
+    color: inherit;
 }
 
 .chat-msg-ai code {

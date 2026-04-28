@@ -30,8 +30,16 @@ from typing import Iterator
 # ─── path bootstrap (allow running from project root) ────────────────────────
 _HERE = Path(__file__).parent
 _ROOT = _HERE.parent
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
+_IMPORT_DIRS = (
+    _ROOT,
+    _ROOT / "src",
+    _ROOT / "src" / "server",
+    _ROOT / "src" / "core",
+)
+for _import_dir in _IMPORT_DIRS:
+    _import_dir_str = str(_import_dir)
+    if _import_dir_str not in sys.path:
+        sys.path.insert(0, _import_dir_str)
 
 # Import tool implementations from mcp_server (no MCP protocol needed)
 from mcp_server import (
@@ -400,6 +408,9 @@ class ContextInjector:
             f"For L2 function nodes use `path::func`. Call `vizcode_l1` / `vizcode_l2` first "
             f"if you are not certain of the exact id — do not guess.\n\n"
             f"Rules:\n"
+            f"- Reply in the same language as the user's most recent message unless the user explicitly asks for another language.\n"
+            f"- If the request is ambiguous or the available tool results are insufficient, say what is missing and ask a focused follow-up question instead of guessing.\n"
+            f"- If you are unsure which module / file / symbol the user means, ask briefly before choosing one.\n"
             f"- ALWAYS start with `vizcode_l0()` for broad codebase questions.\n"
             f"- When the user asks to 'see / show / open / go to / highlight' "
             f"something, call the matching `vizcode_ui_*` tool so the canvas "
@@ -409,6 +420,7 @@ class ContextInjector:
             f"that aren't already shown on the canvas (the chat panel renders them inline).\n"
             f"- Focus on architecture, dependencies, and call flows.\n"
             f"- Do NOT read raw source files — use the tools instead.\n"
+            f"- Never fabricate missing facts, node ids, tool outputs, or code structure details.\n"
             f"- Be concise; the user can see the graph while chatting.\n\n"
             f"INTERACTIVE CHAT CONVENTIONS (important for UX):\n"
             f"- Whenever you mention a file or function that exists in the project, call "
@@ -496,6 +508,7 @@ class VizBridge:
             pending_tool_calls: list[dict] = []
             assistant_content:  list[dict] = []
             ui_results: dict[str, str] = {}   # tool_use id -> result for UI tools already fired mid-stream
+            synthetic_tool_blobs: list[str] = []
             text_buf = ""
 
             for ev in provider.stream_chat(working, tool_defs, system):
@@ -505,6 +518,8 @@ class VizBridge:
 
                 elif ev["type"] == "tool_use":
                     pending_tool_calls.append(ev)
+                    if ev.get("synthetic") and ev.get("source_text"):
+                        synthetic_tool_blobs.append(str(ev["source_text"]))
                     assistant_content.append({
                         "type":  "tool_use",
                         "id":    ev["id"],
@@ -552,6 +567,9 @@ class VizBridge:
                     return
 
             # Append text to assistant content if any
+            for blob in synthetic_tool_blobs:
+                text_buf = text_buf.replace(blob, "")
+            text_buf = text_buf.strip()
             if text_buf:
                 assistant_content.insert(0, {"type": "text", "text": text_buf})
 
@@ -578,6 +596,7 @@ class VizBridge:
                     }
                 working.append({
                     "role":        "tool",
+                    "tool_name":   tc["name"],
                     "tool_use_id": tc["id"],
                     "content":     result,
                 })

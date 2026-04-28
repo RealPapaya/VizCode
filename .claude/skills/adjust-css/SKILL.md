@@ -1,6 +1,6 @@
 ---
 name: adjust-css
-description: Adjust CSS styles in the VIZCODE frontend. Use this skill whenever the user wants to change colors, spacing, fonts, borders, backgrounds, shadows, border-radius, opacity, or any visual appearance of nodes/panels/UI elements in viz.css, struct_view.css, themes.css, or inline styles inside symbol_view.js/_symBuildCyStyle(). Trigger on requests like "改顏色", "調間距", "邊框太粗", "背景色", "字體大小", "pill 太高", "section 顏色", "圓角", etc.
+description: Adjust CSS styles in the VIZCODE frontend. Use this skill whenever the user wants to change colors, spacing, fonts, borders, backgrounds, shadows, border-radius, opacity, or any visual appearance of nodes/panels/UI elements. Trigger on requests like "改顏色", "調間距", "邊框太粗", "背景色", "字體大小", "pill 太高", "section 顏色", "圓角", etc.
 ---
 
 # SKILL: Adjust CSS — VIZCODE Frontend
@@ -11,11 +11,10 @@ description: Adjust CSS styles in the VIZCODE frontend. Use this skill whenever 
 |---------|-----------|
 | 全域色系、背景、panel、border | `static/viz.css` (`:root` CSS variables) |
 | 主題 (dark/light/solarized) | `static/themes.css` |
-| Symbol View / class card 外觀 | `static/symbol_view.js` → `_symBuildCyStyle()` |
-| Symbol View 顏色常數 | `static/symbol_view.js` 頂部 `_SYM_*` / `_SYM_EDGE_COLORS` |
-| Structure View (struct_view) 外觀 | `static/struct_view.css` |
-| L0/L1/L2 graph node 顏色形狀 | `static/viz.js` → `extColor()`, `FILE_TYPE_SHAPE` |
-| layout_editor 預覽顏色 | `static/layout_editor.html` → `const COLORS = {...}` |
+| Symbol View SVG 節點外觀 (背景/邊框/特效) | `static/symbol_view/symbol_view.css` |
+| Symbol View 版面間距/尺寸常數 | `static/symbol_view/sv_graph.js` (頂部 `_SV_*` 常數) |
+| Symbol View 顏色映射定義 | `static/symbol_view/sv_core.js` (`_SV_KIND_COLOR`, `_SV_EDGE_COLOR`) |
+| 主視圖 (L0/L1/L2) graph node 顏色形狀 | `static/viz_state.js` 或 `static/viz.js` (`extColor()`, `FILE_TYPE_SHAPE`) |
 
 ## CSS Variable 速查 (viz.css :root)
 
@@ -30,61 +29,39 @@ description: Adjust CSS styles in the VIZCODE frontend. Use this skill whenever 
 --code-font   /* 程式碼字體 */
 ```
 
-## Symbol View Cytoscape Style (_symBuildCyStyle)
+## Symbol View (V3) SVG 樣式 (symbol_view.css)
 
-Cytoscape stylesheet 在 `symbol_view.js` 的 `_symBuildCyStyle()` 函數裡，以 JS 陣列形式定義。修改時：
+目前 Symbol View 已經改為純 SVG 渲染 (不依賴 Cytoscape)，外觀皆寫在 `static/symbol_view/symbol_view.css`：
 
-```js
-// selector 對應關係
-'node[?isClassCard]'   → class card 外框
-'node[?isClassHdr]'    → class 名稱 label
-'node[?isToggle]'      → 右上角數字徽章
-'node[?isSection]'     → PUBLIC/PRIVATE 區塊背景
-'node[?isSectionHdr]'  → ⊕ PUBLIC / ⌂ PRIVATE 標題
-'node[?isMember][?isPublic]'   → public pill (預設 warm amber #d97706)
-'node[?isMember][!isPublic]'   → private pill (預設 blue #60a5fa)
-```
+- **節點基礎**：`.sv-node .sv-node-bg` (fill/stroke)
+- **類型邊框色**：`.sv-kind-class .sv-node-bg`, `.sv-kind-method .sv-node-bg` 等
+- **方法 (Methods)**：`.sv-node.sv-method-public .sv-node-bg`, `.sv-node.sv-method-private .sv-node-bg`
+- **對焦/擴展節點**：`.sv-node.sv-focus-pill`, `.sv-node.sv-focus .sv-node-bg`
+- **標籤與文字**：`.sv-node-name`, `.sv-node-kind`, `.sv-access`, `.sv-pill-name`
+- **連接線 (Edges)**：`.sv-edge`, `.sv-edge-hit`, `.sv-edge:hover`
+- **焦點明細卡片 (HTML in SVG)**：`.sv-fd-card`, `.sv-fd-header`, `.sv-fd-section` 等等
 
-## Symbol View 常數 (頂部)
+## Symbol View 佈局常數 (sv_graph.js 頂部)
 
-```js
-const _SYM_WARM    = '#d97706';   // PUBLIC pill 背景色
-const _SYM_WARM_BG = 'rgba(217,119,6,0.18)';
-// PRIVATE pill 顏色:
-const _SYM_PRIV_BG     = 'rgba(96,165,250,0.12)';
-const _SYM_PRIV_BORDER = '#60a5fa';
-const _SYM_PRIV_TEXT   = '#60a5fa';
-// Edge 顏色:
-const _SYM_EDGE_COLORS = { call, inheritance, import, member, override, type_usage, include }
-```
-
-## 間距常數 (symbol_view.js 頂部)
-
-修改後用 `layout_editor.html` 立即預覽，確認沒有 label 脫框再貼入主程式。
+若要調整節點大小、間距、排版距離，請修改 `static/symbol_view/sv_graph.js` 頂部的常數：
 
 ```js
-const _SYM_CHAR_H      = 17;  // card title row height
-const _SYM_CARD_PAD    = 13;  // card inner padding (all sides)
-const _SYM_CARD_SPC_A  = 12;  // spacing: title → first section
-const _SYM_CARD_SPC_Y  =  4;  // spacing: between sections
-const _SYM_SEC_TOP     = 33;  // section header area height
-const _SYM_SEC_BOT     = 11;  // section bottom padding
-const _SYM_SEC_SPC_Y   =  7;  // spacing: between pills
-const _SYM_PILL_H      = 22;  // pill height
-const _SYM_PILL_RAD    = 14;  // pill corner-radius
-const _SYM_TOGGLE_SIZE = 20;  // toggle badge size
+const _SV_CLASS_PAD_X   = 16;   // 類別卡片左右內距
+const _SV_CLASS_PAD_TOP = 46;   // 類別卡片頂部內距 (標題區)
+const _SV_METHOD_H      = 34;   // 方法節點高度
+const _SV_PILL_H        = 30;   // 對焦 pill 高度
+const _SV_FUNC_H        = 42;   // 頂層函數高度
+// ... 其他 _SV_* 開頭的尺寸變數
 ```
 
 ## 工作流程
 
-1. **讀目標檔案** — 找到要改的 selector 或變數
-2. **用 Edit 工具** 做最小改動
-3. **間距類改動** → 同步更新 `layout_editor.html` 裡的 `const _C` 預設值
-4. **顏色改動** → 同步更新 `layout_editor.html` 裡的 `const COLORS`
-5. 告訴使用者 **Ctrl+Shift+R** 重整瀏覽器
+1. **讀目標檔案** — 依據上方的 File Map 找到對應的 `.css` 或是 `.js` 檔案。
+2. **定位並修改** — 尋找對應的 class name 或 `_SV_` 常數。
+3. **完成與測試** — 改完後請使用者在瀏覽器按 **Ctrl+Shift+R** 或直接重新整理 (Refresh) 來檢視變更。
 
 ## 注意事項
 
-- Cytoscape style 改完後需要重建 cy instance 才生效（在 symbol_view.js 裡 Cytoscape 是在 `_symFetchAndRender` 呼叫 `_symBuildCyStyle()`，每次 render 都重建，所以直接改即可）
-- 如果同時改間距常數 + Cytoscape style，確保兩者數值一致（常數供 layout 計算，style 供 Cytoscape 渲染）
-- `layout_editor.html` 是獨立 HTML 工具，可直接用 `file://` 開啟確認效果
+- **沒有 Cytoscape Style**：Symbol View 已經徹底擺脫 Cytoscape，不再有 `_symBuildCyStyle()`，所有樣式請直接改 CSS 或 SVG 屬性。
+- **沒有 layout_editor.html**：目前已無此預覽工具，修改後皆需直接重整專案頁面確認。
+- 改動 SVG 尺寸時，請確保 `sv_graph.js` 裡的 `_SV_` 常數跟 `symbol_view.css` 裡的字體/邊界設定不會衝突 (例如字體變大但 `_SV_METHOD_H` 沒調大導致文字被切)。
