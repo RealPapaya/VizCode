@@ -364,9 +364,14 @@ function symViewClose() {
     _svSyncNavBtns();
     _svUpdateStructBtn(false);
 
-    const results = document.getElementById('sv-search-results');
+        const results = document.getElementById('sv-search-results');
     if (results) results.hidden = true;
     _svState.searchOpen = false;
+
+    // Sync topbar mode buttons to ensure Galaxy mode can be activated after closing Structure View
+    if (typeof syncTopbarModeButtons === 'function') {
+        syncTopbarModeButtons();
+    }
 }
 
 function _svPushHistory() {

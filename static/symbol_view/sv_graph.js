@@ -1786,8 +1786,8 @@ function _svFocusCardMarkupLegacy(sym, opts = {}) {
           </div>
           <div class="sv-fd-section-body">
             <span class="sv-fd-metric">${lineCount} lines</span>
-            <span class="sv-fd-metric">↓ ${callers} callers</span>
-            <span class="sv-fd-metric">↑ ${callees} callees</span>
+            <span class="sv-fd-metric">${callers} callers</span>
+            <span class="sv-fd-metric">${callees} callees</span>
           </div>
         </div>
       </div>`;
@@ -1835,8 +1835,8 @@ function _svFocusCardMarkup(sym, opts = {}) {
           </div>
           <div class="sv-fd-section-body">
             <span class="sv-fd-metric" data-metric="lines">${lineCount} lines</span>
-            <span class="sv-fd-metric sv-fd-metric-clickable" data-metric="callers">&#8595;${callers > 1 ? ' &#215;' + callers : ''} callers</span>
-            <span class="sv-fd-metric sv-fd-metric-clickable" data-metric="callees">&#8593;${callees > 1 ? ' &#215;' + callees : ''} callees</span>
+            <span class="sv-fd-metric sv-fd-metric-clickable" data-metric="callers">${callers} callers</span>
+            <span class="sv-fd-metric sv-fd-metric-clickable" data-metric="callees">${callees} callees</span>
           </div>
         </div>
       </div>`;

@@ -197,6 +197,10 @@ function _buildDashboardDOM() {
 // ── Entry points ──────────────────────────────────────────────────────────────
 function openDashboard() {
     if (state.galaxyActive && typeof closeGalaxy === 'function') closeGalaxy();
+    // Close Structure View if active
+    if (window._sv && window._sv.active && typeof symViewClose === 'function') {
+        symViewClose();
+    }
     
     // Hide breadcrumb and AI chat when entering Dashboard mode
     const breadcrumb = document.getElementById('breadcrumb');

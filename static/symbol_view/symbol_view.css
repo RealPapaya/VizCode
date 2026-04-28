@@ -336,7 +336,7 @@
 .sv-kind-interface .sv-node-bg  { stroke: #2dd4bf; }
 .sv-kind-enum      .sv-node-bg  { stroke: #a855f7; }
 .sv-kind-method    .sv-node-bg,
-.sv-kind-function  .sv-node-bg  { stroke: #fbbf24; }
+.sv-kind-function  .sv-node-bg  { stroke: #60a5fa; }
 .sv-kind-field     .sv-node-bg,
 .sv-kind-variable  .sv-node-bg,
 .sv-kind-property  .sv-node-bg  { stroke: #60a5fa; }
@@ -360,13 +360,13 @@
 }
 
 .sv-node.sv-method-public .sv-node-bg {
-    fill: rgba(251, 191, 36, 0.08);
-    stroke: #fbbf24;
+    fill: rgba(96, 165, 250, 0.08);
+    stroke: #60a5fa;
 }
 
 .sv-node.sv-method-private .sv-node-bg {
-    fill: rgba(96, 165, 250, 0.08);
-    stroke: #60a5fa;
+    fill: rgba(232, 118, 42, 0.08);
+    stroke: #e8762a;
 }
 
 .sv-node.sv-focus-pill .sv-node-bg {
@@ -376,13 +376,13 @@
 }
 
 .sv-node.sv-focus-pill.sv-focus-pill-pub .sv-node-bg {
-    fill: rgba(251, 191, 36, 0.1);
-    stroke: #fbbf24;
+    fill: rgba(96, 165, 250, 0.1);
+    stroke: #60a5fa;
 }
 
 .sv-node.sv-focus-pill.sv-focus-pill-pri .sv-node-bg {
-    fill: rgba(96, 165, 250, 0.1);
-    stroke: #60a5fa;
+    fill: rgba(232, 118, 42, 0.1);
+    stroke: #e8762a;
 }
 
 .sv-pill-name {
@@ -403,11 +403,11 @@
 }
 
 .sv-section-label-public {
-    fill: #f1cf6b;
+    fill: #8dbdff;
 }
 
 .sv-section-label-private {
-    fill: #8dbdff;
+    fill: #f0954e;
 }
 
 .sv-section-divider {
@@ -416,11 +416,11 @@
 }
 
 .sv-section-divider-public {
-    stroke: rgba(251, 191, 36, 0.34);
+    stroke: rgba(96, 165, 250, 0.34);
 }
 
 .sv-section-divider-private {
-    stroke: rgba(96, 165, 250, 0.34);
+    stroke: rgba(232, 118, 42, 0.34);
 }
 
 /* Accent bar is suppressed for method pill nodes and focus pill nodes via JS;
@@ -510,8 +510,8 @@
     dominant-baseline: middle;
 }
 
-.sv-access-pub  { fill: #fbbf24; }
-.sv-access-priv { fill: #60a5fa; }
+.sv-access-pub  { fill: #60a5fa; }
+.sv-access-priv { fill: #e8762a; }
 
 .sv-compound-toggle {
     cursor: pointer;

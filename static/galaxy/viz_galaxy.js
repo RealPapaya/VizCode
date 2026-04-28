@@ -532,6 +532,10 @@ async function openGalaxy() {
         return;
     }
     if (typeof closeDashboard === 'function') closeDashboard();
+    // Close Structure View if active
+    if (window._sv && window._sv.active && typeof symViewClose === 'function') {
+        symViewClose();
+    }
     
     // Hide breadcrumb and AI chat in Galaxy mode
     const breadcrumb = document.getElementById('breadcrumb');
