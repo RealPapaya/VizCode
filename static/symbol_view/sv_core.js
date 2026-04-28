@@ -29,6 +29,7 @@ const _svState = {
     searchOpen: false,
     searchCache: new Map(),
     hiddenEdgeTypes: new Set(),
+    hideUnrelated: false,
     edgeJumpCursor: new Map(),
     selectedEdgeId: null,
     metricHighlight: null,          // 'callers' | 'callees' | null — metrics-click edge highlight
@@ -117,6 +118,7 @@ function _svEnsureDom() {
           <button id="sv-back-btn" title="Back" disabled>&larr;</button>
           <button id="sv-fwd-btn"  title="Forward" disabled>&rarr;</button>
           <button id="sv-unfocus-btn" title="Clear focus" style="display:none">&#9005;</button>
+          <button id="sv-hide-unrelated-btn" title="Hide unrelated nodes" style="display:none">Focus Only</button>
           <button id="sv-expand-all-btn" title="Expand all classes">Expand All</button>
           <button id="sv-collapse-all-btn" title="Collapse all classes">Collapse All</button>
           <button id="sv-ext-btn" title="Show/hide external symbols">External Symbol</button>
@@ -132,10 +134,10 @@ function _svEnsureDom() {
           </marker>
         </defs>
         <g class="sv-viewport">
-          <g class="sv-cards"></g>
-          <g class="sv-ghosts"></g>
           <g class="sv-edges"></g>
           <g class="sv-edge-labels"></g>
+          <g class="sv-cards"></g>
+          <g class="sv-ghosts"></g>
           <g class="sv-chip-layer"></g>
         </g>
       </svg>
@@ -161,6 +163,9 @@ function _svEnsureDom() {
     root.querySelector('#sv-collapse-all-btn').onclick = _svCollapseAll;
     root.querySelector('#sv-ext-btn').onclick = _svToggleExternal;
     root.querySelector('#sv-ext-btn').classList.toggle('sv-btn-active', _svState.showExternal);
+    root.querySelector('#sv-hide-unrelated-btn').onclick = () => {
+        if (typeof _svToggleHideUnrelated === 'function') _svToggleHideUnrelated();
+    };
 
     _svInitPanZoom();
     if (typeof _svInitSearch === 'function') _svInitSearch();
@@ -301,6 +306,7 @@ function symViewOpen(fileRel) {
     }
     _svSyncNavBtns();
     _svUpdateStructBtn(true);
+    if (typeof refreshGraphZoomControls === 'function') refreshGraphZoomControls();
 }
 
 function symViewActivate(symId) {
@@ -374,6 +380,7 @@ function symViewClose() {
     if (typeof syncTopbarModeButtons === 'function') {
         syncTopbarModeButtons();
     }
+    if (typeof refreshGraphZoomControls === 'function') refreshGraphZoomControls();
 }
 
 function _svPushHistory() {
@@ -437,6 +444,12 @@ function _svSyncNavBtns() {
     if (back) back.disabled = !_svState.history.length;
     if (fwd)  fwd.disabled  = !_svState.future.length;
     if (unf)  unf.style.display = _svState.focusId ? '' : 'none';
+    const hideBtn = document.getElementById('sv-hide-unrelated-btn');
+    if (hideBtn) {
+        hideBtn.style.display = _svState.focusId ? '' : 'none';
+        hideBtn.classList.toggle('sv-btn-active', !!_svState.hideUnrelated);
+        if (!_svState.focusId) _svState.hideUnrelated = false;
+    }
 }
 
 function _svUpdateStructBtn(isOpen) {

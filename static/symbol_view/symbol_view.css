@@ -120,6 +120,7 @@
 #sv-back-btn,
 #sv-fwd-btn,
 #sv-unfocus-btn,
+#sv-hide-unrelated-btn,
 #sv-expand-all-btn,
 #sv-collapse-all-btn,
 #sv-ext-btn {
@@ -138,6 +139,7 @@
 #sv-back-btn:hover:not(:disabled),
 #sv-fwd-btn:hover:not(:disabled),
 #sv-unfocus-btn:hover,
+#sv-hide-unrelated-btn:hover,
 #sv-expand-all-btn:hover,
 #sv-collapse-all-btn:hover,
 #sv-ext-btn:hover {
@@ -151,9 +153,14 @@
     cursor: not-allowed;
 }
 
-#sv-ext-btn.sv-btn-active {
+#sv-ext-btn.sv-btn-active,
+#sv-hide-unrelated-btn.sv-btn-active {
     border-color: var(--accent, #dfa745);
     color: var(--accent, #dfa745);
+}
+
+.sv-hidden-by-filter {
+    display: none !important;
 }
 
 .sv-tb-stats {

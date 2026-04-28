@@ -1719,6 +1719,7 @@ function _svApplyFocus(_opts) {
     }
 
     _svSyncNavBtns();
+    _svApplyHideUnrelated();
 }
 
 function _svDocExcerpt(doc) {
@@ -2488,4 +2489,79 @@ function _svToggleExternal() {
     const btn = document.getElementById('sv-ext-btn');
     if (btn) btn.classList.toggle('sv-btn-active', _svState.showExternal);
     if (_svState.fileRel) _svLoadFileGraph(_svState.fileRel, { pendingFocus: _svState.focusId });
+}
+
+// ── Focus-only filter (hides unrelated nodes/edges when a node is focused) ─
+// Completely independent of the opacity-based focus system. Uses display:none
+// via CSS class sv-hidden-by-filter so it never conflicts with _svApplyFocus.
+
+function _svToggleHideUnrelated() {
+    if (!_svState.focusId) return;
+    _svState.hideUnrelated = !_svState.hideUnrelated;
+    const btn = document.getElementById('sv-hide-unrelated-btn');
+    if (btn) btn.classList.toggle('sv-btn-active', _svState.hideUnrelated);
+    _svApplyHideUnrelated();
+}
+
+function _svApplyHideUnrelated() {
+    const model = _svState.currentGraph;
+    const viewport = _svState.viewport;
+    if (!model || !viewport) return;
+
+    const focusId = _svState.focusId;
+
+    // Auto-reset when no focus
+    if (!focusId && _svState.hideUnrelated) {
+        _svState.hideUnrelated = false;
+        const btn = document.getElementById('sv-hide-unrelated-btn');
+        if (btn) btn.classList.remove('sv-btn-active');
+    }
+
+    const active = !!_svState.hideUnrelated && !!focusId;
+
+    // Compute 1-hop scope from focus node
+    let inScope = new Set();
+    if (active) {
+        const dist = _svBfsDistances(model.adj, focusId);
+        for (const [id, d] of dist) {
+            if (d <= 1) inScope.add(id);
+        }
+    }
+
+    // Hide/show nodes
+    for (const n of model.nodes) {
+        if (!n.el) continue;
+        n.el.classList.toggle('sv-hidden-by-filter', active && !inScope.has(n.id));
+    }
+
+    // Hide/show compound toggle chips
+    const chipsG = viewport.querySelector('.sv-chip-layer');
+    if (chipsG) {
+        chipsG.querySelectorAll('.sv-compound-toggle').forEach(chip => {
+            const cid = chip.dataset.classid;
+            chip.classList.toggle('sv-hidden-by-filter', active && !!cid && !inScope.has(cid));
+        });
+    }
+
+    // Hide/show edges (both visible path and hit-area path)
+    const edgesG = viewport.querySelector('.sv-edges');
+    if (edgesG) {
+        edgesG.querySelectorAll('[data-edgeid]').forEach(p => {
+            const eid = p.dataset.edgeid;
+            const ed = model.edges.find(e => e.id === eid);
+            if (!active || !ed) { p.classList.remove('sv-hidden-by-filter'); return; }
+            const touchesFocus = ed.from === focusId || ed.to === focusId
+                || ed.origFrom === focusId || ed.origTo === focusId;
+            const edgeInScope = touchesFocus || (inScope.has(ed.from) && inScope.has(ed.to));
+            p.classList.toggle('sv-hidden-by-filter', !edgeInScope);
+        });
+    }
+
+    // Hide/show edge count labels
+    const labelsG = viewport.querySelector('.sv-edge-labels');
+    if (labelsG) {
+        labelsG.querySelectorAll('.sv-edge-count').forEach(el => {
+            el.classList.toggle('sv-hidden-by-filter', active);
+        });
+    }
 }

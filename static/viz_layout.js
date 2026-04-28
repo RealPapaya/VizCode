@@ -261,6 +261,11 @@ function getActiveGraphCy() {
     return cy;
 }
 
+function _symViewIsActive() {
+    const p = document.getElementById('sym-view');
+    return !!p && p.classList.contains('active');
+}
+
 function refreshGraphZoomControls() {
     const controls = document.getElementById('graph-zoom-controls');
     if (!controls) return;
@@ -269,6 +274,15 @@ function refreshGraphZoomControls() {
 
     // In Galaxy mode, always show zoom controls
     if (typeof state !== 'undefined' && state.galaxyActive) {
+        if (typeof window.syncGraphIsolateBtn === 'function') window.syncGraphIsolateBtn(false);
+        controls.classList.remove('is-hidden');
+        if (zoomInBtn) zoomInBtn.disabled = false;
+        if (zoomOutBtn) zoomOutBtn.disabled = false;
+        return;
+    }
+
+    // Symbol View active — +/- control the SVG zoom, always enabled
+    if (_symViewIsActive()) {
         if (typeof window.syncGraphIsolateBtn === 'function') window.syncGraphIsolateBtn(false);
         controls.classList.remove('is-hidden');
         if (zoomInBtn) zoomInBtn.disabled = false;
@@ -305,6 +319,24 @@ function zoomActiveGraphByStep(direction) {
         if (typeof window.zoomGalaxyByStep === 'function') {
             window.zoomGalaxyByStep(direction);
         }
+        return;
+    }
+
+    // Symbol View: zoom the SVG viewport directly
+    if (_symViewIsActive() && window._sv) {
+        const z = window._sv.zoom;
+        if (!z) return;
+        const svg = document.getElementById('sv-svg');
+        if (!svg) return;
+        const rect = svg.getBoundingClientRect();
+        const cx = rect.width / 2;
+        const cy = rect.height / 2;
+        const factor = direction > 0 ? 1.25 : 0.8;
+        const nk = Math.max(0.1, Math.min(4, z.k * factor));
+        z.x = cx - (cx - z.x) * (nk / z.k);
+        z.y = cy - (cy - z.y) * (nk / z.k);
+        z.k = nk;
+        if (typeof _svApplyZoom === 'function') _svApplyZoom();
         return;
     }
 
