@@ -31,6 +31,7 @@ src/
   vizcode.py              # CLI / TUI entry
   core/
     analyze_viz.py        # graph build pipeline
+    html_builder.py       # HTML template + build_html / inject_data
     detector.py           # project type detection
     parse_memo.py         # parse cache / memoization
     semantic_enricher.py  # semantic cache support
@@ -42,7 +43,9 @@ src/
     common_parser.py
     json_parser.py
   server/
-    server.py             # HTTP server + API
+    server.py             # HTTP server + API (Handler class + main)
+    job_manager.py        # JOBS state, viewer lifecycle, analysis thread, search index
+    fetcher.py            # ZIP / git / npm input-source helpers
     mcp_server.py         # MCP stdio tools
 
 ai/
@@ -72,7 +75,10 @@ static/
 
 - `src/core/analyze_viz.py`
   - 掃描檔案、呼叫 parser、整理 modules / files / functions / edges / stats
-  - 讀取 `static/` 資產並組出最終 HTML
+  - HTML 組裝已委派給 `html_builder.py`（透過 import）
+- `src/core/html_builder.py`
+  - `HTML_SKELETON` 模板、`build_html(data, job_id)`、`inject_data(html, data)`
+  - 讀取 `static/` 資產並內嵌 CSS / JS
 - `src/core/detector.py`
   - 專案類型判斷
 - `src/core/parse_memo.py`
@@ -286,6 +292,14 @@ Dashboard 在：
 - `ai/ui_tools.py`
 - `src/server/mcp_server.py`
 - `src/server/server.py`
+
+### 如果需求偏 server / job / 資料源
+
+優先看：
+
+- `src/server/server.py`（Handler 路由）
+- `src/server/job_manager.py`（JOBS 狀態、viewer 生命週期、analysis thread）
+- `src/server/fetcher.py`（ZIP / git / npm 下載）
 
 ### 如果需求偏 graph / UI
 
