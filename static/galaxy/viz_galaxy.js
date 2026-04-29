@@ -131,23 +131,17 @@ function _galaxyShowIsolateBtn() {
     const container = document.getElementById('graph-zoom-controls');
     if (!container) return;
     const btn = document.createElement('button');
-    btn.id = 'galaxy-isolate-btn';
-    btn.title = 'Toggle isolate mode — hide unrelated nodes';
-    btn.style.cssText = 'width:36px;height:36px;border-radius:50%;border:1.5px solid rgba(100,150,255,0.35);' +
-        'background:rgba(10,20,35,0.85);color:#94a3b8;font-size:18px;' +
-        'cursor:pointer;display:flex;align-items:center;justify-content:center;' +
-        'transition:all .2s ease;backdrop-filter:blur(4px);pointer-events:auto;flex-shrink:0;';
-    btn.innerHTML = '👁';
-    btn.addEventListener('mouseenter', () => { btn.style.borderColor = '#3b82f6'; btn.style.color = '#e2e8f0'; });
-    btn.addEventListener('mouseleave', () => {
-        btn.style.borderColor = _gIsolateMode ? '#3b82f6' : 'rgba(100,150,255,0.35)';
-        btn.style.color = _gIsolateMode ? '#e2e8f0' : '#94a3b8';
-    });
-    btn.addEventListener('click', () => {
+        btn.id = 'galaxy-isolate-btn';
+    btn.className = 'graph-zoom-btn';
+    btn.type = 'button';
+    btn.setAttribute('aria-label', 'Focus Only');
+    btn.title = 'Focus Only';
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="12" r="3"></circle><path d="M12 5v.01M12 18.99v.01M5 12h.01M18.99 12h.01"></path></svg>`;
+        btn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent event bubbling to zoom controls container
         _gIsolateMode = !_gIsolateMode;
-        btn.style.borderColor = _gIsolateMode ? '#3b82f6' : 'rgba(100,150,255,0.35)';
-        btn.style.color = _gIsolateMode ? '#e2e8f0' : '#94a3b8';
-        btn.style.background = _gIsolateMode ? 'rgba(59,130,246,0.25)' : 'rgba(10,20,35,0.85)';
+        btn.classList.toggle('isolate-active', _gIsolateMode);
+        btn.title = _gIsolateMode ? 'Show All' : 'Focus Only';
         if (_gSig) _gSig.refresh();
     });
     container.prepend(btn);

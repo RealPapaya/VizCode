@@ -424,6 +424,11 @@ body {
     transform: none;
 }
 
+.graph-zoom-btn svg {
+    flex-shrink: 0;
+    pointer-events: none;
+}
+
 #graph-wrap.graph-fullscreen {
     position: fixed !important;
     inset: 0 !important;

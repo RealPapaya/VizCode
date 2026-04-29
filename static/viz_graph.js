@@ -980,8 +980,8 @@ function _graphUpdateIsolateBtnState() {
     const active = !!_graphIsolateMode;
     _graphIsolateBtn.classList.toggle('isolate-active', active);
     _graphIsolateBtn.setAttribute('aria-pressed', active ? 'true' : 'false');
-    _graphIsolateBtn.setAttribute('data-tip', active ? 'Show all nodes' : 'Hide unrelated nodes');
-    _graphIsolateBtn.title = active ? 'Show all nodes' : 'Hide unrelated nodes';
+        _graphIsolateBtn.setAttribute('data-tip', active ? 'Show All' : 'Focus Only');
+    _graphIsolateBtn.title = active ? 'Show All' : 'Focus Only';
 }
 
 function _graphShowIsolateBtn() {
@@ -995,9 +995,10 @@ function _graphShowIsolateBtn() {
     btn.id = 'graph-isolate-btn';
     btn.className = 'graph-zoom-btn';
     btn.type = 'button';
-    btn.setAttribute('aria-label', 'Toggle isolate mode');
-    btn.innerHTML = '&#128065;';
-    btn.addEventListener('click', () => {
+        btn.setAttribute('aria-label', 'Focus Only');
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="12" r="3"></circle><path d="M12 5v.01M12 18.99v.01M5 12h.01M18.99 12h.01"></path></svg>`;
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent event bubbling to zoom controls container
         _graphIsolateMode = !_graphIsolateMode;
         _graphUpdateIsolateBtnState();
         _applyGraphIsolateState();

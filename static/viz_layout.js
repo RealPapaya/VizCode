@@ -272,31 +272,45 @@ function refreshGraphZoomControls() {
     const zoomInBtn = document.getElementById('graph-zoom-in');
     const zoomOutBtn = document.getElementById('graph-zoom-out');
 
-    // In Galaxy mode, always show zoom controls
+        // In Galaxy mode, always show zoom controls
     if (typeof state !== 'undefined' && state.galaxyActive) {
         if (typeof window.syncGraphIsolateBtn === 'function') window.syncGraphIsolateBtn(false);
         controls.classList.remove('is-hidden');
         if (zoomInBtn) zoomInBtn.disabled = false;
         if (zoomOutBtn) zoomOutBtn.disabled = false;
+        // Hide Focus Only button in Galaxy mode
+        const focusBtn = document.getElementById('sv-focus-filter-btn');
+        if (focusBtn) focusBtn.style.display = 'none';
         return;
     }
 
-    // Symbol View active — +/- control the SVG zoom, always enabled
+        // Symbol View active — +/- control the SVG zoom, always enabled
     if (_symViewIsActive()) {
         if (typeof window.syncGraphIsolateBtn === 'function') window.syncGraphIsolateBtn(false);
         controls.classList.remove('is-hidden');
         if (zoomInBtn) zoomInBtn.disabled = false;
         if (zoomOutBtn) zoomOutBtn.disabled = false;
+        
+        // Manage Focus Only button visibility in Symbol View
+        const focusBtn = document.getElementById('sv-focus-filter-btn');
+        if (focusBtn && typeof window._svState !== 'undefined') {
+            const hasFocus = !!window._svState.focusId;
+            focusBtn.style.display = hasFocus ? '' : 'none';
+            focusBtn.classList.toggle('isolate-active', !!window._svState.hideUnrelated);
+        }
         return;
     }
 
-    const targetCy = getActiveGraphCy();
+        const targetCy = getActiveGraphCy();
 
     if (!targetCy) {
         if (typeof window.syncGraphIsolateBtn === 'function') window.syncGraphIsolateBtn(false);
         controls.classList.add('is-hidden');
         if (zoomInBtn) zoomInBtn.disabled = true;
         if (zoomOutBtn) zoomOutBtn.disabled = true;
+        // Hide Focus Only button when no graph
+        const focusBtn = document.getElementById('sv-focus-filter-btn');
+        if (focusBtn) focusBtn.style.display = 'none';
         return;
     }
 
@@ -308,9 +322,13 @@ function refreshGraphZoomControls() {
     const curZoom = typeof targetCy.zoom === 'function' ? targetCy.zoom() : GRAPH_ZOOM_SETTINGS.minZoom;
     const eps = 0.0001;
 
-    controls.classList.remove('is-hidden');
+        controls.classList.remove('is-hidden');
     if (zoomInBtn) zoomInBtn.disabled = curZoom >= maxZoom - eps;
     if (zoomOutBtn) zoomOutBtn.disabled = curZoom <= minZoom + eps;
+    
+    // Hide Focus Only button in normal graph mode
+    const focusBtn = document.getElementById('sv-focus-filter-btn');
+    if (focusBtn) focusBtn.style.display = 'none';
 }
 
 function zoomActiveGraphByStep(direction) {
@@ -386,18 +404,28 @@ function initGraphZoomControls() {
     const controls = document.createElement('div');
     controls.id = 'graph-zoom-controls';
     controls.className = 'is-hidden';
-    controls.innerHTML = `
+        controls.innerHTML = `
+        <button id="sv-focus-filter-btn" class="graph-zoom-btn" type="button" aria-label="Focus Only" title="Focus Only" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M12 5v.01M12 18.99v.01M5 12h.01M18.99 12h.01"></path>
+          </svg>
+        </button>
         <button id="graph-zoom-in" class="graph-zoom-btn" type="button" aria-label="Zoom in" data-tip="Zoom in">+</button>
         <button id="graph-zoom-out" class="graph-zoom-btn" type="button" aria-label="Zoom out" data-tip="Zoom out">−</button>
         <button id="graph-fullscreen" class="graph-zoom-btn" type="button" aria-label="Fullscreen" data-tip="Fullscreen">&#x26F6;</button>
     `;
     wrap.appendChild(controls);
 
-    controls.addEventListener('click', e => {
+        controls.addEventListener('click', e => {
         const btn = e.target.closest('.graph-zoom-btn');
         if (!btn || btn.disabled) return;
         if (btn.id === 'graph-fullscreen') {
             toggleGraphFullscreen();
+            return;
+        }
+        if (btn.id === 'sv-focus-filter-btn') {
+            if (typeof _svToggleHideUnrelated === 'function') _svToggleHideUnrelated();
             return;
         }
         zoomActiveGraphByStep(btn.id === 'graph-zoom-in' ? 1 : -1);

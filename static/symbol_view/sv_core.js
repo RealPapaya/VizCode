@@ -115,10 +115,8 @@ function _svEnsureDom() {
           <button id="sv-close-btn" title="Close Symbol View">&times;</button>
         </div>
         <div class="sv-tb-actions">
-          <button id="sv-back-btn" title="Back" disabled>&larr;</button>
+                    <button id="sv-back-btn" title="Back" disabled>&larr;</button>
           <button id="sv-fwd-btn"  title="Forward" disabled>&rarr;</button>
-          <button id="sv-unfocus-btn" title="Clear focus" style="display:none">&#9005;</button>
-          <button id="sv-hide-unrelated-btn" title="Hide unrelated nodes" style="display:none">Focus Only</button>
           <button id="sv-expand-all-btn" title="Expand all classes">Expand All</button>
           <button id="sv-collapse-all-btn" title="Collapse all classes">Collapse All</button>
           <button id="sv-ext-btn" title="Show/hide external symbols">External Symbol</button>
@@ -141,7 +139,7 @@ function _svEnsureDom() {
           <g class="sv-chip-layer"></g>
         </g>
       </svg>
-      <div id="sv-empty" hidden>
+                  <div id="sv-empty" hidden>
         <div class="sv-empty-icon">&#10697;</div>
         <div class="sv-empty-msg">No file loaded</div>
       </div>
@@ -153,19 +151,13 @@ function _svEnsureDom() {
     _svState.viewport = root.querySelector('.sv-viewport');
     _svState.measureHost = root.querySelector('#sv-card-measure');
 
-    root.querySelector('#sv-back-btn').onclick    = _svGoBack;
+        root.querySelector('#sv-back-btn').onclick    = _svGoBack;
     root.querySelector('#sv-fwd-btn').onclick     = _svGoForward;
-    root.querySelector('#sv-unfocus-btn').onclick = () => {
-        if (_svState.focusId) _svSetFocus(null);
-    };
     root.querySelector('#sv-close-btn').onclick = symViewClose;
-    root.querySelector('#sv-expand-all-btn').onclick  = _svExpandAll;
+            root.querySelector('#sv-expand-all-btn').onclick  = _svExpandAll;
     root.querySelector('#sv-collapse-all-btn').onclick = _svCollapseAll;
     root.querySelector('#sv-ext-btn').onclick = _svToggleExternal;
     root.querySelector('#sv-ext-btn').classList.toggle('sv-btn-active', _svState.showExternal);
-    root.querySelector('#sv-hide-unrelated-btn').onclick = () => {
-        if (typeof _svToggleHideUnrelated === 'function') _svToggleHideUnrelated();
-    };
 
     _svInitPanZoom();
     if (typeof _svInitSearch === 'function') _svInitSearch();
@@ -440,16 +432,14 @@ function _svSetFocus(symId) {
 function _svSyncNavBtns() {
     const back = document.getElementById('sv-back-btn');
     const fwd  = document.getElementById('sv-fwd-btn');
-    const unf  = document.getElementById('sv-unfocus-btn');
     if (back) back.disabled = !_svState.history.length;
     if (fwd)  fwd.disabled  = !_svState.future.length;
-    if (unf)  unf.style.display = _svState.focusId ? '' : 'none';
-    const hideBtn = document.getElementById('sv-hide-unrelated-btn');
-    if (hideBtn) {
-        hideBtn.style.display = _svState.focusId ? '' : 'none';
-        hideBtn.classList.toggle('sv-btn-active', !!_svState.hideUnrelated);
-        if (!_svState.focusId) _svState.hideUnrelated = false;
-    }
+    
+    // Reset hideUnrelated when no focus
+    if (!_svState.focusId) _svState.hideUnrelated = false;
+    
+    // Refresh graph zoom controls (includes Focus Only button)
+    if (typeof refreshGraphZoomControls === 'function') refreshGraphZoomControls();
 }
 
 function _svUpdateStructBtn(isOpen) {
@@ -504,6 +494,7 @@ function _svEsc(s) {
 }
 
 // ── Cross-module globals exposed for viz_graph.js / viz_code_panel.js / viz_sidebar.js
+window._svState        = _svState;  // Expose state for viz_layout.js
 window.symViewOpen     = symViewOpen;
 window.symViewActivate = symViewActivate;
 window.symViewClose    = symViewClose;
