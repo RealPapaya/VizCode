@@ -706,6 +706,10 @@ body {
     background: var(--bg);
     /* show theme bg if canvas clears to transparent */
     transition: background 0.8s ease;
+    position: relative;
+    /* creates its own stacking context so children (e.g. l1-empty-overlay)
+       can't bleed above dashboard/galaxy overlays that sit at z-index 5–90 */
+    z-index: 1;
 }
 
 /* ── Galaxy View ───────────────────────────────────────────────────────────── */
