@@ -32,11 +32,13 @@ function _initGlobalTooltip() {
         n.setAttribute('data-tip', t);
         n.removeAttribute('title');
     });
-    document.addEventListener('mouseover', _gtipOver, true);
+        document.addEventListener('mouseover', _gtipOver, true);
     document.addEventListener('mouseout', _gtipOut, true);
     document.addEventListener('mousemove', _gtipMove, true);
     document.addEventListener('scroll', () => _gtipHide(), true);
     document.addEventListener('keydown', () => _gtipHide(), true);
+    // Hide tooltip immediately on any click (prevents sticky tooltip after button press)
+    document.addEventListener('mousedown', () => _gtipHide(), true);
 }
 function _gtipOver(e) {
     // Lazily migrate dynamically-set title= attributes (static ones are migrated at init)

@@ -491,17 +491,8 @@ function _galaxyBuildFilterPanel() {
         const minDeg = _galaxyFilter.minDegree;
     const depthH = _galaxyFilter.depthHops;
     const depthDisabled = !_gPinned;  // Disable depth filter when no pinned node
-    // Build the "Change Folders" scope section — shown at the top when codebase is too large
-    const scopeSection = _gEstimateTotalNodes(window.DATA) > _G_NODE_THRESHOLD
-        ? `${hdr('Scope')}<div style="padding:4px 0 8px">` +
-          `<button id="gf-change-scope-btn" style="width:100%;padding:7px 10px;font-size:12px;font-weight:500;` +
-          `color:#94a3b8;background:rgba(255,255,255,0.04);border:1px solid #252545;border-radius:6px;` +
-          `cursor:pointer;text-align:left;transition:background 0.15s,border-color 0.15s">` +
-          `&#128281; Change Folders…</button></div>`
-        : '';
 
     wrap.innerHTML =
-        scopeSection +
         `<div style="padding:4px 0 6px">${searchHtml}</div>` +
         `${hdr('Node Types', ntActions)}<div style="padding:4px 0 8px">${nodeRows}</div>` +
         `${hdr('Edge Types', etActions)}<div style="padding:4px 0 8px">${edgeRows}</div>` +
@@ -617,47 +608,6 @@ function _galaxyBuildFilterPanel() {
         });
     }
 
-    // "Change Folders" button — only present when codebase is too large
-    const changeScopeBtn = wrap.querySelector('#gf-change-scope-btn');
-    if (changeScopeBtn) {
-        changeScopeBtn.addEventListener('mouseenter', () => {
-            changeScopeBtn.style.background = 'rgba(255,255,255,0.08)';
-            changeScopeBtn.style.borderColor = '#6366f1';
-        });
-        changeScopeBtn.addEventListener('mouseleave', () => {
-            changeScopeBtn.style.background = 'rgba(255,255,255,0.04)';
-            changeScopeBtn.style.borderColor = '#252545';
-        });
-        changeScopeBtn.addEventListener('click', () => {
-            // Tear down current Sigma renderer but keep layout data alive
-            if (_gSig) { try { _gSig.kill(); } catch (_) { } _gSig = null; }
-            _gPinned = null;
-            _gNeighborSet = null;
-            _gHoveredNode = null;
-            _gHopSet = null;
-            if (_gTooltipEl) { _gTooltipEl.remove(); _gTooltipEl = null; }
-            _galaxyHideIsolateBtn();
-            _galaxyHideLayoutBadge();
-            // Reset allowed mods so the gate triggers again
-            _gAllowedMods = null;
-            // Show folder selector; on confirm, rebuild graph with new selection
-            const estTotal = _gEstimateTotalNodes(window.DATA);
-            const pathTree = _gBuildPathTree(window.DATA);
-            _galaxyShowFolderSelectTree(estTotal, pathTree, (selectedPaths) => {
-                _gAllowedMods = selectedPaths;
-                _gSavedAllowedMods = selectedPaths; // persist new selection
-                // Force full graph rebuild with new folder selection
-                _gLayoutToken++;
-                _gLayoutRunning = false;
-                _gLayoutPromise = null;
-                _gLayoutDone = false;
-                _gLayoutNeedsNoverlap = false;
-                _gGraph = null; // force rebuild
-                void openGalaxy();
-            });
-        });
-    }
-
     if (typeof updateFilterTabEnabled === 'function') updateFilterTabEnabled();
     if (typeof _applySidebarTab === 'function') {
         _sbActiveTab = 'filters';
@@ -675,6 +625,94 @@ function _galaxyRestoreFilterPanel() {
     _gFilterPanelSaved = null;
     const explorerTab = document.querySelector('.sb-tab[data-tab="explorer"]');
     if (explorerTab) explorerTab.click();
+}
+
+// ── Change Folders canvas button ────────────────────────────────────────────
+// Floating button in the bottom-right of the galaxy canvas, shown only when
+// the codebase is too large (folder-filtered mode). Uses an inline SVG icon.
+
+let _gChangeFoldersBtnEl = null;
+
+function _galaxyShowChangeFoldersBtn() {
+    if (_gChangeFoldersBtnEl?.isConnected) return;
+    const container = document.getElementById('galaxy-container');
+    if (!container) return;
+
+    const btn = document.createElement('button');
+    btn.id = 'galaxy-change-folders-btn';
+    btn.title = 'Change Folders…';
+    btn.setAttribute('aria-label', 'Change Folders');
+    btn.style.cssText =
+        'position:absolute;top:14px;left:14px;z-index:20;' +
+        'display:flex;align-items:center;gap:7px;' +
+        'padding:6px 13px 6px 10px;' +
+        'background:rgba(10,20,35,0.82);' +
+        'border:1px solid rgba(100,150,255,0.25);' +
+        'border-radius:6px;cursor:pointer;' +
+        'font-size:12px;font-weight:500;color:#94a3b8;' +
+        'transition:background 0.15s,border-color 0.15s,color 0.15s;' +
+        'font-family:inherit;';
+
+    // Open-folder SVG with a plus indicator
+    btn.innerHTML =
+        `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" ` +
+        `stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ` +
+        `aria-hidden="true">` +
+        `<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>` +
+        `<line x1="12" y1="11" x2="12" y2="17"/>` +
+        `<line x1="9" y1="14" x2="15" y2="14"/>` +
+        `</svg>` +
+        `<span>Change Folders…</span>`;
+
+    btn.addEventListener('mouseenter', () => {
+        btn.style.background = 'rgba(99,102,241,0.18)';
+        btn.style.borderColor = 'rgba(99,102,241,0.6)';
+        btn.style.color = '#c7d2fe';
+    });
+    btn.addEventListener('mouseleave', () => {
+        btn.style.background = 'rgba(10,20,35,0.82)';
+        btn.style.borderColor = 'rgba(100,150,255,0.25)';
+        btn.style.color = '#94a3b8';
+    });
+    btn.addEventListener('click', () => {
+        // Tear down current Sigma renderer but keep layout data alive
+        if (_gSig) { try { _gSig.kill(); } catch (_) { } _gSig = null; }
+        _gPinned = null;
+        _gNeighborSet = null;
+        _gHoveredNode = null;
+        _gHopSet = null;
+        if (_gTooltipEl) { _gTooltipEl.remove(); _gTooltipEl = null; }
+        _galaxyHideIsolateBtn();
+        _galaxyHideLayoutBadge();
+        _galaxyHideChangeFoldersBtn();
+        // Reset allowed mods so the gate triggers again
+        _gAllowedMods = null;
+        // Show folder selector; on confirm, rebuild graph with new selection
+        const estTotal = _gEstimateTotalNodes(window.DATA);
+        const pathTree = _gBuildPathTree(window.DATA);
+        _galaxyShowFolderSelectTree(estTotal, pathTree, (selectedPaths) => {
+            _gAllowedMods = selectedPaths;
+            _gSavedAllowedMods = selectedPaths; // persist new selection
+            // Force full graph rebuild with new folder selection
+            _gLayoutToken++;
+            _gLayoutRunning = false;
+            _gLayoutPromise = null;
+            _gLayoutDone = false;
+            _gLayoutNeedsNoverlap = false;
+            _gGraph = null; // force rebuild
+            void openGalaxy();
+        });
+    });
+
+    container.appendChild(btn);
+    _gChangeFoldersBtnEl = btn;
+}
+
+function _galaxyHideChangeFoldersBtn() {
+    if (_gChangeFoldersBtnEl?.parentNode) {
+        _gChangeFoldersBtnEl.parentNode.removeChild(_gChangeFoldersBtnEl);
+    }
+    _gChangeFoldersBtnEl = null;
 }
 
 // ── Galaxy lifecycle ──────────────────────────────────────────────────────────
@@ -758,6 +796,9 @@ async function openGalaxy() {
         if (_restored) {
             _gLayoutDone = true;
             _gLayoutNeedsNoverlap = false;
+            // Layout is fully restored from localStorage — clear pending flag now
+            // because _galaxyLayoutAsync() will be skipped below.
+            _gPrecomputePending = false;
         } else {
             _galaxyInitPositions();
         }
@@ -779,6 +820,10 @@ async function openGalaxy() {
     _gSearchLower = (_galaxyFilter.searchQuery || '').toLowerCase().trim();
     _galaxyInitSigma();
     _galaxyBuildFilterPanel();
+    // Show the canvas "Change Folders" button only in folder-filtered mode
+    if (_gEstimateTotalNodes(window.DATA) > _G_NODE_THRESHOLD) {
+        _galaxyShowChangeFoldersBtn();
+    }
     if (typeof syncTopbarModeButtons === 'function') syncTopbarModeButtons();
     if (typeof refreshGraphZoomControls === 'function') refreshGraphZoomControls();
 
@@ -810,6 +855,7 @@ function closeGalaxy() {
     state.galaxyActive = false;
     _galaxySyncButtonComputing();
     _galaxyHideLayoutBadge();
+    _galaxyHideChangeFoldersBtn();
 
     // Kill Sigma renderer but KEEP _gGraph alive for instant re-open
     if (_gSig) { try { _gSig.kill(); } catch (_) { } _gSig = null; }
@@ -954,13 +1000,24 @@ async function _galaxyPrecomputeAsync() {
     const gateToken = _gLayoutToken;
     const canStart = await _galaxyWaitForBackgroundIdle(gateToken, 900);
     if (!canStart) {
+        // Idle gate failed (token changed because openGalaxy ran, or page hidden).
+        // If openGalaxy already took over the layout, it owns _gPrecomputePending;
+        // otherwise clear it so the button doesn't stay stuck.
+        if (!_gLayoutRunning && !_gLayoutDone) {
+            _gPrecomputePending = false;
+        }
         _galaxySyncButtonComputing();
         return;
     }
 
     const fp = _gComputeDataFingerprint();
     if (_gGraph && _gDataFingerprint === fp && (_gLayoutDone || _gLayoutRunning)) {
-        if (_gLayoutDone) _gPrecomputePending = false;
+        // Cache hit: graph data hasn't changed and layout is either done or already
+        // running in the foreground. Clear all pending flags so the button doesn't
+        // stay stuck in computing state (fixes: _gLayoutRunning path left
+        // _gPrecomputePending dirty and never hit the finally block).
+        _gPrecomputePending = false;
+        _gBackgroundPrecomputeMode = false;
         _galaxySyncButtonComputing();
         return;
     }
@@ -1351,7 +1408,65 @@ function _galaxyShowFolderSelectTree(totalCount, tree, onConfirm) {
         }
     });
 
-    loadBtn.addEventListener('click', () => {
+    // ── Inline confirm dialog (shown when selection exceeds threshold) ──────────
+    function _showLargeFolderConfirm(nodeCount, onProceed, onCancel) {
+        const confirmOverlay = document.createElement('div');
+        confirmOverlay.style.cssText =
+            'position:absolute;inset:0;z-index:30;background:rgba(0,0,0,0.72);' +
+            'display:flex;align-items:center;justify-content:center';
+
+        const box = document.createElement('div');
+        box.style.cssText =
+            `background:${C.dlgBg};border:1px solid #3a2020;border-radius:10px;` +
+            'padding:22px 24px 18px;width:360px;max-width:92vw;' +
+            'box-shadow:0 16px 48px rgba(0,0,0,0.9);text-align:center';
+
+        const icon = document.createElement('div');
+        icon.style.cssText = 'font-size:28px;margin-bottom:10px';
+        icon.textContent = '⚠️';
+
+        const title = document.createElement('div');
+        title.style.cssText = `font-size:15px;font-weight:700;color:#f87171;margin-bottom:8px`;
+        title.textContent = 'Large Selection';
+
+        const body = document.createElement('div');
+        body.style.cssText = `font-size:12.5px;color:${C.dim};line-height:1.6;margin-bottom:18px`;
+        const overRatio = Math.round((nodeCount / _G_NODE_THRESHOLD) * 10) / 10;
+        body.innerHTML =
+            `You selected <strong style="color:${C.text}">${nodeCount.toLocaleString()} nodes</strong>` +
+            ` — <strong style="color:#f87171">${overRatio}×</strong> the recommended limit of ${_G_NODE_THRESHOLD.toLocaleString()}.` +
+            `<br><br>Galaxy may be <strong style="color:#fbbf24">very slow or unresponsive</strong>.` +
+            `<br>Consider selecting fewer folders.`;
+
+        const btnRow2 = document.createElement('div');
+        btnRow2.style.cssText = 'display:flex;gap:10px;justify-content:center';
+
+        const cancelBtn2 = document.createElement('button');
+        cancelBtn2.textContent = 'Go Back';
+        cancelBtn2.style.cssText =
+            `font-size:12px;color:${C.dim};background:none;border:1px solid ${C.btnBdr};` +
+            'border-radius:6px;padding:7px 18px;cursor:pointer;transition:border-color 0.15s,color 0.15s';
+        cancelBtn2.onmouseenter = () => { cancelBtn2.style.borderColor = C.dim; cancelBtn2.style.color = C.text; };
+        cancelBtn2.onmouseleave = () => { cancelBtn2.style.borderColor = C.btnBdr; cancelBtn2.style.color = C.dim; };
+        cancelBtn2.addEventListener('click', () => { confirmOverlay.remove(); onCancel(); });
+
+        const proceedBtn = document.createElement('button');
+        proceedBtn.textContent = 'Load Anyway';
+        proceedBtn.style.cssText =
+            'font-size:13px;font-weight:600;color:#fff;background:#b91c1c;' +
+            'border:none;border-radius:6px;padding:7px 18px;cursor:pointer;transition:background 0.15s';
+        proceedBtn.onmouseenter = () => { proceedBtn.style.background = '#991b1b'; };
+        proceedBtn.onmouseleave = () => { proceedBtn.style.background = '#b91c1c'; };
+        proceedBtn.addEventListener('click', () => { confirmOverlay.remove(); onProceed(); });
+
+        btnRow2.append(cancelBtn2, proceedBtn);
+        box.append(icon, title, body, btnRow2);
+        confirmOverlay.appendChild(box);
+        // Attach to the folder-select overlay so it appears above the tree dialog
+        overlay.appendChild(confirmOverlay);
+    }
+
+    function _doLoad() {
         const result = new Set();
         function collect(node, parentOn) {
             if (parentOn) return;
@@ -1361,8 +1476,27 @@ function _galaxyShowFolderSelectTree(totalCount, tree, onConfirm) {
         collect(tree, false);
         overlay.remove();
         onConfirm(result.size > 0 ? result : null);
+    }
+
+    loadBtn.addEventListener('click', () => {
+        const total = countSelected();
+        if (total > _G_NODE_THRESHOLD) {
+            _showLargeFolderConfirm(total, _doLoad, () => { /* user goes back — do nothing */ });
+        } else {
+            _doLoad();
+        }
     });
-    loadAllBtn.addEventListener('click', () => { overlay.remove(); onConfirm(null); });
+    loadAllBtn.addEventListener('click', () => {
+        const allTotal = _gEstimateTotalNodes(window.DATA);
+        if (allTotal > _G_NODE_THRESHOLD) {
+            _showLargeFolderConfirm(allTotal,
+                () => { overlay.remove(); onConfirm(null); },
+                () => { /* user goes back */ }
+            );
+        } else {
+            overlay.remove(); onConfirm(null);
+        }
+    });
 
     // ── Initial render ────────────────────────────────────────────────────────
     syncCheckboxes();

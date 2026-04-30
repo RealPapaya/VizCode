@@ -282,6 +282,21 @@ return (
 
 ---
 
+### 2026-04-28: Galaxy 按鈕卡在 computing 狀態（兩個 Bug）
+
+**Bug 1 — `openGalaxy()` localStorage 快取命中時 `_gPrecomputePending` 沒清**
+- **根因**: `openGalaxy()` 中設了 `_gPrecomputePending = true`，然後 localStorage 命中設了 `_gLayoutDone = true`。因為 `_gLayoutDone = true`，`_galaxyLayoutAsync()` 被跳過，而清除 pending 的逻輯在 `_galaxyLayoutAsync` 裡，沒有人清除。
+- **修復**: `static/galaxy/viz_galaxy.js` — localStorage 命中後立即加一行 `_gPrecomputePending = false`。
+
+**Bug 2 — background precompute idle gate 失敗時 `_gPrecomputePending` 沒清**
+- **根因**: `_galaxyWaitForBackgroundIdle` 回傳 `false`（token 改變，也就是用戶開了 Galaxy）時，`_galaxyPrecomputeAsync` 直接 return，`_gPrecomputePending = true` 沒清除。
+- **修復**: `static/galaxy/viz_galaxy.js` — `canStart = false` 路徑中，若 layout 未在執行也未完成，則清除 `_gPrecomputePending`。
+
+**Bug 3 — `_galaxyPrecomputeAsync()` 内在記憶體内 fingerprint 符合但 `_gLayoutRunning=true` 時沒清**
+- **修復**: cache 命中分支無條件清除 `_gPrecomputePending = false` 和 `_gBackgroundPrecomputeMode = false`。
+
+---
+
 ### 2026-04-28: L0/L1 相機位置修復 & Galaxy too-large 按鈕修復
 **Bug 1 — L1 → L0 返回時相機未 fit**
 - **根因**: `applyLayoutWithCache()` cache hit 路徑設定 `fit: false`，且 `onStop(true)` 僅呼叫 `showLoading(false)`，沒有呼叫 `cy.fit()`，導致從 L1 返回 L0 時相機停在 L1 的位置。
