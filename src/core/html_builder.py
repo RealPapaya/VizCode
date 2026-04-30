@@ -439,28 +439,52 @@ HTML_TEMPLATE = HTML_SKELETON
 def build_html(data: dict, job_id: str = None) -> str:
     """Read shared static assets and embed them inline into the HTML skeleton."""
     base = _ROOT_DIR / 'static'
-    css_assets = [base / 'viz.css', base / 'themes.css', base / 'symbol_view' / 'symbol_view.css', base / 'viz_chat.css']
+    css_assets = [
+        base / 'styles' / 'themes.css',
+        base / 'styles' / 'viz_base.css',
+        base / 'styles' / 'viz_panels.css',
+        base / 'styles' / 'viz_code.css',
+        base / 'styles' / 'viz_overlays.css',
+        base / 'styles' / 'viz_features.css',
+        base / 'symbol_view' / 'symbol_view.css',
+        base / 'styles' / 'viz_chat.css',
+    ]
     js_assets = [
-        base / 'i18n.js',
-        base / 'viz_utils.js',
-        base / 'viz_state.js',
-        base / 'viz_constants.js',
-        base / 'viz_preferences.js',
-        base / 'viz_code_panel.js',
+        # ── core ──────────────────────────────────────────────────────────────
+        base / 'core' / 'i18n.js',
+        base / 'core' / 'viz_utils.js',
+        base / 'core' / 'viz_state.js',
+        base / 'core' / 'viz_constants.js',
+        # ── ui ────────────────────────────────────────────────────────────────
+        base / 'ui' / 'viz_preferences.js',
+        base / 'ui' / 'viz_code_panel.js',
+        # ── file_viewers ──────────────────────────────────────────────────────
         base / 'file_viewers' / 'viz_office.js',
         base / 'file_viewers' / 'viz_pdf.js',
         base / 'file_viewers' / 'viz_markdown.js',
-        base / 'viz_toolbar.js',
-        base / 'viz_sidebar.js',
-        base / 'viz_graph.js',
-        base / 'viz_search.js',
-        base / 'viz_dashboard.js',
+        # ── ui (continued) ────────────────────────────────────────────────────
+        base / 'ui' / 'viz_toolbar.js',
+        base / 'ui' / 'viz_sidebar.js',
+        # ── features/graph (split from viz_graph.js) ──────────────────────────
+        base / 'features' / 'graph' / 'graph_style.js',
+        base / 'features' / 'graph' / 'graph_core.js',
+        base / 'features' / 'graph' / 'graph_l2.js',
+        base / 'features' / 'graph' / 'graph_l1.js',
+        base / 'features' / 'graph' / 'graph_interact.js',
+        # ── features ──────────────────────────────────────────────────────────
+        base / 'features' / 'viz_search.js',
+        base / 'features' / 'viz_dashboard.js',
+        # ── galaxy ────────────────────────────────────────────────────────────
         base / 'galaxy' / 'viz_galaxy.js',          # state, constants, UI, Sigma, reducers
-        base / 'galaxy' / 'viz_galaxy_physics.js',   # FA2 physics (BH, FA2, Noverlap)
-        base / 'galaxy' / 'viz_galaxy_graph.js',     # graph building + initial positions
-        base / 'viz_layout.js',
-        base / 'viz_chat.js',
-        base / 'viz.js',              # boot — must be last of viz_* files
+        base / 'galaxy' / 'viz_galaxy_physics.js',  # FA2 physics (BH, FA2, Noverlap)
+        base / 'galaxy' / 'viz_galaxy_graph.js',    # graph building + initial positions
+        # ── ui (layout — must come after graph initCy) ────────────────────────
+        base / 'ui' / 'viz_layout.js',
+        # ── features (continued) ──────────────────────────────────────────────
+        base / 'features' / 'viz_chat.js',
+        # ── boot (must be last) ───────────────────────────────────────────────
+        base / 'viz.js',
+        # ── symbol_view ───────────────────────────────────────────────────────
         base / 'symbol_view' / 'sv_core.js',    # state, DOM lifecycle, public API
         base / 'symbol_view' / 'sv_search.js',  # fuzzy search dropdown
         base / 'symbol_view' / 'sv_graph.js',   # SVG renderer + animation

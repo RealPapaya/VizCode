@@ -52,7 +52,9 @@
       "Bash(node -c static/viz_toolbar.js)",
       "Bash(node -c static/galaxy/viz_galaxy.js)",
       "Bash(node -c static/galaxy/viz_galaxy_physics.js)",
-      "Bash(node -c static/galaxy/viz_galaxy_graph.js)"
+      "Bash(node -c static/galaxy/viz_galaxy_graph.js)",
+      "Bash(awk '{print $5, $9}')",
+      "PowerShell(Get-ChildItem \"d:\\\\Google AI\\\\CodeViz\\\\static\" -Recurse -File | Select-Object @{N='Path';E={$_.FullName.Replace\\('d:\\\\Google AI\\\\CodeViz\\\\static\\\\',''\\)}} | Sort-Object Path | Format-Table -AutoSize)"
     ],
     "additionalDirectories": [
       "D:\\Google AI\\CodeViz\\testproject\\.local",
