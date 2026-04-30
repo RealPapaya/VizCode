@@ -249,6 +249,19 @@ return (
 
 ---
 
+### 2026-04-28: Tooltip 簡略模式優化
+**改動**: L0/L1/L2 hover 提示框改為兩段式設計。
+
+**行為**:
+- **hover 到 node** → 顯示 `#tooltip`，預設只顯示 `.tip-brief`（**僅檔名/模組名**），位置在鼠標右下角 +32px offset（原為 +14px）。
+- **hover 到提示框** → CSS `:hover` 切換：`.tip-brief` 隱藏，`.tip-full` 展開完整內容（路徑、meta data、dependencies）。
+
+**修改位置**:
+- `static/viz.js` — `showTooltip()` 末段：計算 `briefName`（按 `_t` type 取檔名/模組名），HTML 結構改為 `<div class="tip-brief">...</div><div class="tip-full">全部舊內容</div>`；offset `+14` → `+32`。
+- `static/viz.css` — `#tooltip` 加入 `.tip-brief`、`.tip-full` class 規則；`#tooltip:hover` 時反轉顯示。
+
+---
+
 ### 2026-04-23: NotebookLM 整合
 - **安裝套件**: `notebooklm-py[browser]`, `playwright`, `yt-dlp`
 - **功能**: 可使用 NotebookLM API 建立筆記本、新增來源（包括 YouTube 影片）、AI 分析

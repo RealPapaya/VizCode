@@ -571,14 +571,38 @@ function showTooltip(e) {
         html = `<div>${escapeHtml(d.tt).replace(/\n/g, '<br>')}${kindBadge}</div>`;
     }
 
-    const tip = document.getElementById('tooltip');
+        const tip = document.getElementById('tooltip');
     if (document.getElementById('node-modal-backdrop')?.classList.contains('show')) {
         return; // Don't show tooltip if modal is open
     }
-    tip.innerHTML = html;
+
+    // ── 簡略標題（只顯示檔名）──────────────────────────────────────────────────
+    let briefName = '';
+    if (e.target.isNode()) {
+        const d2 = e.target.data();
+        if (d2._t === 'module') {
+            briefName = d2._m?.id || d2.label || '';
+        } else if (d2._t === 'ext_func' || d2._t === 'drilled_func') {
+            briefName = d2.fn || d2.label || '';
+        } else if (d2._f?.path) {
+            briefName = d2._f.path.split('/').pop();
+        } else if (d2._f?.label) {
+            briefName = d2._f.label;
+        } else {
+            const lines = (d2.tt || '').split('\n');
+            briefName = lines[0] || d2.label || '';
+        }
+    }
+
+    // 完整內容包在 .tip-full 中，hover 時展開
+    const fullHtml = briefName
+        ? `<div class="tip-brief">${escapeHtml(briefName)}</div><div class="tip-full">${html}</div>`
+        : html;
+
+    tip.innerHTML = fullHtml;
     tip.style.display = 'block';
-    tip.style.left = (e.originalEvent.clientX + 14) + 'px';
-    tip.style.top = (e.originalEvent.clientY + 14) + 'px';
+    tip.style.left = (e.originalEvent.clientX + 32) + 'px';
+    tip.style.top = (e.originalEvent.clientY + 32) + 'px';
 }
 function hideTooltip() { document.getElementById('tooltip').style.display = 'none'; }
 

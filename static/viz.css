@@ -2270,23 +2270,49 @@ body {
     background: var(--panel2);
     border: 1px solid var(--border);
     border-radius: 7px;
-    padding: 12px 16px;
+    padding: 8px 14px;
     font-size: 13px;
     pointer-events: auto;
     z-index: 999;
     display: none;
-    min-width: 220px;
+    min-width: 0;
     max-width: 320px;
-    line-height: 1.6;
+    line-height: 1.5;
     white-space: pre-line;
     cursor: pointer;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-    transition: max-width 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s;
+    transition: max-width 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s,
+                padding 0.15s ease;
 }
 
 #tooltip:hover {
     max-width: 600px;
+    padding: 12px 16px;
     box-shadow: 0 0 12px var(--accent);
+}
+
+/* 簡略檔名標題（只在非 hover 狀態顯示） */
+.tip-brief {
+    font-size: 13px;
+    font-weight: 600;
+    color: #f1f5f9;
+    white-space: nowrap;
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 完整內容區塊（預設隱藏，hover 展開） */
+.tip-full {
+    display: none;
+}
+
+#tooltip:hover .tip-brief {
+    display: none;
+}
+
+#tooltip:hover .tip-full {
+    display: block;
 }
 
 .tip-title {
