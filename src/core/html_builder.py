@@ -446,7 +446,7 @@ def build_html(data: dict, job_id: str = None) -> str:
         base / 'styles' / 'viz_code.css',
         base / 'styles' / 'viz_overlays.css',
         base / 'styles' / 'viz_features.css',
-        base / 'symbol_view' / 'symbol_view.css',
+        base / 'features' / 'symbol_view' / 'symbol_view.css',
         base / 'styles' / 'viz_chat.css',
     ]
     js_assets = [
@@ -474,20 +474,20 @@ def build_html(data: dict, job_id: str = None) -> str:
         # ── features ──────────────────────────────────────────────────────────
         base / 'features' / 'viz_search.js',
         base / 'features' / 'viz_dashboard.js',
-        # ── galaxy ────────────────────────────────────────────────────────────
-        base / 'galaxy' / 'viz_galaxy.js',          # state, constants, UI, Sigma, reducers
-        base / 'galaxy' / 'viz_galaxy_physics.js',  # FA2 physics (BH, FA2, Noverlap)
-        base / 'galaxy' / 'viz_galaxy_graph.js',    # graph building + initial positions
+        # ── features/galaxy_view ──────────────────────────────────────────────
+        base / 'features' / 'galaxy_view' / 'viz_galaxy.js',          # state, constants, UI, Sigma, reducers
+        base / 'features' / 'galaxy_view' / 'viz_galaxy_physics.js',  # FA2 physics (BH, FA2, Noverlap)
+        base / 'features' / 'galaxy_view' / 'viz_galaxy_graph.js',    # graph building + initial positions
         # ── ui (layout — must come after graph initCy) ────────────────────────
         base / 'ui' / 'viz_layout.js',
         # ── features (continued) ──────────────────────────────────────────────
         base / 'features' / 'viz_chat.js',
         # ── boot (must be last) ───────────────────────────────────────────────
         base / 'viz.js',
-        # ── symbol_view ───────────────────────────────────────────────────────
-        base / 'symbol_view' / 'sv_core.js',    # state, DOM lifecycle, public API
-        base / 'symbol_view' / 'sv_search.js',  # fuzzy search dropdown
-        base / 'symbol_view' / 'sv_graph.js',   # SVG renderer + animation
+        # ── features/symbol_view ──────────────────────────────────────────────
+        base / 'features' / 'symbol_view' / 'sv_core.js',    # state, DOM lifecycle, public API
+        base / 'features' / 'symbol_view' / 'sv_search.js',  # fuzzy search dropdown
+        base / 'features' / 'symbol_view' / 'sv_graph.js',   # SVG renderer + animation
     ]
     missing = [p for p in css_assets + js_assets if not p.exists()]
 

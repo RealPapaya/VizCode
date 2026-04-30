@@ -166,7 +166,7 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     self.html_error('Result not ready — analysis may still be running')
                 return
-                        try:
+            try:
                 import importlib
                 import html_builder as _hb
                 importlib.reload(_hb)

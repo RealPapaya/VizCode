@@ -50,9 +50,9 @@
       "Bash(node -c static/viz_layout.js)",
       "Bash(node -c static/viz_graph.js)",
       "Bash(node -c static/viz_toolbar.js)",
-      "Bash(node -c static/galaxy/viz_galaxy.js)",
-      "Bash(node -c static/galaxy/viz_galaxy_physics.js)",
-      "Bash(node -c static/galaxy/viz_galaxy_graph.js)",
+      "Bash(node -c static/features/galaxy_view/viz_galaxy.js)",
+      "Bash(node -c static/features/galaxy_view/viz_galaxy_physics.js)",
+      "Bash(node -c static/features/galaxy_view/viz_galaxy_graph.js)",
       "Bash(awk '{print $5, $9}')",
       "PowerShell(Get-ChildItem \"d:\\\\Google AI\\\\CodeViz\\\\static\" -Recurse -File | Select-Object @{N='Path';E={$_.FullName.Replace\\('d:\\\\Google AI\\\\CodeViz\\\\static\\\\',''\\)}} | Sort-Object Path | Format-Table -AutoSize)"
     ],
@@ -69,7 +69,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"d:/Google AI/CodeViz/.claude/hooks/check-python-syntax.py\"",
+            "command": "python \"d:/GOOGLE/VizCode/.claude/hooks/check-python-syntax.py\"",
             "timeout": 10,
             "statusMessage": "Checking Python syntax..."
           }
@@ -81,7 +81,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"d:/Google AI/CodeViz/.claude/hooks/log-session.py\"",
+            "command": "python \"d:/GOOGLE/VizCode/.claude/hooks/log-session.py\"",
             "async": true
           }
         ]
@@ -92,7 +92,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"d:/Google AI/CodeViz/.claude/hooks/save-compact-summary.py\"",
+            "command": "python \"d:/GOOGLE/VizCode/.claude/hooks/save-compact-summary.py\"",
             "async": true
           }
         ]
