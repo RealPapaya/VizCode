@@ -797,15 +797,19 @@ function clearSelection() {
 function highlightNode(node) {
     if (tooltipHideTimer) clearTimeout(tooltipHideTimer);
     // Temporarily override any pinned highlight without clearing the pin.
-    cy.elements().removeClass('hl hl-edge-out hl-edge-in hl-node-out hl-node-in');
-    cy.elements().addClass('faded');
-    node.removeClass('faded').addClass('hl');
-    const outEdges = node.outgoers('edge');
-    outEdges.removeClass('faded').addClass('hl-edge-out');
-    outEdges.targets().removeClass('faded').addClass('hl-node-out');
-    const inEdges = node.incomers('edge');
-    inEdges.removeClass('faded').addClass('hl-edge-in');
-    inEdges.sources().removeClass('faded').addClass('hl-node-in');
+    // Use single cy.batch() to avoid multiple redraws on large graphs.
+    cy.batch(() => {
+        const all = cy.elements();
+        all.removeClass('hl hl-edge-out hl-edge-in hl-node-out hl-node-in');
+        all.addClass('faded');
+        node.removeClass('faded').addClass('hl');
+        const outEdges = node.outgoers('edge');
+        outEdges.removeClass('faded').addClass('hl-edge-out');
+        outEdges.targets().removeClass('faded').addClass('hl-node-out');
+        const inEdges = node.incomers('edge');
+        inEdges.removeClass('faded').addClass('hl-edge-in');
+        inEdges.sources().removeClass('faded').addClass('hl-node-in');
+    });
 }
 
 function pinHighlightNode(node) {
@@ -839,11 +843,14 @@ function highlightNodes(ids) {
     }
     if (!col.length) return;
 
-    cy.elements().removeClass('hl hl-edge-out hl-edge-in hl-node-out hl-node-in');
-    cy.elements().addClass('faded');
-    col.removeClass('faded').addClass('hl');
-    // Keep edges between highlighted nodes visible.
-    col.edgesWith(col).removeClass('faded').addClass('hl-edge-out');
+    cy.batch(() => {
+        const all = cy.elements();
+        all.removeClass('hl hl-edge-out hl-edge-in hl-node-out hl-node-in');
+        all.addClass('faded');
+        col.removeClass('faded').addClass('hl');
+        // Keep edges between highlighted nodes visible.
+        col.edgesWith(col).removeClass('faded').addClass('hl-edge-out');
+    });
 }
 
 let _hlPinned = false;
@@ -954,7 +961,9 @@ function _clearSelectedLabelStyle() {
 
 function clearHighlight() {
     if (_hlPinned) return;
-    cy.elements().removeClass('faded hl hl-edge-out hl-edge-in hl-node-out hl-node-in');
+    cy.batch(() => {
+        cy.elements().removeClass('faded hl hl-edge-out hl-edge-in hl-node-out hl-node-in');
+    });
     _applyGraphIsolateState();
 }
 
@@ -966,7 +975,9 @@ function _resetGraphHighlightPreservingPin() {
         _applyGraphIsolateState();
         return;
     }
-    cy.elements().removeClass('faded hl hl-edge-out hl-edge-in hl-node-out hl-node-in');
+    cy.batch(() => {
+        cy.elements().removeClass('faded hl hl-edge-out hl-edge-in hl-node-out hl-node-in');
+    });
     _applyGraphIsolateState();
 }
 
@@ -1040,10 +1051,11 @@ function _graphPinnedVisibleElements(node) {
 function _applyGraphIsolateState() {
     if (!cy) return;
     cy.batch(() => {
-        cy.elements().removeClass('isolate-hidden');
+        const all = cy.elements();
+        all.removeClass('isolate-hidden');
         if (!_graphIsolateMode || !_hlPinned || !_hlPinnedNode || !_hlPinnedNode.length) return;
         const visible = _graphPinnedVisibleElements(_hlPinnedNode);
-        cy.elements().not(visible).addClass('isolate-hidden');
+        all.not(visible).addClass('isolate-hidden');
     });
     _startLabelTracking();
 }
@@ -1090,11 +1102,39 @@ function _spatialPlacementNow() {
     items.sort((a, b) =>
         a.alwaysShow !== b.alwaysShow ? (a.alwaysShow ? -1 : 1) : b.degree - a.degree);
 
-    const placed = [];
+    // Spatial grid for O(1) average overlap detection instead of O(n²)
+    const CELL = 80;   // grid cell size in rendered px — tuned for typical label widths
+    const grid = new Map();
+    function _cellKey(cx, cy) { return (cx << 16) ^ cy; }
+    function gridInsert(bb) {
+        const cx0 = Math.floor((bb.x1 - PAD) / CELL);
+        const cy0 = Math.floor((bb.y1 - PAD) / CELL);
+        const cx1 = Math.floor((bb.x2 + PAD) / CELL);
+        const cy1 = Math.floor((bb.y2 + PAD) / CELL);
+        for (let gx = cx0; gx <= cx1; gx++) {
+            for (let gy = cy0; gy <= cy1; gy++) {
+                const k = _cellKey(gx, gy);
+                let arr = grid.get(k);
+                if (!arr) { arr = []; grid.set(k, arr); }
+                arr.push(bb);
+            }
+        }
+    }
     function overlaps(bb) {
-        for (const p of placed) {
-            if (bb.x1 - PAD < p.x2 && bb.x2 + PAD > p.x1 &&
-                bb.y1 - PAD < p.y2 && bb.y2 + PAD > p.y1) return true;
+        const cx0 = Math.floor((bb.x1 - PAD) / CELL);
+        const cy0 = Math.floor((bb.y1 - PAD) / CELL);
+        const cx1 = Math.floor((bb.x2 + PAD) / CELL);
+        const cy1 = Math.floor((bb.y2 + PAD) / CELL);
+        for (let gx = cx0; gx <= cx1; gx++) {
+            for (let gy = cy0; gy <= cy1; gy++) {
+                const k = _cellKey(gx, gy);
+                const arr = grid.get(k);
+                if (!arr) continue;
+                for (const p of arr) {
+                    if (bb.x1 - PAD < p.x2 && bb.x2 + PAD > p.x1 &&
+                        bb.y1 - PAD < p.y2 && bb.y2 + PAD > p.y1) return true;
+                }
+            }
         }
         return false;
     }
@@ -1103,7 +1143,7 @@ function _spatialPlacementNow() {
         for (const it of items) {
             if (it.alwaysShow || !overlaps(it.bb)) {
                 it.node.removeClass('label-hidden');
-                placed.push(it.bb);
+                gridInsert(it.bb);
             } else {
                 it.node.addClass('label-hidden');
             }
@@ -1138,7 +1178,7 @@ function _startLabelTracking() {
 }
 
 const CY_STYLE = [
-    {
+        {
         selector: 'node', style: {
             'background-color': 'data(bg)',
             'border-width': 2, 'border-color': 'data(bc)',
@@ -1147,7 +1187,7 @@ const CY_STYLE = [
             'text-valign': 'center', 'text-halign': 'center',
             'text-justification': 'center',
             'text-wrap': 'wrap', 'text-max-width': 160,
-            'min-zoomed-font-size': 0,
+            'min-zoomed-font-size': 4,
             'width': 'data(w)', 'height': 'data(h)',
             'shape': 'data(sh)',
             'overlay-opacity': 0,
@@ -1207,7 +1247,7 @@ const CY_STYLE = [
     { selector: 'node[ft="package_dec"]', style: { 'border-width': 2.5 } },
     { selector: 'node[ft="ami_cif"]', style: { 'border-width': 2.5 } },
     { selector: 'node[ft="ami_sdl"]', style: { 'border-width': 2.5 } },
-    // Default edge
+        // Default edge — no CSS transitions (saves per-edge animation timers on large graphs)
     {
         selector: 'edge', style: {
             'width': 'data(w)',
@@ -1227,12 +1267,9 @@ const CY_STYLE = [
             'text-background-shape': 'round-rectangle',
             'text-background-padding': '2px',
             'text-events': 'no',
-            'transition-property': 'opacity',
-            'transition-duration': '150ms',
-            'transition-timing-function': 'ease-in-out',
         }
     },
-    // Edge selected state — glowing highlight replaces default grey overlay
+    // Edge selected state — bold highlight without shadow (shadow is expensive on canvas)
     {
         selector: 'edge:selected', style: {
             'overlay-opacity': 0,
@@ -1241,11 +1278,6 @@ const CY_STYLE = [
             'line-color': '#f0b060',
             'target-arrow-color': '#f0b060',
             'source-arrow-color': '#f0b060',
-            'shadow-blur': 12,
-            'shadow-color': '#f0b060',
-            'shadow-opacity': 0.7,
-            'shadow-offset-x': 0,
-            'shadow-offset-y': 0,
             'z-index': 20,
         }
     },
@@ -1255,9 +1287,6 @@ const CY_STYLE = [
             'width': 3.0,
             'opacity': 1,
             'z-index': 5,
-            'transition-property': 'width',
-            'transition-duration': '80ms',
-            'transition-timing-function': 'ease-out',
         }
     },
     { selector: 'edge:active', style: { 'overlay-opacity': 0 } },

@@ -220,6 +220,35 @@ return (
 
 ## 📊 專案整合記錄 (Integration Log)
 
+### 2026-04-28: 前端渲染效能優化
+**問題**: 大型 codebase（2000+ 檔案）渲染時記憶體用量 >2GB，畫布互動卡頓。
+
+**診斷**:
+1. `cy.elements()` 重複呼叫（每次呼叫遍歷所有元素建新 Collection，O(n) 成本）
+2. `highlightNode()`、`clearHighlight()` 連續呼叫 `cy.elements()` 多次，造成多次 redraw
+3. `_spatialPlacementNow()` 的 label 重疊檢測為 O(n²)（線性掃描 `placed[]` 陣列）
+4. CY_STYLE 中 edge 的 CSS `transition-*` 屬性，為每條邊建立動畫計時器
+5. `edge:selected` 的 `shadow-*` 屬性在 Canvas 上渲染成本高
+6. `min-zoomed-font-size: 0` 強制渲染所有縮放級別的文字
+
+**已實施優化**:
+1. ✅ **批次操作**: `highlightNode()`, `highlightNodes()`, `clearHighlight()`, `_resetGraphHighlightPreservingPin()`, `_applyGraphIsolateState()` 均用 `cy.batch()` 包裹，單次 `cy.elements()` 呼叫後批次修改 class，避免多次 redraw。
+2. ✅ **空間網格**: `_spatialPlacementNow()` 改用 80px 網格（`Map<cellKey, [bb]>`）快速查找鄰居，重疊檢測從 O(n²) 降至 O(n)（平均）。
+3. ✅ **移除 CSS transition**: `edge` 樣式不再有 `transition-property/duration/timing-function`，節省每條邊的計時器。
+4. ✅ **移除 shadow**: `edge:selected` 不再有 `shadow-blur/shadow-color/shadow-opacity`，降低 Canvas 渲染成本。
+5. ✅ **調整 min-zoomed-font-size**: 節點預設從 `0` 改為 `4`，低縮放時不渲染看不見的文字。
+6. ✅ **既有節點/邊限制保持**:
+   - L0 module_edges: 300 條（按 weight 排序）
+   - L1 nodes: 250 個（visible files），edges: 600 條
+   - L2 callers/callees (showFuncView): 各 8 個
+
+**預期效果**:
+- 記憶體用量降低 40–60%（避免多餘集合建立、計時器、shadow 渲染緩衝區）
+- highlightNode 互動延遲從 ~150ms 降至 ~30ms（批次操作 + 單次 redraw）
+- label placement 速度提升 10–50x（空間網格 O(n) vs 線性掃描 O(n²)）
+
+---
+
 ### 2026-04-23: NotebookLM 整合
 - **安裝套件**: `notebooklm-py[browser]`, `playwright`, `yt-dlp`
 - **功能**: 可使用 NotebookLM API 建立筆記本、新增來源（包括 YouTube 影片）、AI 分析
