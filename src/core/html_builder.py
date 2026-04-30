@@ -75,11 +75,7 @@ HTML_SKELETON = """\
       <span data-i18n="galaxy">Galaxy</span>
     </button>
   </div>
-  <div class="stats-bar">
-    <div class="stat"><span data-i18n="topbarFiles">Files</span> <strong id="st-files">0</strong></div>
-    <div class="stat"><span data-i18n="topbarModules">Modules</span> <strong id="st-mods">0</strong></div>
-    <div class="stat"><span data-i18n="topbarFunctions">Functions</span> <strong id="st-funcs">0</strong></div>
-  </div>
+  
   <div style="flex:1"></div>
     <div id="search-wrap">
       <div id="sr-modes">

@@ -222,10 +222,10 @@ window.addEventListener('DOMContentLoaded', () => {
                         other_count: rootOther.length,
                     });
                 }
-                const totalFiles = s.total_all_files ?? (s.files + (s.other_files || 0));
-                document.getElementById('st-files').textContent = totalFiles.toLocaleString();
-                document.getElementById('st-mods').textContent = (DATA.modules || []).length || s.modules;
-                document.getElementById('st-funcs').textContent = s.functions.toLocaleString();
+                                                const totalFiles = s.total_all_files ?? (s.files + (s.other_files || 0));
+                if (document.getElementById('st-files')) document.getElementById('st-files').textContent = totalFiles.toLocaleString();
+                if (document.getElementById('st-mods')) document.getElementById('st-mods').textContent = (DATA.modules || []).length || s.modules;
+                if (document.getElementById('st-funcs')) document.getElementById('st-funcs').textContent = s.functions.toLocaleString();
 
                 buildSidebar();
                 buildFileIdLookup();

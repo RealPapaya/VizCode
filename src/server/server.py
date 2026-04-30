@@ -166,8 +166,10 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     self.html_error('Result not ready — analysis may still be running')
                 return
-            try:
+                        try:
                 import importlib
+                import html_builder as _hb
+                importlib.reload(_hb)
                 importlib.reload(analyze_bios)
                 html = analyze_bios.build_html(data, job_id=jid)
                 body = html.encode('utf-8')
