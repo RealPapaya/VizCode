@@ -79,7 +79,6 @@ const LAYOUT_PRESETS = [
                 animate: true,
                 animationDuration: 700,
                 animationEasing: 'ease-in-out-cubic',
-                quality: nodeCount > 150 ? 'default' : 'proof',
                 randomize: false,
                 packComponents: true,
                 // Account for label sizes so nodes don't overlap their labels
@@ -91,7 +90,13 @@ const LAYOUT_PRESETS = [
                 gravityRangeCompound: 1.5,
                 gravityCompound: 1.0,
                 gravity: 0.25,
-                numIter: nodeCount > 200 ? 3500 : 2500,
+                // Lower iter for big graphs; cache + background precompute fills in the quality gap
+                numIter: nodeCount > 1000 ? 1200
+                       : nodeCount > 200  ? 2000
+                       :                    2500,
+                quality: nodeCount > 800 ? 'draft'
+                       : nodeCount > 150 ? 'default'
+                       :                   'proof',
                 tile: true,
                 tilingPaddingVertical: 12,
                 tilingPaddingHorizontal: 12,
@@ -540,6 +545,10 @@ function applyLayoutPreset(id) {
     else if (state.level === 1) _PREFS.set('layoutL1', id);
     else if (state.level === 2) _PREFS.set('layoutL2', id);
 
+    // User explicitly chose a different algorithm — invalidate cached positions for current view
+    const curKey = _currentViewKey();
+    if (curKey) _layoutCacheInvalidate(curKey);
+
     // Update active button visuals
     document.querySelectorAll('#layout-switcher .ls-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.layoutId === id);
@@ -550,12 +559,69 @@ function applyLayoutPreset(id) {
     _setLayoutBadge(preset.label);
     lay.one('layoutstop', () => {
         _setLayoutBadge(null);
+        // Snapshot positions into cache for instant re-entry
+        if (curKey) {
+            const positions = new Map();
+            cy.nodes().forEach(n => {
+                const p = n.position();
+                positions.set(n.id(), { x: p.x, y: p.y });
+            });
+            _layoutCacheSet(curKey, positions);
+        }
         cy.animate({ fit: { eles: cy.elements(), padding: 40 }, duration: 400, easing: 'ease-in-out-cubic' });
     });
     lay.run();
 
     showToast(T('layoutApplied', { label: _layoutLabel(preset) }), 'info');
 }
+
+// ─── Layout cache helper ──────────────────────────────────────────────────────
+// Use cached positions if present (paints instantly via name:'preset'),
+// otherwise run the supplied force-directed config and snapshot positions on
+// layoutstop. Callers pass the viewKey computed via _layoutCacheKey().
+function _currentViewKey() {
+    if (state.level === 0) return _layoutCacheKey(0);
+    if (state.level === 1) return _layoutCacheKey(1, state.activeModule, state.activeSubDir);
+    if (state.level === 2) return _layoutCacheKey(2, null, null, l2State.activeFile || state.activeFile);
+    return null;
+}
+
+function applyLayoutWithCache(viewKey, config, onStop) {
+    const cached = viewKey ? _layoutCacheGet(viewKey) : null;
+    if (cached && cached.positions && cached.positions.size) {
+        console.log(`[layout] cache hit: ${viewKey}`);
+        const lay = cy.layout({
+            name: 'preset',
+            positions: (n) => cached.positions.get(n.id()) || { x: 0, y: 0 },
+            animate: false,
+            fit: false,
+        });
+        lay.one('layoutstop', () => {
+            // Restore viewport to show all elements correctly after cache restore
+            cy.animate({ fit: { eles: cy.elements(), padding: 40 }, duration: 350, easing: 'ease-in-out-cubic' });
+            onStop && onStop(true);
+        });
+        lay.run();
+        return;
+    }
+
+    const lay = cy.layout(config);
+    lay.one('layoutstop', () => {
+        if (viewKey) {
+            const positions = new Map();
+            cy.nodes().forEach(n => {
+                const p = n.position();
+                positions.set(n.id(), { x: p.x, y: p.y });
+            });
+            _layoutCacheSet(viewKey, positions);
+        }
+        onStop && onStop(false);
+    });
+    lay.run();
+}
+
+window.applyLayoutWithCache = applyLayoutWithCache;
+window._currentViewKey = _currentViewKey;
 
 
 // ─── State ────────────────────────────────────────────────────────────────────

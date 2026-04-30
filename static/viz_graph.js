@@ -355,7 +355,9 @@ function renderL2Flowchart(fileRel, focusFuncName = null) {
         cy.elements().stop(true, false);
         l2State._prevNodeIds = new Set(cy.nodes().map(n => n.id()));
 
-        cy.elements().remove();
+        // Reset element collection — json({elements:[]}) releases internal batch buffers
+        // more cleanly than .elements().remove(), which leaves dirty lists around.
+        cy.json({ elements: [] });
         cy.add(els);
         applyCyFont(getSavedFont());
         applyExternalEdgeVisibility();
@@ -366,10 +368,11 @@ function renderL2Flowchart(fileRel, focusFuncName = null) {
         const l2Config = canUseL2
             ? { ...l2Preset.config(), animate: false }
             : { name: 'dagre', rankDir: 'LR', animate: false, nodeSep: 26, rankSep: 80, padding: 50 };
-        const lay = cy.layout(l2Config);
         _syncLayoutIndicator(canUseL2 ? l2LayoutId : 'dagre-lr');
         refreshLayoutSwitcher();  // update visible layout buttons for level 2
-        lay.one('layoutstop', () => {
+        // Cache key: L2 view of this file with current toggle state (ext-funcs/edges affect node set)
+        const _l2Key = `L2:${fileRel}|xf=${l2State.showExternalFuncs?1:0}|xe=${l2State.showExternalEdges?1:0}|exp=${Array.from(l2State.expandedModules||[]).sort().join(',')}`;
+        applyLayoutWithCache(_l2Key, l2Config, (hit) => {
             if (_renderToken !== _l2Token) return;
 
             updateBreadcrumb();
@@ -462,7 +465,6 @@ function renderL2Flowchart(fileRel, focusFuncName = null) {
 
             renderL2Legend();
         });
-        lay.run();
     }, 0);
 }
 
@@ -1428,7 +1430,7 @@ function loadLevel0() {
         });
     });
 
-    cy.elements().remove();
+    cy.json({ elements: [] });
     cy.add(els);
     applyCyFont(getSavedFont());
 
@@ -1443,9 +1445,7 @@ function loadLevel0() {
     if (!l0Preset || (l0Preset.requires && !_isLayoutAvailable(l0Preset.requires))) {
         _syncLayoutIndicator('cose'); // fallback indicator
     }
-    const lay = cy.layout(l0Config);
-    lay.one('layoutstop', () => showLoading(false));
-    lay.run();
+    applyLayoutWithCache('L0', l0Config, () => showLoading(false));
 }
 
 // ─── L1: Module → show ALL files flat (no folder nodes ever) ─────────────────
@@ -1745,7 +1745,7 @@ function renderFilesFlat(modId, files, subPath) {
         const prevNodeIds = new Set(cy.nodes().map(n => n.id()));
         depMapState._prevNodeIds = prevNodeIds;
 
-                cy.elements().remove();
+                cy.json({ elements: [] });
         cy.add(els);
         applyCyFont(getSavedFont());
 
@@ -1785,6 +1785,37 @@ function renderFilesFlat(modId, files, subPath) {
         const mainEls = cy.elements().filter(el => !el.data('isExtra'));
         const extraEls = cy.nodes().filter(n => n.data('isExtra'));
 
+        // L1 cache key — subdir + ext-files toggle + expanded ext-modules all change the node set
+        const _l1Key = `L1:${modId || ''}:${subPath || ''}|ext=${depMapState.showExternalFiles ? 1 : 0}|exp=${Array.from(depMapState.expandedExtModules || []).sort().join(',')}`;
+        const _l1Cached = _layoutCacheGet(_l1Key);
+        if (_l1Cached && _l1Cached.positions && _l1Cached.positions.size) {
+            console.log(`[layout] cache hit: ${_l1Key}`);
+            extraEls.style('display', 'element');
+            const lay = cy.layout({
+                name: 'preset',
+                positions: (n) => _l1Cached.positions.get(n.id()) || { x: 0, y: 0 },
+                animate: false,
+                fit: false,
+            });
+            lay.one('layoutstop', () => {
+                if (_renderToken !== _l1Token) return;
+                updateBreadcrumb();
+                showLoading(false);
+                _postLayoutL1();
+            });
+            lay.run();
+            return;
+        }
+
+        const _snapshotL1Positions = () => {
+            const positions = new Map();
+            cy.nodes().forEach(n => {
+                const p = n.position();
+                positions.set(n.id(), { x: p.x, y: p.y });
+            });
+            _layoutCacheSet(_l1Key, positions);
+        };
+
         if (extraEls.length === 0) {
             // Simple path: no extras, just run the user's preferred layout
             const l1LayoutId = _PREFS.get('layoutL1');
@@ -1799,6 +1830,7 @@ function renderFilesFlat(modId, files, subPath) {
             const lay = cy.layout(l1Config);
             lay.one('layoutstop', () => {
                 if (_renderToken !== _l1Token) return;
+                _snapshotL1Positions();
                 updateBreadcrumb();
                 showLoading(false);
                 _postLayoutL1();
@@ -1850,6 +1882,7 @@ function renderFilesFlat(modId, files, subPath) {
                 });
             });
 
+            _snapshotL1Positions();
             updateBreadcrumb();
             showLoading(false);
             _postLayoutL1();

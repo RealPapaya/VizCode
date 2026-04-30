@@ -249,6 +249,17 @@ return (
 
 ---
 
+### 2026-04-28: L0/L1 相機位置修復 & Galaxy too-large 按鈕修復
+**Bug 1 — L1 → L0 返回時相機未 fit**
+- **根因**: `applyLayoutWithCache()` cache hit 路徑設定 `fit: false`，且 `onStop(true)` 僅呼叫 `showLoading(false)`，沒有呼叫 `cy.fit()`，導致從 L1 返回 L0 時相機停在 L1 的位置。
+- **修復**: `static/viz_layout.js` — `applyLayoutWithCache` cache hit 的 `layoutstop` callback 加入 `cy.animate({ fit, padding: 40, duration: 350 })`。
+
+**Bug 2 — Galaxy too-large 時頂部按鈕未亮**
+- **根因**: `static/galaxy/viz_galaxy.js` 的 too-large 分支只做了 `container.classList.add('active')` 然後 `return`，從未設定 `state.galaxyActive = true` 也未呼叫 `syncTopbarModeButtons()`，導致 `getTopbarMode()` 回傳 `'graph'`，galaxy-btn 不亮，使用者無法切回主圖。
+- **修復**: too-large 分支在 `return` 之前加入 `state.galaxyActive = true` 與 `syncTopbarModeButtons()` 呼叫。
+
+---
+
 ### 2026-04-28: Tooltip 簡略模式優化
 **改動**: L0/L1/L2 hover 提示框改為兩段式設計。
 

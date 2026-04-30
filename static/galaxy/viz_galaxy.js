@@ -551,6 +551,9 @@ async function openGalaxy() {
         const layoutSwitcher = document.getElementById('layout-switcher');
         if (layoutSwitcher) layoutSwitcher.style.display = 'none';
         container.classList.add('active');
+        // Mark galaxy as active so the topbar button lights up and user can switch back
+        state.galaxyActive = true;
+        if (typeof syncTopbarModeButtons === 'function') syncTopbarModeButtons();
         const pathTree = _gBuildPathTree(window.DATA);
         _galaxyShowFolderSelectTree(estTotal, pathTree, (selectedPaths) => {
             _gAllowedMods = selectedPaths; // Set<string> of folder paths, or null (load all)

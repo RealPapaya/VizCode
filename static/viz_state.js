@@ -57,6 +57,70 @@ const depMapState = {
     _animGen: 0,             // increment every render; stale setTimeout callbacks bail out
 };
 
+// ─── Layout result cache (LRU) ───────────────────────────────────────────────
+// viewKey → { positions: Map<nodeId, {x,y}>, ts }
+// Hit: skip force-directed compute, paint via name:'preset'.
+// Invalidated when node set for a view changes (toggle ext, expand, etc).
+const _layoutCache = new Map();
+const _LAYOUT_CACHE_MAX = 30;
+
+function _layoutCacheKey(level, modId, subDir, fileRel) {
+    if (level === 0) return 'L0';
+    if (level === 1) return `L1:${modId || ''}:${subDir || ''}`;
+    if (level === 2) return `L2:${fileRel || ''}`;
+    return null;
+}
+
+function _layoutCacheGet(key) {
+    if (!key) return null;
+    const v = _layoutCache.get(key);
+    if (!v) return null;
+    v.ts = Date.now();
+    _layoutCache.delete(key);
+    _layoutCache.set(key, v);
+    return v;
+}
+
+function _layoutCacheSet(key, positions) {
+    if (!key || !positions || !positions.size) return;
+    if (_layoutCache.has(key)) _layoutCache.delete(key);
+    _layoutCache.set(key, { positions, ts: Date.now() });
+    while (_layoutCache.size > _LAYOUT_CACHE_MAX) {
+        const oldest = _layoutCache.keys().next().value;
+        _layoutCache.delete(oldest);
+    }
+}
+
+function _layoutCacheInvalidate(prefix) {
+    if (!prefix) return;
+    for (const k of Array.from(_layoutCache.keys())) {
+        if (k === prefix || k.startsWith(prefix)) _layoutCache.delete(k);
+    }
+}
+
+window._layoutCache = _layoutCache;
+window._layoutCacheKey = _layoutCacheKey;
+window._layoutCacheGet = _layoutCacheGet;
+window._layoutCacheSet = _layoutCacheSet;
+window._layoutCacheInvalidate = _layoutCacheInvalidate;
+
+// ─── History caps (prevent unbounded growth) ─────────────────────────────────
+const _HISTORY_CAP = 50;
+function pushFileHistorySnapshot(snap) {
+    l2State.fileHistorySnapshots.push(snap);
+    while (l2State.fileHistorySnapshots.length > _HISTORY_CAP)
+        l2State.fileHistorySnapshots.shift();
+}
+function pushNavHistory(entry) {
+    depMapState.navHistory.push(entry);
+    while (depMapState.navHistory.length > _HISTORY_CAP) {
+        depMapState.navHistory.shift();
+        if (depMapState.navHistoryIdx > 0) depMapState.navHistoryIdx--;
+    }
+}
+window.pushFileHistorySnapshot = pushFileHistorySnapshot;
+window.pushNavHistory = pushNavHistory;
+
 // File-ID → module/file lookup, built once after DATA is parsed
 let _fileIdToModule = {};
 let _fileIdToFile = {};

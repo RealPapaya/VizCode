@@ -68,6 +68,8 @@ function pushL1History(modId, subDir) {
     const last = depMapState.navHistory[depMapState.navHistoryIdx];
     if (last && last.modId === entry.modId && last.subDir === entry.subDir) return;
     depMapState.navHistory.push(entry);
+    // Cap at _HISTORY_CAP to prevent unbounded growth on long sessions
+    while (depMapState.navHistory.length > 50) depMapState.navHistory.shift();
     depMapState.navHistoryIdx = depMapState.navHistory.length - 1;
     updateL1NavButtons();
 }
@@ -714,14 +716,20 @@ function resetL2State(fileRel) {
     l2State.expandedModules = new Set();
     l2State.expandedSysCategories = new Set();
     l2State.externalModules = [];
+    // Release large derived maps so old per-file caches don't pin memory via closure refs.
     l2State._sysMap = null;
     l2State._funcs = null;
+    l2State._fidMap = null;
+    l2State._extMap = null;
+    l2State._potMap = null;
+    l2State._prevNodeIds = null;
     if (window.resetL2Filters) resetL2Filters();
 }
 
 function resetL2History() {
     l2State.fileHistory = [];
     l2State.fileHistoryIdx = -1;
+    l2State.fileHistorySnapshots = [];
 }
 
 function resolveModuleForFile(fileRel) {
@@ -822,6 +830,12 @@ function pushL2FileHistory(fileRel) {
         l2State.fileHistory = l2State.fileHistory.slice(0, l2State.fileHistoryIdx + 1);
     }
     l2State.fileHistory.push(fileRel);
+    // Cap to prevent unbounded snapshot/history growth on long sessions
+    while (l2State.fileHistory.length > 50) {
+        l2State.fileHistory.shift();
+        if (Array.isArray(l2State.fileHistorySnapshots) && l2State.fileHistorySnapshots.length)
+            l2State.fileHistorySnapshots.shift();
+    }
     l2State.fileHistoryIdx = l2State.fileHistory.length - 1;
 }
 
