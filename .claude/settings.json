@@ -49,7 +49,10 @@
       "Bash(node -c static/viz_state.js)",
       "Bash(node -c static/viz_layout.js)",
       "Bash(node -c static/viz_graph.js)",
-      "Bash(node -c static/viz_toolbar.js)"
+      "Bash(node -c static/viz_toolbar.js)",
+      "Bash(node -c static/galaxy/viz_galaxy.js)",
+      "Bash(node -c static/galaxy/viz_galaxy_physics.js)",
+      "Bash(node -c static/galaxy/viz_galaxy_graph.js)"
     ],
     "additionalDirectories": [
       "D:\\Google AI\\CodeViz\\testproject\\.local",

@@ -36,6 +36,7 @@ let _gLastUserActionAt = 0;
 let _gLayoutDone = false;
 let _gDataFingerprint = null;
 let _gAllowedMods = null;      // null = all modules; Set<string> = folder-filtered modules
+let _gSavedAllowedMods = null; // persists the user's folder selection across open/close cycles
 let _gDegreeCache = null;       // Map<nodeKey, degree> — built once after graph construction
 let _gNodeLabelCache = null;    // Map<nodeKey, lowerLabel> — for edge reducer search path
 let _gSearchLower = '';         // Cached lowercase search query — avoids per-node toLowerCase
@@ -46,6 +47,29 @@ let _G_COMMUNITY_FOG = null;
 let _G_COMMUNITY_HLDIM = null;
 let _G_COMMUNITY_SEARCHDIM = null;
 let _G_COMMUNITY_BRIGHT = null;
+
+// ── Animation lookup tables (avoid Math.sin per node per frame) ──────────────
+// Pulse/ripple animations call sin(progress * π * 4) for every animated node on
+// every Sigma frame. With multiple animated nodes at 60fps that is thousands of
+// trig calls per second. A 256-entry LUT collapses each call to two adds + an
+// array index without any visual difference.
+const _G_PULSE_LUT_SIZE = 256;
+const _G_PULSE_LUT = (() => {
+    const lut = new Float32Array(_G_PULSE_LUT_SIZE);
+    for (let i = 0; i < _G_PULSE_LUT_SIZE; i++) {
+        // Same formula as inline (Math.sin(progress * π * 4) + 1) / 2,
+        // pre-evaluated across [0,1).
+        const progress = i / _G_PULSE_LUT_SIZE;
+        lut[i] = (Math.sin(progress * Math.PI * 4) + 1) / 2;
+    }
+    return lut;
+})();
+
+function _gPulsePhase(progress) {
+    // progress is clamped to [0,1] before this is called.
+    const idx = (progress * _G_PULSE_LUT_SIZE) | 0;
+    return _G_PULSE_LUT[idx >= _G_PULSE_LUT_SIZE ? _G_PULSE_LUT_SIZE - 1 : idx];
+}
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -342,6 +366,90 @@ function _gComputeDataFingerprint() {
     return `${s.files || 0}:${s.functions || 0}:${(D.symbol_edges || []).length}:${(D.modules || []).length}`;
 }
 
+// ── Layout persistence (across page reloads) ─────────────────────────────────
+// FA2 takes seconds-to-minutes for big graphs. Saving final node positions to
+// localStorage means a browser refresh → reopen Galaxy is instant: positions
+// load from cache, FA2 is skipped entirely. Keyed by data fingerprint + folder
+// selection so any data change invalidates the cached layout naturally.
+
+const _G_LAYOUT_STORAGE_PREFIX = 'vizcode:galaxy:layout:';
+const _G_LAYOUT_STORAGE_VERSION = 1;
+const _G_LAYOUT_STORAGE_LIMIT_BYTES = 6 * 1024 * 1024; // ~6MB safety cap
+
+function _galaxyLayoutStorageKey(fp, allowedMods) {
+    const job = window.JOB_ID || '_';
+    const folders = allowedMods ? Array.from(allowedMods).sort().join(',') : '*';
+    return `${_G_LAYOUT_STORAGE_PREFIX}${job}|${fp}|${folders}`;
+}
+
+function _galaxyLayoutStorageSave() {
+    if (!_gGraph || _gGraph.order === 0 || !_gLayoutDone) return;
+    try {
+        const fp = _gComputeDataFingerprint();
+        const key = _galaxyLayoutStorageKey(fp, _gSavedAllowedMods);
+        const order = _gGraph.order;
+        // Pack as parallel typed-array-friendly arrays. Float32 is plenty for layout.
+        const keys = new Array(order);
+        const xs = new Float32Array(order);
+        const ys = new Float32Array(order);
+        let i = 0;
+        _gGraph.forEachNode((k, attrs) => {
+            keys[i] = k;
+            xs[i] = attrs.x || 0;
+            ys[i] = attrs.y || 0;
+            i++;
+        });
+        const payload = JSON.stringify({
+            v: _G_LAYOUT_STORAGE_VERSION,
+            ts: Date.now(),
+            keys,
+            xs: Array.from(xs),
+            ys: Array.from(ys),
+        });
+        if (payload.length > _G_LAYOUT_STORAGE_LIMIT_BYTES) return;
+        // Best-effort write — silently skip on QuotaExceededError
+        try { localStorage.setItem(key, payload); } catch (_) {}
+    } catch (err) {
+        console.warn('[galaxy] layout save failed', err);
+    }
+}
+
+function _galaxyLayoutStorageLoad() {
+    if (!_gGraph || _gGraph.order === 0) return false;
+    try {
+        const fp = _gComputeDataFingerprint();
+        const key = _galaxyLayoutStorageKey(fp, _gSavedAllowedMods);
+        const raw = localStorage.getItem(key);
+        if (!raw) return false;
+        const parsed = JSON.parse(raw);
+        if (!parsed || parsed.v !== _G_LAYOUT_STORAGE_VERSION) return false;
+        if (!Array.isArray(parsed.keys) || !Array.isArray(parsed.xs) || parsed.keys.length !== parsed.xs.length) return false;
+
+        // Apply only positions for keys that still exist in the current graph.
+        // Coverage threshold: require ≥95% match to consider it a hit.
+        let applied = 0;
+        const total = parsed.keys.length;
+        for (let i = 0; i < total; i++) {
+            const k = parsed.keys[i];
+            if (_gGraph.hasNode(k)) {
+                _gGraph.setNodeAttribute(k, 'x', parsed.xs[i]);
+                _gGraph.setNodeAttribute(k, 'y', parsed.ys[i]);
+                applied++;
+            }
+        }
+        const coverage = applied / Math.max(_gGraph.order, 1);
+        if (coverage < 0.95) {
+            console.log(`[galaxy] cached layout coverage ${(coverage * 100).toFixed(1)}% < 95% — discarding`);
+            return false;
+        }
+        console.log(`[galaxy] restored layout from localStorage (${applied}/${_gGraph.order} nodes, age ${((Date.now() - parsed.ts) / 1000).toFixed(0)}s)`);
+        return true;
+    } catch (err) {
+        console.warn('[galaxy] layout load failed', err);
+        return false;
+    }
+}
+
 // ── Filter panel ─────────────────────────────────────────────────────────────
 
 function _galaxyBuildFilterPanel() {
@@ -383,7 +491,17 @@ function _galaxyBuildFilterPanel() {
         const minDeg = _galaxyFilter.minDegree;
     const depthH = _galaxyFilter.depthHops;
     const depthDisabled = !_gPinned;  // Disable depth filter when no pinned node
+    // Build the "Change Folders" scope section — shown at the top when codebase is too large
+    const scopeSection = _gEstimateTotalNodes(window.DATA) > _G_NODE_THRESHOLD
+        ? `${hdr('Scope')}<div style="padding:4px 0 8px">` +
+          `<button id="gf-change-scope-btn" style="width:100%;padding:7px 10px;font-size:12px;font-weight:500;` +
+          `color:#94a3b8;background:rgba(255,255,255,0.04);border:1px solid #252545;border-radius:6px;` +
+          `cursor:pointer;text-align:left;transition:background 0.15s,border-color 0.15s">` +
+          `&#128281; Change Folders…</button></div>`
+        : '';
+
     wrap.innerHTML =
+        scopeSection +
         `<div style="padding:4px 0 6px">${searchHtml}</div>` +
         `${hdr('Node Types', ntActions)}<div style="padding:4px 0 8px">${nodeRows}</div>` +
         `${hdr('Edge Types', etActions)}<div style="padding:4px 0 8px">${edgeRows}</div>` +
@@ -499,6 +617,47 @@ function _galaxyBuildFilterPanel() {
         });
     }
 
+    // "Change Folders" button — only present when codebase is too large
+    const changeScopeBtn = wrap.querySelector('#gf-change-scope-btn');
+    if (changeScopeBtn) {
+        changeScopeBtn.addEventListener('mouseenter', () => {
+            changeScopeBtn.style.background = 'rgba(255,255,255,0.08)';
+            changeScopeBtn.style.borderColor = '#6366f1';
+        });
+        changeScopeBtn.addEventListener('mouseleave', () => {
+            changeScopeBtn.style.background = 'rgba(255,255,255,0.04)';
+            changeScopeBtn.style.borderColor = '#252545';
+        });
+        changeScopeBtn.addEventListener('click', () => {
+            // Tear down current Sigma renderer but keep layout data alive
+            if (_gSig) { try { _gSig.kill(); } catch (_) { } _gSig = null; }
+            _gPinned = null;
+            _gNeighborSet = null;
+            _gHoveredNode = null;
+            _gHopSet = null;
+            if (_gTooltipEl) { _gTooltipEl.remove(); _gTooltipEl = null; }
+            _galaxyHideIsolateBtn();
+            _galaxyHideLayoutBadge();
+            // Reset allowed mods so the gate triggers again
+            _gAllowedMods = null;
+            // Show folder selector; on confirm, rebuild graph with new selection
+            const estTotal = _gEstimateTotalNodes(window.DATA);
+            const pathTree = _gBuildPathTree(window.DATA);
+            _galaxyShowFolderSelectTree(estTotal, pathTree, (selectedPaths) => {
+                _gAllowedMods = selectedPaths;
+                _gSavedAllowedMods = selectedPaths; // persist new selection
+                // Force full graph rebuild with new folder selection
+                _gLayoutToken++;
+                _gLayoutRunning = false;
+                _gLayoutPromise = null;
+                _gLayoutDone = false;
+                _gLayoutNeedsNoverlap = false;
+                _gGraph = null; // force rebuild
+                void openGalaxy();
+            });
+        });
+    }
+
     if (typeof updateFilterTabEnabled === 'function') updateFilterTabEnabled();
     if (typeof _applySidebarTab === 'function') {
         _sbActiveTab = 'filters';
@@ -546,6 +705,10 @@ async function openGalaxy() {
 
     // ── Folder-select gate: show picker when codebase is too large ────────────
     const estTotal = _gEstimateTotalNodes(window.DATA);
+    // Restore saved folder selection from previous session (persists across open/close)
+    if (_gAllowedMods === null && _gSavedAllowedMods !== null) {
+        _gAllowedMods = _gSavedAllowedMods;
+    }
     if (estTotal > _G_NODE_THRESHOLD && _gAllowedMods === null) {
         document.getElementById('cy').style.display = 'none';
         const layoutSwitcher = document.getElementById('layout-switcher');
@@ -557,6 +720,7 @@ async function openGalaxy() {
         const pathTree = _gBuildPathTree(window.DATA);
         _galaxyShowFolderSelectTree(estTotal, pathTree, (selectedPaths) => {
             _gAllowedMods = selectedPaths; // Set<string> of folder paths, or null (load all)
+            _gSavedAllowedMods = selectedPaths; // persist for next open
             void openGalaxy();
         });
         return;
@@ -588,7 +752,15 @@ async function openGalaxy() {
         _gLayoutNeedsNoverlap = false;
         _galaxyBuildGraph(_gAllowedMods);
         _gBuildDegreeCache();
-        _galaxyInitPositions();
+        // Try to restore positions from previous session before falling back to
+        // randomized initial layout. Cache hit → skip FA2 entirely.
+        const _restored = _galaxyLayoutStorageLoad();
+        if (_restored) {
+            _gLayoutDone = true;
+            _gLayoutNeedsNoverlap = false;
+        } else {
+            _galaxyInitPositions();
+        }
     } else {
         // Same data: kill only Sigma renderer, keep _gGraph alive
         if (_gSig) { try { _gSig.kill(); } catch (_) { } _gSig = null; }
@@ -599,7 +771,10 @@ async function openGalaxy() {
         if (_gTooltipEl) { _gTooltipEl.remove(); _gTooltipEl = null; }
     }
 
-    _gAllowedMods = null; // reset after use — next open will re-check threshold
+    // Save selection for next open, then clear the working copy
+    // (gate check uses _gSavedAllowedMods to skip the picker on re-entry)
+    _gSavedAllowedMods = _gAllowedMods;
+    _gAllowedMods = null;
 
     _gSearchLower = (_galaxyFilter.searchQuery || '').toLowerCase().trim();
     _galaxyInitSigma();
@@ -616,6 +791,8 @@ async function openGalaxy() {
 function closeGalaxy() {
     _gLayoutToken++; // cancel any in-flight async layout
     // Remove folder-select overlay if user closes Galaxy while picker is open
+    // Note: do NOT reset _gSavedAllowedMods here — we want to preserve the
+    // user's folder selection so that re-opening Galaxy skips the picker.
     document.getElementById('g-folder-select')?.remove();
     _gAllowedMods = null;
     const container = document.getElementById('galaxy-container');
@@ -640,6 +817,13 @@ function closeGalaxy() {
     _gNeighborSet = null;
     _gHoveredNode = null;
     _gHopSet = null;
+    _gHoverNeighborSet = null;
+    // Clear interaction sets — they hold references to node keys that, while small,
+    // prevent the JIT from cleaning related closures and grow over a session.
+    if (_gAnimatedNodes && _gAnimatedNodes.size) _gAnimatedNodes.clear();
+    if (_gHighlightSet && _gHighlightSet.size) _gHighlightSet.clear();
+    if (_gBlastSet && _gBlastSet.size) _gBlastSet.clear();
+    _gIsolateMode = false;
     if (_gTooltipEl) { _gTooltipEl.remove(); _gTooltipEl = null; }
 
     _galaxyRestoreFilterPanel();
@@ -654,7 +838,12 @@ window.zoomGalaxyByStep = function (direction) {
     const camera = _gSig.getCamera();
     const factor = direction > 0 ? 1 / 1.5 : 1.5;
     const newRatio = Math.max(0.002, Math.min(50, camera.ratio * factor));
-    camera.animate({ ratio: newRatio }, { duration: 250 });
+    // Sigma's camera.animate accepts an easing function; cubic-out feels more
+    // natural than the default linear curve for discrete zoom steps.
+    camera.animate(
+        { ratio: newRatio },
+        { duration: 220, easing: (t) => 1 - Math.pow(1 - t, 3) }
+    );
 };
 
 function _galaxyTeardownSigma() {
@@ -709,7 +898,11 @@ async function _galaxyLayoutAsync() {
             // }
             _gLayoutNeedsNoverlap = false; // Always false since Noverlap is disabled
             if (_gSig) _gSig.refresh();
-            if (_gLayoutDone) _gPrecomputePending = false;
+            if (_gLayoutDone) {
+                _gPrecomputePending = false;
+                // Persist final positions so a refresh / next session can skip FA2.
+                _galaxyLayoutStorageSave();
+            }
         } finally {
             if (_gLayoutPromise === runPromise) {
                 _gLayoutRunning = false;
@@ -786,7 +979,15 @@ async function _galaxyPrecomputeAsync() {
             _gLayoutNeedsNoverlap = false;
             _galaxyBuildGraph();
             _gBuildDegreeCache();
-            _galaxyInitPositions();
+            // Same persistence check as openGalaxy — background mode also benefits
+            // from skipping FA2 if a valid layout cache exists.
+            const _restoredBg = _galaxyLayoutStorageLoad();
+            if (_restoredBg) {
+                _gLayoutDone = true;
+                _gLayoutNeedsNoverlap = false;
+            } else {
+                _galaxyInitPositions();
+            }
         }
         if (!_gLayoutDone) await _galaxyLayoutAsync();
         if (_gLayoutDone) _gPrecomputePending = false;
@@ -1283,10 +1484,8 @@ function _galaxyInitSigma() {
             _galaxyShowIsolateBtn();
         }
         _gUpdateDepthFilterState();  // Update depth filter state based on pin status
-        if (_gSig) {
-            const _cam = _gSig.getCamera();
-            _cam.animate({ ratio: _cam.ratio * 1.0001 }, { duration: 50 });
-        }
+        // Skip the camera-nudge hack — a direct refresh redraws node sizes/colors
+        // without queuing a 50ms camera animation that fires another redraw.
         _galaxySyncExplorer(_gGraph ? _gGraph.getNodeAttributes(node) : null);
         if (_gSig) _gSig.refresh();
     });
@@ -1350,8 +1549,8 @@ function _galaxyNodeReducer(node, data) {
     const anim = _gAnimatedNodes.get(node);
     if (anim) {
         const elapsed = Date.now() - anim.startTime;
-        const progress = Math.min(elapsed / anim.duration, 1);
-        const phase = (Math.sin(progress * Math.PI * 4) + 1) / 2;
+        const progress = elapsed >= anim.duration ? 1 : elapsed / anim.duration;
+        const phase = _gPulsePhase(progress);
         if (anim.type === 'pulse') {
             data.size = baseSize * (1.3 + phase * 0.5);
             data.color = phase > 0.5 ? '#06b6d4' : '#29d4f5';  // pre-computed brighten
@@ -1890,12 +2089,8 @@ function galaxyHighlightByPath(filePath) {
     }
     
     _gUpdateDepthFilterState();
-    if (_gSig) {
-        const _cam = _gSig.getCamera();
-        _cam.animate({ ratio: _cam.ratio * 1.0001 }, { duration: 50 });
-        _gSig.refresh();
-    }
-    
+    if (_gSig) _gSig.refresh();
+
     return true;
 }
 

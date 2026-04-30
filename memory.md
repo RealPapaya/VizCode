@@ -249,6 +249,39 @@ return (
 
 ---
 
+### 2026-04-28: Galaxy 資料夾選擇兩個複合 Bug 修復
+
+**Bug 1 — `folderSet` 未過濾導致建圖極慢**
+- **根因**: `viz_galaxy_graph.js` 的 `_galaxyBuildGraph()` 中，`symbolIndex.forEach` 沒有檢查 `allowedFilePaths`，導致 `folderSet` 包含整個 codebase 所有 symbol 資料夾節點，FA2 計算量極大。
+- **修復**: `symbolIndex.forEach` 建圖前加入 `if (allowedFilePaths && !allowedFilePaths.has(file)) return;`
+
+**Bug 2 — 資料夾選擇沒有保留，每次重開 Galaxy 都會重新跟出選擇器**
+- **根因**: `openGalaxy()` 建圖後立刻執行 `_gAllowedMods = null`，`closeGalaxy()` 也清掉它。第二次進入 Galaxy 時 `_gAllowedMods === null`，就又觸發資料夾選擇器。
+- **修復**: 新增 `_gSavedAllowedMods` 持久存儲使用者的資料夾選擇：
+  - `openGalaxy()` 入口：`_gAllowedMods === null` 時自動從 `_gSavedAllowedMods` 恢復
+  - 建圖後：`_gSavedAllowedMods = _gAllowedMods`（保存），然後清空 `_gAllowedMods`
+  - 選擇器確認後：同時設定 `_gSavedAllowedMods = selectedPaths`
+  - `closeGalaxy()` ：**不變動** `_gSavedAllowedMods`，機器選擇保留
+
+**Bug 3 — "Change Folders" 按鈕在 filter panel 底部無法看到**
+- **根因**: 按鈕在 `wrap.innerHTML` 字串最後，如果 sidebar 無法捲動就看不到。
+- **修復**: 將「Scope」 section 移到 filter panel **最頂部**（search 框上方），確保永遠可見。
+
+---
+
+### 2026-04-28: Galaxy too-large「Change Folders」按鈕
+**功能**: Galaxy 渲染完畢後，可以回到資料夾選擇器重新選擇範圍。
+
+**實作位置**: `static/galaxy/viz_galaxy.js` — `_galaxyBuildFilterPanel()`
+
+**邏輯**:
+1. Filter panel HTML 末尾加入「Scope」section，按鈕 `#gf-change-scope-btn`
+2. 只在 `_gEstimateTotalNodes(window.DATA) > _G_NODE_THRESHOLD` 時才顯示（小 codebase 不會出現）
+3. 點擊後：先 kill Sigma renderer → 清除 pins/hover → 重置 `_gAllowedMods = null` → 呼叫 `_galaxyShowFolderSelectTree()` 顯示選擇器
+4. 選完後強制 `_gGraph = null` 重建圖 → 呼叫 `openGalaxy()` 重新算圖
+
+---
+
 ### 2026-04-28: L0/L1 相機位置修復 & Galaxy too-large 按鈕修復
 **Bug 1 — L1 → L0 返回時相機未 fit**
 - **根因**: `applyLayoutWithCache()` cache hit 路徑設定 `fit: false`，且 `onStop(true)` 僅呼叫 `showLoading(false)`，沒有呼叫 `cy.fit()`，導致從 L1 返回 L0 時相機停在 L1 的位置。

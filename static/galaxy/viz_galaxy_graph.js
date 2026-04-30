@@ -266,9 +266,11 @@ function _galaxyBuildGraph(allowedMods) {
         }
     });
 
-    Object.values(symbolIndex).forEach(sym => {
+        Object.values(symbolIndex).forEach(sym => {
         const file = _gNormPath(sym.file || '');
         if (!file) return;
+        // When a path filter is active, only add folders for files that are included
+        if (allowedFilePaths && !allowedFilePaths.has(file)) return;
         let dir = _gDirname(file);
         folderSet.add(dir);
         while (dir) {
