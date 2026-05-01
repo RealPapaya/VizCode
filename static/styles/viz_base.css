@@ -273,70 +273,97 @@ body {
     flex-shrink: 0
 }
 
-#back-btn:hover {
-    border-color: var(--accent);
-    color: var(--accent)
-}
-
 #back-btn.visible {
     opacity: 1;
     pointer-events: auto;
-    transform: scale(1);
-    max-width: 110px;
-    min-width: 90px;
-    margin-left: 8px;
-    padding-left: 14px;
-    padding-right: 14px;
-    border-width: 1px;
 }
 
-/* Common breadcrumb buttons - always visible */
-#back-btn,
-#code-toggle-btn {
-    padding: 6px 14px;
-    border-radius: 5px;
+/* ── Breadcrumb action buttons ───────────────────────────────────────────── */
+/* Shared base: Back, Code, Chat all use this token set */
+.bc-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    height: 32px;
+    padding: 0 12px;
+    margin-left: 8px;
+    border-radius: 8px;
     border: 1px solid var(--border);
     background: transparent;
     color: var(--muted);
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.2s;
+}
+
+.bc-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.bc-btn:not(:disabled):hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.bc-btn.active {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* Icon-only variant (square) */
+.bc-btn-icon {
+    min-width: 32px;
+    width: 32px;
+    padding: 0;
+}
+
+/* Wiring existing IDs to the shared class */
+#back-btn,
+#code-toggle-btn {
+    padding: 0 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
     margin-left: 8px;
-    transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.25s;
-    display: flex;
+    height: 32px;
+    min-width: 0;
+    flex-shrink: 0;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 5px;
-    min-width: 80px;
-    height: 32px;
-    flex-shrink: 0;
     white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.2s;
 }
 
-/* Disabled state: always visible but dimmed, not interactive */
 #back-btn:disabled,
 #code-toggle-btn:disabled {
     opacity: 0.35;
     cursor: not-allowed;
-    border-color: var(--border);
-    color: var(--muted);
-    background: transparent;
 }
 
-/* Hover (only when enabled) */
-#back-btn:not(:disabled):hover {
-    border-color: var(--accent);
-    color: var(--accent);
-}
-
-#code-toggle-btn:not(:disabled):hover,
-#code-toggle-btn.active {
+#back-btn:not(:disabled):hover,
+#code-toggle-btn:not(:disabled):hover {
     border-color: var(--accent);
     color: var(--accent);
 }
 
 #code-toggle-btn.active {
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 /* ── Level Switcher ─────────────────────────────────────────────────────────── */
@@ -344,10 +371,10 @@ body {
     display: flex;
     align-items: stretch;
     position: relative;
-    border: 0.5px solid var(--border);
-    border-radius: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
     overflow: hidden;
-    height: 36px;
+    height: 32px;
     margin-left: 8px;
     flex-shrink: 0;
     user-select: none;
@@ -366,14 +393,18 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 0 14px;
+    padding: 0 10px;
     background: transparent;
     border: none;
     color: var(--muted);
     height: 100%;
-    min-width: 40px;
+    min-width: 80px;
     cursor: pointer;
-    position: relative
+    position: relative;
+    overflow: hidden;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em
 }
 
 .lsw-seg.lsw-active {
@@ -397,7 +428,7 @@ body {
 
 .lsw-label {
     position: absolute;
-    bottom: 2px;
+    bottom: 3px;
     left: 0;
     right: 0;
     text-align: center;
@@ -406,7 +437,9 @@ body {
     white-space: nowrap;
     opacity: 0;
     pointer-events: none;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    line-height: 1;
     transition: opacity 0.15s ease, transform 0.15s ease;
     transform: translateY(3px)
 }

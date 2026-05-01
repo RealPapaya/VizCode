@@ -110,9 +110,9 @@ function _svEnsureDom() {
     root.innerHTML = `
       <div id="sv-toolbar">
         <div class="sv-tb-top">
-          <span class="sv-tb-title">Symbol View</span>
+          <span class="sv-tb-title"><span class="banner-lvl l3-clr">Level 3</span> · Structure</span>
           <span id="sv-breadcrumb"></span>
-          <button id="sv-close-btn" title="Close Symbol View">&times;</button>
+          <button id="sv-close-btn" title="Close">&times;</button>
         </div>
         <div class="sv-tb-actions">
                     <button id="sv-back-btn" title="Back" disabled>&larr;</button>

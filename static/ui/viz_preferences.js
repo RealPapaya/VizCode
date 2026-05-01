@@ -155,10 +155,7 @@ function _refreshVisualChrome() {
     const sbTitle = document.querySelector('#sidebar-title span[data-i18n="fileSystem"]');
     if (sbTitle) sbTitle.textContent = T('sidebarFileSystem');
 
-    const l1Title = document.querySelector('#l1-toolbar .l2-title');
-    const l2Title = document.querySelector('#l2-toolbar .l2-title');
-    if (l1Title) l1Title.textContent = T('l1Title');
-    if (l2Title) l2Title.textContent = T('l2Title');
+    // Banner titles are fixed — not overridden by i18n
     const l1Expand = document.getElementById('l1-expand-all-ext');
     const l1Collapse = document.getElementById('l1-collapse-all-ext');
     const l2Expand = document.getElementById('l2-expand-all');

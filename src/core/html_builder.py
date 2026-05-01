@@ -122,13 +122,14 @@ HTML_SKELETON = """\
   <button id="back-btn" onclick="goBack()" data-i18n="back" disabled>&#8592; Back</button>
   <div id="level-switcher" class="lsw-disabled">
     <div class="lsw-pill"></div>
-    <button class="lsw-seg lsw-active" data-seg="0" title="File Graph"><svg class="lsw-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="11" x2="17" y2="6.5"/><line x1="7" y1="13" x2="17" y2="17.5"/></svg><span class="lsw-label">L1 · File Graph</span></button>
+    <button class="lsw-seg lsw-active" data-seg="0" title="File Graph"><svg class="lsw-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="11" x2="17" y2="6.5"/><line x1="7" y1="13" x2="17" y2="17.5"/></svg><span class="lsw-label">File Graph</span></button>
     <div class="lsw-div"></div>
-    <button class="lsw-seg" data-seg="1" title="Call Flow"><svg class="lsw-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/></svg><span class="lsw-label">L2 · Call Flow</span></button>
+    <button class="lsw-seg" data-seg="1" title="Call Flow"><svg class="lsw-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/></svg><span class="lsw-label">Call Flow</span></button>
     <div class="lsw-div"></div>
-    <button class="lsw-seg" data-seg="2" title="Structure"><svg class="lsw-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="6" rx="1"/><path d="M12 9v4"/><path d="M5 13h14"/><path d="M5 13v3"/><rect x="2" y="16" width="6" height="5" rx="1"/><path d="M19 13v3"/><rect x="16" y="16" width="6" height="5" rx="1"/></svg><span class="lsw-label">L3 · Structure</span></button>
+    <button class="lsw-seg" data-seg="2" title="Structure"><svg class="lsw-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="6" rx="1"/><path d="M12 9v4"/><path d="M5 13h14"/><path d="M5 13v3"/><rect x="2" y="16" width="6" height="5" rx="1"/><path d="M19 13v3"/><rect x="16" y="16" width="6" height="5" rx="1"/></svg><span class="lsw-label">Structure</span></button>
   </div>
   <button id="code-toggle-btn" disabled data-i18n-attr="data-tip" data-i18n="codePanelToggleTip"><span class="code-icon">&#60;&#92;&#62;</span> <span data-i18n="codePanelToggle">Code</span></button>
+  <button id="chat-btn" title="VizCode AI (Alt+C)"></button>
 </div>
 
 <div id="layout">
@@ -165,7 +166,7 @@ HTML_SKELETON = """\
   <div id="graph-wrap">
     <div id="l1-toolbar" class="l2-toolbar hidden">
       <div class="l2-left">
-        <div class="l2-title" data-i18n="l1Title">Dependency Map</div>
+        <div class="l2-title"><span class="banner-lvl l1-clr">Level 1</span> · File Graph</div>
         <div class="l2-sub" id="l1-mod-label" data-i18n="noModule">No module</div>
       </div>
         <div class="l2-actions">
@@ -179,7 +180,7 @@ HTML_SKELETON = """\
     </div>
     <div id="l2-toolbar" class="l2-toolbar hidden">
       <div class="l2-left">
-        <div class="l2-title" data-i18n="l2Title">Call Flow</div>
+        <div class="l2-title"><span class="banner-lvl l2-clr">Level 2</span> · Call Flow</div>
         <div class="l2-sub" id="l2-file-label" data-i18n="noFile">No file</div>
       </div>
         <div class="l2-actions">
@@ -198,8 +199,6 @@ HTML_SKELETON = """\
     <div id="sv-view"></div>
     <div id="sym-view"></div>
     <div id="loading"><div class="spinner"></div><span id="loading-msg" data-i18n="loading">Loading...</span><button id="loading-cancel-btn" onclick="cancelRender()" data-i18n="cancelRender">✕ Cancel</button></div>
-    <!-- VizBridge Chat Button (inside graph-wrap) -->
-    <button id="chat-btn" title="VizCode AI (Alt+C)"></button>
   </div>
   <!-- Resizer handle -->
   <div id="resizer" style="display:none"></div>

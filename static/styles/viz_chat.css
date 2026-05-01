@@ -1,41 +1,38 @@
 /* ── VizBridge Chat Panel ─────────────────────────────────────────────────── */
 
-/* ── Toggle button (SVG in canvas top-right) ────────────────────────────── */
+/* ── Toggle button (breadcrumb bar) ─────────────────────────────────────── */
 #chat-btn {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    z-index: 1200;
-    width: 40px;
-    height: 40px;
+    height: 32px;
+    width: 32px;
+    min-width: 32px;
+    margin-left: 8px;
     border-radius: 8px;
-    background: var(--panel);
     border: 1px solid var(--border);
-    color: var(--accent);
-    font-size: 16px;
+    background: transparent;
+    color: var(--muted);
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, .3);
-    transition: all .15s;
+    flex-shrink: 0;
     padding: 0;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
 #chat-btn:hover {
-    background: var(--panel2);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, .4);
-    transform: translateY(-1px);
+    border-color: var(--accent);
+    color: var(--accent);
 }
 
 #chat-btn.active {
-    background: var(--accent);
-    color: #fff;
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 #chat-btn svg {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
 }
 
 /* ── Panel (floating window) ─────────────────────────────────────────────── */
@@ -454,7 +451,7 @@
     font-family: var(--code-font, monospace);
     white-space: pre;
 }
-
+ 
 /* ── QA cache badge ──────────────────────────────────────────────────────── */
 .chat-cached-badge {
     display: block;

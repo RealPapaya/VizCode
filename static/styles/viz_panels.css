@@ -265,6 +265,11 @@
     flex-shrink: 0;
 }
 
+.banner-lvl { font-weight: 700 }
+.l1-clr { color: var(--accent) }
+.l2-clr { color: #a78bfa }
+.l3-clr { color: #34d399 }
+
 .l2-sub {
     font-size: 13px;
     font-weight: 600;
