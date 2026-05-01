@@ -273,58 +273,7 @@ body {
     flex-shrink: 0
 }
 
-#back-btn.visible {
-    opacity: 1;
-    pointer-events: auto;
-}
-
 /* ── Breadcrumb action buttons ───────────────────────────────────────────── */
-/* Shared base: Back, Code, Chat all use this token set */
-.bc-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    height: 32px;
-    padding: 0 12px;
-    margin-left: 8px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    white-space: nowrap;
-    flex-shrink: 0;
-    transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.2s;
-}
-
-.bc-btn:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-}
-
-.bc-btn:not(:disabled):hover {
-    border-color: var(--accent);
-    color: var(--accent);
-}
-
-.bc-btn.active {
-    color: var(--accent);
-    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
-}
-
-/* Icon-only variant (square) */
-.bc-btn-icon {
-    min-width: 32px;
-    width: 32px;
-    padding: 0;
-}
-
-/* Wiring existing IDs to the shared class */
 #back-btn,
 #code-toggle-btn {
     padding: 0 12px;

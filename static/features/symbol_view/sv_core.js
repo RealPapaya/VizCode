@@ -504,8 +504,7 @@ window.svUpdateStructureBtn = function (fileRel, _ext) {
     const hasSymbols = !!(window.DATA && window.DATA.symbol_index &&
         Object.values(window.DATA.symbol_index).some(s => s.file === fileRel));
     const isActive = hasSymbols && !!_svState.fileRel;
-    window._lswUpdate({ l3Available: hasSymbols });
-    if (isActive) window._lswUpdate({ active: 2 });
+    window._lswUpdate({ l3Available: hasSymbols, ...(isActive ? { active: 2 } : {}) });
 };
 window.svHideStructureBtn = function () {
     if (!window._lswUpdate) return;
