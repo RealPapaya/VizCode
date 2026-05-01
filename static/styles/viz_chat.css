@@ -3,8 +3,8 @@
 /* ── Toggle button (breadcrumb bar) ─────────────────────────────────────── */
 #chat-btn {
     height: 32px;
-    width: 32px;
-    min-width: 32px;
+    padding: 0 12px;
+    gap: 5px;
     margin-left: 8px;
     border-radius: 8px;
     border: 1px solid var(--border);
@@ -15,7 +15,10 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    padding: 0;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
     transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
