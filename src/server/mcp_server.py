@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 mcp_server.py — VizCode MCP stdio server
 
@@ -6,8 +6,8 @@ Implements the Model Context Protocol (MCP) over stdio (JSON-RPC 2.0,
 Content-Length framing, same as LSP).
 
 Usage:
-    python mcp_server.py --scan .local/scan_cache.json \
-                         --sem  .local/semantic_cache.json
+    python mcp_server.py --scan .vizcode/scan_cache.json \
+                         --sem  .vizcode/semantic_cache.json
 
 Tools exposed:
     vizcode_query(question)       — keyword-match modules + semantic edges
@@ -870,9 +870,9 @@ def _serve(scan_path: str, sem_path: str, report_path: str) -> None:
 
 def main():
     parser = argparse.ArgumentParser(prog="mcp_server", description="VizCode MCP stdio server")
-    parser.add_argument("--scan", default=".local/scan_cache.json",
+    parser.add_argument("--scan", default=".vizcode/scan_cache.json",
                         help="Path to scan_cache.json")
-    parser.add_argument("--sem", default=".local/semantic_cache.json",
+    parser.add_argument("--sem", default=".vizcode/semantic_cache.json",
                         help="Path to semantic_cache.json")
     parser.add_argument("--report", default="",
                         help="Path to vizcode_report.md (default: derived from --scan)")

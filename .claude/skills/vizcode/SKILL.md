@@ -1,4 +1,4 @@
----
+﻿---
 name: vizcode
 description: Scan a codebase and optionally run semantic analysis + MCP server. Trigger on /vizcode, /vizcode --parse, /vizcode --ai.
 ---
@@ -36,8 +36,8 @@ python "<VIZCODE_ROOT>/vizcode.py" "<PROJECT_PATH>" --scan-only
 ```
 
 Wait for completion. This writes:
-- `<PROJECT_PATH>/.local/scan_cache.json`
-- `<PROJECT_PATH>/.local/vizcode_report.md`
+- `<PROJECT_PATH>/.vizcode/scan_cache.json`
+- `<PROJECT_PATH>/.vizcode/vizcode_report.md`
 
 ### Step 2 — Open Browser
 
@@ -58,15 +58,15 @@ Report: "分析完成，report.md 已生成，瀏覽器已開啟 http://localhos
 python "<VIZCODE_ROOT>/vizcode.py" "<PROJECT_PATH>" --scan-only
 ```
 
-Wait for completion. The scan writes `<PROJECT_PATH>/.local/scan_cache.json`.
+Wait for completion. The scan writes `<PROJECT_PATH>/.vizcode/scan_cache.json`.
 
 ### Phase 2 — Cache Validity Check
 
-Read `<PROJECT_PATH>/.local/scan_cache.json`.
+Read `<PROJECT_PATH>/.vizcode/scan_cache.json`.
 
 Run:
 ```bash
-python "<VIZCODE_ROOT>/semantic_enricher.py" check "<PROJECT_PATH>" < "<PROJECT_PATH>/.local/scan_cache.json"
+python "<VIZCODE_ROOT>/semantic_enricher.py" check "<PROJECT_PATH>" < "<PROJECT_PATH>/.vizcode/scan_cache.json"
 ```
 
 If the output is `valid`, skip Phase 3–4 and go straight to Phase 5 (the existing semantic cache is up-to-date).

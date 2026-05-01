@@ -1,4 +1,4 @@
----
+﻿---
 applyTo: "**"
 ---
 
@@ -12,10 +12,10 @@ python vizcode.py <project_path> --scan-only
 ```
 
 Then read in order:
-1. `.local/INDEX.md` — L0 module overview (always start here, ~100-200 lines)
-2. `.local/L1/<module>.md` — file map for a specific module (~30-70 lines)
-3. `.local/L2/<module>/<file>.md` — function call graph for a specific file (~50-100 lines)
+1. `.vizcode/INDEX.md` — L0 module overview (always start here, ~100-200 lines)
+2. `.vizcode/L1/<module>.md` — file map for a specific module (~30-70 lines)
+3. `.vizcode/L2/<module>/<file>.md` — function call graph for a specific file (~50-100 lines)
 
-**Do not read** `.local/scan_cache.json` or `.local/semantic_cache.json` directly.
+**Do not read** `.vizcode/scan_cache.json` or `.vizcode/semantic_cache.json` directly.
 
 ---

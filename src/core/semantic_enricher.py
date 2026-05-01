@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 semantic_enricher.py — semantic cache I/O module
 
-Provides read/write access to .local/semantic_cache.json.
+Provides read/write access to .vizcode/semantic_cache.json.
 API call logic has been removed; the cache is now populated by the
 Claude Code skill (B2) which writes inferred edges via write_cache().
 
@@ -28,7 +28,7 @@ _SEM_FILENAME = "semantic_cache.json"
 # ─── Cache path ──────────────────────────────────────────────────────────────
 
 def _cache_path(project_root: Path) -> Path:
-    return project_root / ".local" / _SEM_FILENAME
+    return project_root / ".vizcode" / _SEM_FILENAME
 
 
 # ─── Internal load/flush ─────────────────────────────────────────────────────
@@ -62,7 +62,7 @@ def _flush_raw(data: dict, project_root: Path) -> None:
 
 def write_cache(project_root, inferred_edges: list, scan_cache: dict = None) -> None:
     """
-    Write inferred edges to .local/semantic_cache.json.
+    Write inferred edges to .vizcode/semantic_cache.json.
 
     inferred_edges format:
     [
@@ -98,7 +98,7 @@ def write_cache(project_root, inferred_edges: list, scan_cache: dict = None) -> 
 
 
 def read_cache(project_root) -> list:
-    """Return the list of inferred edges from .local/semantic_cache.json."""
+    """Return the list of inferred edges from .vizcode/semantic_cache.json."""
     project_root = Path(project_root)
     data = _load_raw(project_root)
     edges = data.get("edges", [])
@@ -152,7 +152,7 @@ def _cli():
             print("Error: stdin must be a JSON array of edge objects", file=sys.stderr)
             sys.exit(1)
         write_cache(root, payload)
-        print(f"Written {len(payload)} inferred edge(s) to {Path(root) / '.local' / _SEM_FILENAME}")
+        print(f"Written {len(payload)} inferred edge(s) to {Path(root) / '.vizcode' / _SEM_FILENAME}")
 
     elif cmd == "check":
         if not isinstance(payload, dict):

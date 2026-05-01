@@ -1,4 +1,4 @@
-# VizCode — Codebase Explorer
+﻿# VizCode — Codebase Explorer
 
 ## 第一步：先跑掃描
 
@@ -6,7 +6,7 @@
 python "<VIZCODE_ROOT>/vizcode.py" "<PROJECT_PATH>" --scan-only
 ```
 
-等完成後 `.local/scan_cache.json` 會更新，MCP 工具才能用最新資料。
+等完成後 `.vizcode/scan_cache.json` 會更新，MCP 工具才能用最新資料。
 
 > `<VIZCODE_ROOT>` = VizCode 安裝目錄（含 `vizcode.py` 的資料夾）  
 > `<PROJECT_PATH>` = 目標 codebase 的根目錄
@@ -33,4 +33,4 @@ python "<VIZCODE_ROOT>/vizcode.py" "<PROJECT_PATH>" --scan-only
 3. `vizcode_l2("parsers/bios_parser.py")` — 看特定檔案的函式圖
 4. `vizcode_query("cache")` — 找所有跟 cache 相關的模組/邊
 
-**禁止**直接讀取 `.local/scan_cache.json` 或 `.local/semantic_cache.json` 原始檔案。
+**禁止**直接讀取 `.vizcode/scan_cache.json` 或 `.vizcode/semantic_cache.json` 原始檔案。

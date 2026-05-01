@@ -1,4 +1,4 @@
-# VizCode
+﻿# VizCode
 
 > **Understand any codebase at a glance — without installing anything.**
 
@@ -40,7 +40,7 @@ launch.bat          # Windows
 python vizcode.py   # Any platform
 ```
 
-A browser window opens at `http://localhost:7777`. You can optionally generate an AI report (`.local/vizcode_report.md`) before analysis for AI assistant consumption.
+A browser window opens at `http://localhost:7777`. You can optionally generate an AI report (`.vizcode/vizcode_report.md`) before analysis for AI assistant consumption.
 
 ---
 
@@ -122,14 +122,14 @@ launch.bat  (or /vizcode --parse)
                     browser ← launcher.html + inlined JS/CSS
 
 python vizcode.py <path> --scan-only   (headless scan for AI tools)
-  └─▶ .local/scan_cache.json
-  └─▶ .local/INDEX.md + L1/ + L2/     (hierarchical report tree)
+  └─▶ .vizcode/scan_cache.json
+  └─▶ .vizcode/INDEX.md + L1/ + L2/     (hierarchical report tree)
   └─▶ mcp_server.py                   (MCP stdio, used by all AI tools)
         └─▶ vizcode_l0 / l1 / l2 / query / path / health / …
 
 /vizcode --ai  (Claude Code only — semantic enrichment)
   └─▶ Claude infers non-static relationships from scan_cache
-        └─▶ semantic_enricher.py  (writes .local/semantic_cache.json)
+        └─▶ semantic_enricher.py  (writes .vizcode/semantic_cache.json)
 ```
 
 The browser graph shows static edges (imports, calls). The MCP server additionally exposes semantic edges inferred by Claude (`/vizcode --ai`), visible to any AI tool that connects afterward.
@@ -156,7 +156,7 @@ VizCode/
 ├── server.py            # HTTP server + API endpoints
 ├── analyze_viz.py       # Core analysis engine
 ├── detector.py          # Project type detection
-├── semantic_enricher.py # Semantic cache I/O (read/write .local/semantic_cache.json)
+├── semantic_enricher.py # Semantic cache I/O (read/write .vizcode/semantic_cache.json)
 ├── mcp_server.py        # MCP stdio server (vizcode_query/path/explain)
 ├── parsers/
 │   ├── python_parser.py
@@ -178,7 +178,7 @@ VizCode/
 │   ├── skill_body.md    # Shared skill content (single source of truth)
 │   ├── mcp_template.json
 │   └── templates/       # Per-platform frontmatter (cursor/windsurf/gemini/copilot)
-├── .local/
+├── .vizcode/
 │   ├── scan_cache.json        # Per-file AST cache
 │   ├── semantic_cache.json    # AI-inferred edges (written by /vizcode --ai)
 │   ├── INDEX.md               # L0 report (~100-200 lines, always start here)

@@ -1,8 +1,8 @@
-"""
+﻿"""
 ai/vizbridge.py — VizBridge core engine.
 
 Orchestrates AI chat over the VizCode codebase:
-  - ToolRegistry   : wraps the 8 vizcode_* tools (reads .local/ cache directly)
+  - ToolRegistry   : wraps the 8 vizcode_* tools (reads .vizcode/ cache directly)
   - ContextInjector: builds a system prompt from scan_cache stats
   - ProviderRouter : selects the AI provider from config / env vars
   - VizBridge      : main entry — stream_response() drives the tool-use loop
@@ -70,8 +70,8 @@ from ai.chat_modes import resolve as _resolve_mode
 # ─── Config ───────────────────────────────────────────────────────────────────
 
 _CONFIG_PATH = _HERE / "config.json"
-_KEYS_PATH = _ROOT / ".local" / "key" / "ai_keys.json"
-_LEGACY_KEYS_PATH = _ROOT / ".local" / "ai_keys.json"   # pre-folder migration
+_KEYS_PATH = _ROOT / ".vizcode" / "key" / "ai_keys.json"
+_LEGACY_KEYS_PATH = _ROOT / ".vizcode" / "ai_keys.json"   # pre-folder migration
 _SECRET_FIELDS = (
     "anthropic_api_key",
     "openai_api_key",
@@ -296,14 +296,14 @@ class ProviderRouter:
 class ToolRegistry:
     """
     Wraps the 8 vizcode_* tool implementations from mcp_server.py.
-    Loads .local/scan_cache.json lazily on first call.
+    Loads .vizcode/scan_cache.json lazily on first call.
     """
 
     def __init__(self, project_root: str):
         self._root = Path(project_root)
-        self._scan_path = self._root / ".local" / "scan_cache.json"
-        self._sem_path  = self._root / ".local" / "semantic_cache.json"
-        self._report_path = self._root / ".local" / "report" / "vizcode_report.md"
+        self._scan_path = self._root / ".vizcode" / "scan_cache.json"
+        self._sem_path  = self._root / ".vizcode" / "semantic_cache.json"
+        self._report_path = self._root / ".vizcode" / "report" / "vizcode_report.md"
         self._modules: dict | None = None
         self._edges:   list | None = None
         self._adj:     dict | None = None
@@ -497,7 +497,7 @@ class VizBridge:
         # Resolve depth + output into (tool whitelist, prompt addendum).
         whitelist, addendum = _resolve_mode(depth, output)
 
-        scan_path = str(Path(self._root) / ".local" / "scan_cache.json")
+        scan_path = str(Path(self._root) / ".vizcode" / "scan_cache.json")
         system    = self._context.build(self._root, scan_path, addendum=addendum)
         tool_defs = self._tools.definitions(whitelist=whitelist)
 

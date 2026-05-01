@@ -1,4 +1,4 @@
-"""
+﻿"""
 ai/chat_cli.py — VizBridge terminal chat REPL.
 
 Entry point: run_chat(project_root)
@@ -64,7 +64,7 @@ def _print_header(project_root: str, cfg: dict) -> None:
     """Print the one-time session header."""
     from ai.vizbridge import ContextInjector, _load_json
     root_name = Path(project_root).name or project_root
-    scan_path = str(Path(project_root) / ".local" / "scan_cache.json")
+    scan_path = str(Path(project_root) / ".vizcode" / "scan_cache.json")
     scan = _load_json(scan_path)
     entries = scan.get("entries", {})
     n_files = len(entries)

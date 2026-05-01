@@ -20,7 +20,12 @@
       "Bash(python /tmp/test_parser.py)",
       "Bash(python -c \"import sys; sys.path.insert\\(0,'.'\\); exec\\(open\\('/tmp/test_parser.py'\\).read\\(\\)\\)\")",
       "Bash(python _test_parser.py)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "PowerShell(Rename-Item -Path \"d:\\\\GOOGLE\\\\VizCode\\\\.local\" -NewName \".vizcode\" -ErrorAction Stop)",
+      "PowerShell(Copy-Item -Path \"d:\\\\GOOGLE\\\\VizCode\\\\.local\" -Destination \"d:\\\\GOOGLE\\\\VizCode\\\\.vizcode\" -Recurse -Force)",
+      "Bash(python3)",
+      "Bash(python3 -c \"import json; f=open\\('.vizcode/scan_cache.json'\\); d=json.load\\(f\\); print\\('Keys:', list\\(d.keys\\(\\)\\)\\); print\\('schema_rev:', d.get\\('schema_rev'\\)\\); entries=d.get\\('entries',{}\\); k=list\\(entries.keys\\(\\)\\)[5]; print\\('\\\\\\\\nExample entry:', k\\); e=entries[k]; print\\('Entry keys:', list\\(e.keys\\(\\)\\)\\); p=e.get\\('payload',{}\\); print\\('Payload keys:', list\\(p.keys\\(\\)\\)\\); print\\('Funcdefs sample:', p.get\\('funcdefs',[]\\)[:2]\\)\")",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

@@ -1,11 +1,11 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 parse_memo.py — VizCode per-file parser result cache
 
 Stores scan_file() outputs keyed by (file sha256, parser sha256) so that
 unchanged files can be skipped on subsequent builds.
 
-Cache lives at: <project_root>/.local/scan_cache.json
+Cache lives at: <project_root>/.vizcode/scan_cache.json
 Only the parser layer is cached; module/symbol/community assembly always
 runs fresh so that downstream logic can evolve without schema migrations.
 """
@@ -49,7 +49,7 @@ def parser_fingerprint(fn) -> str:
 # ─── Memo I/O ─────────────────────────────────────────────────────────────────
 
 def _memo_path(project_root: Path) -> Path:
-    return project_root / ".local" / _MEMO_FILENAME
+    return project_root / ".vizcode" / _MEMO_FILENAME
 
 
 def open_memo(project_root: Path) -> dict:
@@ -71,7 +71,7 @@ def open_memo(project_root: Path) -> dict:
 
 
 def flush_memo(memo: dict, project_root: Path) -> None:
-    """Persist the in-memory memo dict to .local/scan_cache.json.
+    """Persist the in-memory memo dict to .vizcode/scan_cache.json.
 
     Creates the .local directory if it does not exist (safe no-op if it does).
     """

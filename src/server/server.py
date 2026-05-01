@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 server.py — VIZCODE Local Server V4
 Serves launcher.html and runs analyze_viz.py on demand.
@@ -183,12 +183,12 @@ class Handler(BaseHTTPRequestHandler):
                 self.html_error(f'Failed to render HTML: {e}')
 
         elif p == '/report':
-            # C4: Serve .local/vizcode_report.md for the active job
+            # C4: Serve .vizcode/vizcode_report.md for the active job
             jid = qs.get('job', [''])[0]
             with JOBS_LOCK:
                 job = JOBS.get(jid, {})
             root = job.get('root', '')
-            report_path = os.path.join(root, '.local', 'report', 'vizcode_report.md') if root else ''
+            report_path = os.path.join(root, '.vizcode', 'report', 'vizcode_report.md') if root else ''
             if report_path and os.path.isfile(report_path):
                 try:
                     with open(report_path, encoding='utf-8') as _fh:
@@ -1754,7 +1754,7 @@ class Handler(BaseHTTPRequestHandler):
                               for v in JOBS.values() if v.get('root')]
                 if recent:
                     root = sorted(recent, reverse=True)[0][1]
-            chat_dir = os.path.join(root, '.local', 'chat') if root else ''
+            chat_dir = os.path.join(root, '.vizcode', 'chat') if root else ''
             sessions = []
             if chat_dir and os.path.isdir(chat_dir):
                 for fname in sorted(os.listdir(chat_dir), reverse=True):
@@ -1787,7 +1787,7 @@ class Handler(BaseHTTPRequestHandler):
                               for v in JOBS.values() if v.get('root')]
                 if recent:
                     root = sorted(recent, reverse=True)[0][1]
-            chat_dir = os.path.join(root, '.local', 'chat') if root else ''
+            chat_dir = os.path.join(root, '.vizcode', 'chat') if root else ''
             if not chat_dir:
                 self.json_resp({'history': []}); return
             if session_id:
@@ -1984,7 +1984,7 @@ class Handler(BaseHTTPRequestHandler):
             self.json_resp({'ok': True})
 
         elif p == '/chat-history':
-            # ── VizBridge: save a conversation session to .local/chat/ ───────
+            # ── VizBridge: save a conversation session to .vizcode/chat/ ───────
             import datetime as _dt
             length = int(self.headers.get('Content-Length', 0))
             try:
@@ -2012,7 +2012,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if len(history) > 40:
                 history = history[-40:]
-            chat_dir = os.path.join(root, '.local', 'chat')
+            chat_dir = os.path.join(root, '.vizcode', 'chat')
             os.makedirs(chat_dir, exist_ok=True)
             fpath = os.path.join(chat_dir, session_id + '.json')
             # Preserve original created timestamp if file already exists
@@ -2114,10 +2114,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.json_resp({'error': f'Bad request: {e}'}, 400)
                 return
 
-            job_id  = body.get('job_id', '')
-            history = body.get('history', [])
-            depth   = body.get('depth')  or 'general'
-            output  = body.get('output') or None
+            job_id        = body.get('job_id', '')
+            history       = body.get('history', [])
+            depth         = body.get('depth')  or 'general'
+            output        = body.get('output') or None
+            force_refresh = bool(body.get('force_refresh', False))
             if not history:
                 self.json_resp({'error': 'No messages provided'}, 400)
                 return
@@ -2157,24 +2158,95 @@ class Handler(BaseHTTPRequestHandler):
 
             try:
                 from ai.vizbridge import VizBridge, load_config
-                # ── DEBUG LOG ────────────────────────────────────────────────
-                _cfg = load_config()
-                _provider = _cfg.get('provider', '?')
-                _key_fields = {
-                    'anthropic': 'anthropic_api_key',
-                    'openai':    'openai_api_key',
-                    'grok':      'grok_api_key',
-                    'gemini':    'gemini_api_key',
-                    'ollama':    'ollama_url',
-                }
-                _key_val = _cfg.get(_key_fields.get(_provider, ''), '')
-                _key_present = bool(_key_val)
-                print(f'[chat-stream] provider={_provider}  key_present={_key_present}  key_len={len(_key_val)}  root={project_root!r}')
-                # ─────────────────────────────────────────────────────────────
-                vb = VizBridge(project_root)
-                for event in vb.stream_response(history, depth=depth, output=output):
-                    if not _sse(event):
-                        break  # client disconnected
+                import qa_cache as _qa
+
+                # ── Load scan_cache for QA cache validation ───────────────────
+                _scan_cache_path = os.path.join(project_root, '.vizcode', 'scan_cache.json')
+                _scan_cache: dict = {}
+                try:
+                    if os.path.isfile(_scan_cache_path):
+                        with open(_scan_cache_path, encoding='utf-8') as _scf:
+                            _scan_cache = json.load(_scf)
+                except Exception:
+                    pass
+
+                # ── Extract last user question ────────────────────────────────
+                _last_user_q = next(
+                    (m['content'] for m in reversed(history)
+                     if isinstance(m, dict) and m.get('role') == 'user'
+                     and isinstance(m.get('content'), str)),
+                    ''
+                )
+
+                # ── QA cache lookup (general depth + no output mode only) ─────
+                _cached_entry = None
+                if (_last_user_q and not force_refresh
+                        and depth == 'general' and not output and _scan_cache):
+                    _cached_entry = _qa.lookup(_last_user_q, project_root, _scan_cache, depth)
+
+                if _cached_entry:
+                    # ── Replay cached answer ──────────────────────────────────
+                    print(f'[QA CACHE HIT] id={_cached_entry["id"]}  hits={_cached_entry.get("hits", 0)}')
+                    _ans = _cached_entry['answer']
+                    _chunk = 40
+                    for _i in range(0, len(_ans), _chunk):
+                        if not _sse({'type': 'delta', 'text': _ans[_i:_i + _chunk]}):
+                            break
+                    _sse({'type': 'cached', 'entry_id': _cached_entry['id']})
+                    _sse({'type': 'done'})
+                    _qa.record_hit(project_root, _cached_entry['id'])
+                else:
+                    # ── Normal VizBridge flow ─────────────────────────────────
+                    _cfg = load_config()
+                    _provider = _cfg.get('provider', '?')
+                    _key_fields = {
+                        'anthropic': 'anthropic_api_key',
+                        'openai':    'openai_api_key',
+                        'grok':      'grok_api_key',
+                        'gemini':    'gemini_api_key',
+                        'ollama':    'ollama_url',
+                    }
+                    _key_val = _cfg.get(_key_fields.get(_provider, ''), '')
+                    print(f'[chat-stream] provider={_provider}  key_present={bool(_key_val)}  root={project_root!r}')
+
+                    vb = VizBridge(project_root)
+                    _ans_chunks: list = []
+                    _tool_calls: list = []
+                    _resp_provider = ''
+
+                    for event in vb.stream_response(history, depth=depth, output=output):
+                        t = event.get('type', '')
+                        if t == 'delta':
+                            _ans_chunks.append(event.get('text', ''))
+                        elif t == 'tool_call':
+                            _tool_calls.append({
+                                'name':   event.get('name', ''),
+                                'input':  event.get('input', {}),
+                                'result': event.get('result', ''),
+                            })
+                        elif t == 'provider':
+                            _resp_provider = event.get('name', '')
+                        if not _sse(event):
+                            break  # client disconnected
+
+                    # ── Save to QA cache ──────────────────────────────────────
+                    _full_ans = ''.join(_ans_chunks)
+                    if (_last_user_q and _full_ans and _scan_cache
+                            and depth == 'general' and not output):
+                        try:
+                            _qa.save(
+                                question=_last_user_q,
+                                answer=_full_ans,
+                                tool_calls=_tool_calls,
+                                project_root=project_root,
+                                scan_cache=_scan_cache,
+                                depth=depth,
+                                provider=_resp_provider or _provider,
+                            )
+                            print(f'[QA CACHE SAVE] len={len(_full_ans)}  files={len(_tool_calls)} tool(s)')
+                        except Exception as _e:
+                            print(f'[QA CACHE SAVE ERROR] {_e}')
+
             except ImportError:
                 _sse({'type': 'error', 'message': 'VizBridge not available — check ai/ directory'})
             except Exception as e:

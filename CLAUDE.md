@@ -1,4 +1,4 @@
-# CLAUDE.md
+﻿# CLAUDE.md
 
 ## Collaboration Rules
 
@@ -147,7 +147,7 @@ AI 功能現在不是單一模組，而是三條線一起運作：
   - provider routing
   - tool-use loop
   - system prompt/context injection
-  - 讀 `.local/scan_cache.json` / `.local/semantic_cache.json`
+  - 讀 `.vizcode/scan_cache.json` / `.vizcode/semantic_cache.json`
 - `ai/ui_tools.py`
   - 把 AI 動作轉成前端 canvas action
 - `ai/chat_modes.py`
@@ -174,11 +174,11 @@ AI 功能現在不是單一模組，而是三條線一起運作：
 
 常見資料來源：
 
-- `.local/scan_cache.json`
-- `.local/semantic_cache.json`
-- `.local/INDEX.md`
-- `.local/L1/...`
-- `.local/L2/...`
+- `.vizcode/scan_cache.json`
+- `.vizcode/semantic_cache.json`
+- `.vizcode/INDEX.md`
+- `.vizcode/L1/...`
+- `.vizcode/L2/...`
 
 ### 2.3 CLI AI support
 
@@ -196,7 +196,7 @@ python src/vizcode.py <path> --ai "question"
 
 ### AI config notes
 
-- 設定檔主要在 `ai/config.json` 與 `.local/key/ai_keys.json`
+- 設定檔主要在 `ai/config.json` 與 `.vizcode/key/ai_keys.json`
 - provider 目前包含：
   - `anthropic`
   - `openai`

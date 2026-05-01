@@ -1,4 +1,4 @@
-# VizCode Codebase Guide
+﻿# VizCode Codebase Guide
 
 ## 回覆語言
 
@@ -121,11 +121,11 @@ AI 分成三條線：
 
 主要依賴：
 
-- `.local/scan_cache.json`
-- `.local/semantic_cache.json`
-- `.local/INDEX.md`
-- `.local/L1/...`
-- `.local/L2/...`
+- `.vizcode/scan_cache.json`
+- `.vizcode/semantic_cache.json`
+- `.vizcode/INDEX.md`
+- `.vizcode/L1/...`
+- `.vizcode/L2/...`
 
 ### CLI AI support
 

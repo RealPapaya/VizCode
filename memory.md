@@ -1,4 +1,4 @@
-# VIZCODE — AI 核心記憶與快速上手指南
+﻿# VIZCODE — AI 核心記憶與快速上手指南
 
 > ⚠️ **所有 AI Agent 注意** ⚠️
 > 這是一份幫助你快速理解專案的指南。每次重大架構修改後，**必須**同步更新此檔案，以確保給下一位 AI 接手時資訊是最新的。
@@ -32,9 +32,9 @@
   - **👉 觸發**: 載入 `analyze_viz.py` 進行分析，發送 `launcher.html` 給瀏覽器。
 - 🤖 **`mcp_server.py`** (後端)
   - **用途**: MCP stdio server (JSON-RPC 2.0, Content-Length framing)。提供 3 個工具：`vizcode_query`、`vizcode_path`、`vizcode_explain`。
-  - **👉 觸發**: 由 Claude Code 根據 `.mcp.json` 自動管理生命週期；讀取 `.local/scan_cache.json` 與 `.local/semantic_cache.json`。
+  - **👉 觸發**: 由 Claude Code 根據 `.mcp.json` 自動管理生命週期；讀取 `.vizcode/scan_cache.json` 與 `.vizcode/semantic_cache.json`。
 - 🧠 **`semantic_enricher.py`** (後端)
-  - **用途**: `.local/semantic_cache.json` 的讀寫介面。API 呼叫邏輯已移除，快取由 `/vizcode --ai` skill 填入。
+  - **用途**: `.vizcode/semantic_cache.json` 的讀寫介面。API 呼叫邏輯已移除，快取由 `/vizcode --ai` skill 填入。
   - **CLI 模式**: `python semantic_enricher.py write <root> < edges.json` / `check <root> < scan_cache.json`。
   - **👉 觸發**: 由 SKILL.md (`/vizcode`) 呼叫以寫入語意推斷邊。
 
@@ -56,9 +56,9 @@
   - `--parse`: 純 AST 掃描 + 開瀏覽器；`--ai`: 掃描 → Claude 語意分析 → 寫入快取；預設: 兩者皆做。
 - 📄 **`.mcp.json`** (設定)
   - **用途**: 向 Claude Code 宣告 `vizcode` MCP server。`enableAllProjectMcpServers: true`（在 `.claude/settings.json`）讓 Claude Code 自動核准。
-- 📁 **`.local/scan_cache.json`** (快取)
+- 📁 **`.vizcode/scan_cache.json`** (快取)
   - **用途**: Parser 層快取（A1）。`entries[filename] → {file_sha, parser_sha, payload: {imports, funcdefs, funccalls}}`。
-- 📁 **`.local/semantic_cache.json`** (快取)
+- 📁 **`.vizcode/semantic_cache.json`** (快取)
   - **用途**: 語意推斷邊快取（B2）。`edges[{source, target, confidence, reason}]`；由 `/vizcode --ai` 填入，MCP server 讀取。
 
 ### 🔴 核心分析引擎 (Backend Analysis)

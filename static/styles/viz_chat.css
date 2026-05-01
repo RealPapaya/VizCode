@@ -455,6 +455,33 @@
     white-space: pre;
 }
 
+/* ── QA cache badge ──────────────────────────────────────────────────────── */
+.chat-cached-badge {
+    display: block;
+    margin-top: 6px;
+    font-size: 10.5px;
+    color: var(--muted);
+    opacity: .75;
+    user-select: none;
+}
+
+.chat-cached-refresh {
+    background: none;
+    border: none;
+    padding: 0 2px;
+    margin-left: 2px;
+    font-size: 11px;
+    color: var(--muted);
+    cursor: pointer;
+    line-height: 1;
+    vertical-align: middle;
+    transition: color .15s;
+}
+
+.chat-cached-refresh:hover {
+    color: var(--accent);
+}
+
 /* ── Tool call badge ──────────────────────────────────────────────────────── */
 .chat-tool-badge {
     align-self: flex-start;

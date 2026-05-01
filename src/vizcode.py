@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 vizcode.py — VIZCODE Interactive CLI Launcher
 Zero pip dependencies — pure Python stdlib only.
@@ -32,7 +32,7 @@ if sys.platform == "win32":
 # ─── Config ───────────────────────────────────────────────────────────────────
 SCRIPT_DIR     = Path(__file__).resolve().parent
 ROOT_DIR       = SCRIPT_DIR.parent
-LOCAL_DATA_DIR = ROOT_DIR / ".local"
+LOCAL_DATA_DIR = ROOT_DIR / ".vizcode"
 LOCAL_DATA_DIR.mkdir(exist_ok=True)
 SERVER_PY    = SCRIPT_DIR / "server" / "server.py"
 HISTORY_FILE = LOCAL_DATA_DIR / "vizcode_history.json"
@@ -599,7 +599,7 @@ def _run_analysis(label: str, trigger_fn, save_fn=None, skip_report_stage=True, 
                 # Run as a subprocess so its stdout/stderr are fully isolated
                 # from the TUI's stdout — no screen corruption.
                 # SCRIPT_DIR / vizcode.py --scan-only already does build_graph
-                # + generate_report and writes .local/vizcode_report.md.
+                # + generate_report and writes .vizcode/vizcode_report.md.
                 result = subprocess.run(
                     [sys.executable, str(SCRIPT_DIR / "vizcode.py"),
                      report_path, "--scan-only"],
@@ -1092,7 +1092,7 @@ def ask_generate_report() -> Optional[bool]:
     
     # Title and description
     _tui._at(r, f"  {bold('Generate AI Report?')}"); r += 1
-    _tui._at(r, f"  {dim('Creates .local/vizcode_report.md — a structured summary')}"); r += 1
+    _tui._at(r, f"  {dim('Creates .vizcode/vizcode_report.md — a structured summary')}"); r += 1
     _tui._at(r, f"  {dim('for AI assistants (Claude, ChatGPT, etc.) to understand')}"); r += 1
     _tui._at(r, f"  {dim('↑↓ move   Enter select   Esc back')}"); r += 1
     _tui._at(r, ""); r += 1
@@ -1161,7 +1161,7 @@ def _generate_report_for_path(path: str) -> bool:
             pass  # Silent during background scan
         
         data = build_graph(path, progress_cb=_silent_progress)
-        report_path = os.path.join(path, '.local', 'vizcode_report.md')
+        report_path = os.path.join(path, '.vizcode', 'vizcode_report.md')
         gen_report(data, report_path)
         
         _tui.show_text(["", f"  {green('✓')} Report saved:", f"     {dim(report_path)}", ""])
@@ -1368,9 +1368,9 @@ def _run_scan_only(path: str) -> None:
     # C4: auto-generate hierarchical report tree
     try:
         from analytics_helpers import generate_report
-        report_path = os.path.join(root, '.local', 'vizcode_report.md')
+        report_path = os.path.join(root, '.vizcode', 'vizcode_report.md')
         generate_report(data, report_path)
-        local_dir = os.path.join(root, '.local')
+        local_dir = os.path.join(root, '.vizcode')
         print(f"[vizcode] Report tree → {local_dir}/INDEX.md  L1/  L2/")
     except Exception as _e:
         print(f"[vizcode] Report skipped: {_e}")

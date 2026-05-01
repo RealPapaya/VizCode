@@ -1,4 +1,4 @@
-"""
+﻿"""
 analytics_helpers.py — Pure-Python graph analytics for VIZCODE.
 
 All functions receive the DATA dict returned by build_graph().
@@ -504,8 +504,8 @@ def _write_index(data: dict, output_dir: str) -> None:
         '## Navigation\n',
         '| Goal | File path |',
         '|------|-----------|',
-        '| Module file list | `.local/L1/<module>.md` |',
-        '| File function graph | `.local/L2/<module>/<file>.md` |',
+        '| Module file list | `.vizcode/L1/<module>.md` |',
+        '| File function graph | `.vizcode/L2/<module>/<file>.md` |',
         '| MCP (on-demand) | `vizcode_l0()` \u2192 `vizcode_l1(mod)` \u2192 `vizcode_l2(file)` |',
         '',
         '> Do not read `scan_cache.json` or `semantic_cache.json` directly.',
@@ -558,7 +558,7 @@ def _l1_content(scope_label: str, files: list, all_file_edges: list,
 
     stem_hint = os.path.splitext(files[0].get('path', '?').replace('\\', '/'))[0]
     mod_hint  = stem_hint.split('/')[0] if '/' in stem_hint else '.'
-    lines += ['', f'> Function call graphs: `.local/L2/{mod_hint}/<file>.md`']
+    lines += ['', f'> Function call graphs: `.vizcode/L2/{mod_hint}/<file>.md`']
     return lines
 
 
@@ -608,7 +608,7 @@ def _write_l1_tree(data: dict, output_dir: str) -> None:
             for sub, subfiles in sorted(sub_groups.items(), key=lambda x: -len(x[1])):
                 sf = sum(f.get('func_count', 0) for f in subfiles)
                 summary.append(f'| `{sub}` | {len(subfiles)} | {sf} |')
-            summary += ['', f'> Details: `.local/L1/{label}/<sub>.md`']
+            summary += ['', f'> Details: `.vizcode/L1/{label}/<sub>.md`']
             _write_file(os.path.join(l1_dir, f'{label}.md'), summary)
 
             # Per-subdirectory L1 files
@@ -759,7 +759,7 @@ def generate_report(data: dict, output_path: str) -> None:
     Write the codebase report tree. Delegates to generate_report_tree().
 
     output_path is accepted for backward compat; the tree is rooted at
-    its parent directory (.local/).  INDEX.md and vizcode_report.md are
+    its parent directory (.vizcode/).  INDEX.md and vizcode_report.md are
     both written there.
     """
     output_dir      = os.path.dirname(os.path.abspath(output_path))

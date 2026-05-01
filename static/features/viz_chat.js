@@ -1,4 +1,4 @@
-// ── VizBridge Chat Panel ──────────────────────────────────────────────────────
+﻿// ── VizBridge Chat Panel ──────────────────────────────────────────────────────
 //
 // Floating AI chat panel for VizCode graph visualization.
 // Communicates with server.py via:
@@ -730,6 +730,9 @@
         } else if (ev.type === 'ui_action') {
             _dispatchUiAction(ev.action, ev.args || {});
 
+        } else if (ev.type === 'cached') {
+            _markBubbleCached(ev.entry_id || '');
+
         } else if (ev.type === 'done') {
             // handled in finishTurn after stream ends
 
@@ -745,7 +748,61 @@
         }
     }
 
-    // ── Conversation sessions (.local/chat/) ─────────────────────────────────
+    // ── QA cache helpers ─────────────────────────────────────────────────────
+    function _markBubbleCached(entryId) {
+        const bubble = _streamBubble || _msgs.querySelector('.chat-msg-ai:last-child');
+        if (!bubble) return;
+        if (bubble.querySelector('.chat-cached-badge')) return;  // already marked
+        const badge = document.createElement('span');
+        badge.className = 'chat-cached-badge';
+        badge.dataset.entryId = entryId;
+        badge.innerHTML = '⚡ Cached <button class="chat-cached-refresh" title="Regenerate">↺</button>';
+        badge.querySelector('.chat-cached-refresh').addEventListener('click', function (e) {
+            e.stopPropagation();
+            _resendLastWithForceRefresh();
+        });
+        bubble.appendChild(badge);
+    }
+
+    function _resendLastWithForceRefresh() {
+        if (_isBusy) return;
+        // Remove last assistant turn from history (the cached answer)
+        if (_history.length >= 1 && _history[_history.length - 1].role === 'assistant') {
+            _history.pop();
+        }
+        // Remove cached bubble from DOM
+        const bubbles = _msgs ? _msgs.querySelectorAll('.chat-msg-ai') : [];
+        if (bubbles.length) bubbles[bubbles.length - 1].remove();
+
+        _setBusy(true);
+        _removeTyping();
+        _appendTyping();
+
+        fetch('/chat-stream', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({
+                job_id:        window.JOB_ID || '',
+                history:       _history,
+                depth:         _currentDepth,
+                output:        _currentOutput,
+                force_refresh: true,
+            }),
+        }).then(function (resp) {
+            if (!resp.ok) {
+                return resp.json().then(function (err) {
+                    throw new Error(err.error || 'Server error ' + resp.status);
+                });
+            }
+            _readSSE(resp.body);
+        }).catch(function (err) {
+            _removeTyping();
+            _appendMsg('err', 'Error: ' + err.message);
+            _setBusy(false);
+        });
+    }
+
+    // ── Conversation sessions (.vizcode/chat/) ─────────────────────────────────
     function _newSessionId() {
         const d = new Date(), pad = function (n) { return String(n).padStart(2, '0'); };
         return 'session_' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) +
@@ -1093,7 +1150,7 @@
             else if (el) el.classList.remove('interacted');
         });
         document.querySelectorAll('[data-open-key-folder]').forEach(btn => {
-            const keyDir = cfg.key_store_dir || '.local';
+            const keyDir = cfg.key_store_dir || '.vizcode';
             btn.title = `Open key folder: ${keyDir}`;
             btn.setAttribute('aria-label', `Open key folder: ${keyDir}`);
         });
