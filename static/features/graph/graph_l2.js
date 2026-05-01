@@ -476,14 +476,12 @@ function drillCurrentFileToL2() {
         || null;
 
     if (!filePath) {
-        // Highlight the button to signal "select a file first"
-        const btn = document.getElementById('graph-toggle-btn');
-        btn.style.borderColor = '#f87171';
-        btn.style.color = '#f87171';
-        setTimeout(() => {
-            btn.style.borderColor = '';
-            btn.style.color = '';
-        }, 900);
+        // Flash L2 segment to signal "select a file first"
+        const seg = document.getElementById('level-switcher')?.querySelectorAll('.lsw-seg')[1];
+        if (seg) {
+            seg.style.color = '#f87171';
+            setTimeout(() => { seg.style.color = ''; }, 900);
+        }
         return;
     }
 
@@ -502,7 +500,7 @@ function drillCurrentFileToL2() {
         }
     }
     drillToFile(filePath);
-    document.getElementById('graph-toggle-btn').classList.add('active');
+    if (window._lswUpdate) window._lswUpdate({ active: 1 });
 }
 
 // ─── Lazy drill-down on ext_func / potential_func double-click ────────────────

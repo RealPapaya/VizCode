@@ -7,6 +7,7 @@ function loadLevel0() {
     if (window.svHideStructureBtn) svHideStructureBtn();
     // No file context at L0 — disable and close code panel
     setCodeBtnEnabled(false);
+    if (window._lswUpdate) window._lswUpdate({ disabled: true, active: 0, l2Available: false, l3Available: false });
     if (codeState.isOpen) { closeCodePanel(); codeState.userClosed = false; }
     state.level = 0; state.activeModule = null; state.activeFile = null; state.activeSubDir = null;
     buildFtFilter(null, null);
@@ -105,6 +106,7 @@ function drillToModule(modId, opts) {
     if (window._sv && window._sv.active && window.svHideSvView) window.svHideSvView();
     if (window.svHideStructureBtn) svHideStructureBtn();
     setCodeBtnEnabled(false);
+    if (window._lswUpdate) window._lswUpdate({ disabled: false, active: 0, l2Available: false, l3Available: false });
 
     if (state.level === 0) state.history.push({ level: 0 });
     state.level = 1; state.activeModule = modId; state.activeSubDir = null;
@@ -668,26 +670,13 @@ function setCodeBtnEnabled(enabled) {
  * Called from: onNodeTap (file single-click), drillToFile, hideFuncView
  */
 function updateCallGraphBtn(filePath) {
-    const btn = document.getElementById('graph-toggle-btn');
-    if (!btn) return;
+    if (!window._lswUpdate) return;
     const isL2 = state.level >= 2;
     const hasFuncs = filePath && ((DATA.funcs_by_file?.[filePath]?.length || 0) > 0);
-    const available = isL2 || hasFuncs;
-
-    if (available) {
-        btn.disabled = false;
-        btn.title = T('graphBtnCallGraphTip');
-    } else {
-        btn.disabled = true;
-        btn.title = T('graphBtnCallGraphTip') + ' (Not available for this file)';
-    }
-
-    // Always label as "Call Graph"
-    btn.innerHTML = `⬡ ${T('graphBtnCallGraph')}`;
-
-    // Active only when in L2 AND Structure view is not showing (mutual exclusion)
+    const l2Available = isL2 || hasFuncs;
     const structActive = !!(window._sv && window._sv.active);
-    btn.classList.toggle('active', isL2 && !structActive);
+    const activeIdx = structActive ? 2 : (isL2 ? 1 : 0);
+    window._lswUpdate({ l2Available, active: activeIdx });
 }
 
 /**

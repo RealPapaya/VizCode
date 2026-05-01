@@ -408,14 +408,11 @@ function updateBreadcrumb() {
         }
     }
 
-    // Call-graph button: update text + active state; visibility controlled by updateCallGraphBtn()
-    const graphBtn = document.getElementById('graph-toggle-btn');
-    if (graphBtn) {
+    // Sync level switcher active segment
+    if (window._lswUpdate) {
         const isL2 = state.level >= 2;
         const structActive = !!(window._sv && window._sv.active);
-        graphBtn.innerHTML = `⬡ ${T('graphBtnCallGraph')}`;
-        graphBtn.title = T('graphBtnCallGraphTip');
-        graphBtn.classList.toggle('active', isL2 && !structActive);
+        window._lswUpdate({ active: structActive ? 2 : (isL2 ? 1 : 0) });
     }
 }
 

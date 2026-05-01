@@ -443,13 +443,9 @@ function _svSyncNavBtns() {
 }
 
 function _svUpdateStructBtn(isOpen) {
-    const btn = document.getElementById('struct-toggle-btn');
-    if (btn) btn.classList.toggle('active', !!isOpen);
-    const graphBtn = document.getElementById('graph-toggle-btn');
-    if (graphBtn) {
-        const isL2 = !!(window.state && window.state.level >= 2);
-        graphBtn.classList.toggle('active', isL2 && !isOpen);
-    }
+    if (!window._lswUpdate) return;
+    const isL2 = !!(window.state && window.state.level >= 2);
+    window._lswUpdate({ active: isOpen ? 2 : (isL2 ? 1 : 0) });
 }
 
 // ── Legend save / restore ─────────────────────────────────────────────────
@@ -504,19 +500,20 @@ window.svToggleStructView = function () {
     if (fileRel) symViewOpen(fileRel);
 };
 window.svUpdateStructureBtn = function (fileRel, _ext) {
-    const btn = document.getElementById('struct-toggle-btn');
-    if (!btn) return;
+    if (!window._lswUpdate) return;
     const hasSymbols = !!(window.DATA && window.DATA.symbol_index &&
         Object.values(window.DATA.symbol_index).some(s => s.file === fileRel));
-    btn.disabled = !hasSymbols;
-    btn.classList.toggle('active', hasSymbols && !!_svState.fileRel);
-    btn.title = hasSymbols ? 'Structure View' : 'Structure View (no symbols for this file)';
+    const isActive = hasSymbols && !!_svState.fileRel;
+    window._lswUpdate({ l3Available: hasSymbols });
+    if (isActive) window._lswUpdate({ active: 2 });
 };
 window.svHideStructureBtn = function () {
-    const btn = document.getElementById('struct-toggle-btn');
-    if (!btn) return;
-    btn.disabled = true;
-    btn.classList.remove('active');
+    if (!window._lswUpdate) return;
+    window._lswUpdate({ l3Available: false });
+    if (window._lswGetActive && window._lswGetActive() === 2) {
+        const fallback = (window.state && window.state.level >= 2) ? 1 : 0;
+        window._lswUpdate({ active: fallback });
+    }
 };
 // Multi-snippet hook — legacy no-op so viz_code_panel doesn't throw.
 window.symShowCurrentSnippets = function () { /* no-op */ };

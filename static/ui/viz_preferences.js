@@ -170,16 +170,6 @@ function _refreshVisualChrome() {
     const extLines = document.getElementById('l2-toggle-ext-lines');
     if (extLines) extLines.textContent = l2State.showExternalEdges ? T('extLinesOn') : T('extLinesOff');
 
-    // Update graph-toggle-btn text (Call Graph / Dependency Map)
-    const graphBtn = document.getElementById('graph-toggle-btn');
-    if (graphBtn) {
-        const isL2 = state.level === 2;
-        const icon = isL2 ? '&#9671;' : '&#11041;';
-        const txt = isL2 ? T('graphBtnDependencyMap') : T('graphBtnCallGraph');
-        const tip = isL2 ? T('graphBtnDependencyMapTip') : T('graphBtnCallGraphTip');
-        graphBtn.innerHTML = `${icon} <span>${txt}</span>`;
-        graphBtn.setAttribute('data-tip', tip);
-    }
 }
 
 function _layoutKeyMap(id) {

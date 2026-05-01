@@ -292,9 +292,7 @@ body {
 
 /* Common breadcrumb buttons - always visible */
 #back-btn,
-#code-toggle-btn,
-#graph-toggle-btn,
-#struct-toggle-btn {
+#code-toggle-btn {
     padding: 6px 14px;
     border-radius: 5px;
     border: 1px solid var(--border);
@@ -309,7 +307,7 @@ body {
     align-items: center;
     justify-content: center;
     gap: 5px;
-    min-width: 120px;
+    min-width: 80px;
     height: 32px;
     flex-shrink: 0;
     white-space: nowrap;
@@ -317,9 +315,7 @@ body {
 
 /* Disabled state: always visible but dimmed, not interactive */
 #back-btn:disabled,
-#code-toggle-btn:disabled,
-#graph-toggle-btn:disabled,
-#struct-toggle-btn:disabled {
+#code-toggle-btn:disabled {
     opacity: 0.35;
     cursor: not-allowed;
     border-color: var(--border);
@@ -339,28 +335,106 @@ body {
     color: var(--accent);
 }
 
-#graph-toggle-btn:not(:disabled):hover,
-#graph-toggle-btn.active {
-    border-color: #a78bfa;
-    color: #a78bfa;
-}
-
-#struct-toggle-btn:not(:disabled):hover,
-#struct-toggle-btn.active {
-    border-color: #34d399;
-    color: #34d399;
-}
-
 #code-toggle-btn.active {
     background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
-#graph-toggle-btn.active {
-    background: rgba(167, 139, 250, .08);
+/* ── Level Switcher ─────────────────────────────────────────────────────────── */
+#level-switcher {
+    display: flex;
+    align-items: stretch;
+    position: relative;
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    height: 36px;
+    margin-left: 8px;
+    flex-shrink: 0;
+    user-select: none;
+    background: transparent;
+    touch-action: none
 }
 
-#struct-toggle-btn.active {
-    background: rgba(52, 211, 153, .08);
+#level-switcher.lsw-disabled {
+    opacity: 0.35;
+    pointer-events: none
+}
+
+.lsw-seg {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 14px;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    height: 100%;
+    min-width: 40px;
+    cursor: pointer;
+    position: relative
+}
+
+.lsw-seg.lsw-active {
+    color: var(--text)
+}
+
+.lsw-seg.lsw-unavailable .lsw-icon {
+    opacity: 0.35
+}
+
+.lsw-icon {
+    flex-shrink: 0;
+    display: block;
+    pointer-events: none;
+    transition: transform 0.15s ease
+}
+
+#level-switcher:hover .lsw-icon {
+    transform: translateY(-4px)
+}
+
+.lsw-label {
+    position: absolute;
+    bottom: 2px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 9px;
+    font-weight: 600;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    letter-spacing: 0.02em;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    transform: translateY(3px)
+}
+
+#level-switcher:hover .lsw-label {
+    opacity: 1;
+    transform: translateY(0)
+}
+
+.lsw-div {
+    width: 0.5px;
+    background: var(--border);
+    align-self: center;
+    height: 20px;
+    flex-shrink: 0
+}
+
+.lsw-pill {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: calc(100% / 3);
+    height: 2px;
+    border-radius: 1px;
+    background: var(--accent);
+    transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    pointer-events: none;
+    z-index: 1
 }
 
 /* ── Drill-group compound box cursor hint ─── */

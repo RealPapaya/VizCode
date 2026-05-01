@@ -27,48 +27,7 @@ function initCodePanel() {
         }
     };
 
-    document.getElementById('graph-toggle-btn').onclick = () => {
-        const symActive = window._sv && window._sv.active;
-
-        if (symActive) {
-            // Structure is active → switch to Call Graph (mutual exclusion)
-            symViewClose();
-            if (state.level < 2 && typeof drillCurrentFileToL2 === 'function') {
-                // Was at L1: drill into Call Graph
-                drillCurrentFileToL2();
-            } else {
-                // Was already at L2: just restore #cy (symViewClose already did that),
-                // re-sync button states.
-                updateCallGraphBtn(state.activeFile || codeState.currentFile || null);
-            }
-            return;
-        }
-
-        // Toggle Call Graph ↔ L1
-        if (state.level === 2) {
-            restoreL1FromCallGraph();
-        } else {
-            drillCurrentFileToL2();
-        }
-    };
-
-    // Structure button: toggle symbol/structure view (mutual exclusion with Call Graph)
-    const structBtn = document.getElementById('struct-toggle-btn');
-    if (structBtn) {
-        structBtn.onclick = () => {
-            // Toggle off: Structure already active → close it
-            if (window._sv && window._sv.active) {
-                symViewClose();
-                return;
-            }
-            const fileRel = codeState.currentFile;
-            if (window.symViewOpen && fileRel && DATA && DATA.symbol_index) {
-                const hasSymbols = Object.values(DATA.symbol_index).some(s => s.file === fileRel);
-                if (hasSymbols) { symViewOpen(fileRel); return; }
-            }
-            if (window.svToggleStructView) svToggleStructView();
-        };
-    }
+    initLevelSwitcher();
 
     document.getElementById('cp-prev-func').onclick = () => navigateFunc(-1);
     document.getElementById('cp-next-func').onclick = () => navigateFunc(1);
@@ -76,6 +35,130 @@ function initCodePanel() {
     // Resizer drag
     initResizer();
     initSidebarResizer();
+}
+
+// ─── Level Switcher ──────────────────────────────────────────────────────────
+let _lswIdx = 0;        // current visual/drag index
+let _lswActualIdx = 0;  // last committed index (action fired)
+let _lswDragStart = null;
+let _lswDragStartIdx = 0;
+let _lswDragging = false;
+
+function _lswSetActive(idx, trigger) {
+    const bar = document.getElementById('level-switcher');
+    if (!bar) return;
+
+    // During trigger: check availability before committing
+    if (trigger) {
+        const segs = bar.querySelectorAll('.lsw-seg');
+        if (segs[idx]?.classList.contains('lsw-unavailable')) {
+            if (segs[idx]) {
+                segs[idx].style.color = '#f87171';
+                setTimeout(() => { segs[idx].style.color = ''; }, 600);
+            }
+            // Revert pill to committed state
+            setTimeout(() => _lswSetActive(_lswActualIdx, false), 30);
+            return;
+        }
+        _lswActualIdx = idx;
+        window._lswCurrentIdx = idx;
+    }
+
+    _lswIdx = idx;
+    bar.querySelectorAll('.lsw-seg').forEach((s, i) => s.classList.toggle('lsw-active', i === idx));
+    const pill = bar.querySelector('.lsw-pill');
+    if (pill) pill.style.transform = `translateX(${idx * 100}%)`;
+
+    if (!trigger) return;
+
+    if (idx === 0) {
+        if (window._sv && window._sv.active) symViewClose();
+        if (state.level >= 2) restoreL1FromCallGraph();
+    } else if (idx === 1) {
+        const symActive = window._sv && window._sv.active;
+        if (symActive) {
+            symViewClose();
+            if (state.level < 2 && typeof drillCurrentFileToL2 === 'function') {
+                drillCurrentFileToL2();
+            } else {
+                updateCallGraphBtn(state.activeFile || codeState.currentFile || null);
+            }
+            return;
+        }
+        if (state.level !== 2) drillCurrentFileToL2();
+    } else if (idx === 2) {
+        if (window._sv && window._sv.active) { symViewClose(); return; }
+        const fileRel = codeState.currentFile;
+        if (window.symViewOpen && fileRel && DATA && DATA.symbol_index) {
+            const hasSymbols = Object.values(DATA.symbol_index).some(s => s.file === fileRel);
+            if (hasSymbols) { symViewOpen(fileRel); return; }
+        }
+        if (window.svToggleStructView) svToggleStructView();
+    }
+}
+
+// External API — update visual state without triggering navigation
+window._lswUpdate = function (opts) {
+    const bar = document.getElementById('level-switcher');
+    if (!bar) return;
+    if (opts.disabled !== undefined) bar.classList.toggle('lsw-disabled', !!opts.disabled);
+    const segs = bar.querySelectorAll('.lsw-seg');
+    if (opts.l2Available !== undefined) segs[1]?.classList.toggle('lsw-unavailable', !opts.l2Available);
+    if (opts.l3Available !== undefined) segs[2]?.classList.toggle('lsw-unavailable', !opts.l3Available);
+    if (opts.active !== undefined) {
+        _lswActualIdx = opts.active;
+        window._lswCurrentIdx = opts.active;
+        _lswSetActive(opts.active, false);
+    }
+};
+window._lswGetActive = () => _lswActualIdx;
+
+function initLevelSwitcher() {
+    const bar = document.getElementById('level-switcher');
+    if (!bar) return;
+
+    bar.addEventListener('pointerdown', e => {
+        if (bar.classList.contains('lsw-disabled')) return;
+        _lswDragStart = e.clientX;
+        _lswDragStartIdx = _lswActualIdx;
+        _lswDragging = false;
+        bar.setPointerCapture(e.pointerId);
+        e.preventDefault();
+    });
+
+    bar.addEventListener('pointermove', e => {
+        if (_lswDragStart === null) return;
+        if (Math.abs(e.clientX - _lswDragStart) > 5) _lswDragging = true;
+        if (!_lswDragging) return;
+        const segW = bar.offsetWidth / 3;
+        const newIdx = Math.max(0, Math.min(2, _lswDragStartIdx + Math.round((e.clientX - _lswDragStart) / segW)));
+        if (newIdx !== _lswIdx) _lswSetActive(newIdx, false);
+    });
+
+    bar.addEventListener('pointerup', e => {
+        if (_lswDragStart === null) return;
+        const dx = Math.abs(e.clientX - _lswDragStart);
+        if (!_lswDragging || dx < 5) {
+            const rect = bar.getBoundingClientRect();
+            const idx = Math.min(2, Math.max(0, Math.floor((e.clientX - rect.left) / (rect.width / 3))));
+            _lswSetActive(idx, true);
+        } else {
+            _lswSetActive(_lswIdx, true);
+        }
+        _lswDragStart = null;
+        _lswDragging = false;
+    });
+
+    bar.addEventListener('pointercancel', () => {
+        if (_lswDragStart !== null) _lswSetActive(_lswActualIdx, false);
+        _lswDragStart = null;
+        _lswDragging = false;
+    });
+
+    // Keyboard: allow Tab + Enter/Space on each segment
+    bar.querySelectorAll('.lsw-seg').forEach((seg, i) => {
+        seg.addEventListener('click', () => _lswSetActive(i, true));
+    });
 }
 
 function isRenderedMarkdownSupported(ext, fname, langHint = '') {
