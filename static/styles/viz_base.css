@@ -1,7 +1,9 @@
 :root {
     --radius: 8px;
     --sidebar: 220px;
-    --topbar: 52px;
+    --topbar: 44px;
+    --rail: 44px;
+    --breadcrumb: 30px;
     --code-panel: 700px;
     --node-w0: 190px;
     --node-w1: 160px;
@@ -37,17 +39,116 @@ body {
     -webkit-user-select: none
 }
 
-/* ── Top Bar ── */
+/* ── App Shell + Left Rail ─────────────────────────────────────────────── */
+#app-shell {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+#app-rail {
+    width: var(--rail);
+    flex-shrink: 0;
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 0;
+    gap: 4px;
+    z-index: 100;
+}
+
+.rail-logo {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+}
+
+.rail-divider {
+    width: 24px;
+    height: 0.5px;
+    background: var(--border);
+    margin: 6px 0;
+    flex-shrink: 0;
+}
+
+.rail-spacer {
+    flex: 1;
+}
+
+#app-rail .rail-btn,
+#app-rail #pref-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    border-radius: 6px;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: color 0.15s, background 0.15s;
+    flex-shrink: 0;
+}
+
+#app-rail .rail-btn span {
+    display: none;
+}
+
+#app-rail .rail-btn svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+}
+
+#app-rail .rail-btn:hover,
+#app-rail #pref-btn:hover {
+    color: var(--text);
+    background: var(--panel2);
+}
+
+#app-rail .rail-btn.active,
+#app-rail .topbar-mode-btn.active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border: none;
+    box-shadow: none;
+}
+
+/* ── Top Bar (transparent passthrough — card inside provides visuals) ── */
 #topbar {
     height: var(--topbar);
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
+    background: transparent;
+    border-bottom: none;
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 0 16px;
+    gap: 0;
+    padding: 0;
     flex-shrink: 0;
-    z-index: 100
+    z-index: 100;
+}
+
+#search-card {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 12px;
+    background: var(--panel);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    position: relative;
+    overflow: visible;
 }
 
 .logo {
@@ -69,6 +170,7 @@ body {
     flex-shrink: 0;
 }
 
+/* Legacy .topbar-mode-btn (now only used as additional class on rail buttons) */
 .topbar-mode-btn {
     display: inline-flex;
     align-items: center;
@@ -187,19 +289,21 @@ body {
 }
 
 #search-wrap {
-    margin-left: auto;
-    position: relative
+    position: relative;
+    flex-shrink: 0;
 }
 
 #search {
     background: var(--panel2);
-    border: 1px solid var(--border);
+    border: 0.5px solid var(--border);
     color: var(--text);
-    padding: 6px 12px 6px 32px;
+    padding: 5px 10px 5px 28px;
     border-radius: 6px;
-    font-size: 13px;
-    width: 240px;
-    outline: none
+    font-size: 12px;
+    width: 220px;
+    max-width: 220px;
+    outline: none;
+    height: 28px;
 }
 
 #search:focus {
@@ -215,16 +319,56 @@ body {
     font-size: 14px
 }
 
+/* ── Inline Files / Code mode toggle (lives inside #sr-input-row) ── */
+#topbar #sr-modes {
+    display: inline-flex;
+    align-items: stretch;
+    margin-left: 6px;
+    height: 22px;
+    flex-shrink: 0;
+}
+
+#topbar #sr-modes .sr-mode {
+    padding: 0 10px;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    transition: color 0.15s;
+}
+
+#topbar #sr-modes .sr-mode + .sr-mode {
+    border-left: 0.5px solid var(--border);
+}
+
+#topbar #sr-modes .sr-mode svg {
+    display: none;
+}
+
+#topbar #sr-modes .sr-mode::after {
+    content: attr(aria-label);
+}
+
+#topbar #sr-modes .sr-mode:hover,
+#topbar #sr-modes .sr-mode.active {
+    color: var(--accent);
+}
+
 /* ── Breadcrumb ── */
 #breadcrumb {
-    height: 40px;
+    height: var(--breadcrumb);
     background: var(--panel2);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 0.5px solid var(--border);
     display: flex;
     align-items: center;
-    padding: 0 16px;
+    padding: 0 12px;
     gap: 0;
-    font-size: 14px;
+    font-size: 12px;
     color: var(--muted);
     flex-shrink: 0;
     overflow: hidden
@@ -526,20 +670,44 @@ body {
 }
 
 /* ── Layout ── */
+#main-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+    padding: 12px;
+    gap: 8px;
+}
+
 #layout {
     display: flex;
     flex: 1;
-    overflow: hidden
+    overflow: hidden;
+    min-height: 0;
+}
+
+#content-card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--panel);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
 #sidebar {
     width: var(--sidebar);
     background: var(--panel);
-    border-right: 1px solid var(--border);
+    border-right: 0.5px solid var(--border);
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    flex-shrink: 0
+    flex-shrink: 0;
+    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), border-right-width 0.22s;
 }
 
 #sidebar-title {
@@ -744,6 +912,42 @@ body {
 }
 
 .tree-children.open {
-    display: block
+    display: block;
+    position: relative;
+    padding-left: 8px;
+}
+
+/* ── Explorer tree connector lines (VS Code / Codename style) ── */
+/* vertical guide line — runs along the left of each open subtree */
+.tree-children.open::before {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 0;
+    bottom: 0;
+    width: 0.5px;
+    background: var(--border);
+    pointer-events: none;
+}
+
+/* horizontal tick — short stub from the line to each direct child row */
+.tree-children.open > .tree-row {
+    position: relative;
+}
+
+.tree-children.open > .tree-row::before {
+    content: '';
+    position: absolute;
+    left: -1px;
+    top: 50%;
+    width: 6px;
+    height: 0.5px;
+    background: var(--border);
+    pointer-events: none;
+}
+
+/* unified tree — drop section header label */
+#sidebar-title {
+    display: none;
 }
 

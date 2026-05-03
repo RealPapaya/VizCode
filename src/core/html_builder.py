@@ -59,80 +59,41 @@ HTML_SKELETON = """\
 
 <script>window.JOB_ID = {JOB_ID_JSON}; window.PROJECT_TYPE = {PT_JSON};</script>
 
-<div id="topbar">
-  <div class="logo">VIZCODE</div>
-  <div class="topbar-mode-group">
-    <button id="dashboard-btn" class="topbar-mode-btn" type="button" data-i18n-attr="data-tip" data-i18n="dashboardTip" onclick="switchTopbarMode('dashboard')">
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-      <span data-i18n="dashboard">Dashboard</span>
-    </button>
-    <button id="graph-btn" class="topbar-mode-btn active" type="button" data-i18n-attr="data-tip" data-i18n="graphHomeTip" onclick="switchTopbarMode('graph')">
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="6" r="2"></circle><circle cx="19" cy="12" r="2"></circle><circle cx="12" cy="18" r="2"></circle><line x1="6.8" y1="10.9" x2="10.2" y2="7.1"></line><line x1="13.8" y1="7.1" x2="17.2" y2="10.9"></line><line x1="17.2" y1="13.1" x2="13.8" y2="16.9"></line><line x1="10.2" y1="16.9" x2="6.8" y2="13.1"></line></svg>
+<div id="app-shell">
+
+  <!-- LEFT ICON RAIL ────────────────────────────────────────────────────── -->
+  <aside id="app-rail">
+    <div class="rail-logo">V</div>
+
+    <button id="graph-btn" class="rail-btn topbar-mode-btn active" type="button" data-i18n-attr="data-tip" data-i18n="graphHomeTip" onclick="switchTopbarMode('graph')" title="Main Graph">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="6" r="2"></circle><circle cx="19" cy="12" r="2"></circle><circle cx="12" cy="18" r="2"></circle><line x1="6.8" y1="10.9" x2="10.2" y2="7.1"></line><line x1="13.8" y1="7.1" x2="17.2" y2="10.9"></line><line x1="17.2" y1="13.1" x2="13.8" y2="16.9"></line><line x1="10.2" y1="16.9" x2="6.8" y2="13.1"></line></svg>
       <span data-i18n="graphHome">Graph</span>
     </button>
-    <button id="galaxy-btn" class="topbar-mode-btn" type="button" data-i18n-attr="data-tip" data-i18n="galaxyTip" onclick="switchTopbarMode('galaxy')">
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><line x1="6.7" y1="7.3" x2="9.6" y2="10"/><circle cx="19" cy="6" r="2"/><line x1="17.3" y1="7.3" x2="14.4" y2="10"/><circle cx="5" cy="18" r="2"/><line x1="6.7" y1="16.7" x2="9.6" y2="14"/><circle cx="19" cy="18" r="2"/><line x1="17.3" y1="16.7" x2="14.4" y2="14"/></svg>
+    <button id="galaxy-btn" class="rail-btn topbar-mode-btn" type="button" data-i18n-attr="data-tip" data-i18n="galaxyTip" onclick="switchTopbarMode('galaxy')" title="Galaxy">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><line x1="6.7" y1="7.3" x2="9.6" y2="10"/><circle cx="19" cy="6" r="2"/><line x1="17.3" y1="7.3" x2="14.4" y2="10"/><circle cx="5" cy="18" r="2"/><line x1="6.7" y1="16.7" x2="9.6" y2="14"/><circle cx="19" cy="18" r="2"/><line x1="17.3" y1="16.7" x2="14.4" y2="14"/></svg>
       <span data-i18n="galaxy">Galaxy</span>
     </button>
-  </div>
-  
-  <div style="flex:1"></div>
-    <div id="search-wrap">
-      <div id="sr-modes">
-      <button class="sr-mode active" data-mode="files" id="srm-files" data-i18n-attr="data-tip" data-i18n="searchModeFilesTip" aria-label="Files">
-        <svg class="sr-mode-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-          <path fill="currentColor" d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
-        </svg>
-      </button>
-      <button class="sr-mode" data-mode="code" id="srm-code" data-i18n-attr="data-tip" data-i18n="searchModeCodeTip" aria-label="Code">
-        <svg class="sr-mode-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-          <path fill="currentColor" d="M9.5 7.5L6 12l3.5 4.5 1.3-1L8.1 12l2.7-3.5-1.3-1zM14.5 7.5l-1.3 1L15.9 12l-2.7 3.5 1.3 1L18 12l-3.5-4.5z"/>
-        </svg>
-      </button>
-      </div>
-    <div id="sr-input-row">
-      <span id="sr-icon">⌕</span>
-      <input id="search" type="text" data-i18n-attr="placeholder" data-i18n="searchPlaceholderFiles" placeholder="Search files… ( / )" autocomplete="off" spellcheck="false">
-      <div id="sr-toggles">
-        <button class="sr-toggle" id="srt-case" data-i18n-attr="data-tip" data-i18n="searchMatchCase">Aa</button>
-        <button class="sr-toggle" id="srt-word" data-i18n-attr="data-tip" data-i18n="searchMatchWord">ab</button>
-        <button class="sr-toggle" id="srt-regex" data-i18n-attr="data-tip" data-i18n="searchRegex">.*</button>
-      </div>
-      <span id="sr-count"></span>
-    </div>
-    <div id="sr-panel">
-      <div id="sr-filters">
-        <div class="sr-filter-row">
-          <span class="sr-filter-label" data-i18n="searchIncludeLabel">files to include</span>
-          <input class="sr-filter-input" id="sr-include" type="text" data-i18n-attr="placeholder" data-i18n="searchIncludePlaceholder" placeholder="e.g. *.c, *.h" autocomplete="off" spellcheck="false">
-        </div>
-        <div class="sr-filter-row">
-          <span class="sr-filter-label" data-i18n="searchExcludeLabel">files to exclude</span>
-          <input class="sr-filter-input" id="sr-exclude" type="text" data-i18n-attr="placeholder" data-i18n="searchExcludePlaceholder" placeholder="e.g. Build/*, *.obj" autocomplete="off" spellcheck="false">
-        </div>
-      </div>
-      <div id="sr-results"></div>
-    </div>
-  </div>
-  <button id="pref-btn" data-i18n-attr="data-tip" data-i18n="settingsButton" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:18px;margin-left:4px;padding:4px;transition:color 0.2s;flex-shrink:0;">⚙</button>
-</div>
+    <button id="dashboard-btn" class="rail-btn topbar-mode-btn" type="button" data-i18n-attr="data-tip" data-i18n="dashboardTip" onclick="switchTopbarMode('dashboard')" title="Dashboard">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+      <span data-i18n="dashboard">Dashboard</span>
+    </button>
 
-<div id="breadcrumb">
-  <span id="bc-items" style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;overflow:hidden"></span>
-  <button id="back-btn" onclick="goBack()" data-i18n="back" disabled>&#8592; Back</button>
-  <div id="level-switcher" class="lsw-disabled">
-    <div class="lsw-pill"></div>
-    <button class="lsw-seg lsw-active" data-seg="0" title="File Graph"><svg class="lsw-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="11" x2="17" y2="6.5"/><line x1="7" y1="13" x2="17" y2="17.5"/></svg><span class="lsw-label">File Graph</span></button>
-    <div class="lsw-div"></div>
-    <button class="lsw-seg" data-seg="1" title="Call Flow"><svg class="lsw-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/></svg><span class="lsw-label">Call Flow</span></button>
-    <div class="lsw-div"></div>
-    <button class="lsw-seg" data-seg="2" title="Structure"><svg class="lsw-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="6" rx="1"/><path d="M12 9v4"/><path d="M5 13h14"/><path d="M5 13v3"/><rect x="2" y="16" width="6" height="5" rx="1"/><path d="M19 13v3"/><rect x="16" y="16" width="6" height="5" rx="1"/></svg><span class="lsw-label">Structure</span></button>
-  </div>
-  <button id="code-toggle-btn" disabled data-i18n-attr="data-tip" data-i18n="codePanelToggleTip"><span class="code-icon">&#60;&#92;&#62;</span> <span data-i18n="codePanelToggle">Code</span></button>
-  <button id="chat-btn" title="VizCode AI (Alt+C)"></button>
-</div>
+    <div class="rail-divider"></div>
 
-<div id="layout">
+    <button id="rail-explorer-btn" class="rail-btn" type="button" title="Explorer" onclick="document.getElementById('sb-collapse-btn').click()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+    </button>
+    <button id="rail-filter-btn" class="rail-btn" type="button" title="Filter" onclick="(function(){{var s=document.getElementById('sidebar');if(s&&s.classList.contains('sb-collapsed')){{document.getElementById('sb-collapse-btn').click();}}var t=document.querySelector('.sb-tab[data-tab=&quot;filters&quot;]');if(t){{t.click();}}}})()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+    </button>
+
+    <div class="rail-spacer"></div>
+    <button id="pref-btn" class="rail-btn" type="button" data-i18n-attr="data-tip" data-i18n="settingsButton" title="Settings">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </aside>
+
+  <!-- EXPLORER PANEL (slides in/out — same bg as rail, no inner border) ─── -->
   <div id="sidebar">
     <div id="sb-header">
       <div id="sb-tabs">
@@ -163,7 +124,71 @@ HTML_SKELETON = """\
     </div>
   </div>
   <div id="sidebar-resizer"></div>
-  <div id="graph-wrap">
+
+  <!-- MAIN AREA (topbar + breadcrumb + content) ───────────────────────── -->
+  <div id="main-area">
+
+    <div id="topbar">
+      <div id="search-card">
+      <div id="search-wrap">
+        <div id="sr-input-row">
+          <span id="sr-icon">⌕</span>
+          <input id="search" type="text" data-i18n-attr="placeholder" data-i18n="searchPlaceholderFiles" placeholder="Search files… ( / )" autocomplete="off" spellcheck="false">
+          <div id="sr-toggles">
+            <button class="sr-toggle" id="srt-case" data-i18n-attr="data-tip" data-i18n="searchMatchCase">Aa</button>
+            <button class="sr-toggle" id="srt-word" data-i18n-attr="data-tip" data-i18n="searchMatchWord">ab</button>
+            <button class="sr-toggle" id="srt-regex" data-i18n-attr="data-tip" data-i18n="searchRegex">.*</button>
+          </div>
+          <span id="sr-count"></span>
+          <div id="sr-modes">
+            <button class="sr-mode active" data-mode="files" id="srm-files" data-i18n-attr="data-tip" data-i18n="searchModeFilesTip" aria-label="Files">
+              <svg class="sr-mode-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                <path fill="currentColor" d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
+              </svg>
+            </button>
+            <button class="sr-mode" data-mode="code" id="srm-code" data-i18n-attr="data-tip" data-i18n="searchModeCodeTip" aria-label="Code">
+              <svg class="sr-mode-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                <path fill="currentColor" d="M9.5 7.5L6 12l3.5 4.5 1.3-1L8.1 12l2.7-3.5-1.3-1zM14.5 7.5l-1.3 1L15.9 12l-2.7 3.5 1.3 1L18 12l-3.5-4.5z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div id="sr-panel">
+          <div id="sr-filters">
+            <div class="sr-filter-row">
+              <span class="sr-filter-label" data-i18n="searchIncludeLabel">files to include</span>
+              <input class="sr-filter-input" id="sr-include" type="text" data-i18n-attr="placeholder" data-i18n="searchIncludePlaceholder" placeholder="e.g. *.c, *.h" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="sr-filter-row">
+              <span class="sr-filter-label" data-i18n="searchExcludeLabel">files to exclude</span>
+              <input class="sr-filter-input" id="sr-exclude" type="text" data-i18n-attr="placeholder" data-i18n="searchExcludePlaceholder" placeholder="e.g. Build/*, *.obj" autocomplete="off" spellcheck="false">
+            </div>
+          </div>
+          <div id="sr-results"></div>
+        </div>
+      </div>
+      <div style="flex:1"></div>
+      <div id="level-switcher" class="lsw-disabled">
+        <div class="lsw-pill"></div>
+        <button class="lsw-seg lsw-active" data-seg="0" title="File Graph"><svg class="lsw-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="11" x2="17" y2="6.5"/><line x1="7" y1="13" x2="17" y2="17.5"/></svg><span class="lsw-label">File Graph</span></button>
+        <div class="lsw-div"></div>
+        <button class="lsw-seg" data-seg="1" title="Call Flow"><svg class="lsw-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/></svg><span class="lsw-label">Call Flow</span></button>
+        <div class="lsw-div"></div>
+        <button class="lsw-seg" data-seg="2" title="Structure"><svg class="lsw-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="6" rx="1"/><path d="M12 9v4"/><path d="M5 13h14"/><path d="M5 13v3"/><rect x="2" y="16" width="6" height="5" rx="1"/><path d="M19 13v3"/><rect x="16" y="16" width="6" height="5" rx="1"/></svg><span class="lsw-label">Structure</span></button>
+      </div>
+      <button id="code-toggle-btn" disabled data-i18n-attr="data-tip" data-i18n="codePanelToggleTip"><span class="code-icon">&#60;&#92;&#62;</span> <span data-i18n="codePanelToggle">Code</span></button>
+      <button id="chat-btn" title="VizCode AI (Alt+C)"></button>
+      </div><!-- /#search-card -->
+    </div>
+
+    <div id="content-card">
+    <div id="breadcrumb">
+      <span id="bc-items" style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;overflow:hidden"></span>
+      <button id="back-btn" onclick="goBack()" data-i18n="back" disabled>&#8592; Back</button>
+    </div>
+
+    <div id="layout">
+      <div id="graph-wrap">
     <div id="l1-toolbar" class="l2-toolbar hidden">
       <div class="l2-left">
         <div class="l2-title"><span class="banner-lvl l1-clr">Level 1</span> · File Graph</div>
@@ -237,7 +262,10 @@ HTML_SKELETON = """\
       <div id="cp-code-wrap" style="display:none"></div>
     </div>
   </div>
-</div>
+    </div><!-- /#layout -->
+    </div><!-- /#content-card -->
+  </div><!-- /#main-area -->
+</div><!-- /#app-shell -->
 
 <!-- Old info-panel (hidden, kept for JS compat) -->
 <div id="info-panel" style="display:none">

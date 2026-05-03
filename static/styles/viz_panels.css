@@ -233,7 +233,7 @@
     gap: 5px;
     padding: 8px 12px;
     background: rgba(9, 14, 20, 0.92);
-    border: 1px solid var(--border);
+    border: 0.5px solid var(--border);
     border-radius: 10px;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
     backdrop-filter: blur(6px);
@@ -351,7 +351,7 @@
 /* ── Resizer ── */
 #resizer,
 #sidebar-resizer {
-    width: 2px;
+    width: 1px;
     background: var(--border);
     cursor: col-resize;
     flex-shrink: 0;
@@ -389,13 +389,18 @@
     color: var(--muted)
 }
 
-/* ── Sidebar tabs + header ── */
+/* ── Sidebar tabs + header (visually hidden — rail handles tab switching + collapse) ── */
 #sb-header {
+    display: none;
+}
+
+/* legacy header layout — kept for fallback if anyone re-enables #sb-header */
+#sb-header.show {
     display: flex;
     align-items: center;
     height: 34px;
     padding: 0 4px;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 0.5px solid var(--border);
     flex-shrink: 0
 }
 
@@ -469,15 +474,16 @@
     min-height: 0
 }
 
-/* ── Collapsed sidebar ── */
+/* ── Collapsed sidebar (retracts fully so rail + sidebar look unified) ── */
 #sidebar.sb-collapsed {
-    width: 40px !important;
-    min-width: 40px;
-    transition: width .18s ease
+    width: 0 !important;
+    min-width: 0;
+    border-right-width: 0;
+    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), border-right-width 0.22s
 }
 
 #sidebar:not(.sb-collapsed) {
-    transition: width .18s ease
+    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1)
 }
 
 #sidebar.sb-collapsed .sb-tab {
@@ -505,7 +511,7 @@
 #sb-footer {
     flex-shrink: 0;
     padding: 5px 10px;
-    border-top: 1px solid var(--border);
+    border-top: 0.5px solid var(--border);
     font-size: 10px;
     color: var(--muted);
     display: flex;
@@ -585,7 +591,7 @@
 #ft-filter,
 #edge-filter,
 #node-legend {
-    border-bottom: 1px solid var(--border);
+    border-bottom: 0.5px solid var(--border);
     flex-shrink: 0;
     padding: 0
 }

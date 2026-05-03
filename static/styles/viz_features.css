@@ -320,7 +320,8 @@
     flex-direction: row;
     align-items: center;
     gap: 8px;
-    width: 500px;
+    width: 320px;
+    max-width: 320px;
     flex-shrink: 1;
     min-width: 0;
 }
@@ -378,13 +379,14 @@
     display: flex;
     align-items: center;
     background: var(--panel2);
-    border: 1px solid var(--border);
+    border: 0.5px solid var(--border);
     border-radius: 6px;
     padding: 0 8px;
     gap: 5px;
     transition: border-color 0.2s, box-shadow 0.2s;
     flex: 1;
     min-width: 0;
+    height: 28px;
 }
 
 #sr-input-row:focus-within {
@@ -2012,4 +2014,25 @@
 .gf-slider-label em {
     font-style: italic;
     color: #475569;
+}
+
+/* ── Floating card overrides ── */
+#search-card #search-wrap {
+    flex: 1;
+    width: auto;
+    max-width: none;
+}
+
+#search-card #sr-input-row {
+    border: none;
+    background: transparent;
+}
+
+#search-card #sr-input-row:focus-within {
+    border: none;
+    box-shadow: none;
+}
+
+#code-panel {
+    border-left: none;
 }
