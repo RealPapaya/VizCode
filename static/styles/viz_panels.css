@@ -385,8 +385,8 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 4px;
-    height: 32px;
+    width: 7px;
+    height: 24px;
     border-radius: 99px;
     background: transparent;
     pointer-events: none;
@@ -799,5 +799,4 @@
     text-align: center;
     flex-shrink: 0
 }
-
 
