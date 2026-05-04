@@ -69,7 +69,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"d:/GOOGLE/VizCode/.claude/hooks/check-python-syntax.py\"",
+            "command": "python \"d:/Google AI/CodeViz/.claude/hooks/check-python-syntax.py\"",
             "timeout": 10,
             "statusMessage": "Checking Python syntax..."
           }
@@ -81,7 +81,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"d:/GOOGLE/VizCode/.claude/hooks/log-session.py\"",
+            "command": "python \"d:/Google AI/CodeViz/.claude/hooks/log-session.py\"",
             "async": true
           }
         ]
@@ -92,7 +92,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"d:/GOOGLE/VizCode/.claude/hooks/save-compact-summary.py\"",
+            "command": "python \"d:/Google AI/CodeViz/.claude/hooks/save-compact-summary.py\"",
             "async": true
           }
         ]

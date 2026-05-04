@@ -202,12 +202,16 @@ function openDashboard() {
         symViewClose();
     }
     
-    // Hide breadcrumb and AI chat when entering Dashboard mode
+    // Hide topbar, sidebar, breadcrumb and AI chat when entering Dashboard mode
+    const topbar = document.getElementById('topbar');
+    const sidebar = document.getElementById('sidebar');
     const breadcrumb = document.getElementById('breadcrumb');
-    const chatBtn = document.getElementById('chat-btn');
+    const chatCard = document.getElementById('chat-card');
     const chatPanel = document.getElementById('chat-panel');
+    if (topbar) topbar.style.display = 'none';
+    if (sidebar) sidebar.style.display = 'none';
     if (breadcrumb) breadcrumb.style.display = 'none';
-    if (chatBtn) chatBtn.style.display = 'none';
+    if (chatCard) chatCard.style.display = 'none';
     if (chatPanel && chatPanel.classList.contains('open')) {
         chatPanel.classList.remove('open');
     }
@@ -225,11 +229,15 @@ function closeDashboard() {
     const overlay = document.getElementById('dashboard-overlay');
     if (overlay) overlay.style.display = 'none';
     
-    // Show breadcrumb and AI chat button when leaving Dashboard mode
+    // Restore topbar, sidebar, breadcrumb and AI chat when leaving Dashboard mode
+    const topbar = document.getElementById('topbar');
+    const sidebar = document.getElementById('sidebar');
     const breadcrumb = document.getElementById('breadcrumb');
-    const chatBtn = document.getElementById('chat-btn');
+    const chatCard = document.getElementById('chat-card');
+    if (topbar) topbar.style.display = '';
+    if (sidebar) sidebar.style.display = '';
     if (breadcrumb) breadcrumb.style.display = '';
-    if (chatBtn) chatBtn.style.display = 'flex';
+    if (chatCard) chatCard.style.display = '';
     
     if (typeof syncTopbarModeButtons === 'function') syncTopbarModeButtons();
 }

@@ -386,7 +386,7 @@
 #dashboard-overlay {
     display: none;
     position: fixed;
-    inset: var(--topbar) 0 0 0;
+    inset: 0 0 0 var(--rail);
     background: rgba(5, 10, 15, 0.92);
     z-index: 90;
     backdrop-filter: blur(4px);

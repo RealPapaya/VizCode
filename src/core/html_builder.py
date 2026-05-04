@@ -113,6 +113,7 @@ HTML_SKELETON = """\
       <div id="module-list"></div>
     </div>
     <div id="sb-body-filters" class="sb-body" style="display:none">
+      <div id="filters-title" data-i18n="filters">Filters</div>
       <div id="ft-filter"></div>
       <div id="node-legend"></div>
       <div id="edge-filter"></div>
@@ -138,6 +139,7 @@ HTML_SKELETON = """\
             <button class="sr-toggle" id="srt-regex" data-i18n-attr="data-tip" data-i18n="searchRegex">.*</button>
           </div>
           <span id="sr-count"></span>
+          <span id="sr-sep"></span>
           <div id="sr-modes">
             <button class="sr-mode active" data-mode="files" id="srm-files" data-i18n-attr="data-tip" data-i18n="searchModeFilesTip" aria-label="Files">
               <svg class="sr-mode-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">

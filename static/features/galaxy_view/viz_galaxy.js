@@ -730,10 +730,10 @@ async function openGalaxy() {
     
     // Hide breadcrumb and AI chat in Galaxy mode
     const breadcrumb = document.getElementById('breadcrumb');
-    const chatBtn = document.getElementById('chat-btn');
+    const chatCard = document.getElementById('chat-card');
     const chatPanel = document.getElementById('chat-panel');
     if (breadcrumb) breadcrumb.style.display = 'none';
-    if (chatBtn) chatBtn.style.display = 'none';
+    if (chatCard) chatCard.style.display = 'none';
     if (chatPanel && chatPanel.classList.contains('open')) {
         chatPanel.classList.remove('open');
     }
@@ -848,9 +848,9 @@ function closeGalaxy() {
     
     // Show breadcrumb and AI chat button when leaving Galaxy mode
     const breadcrumb = document.getElementById('breadcrumb');
-    const chatBtn = document.getElementById('chat-btn');
+    const chatCard = document.getElementById('chat-card');
     if (breadcrumb) breadcrumb.style.display = '';
-    if (chatBtn) chatBtn.style.display = 'flex';
+    if (chatCard) chatCard.style.display = '';
     
     state.galaxyActive = false;
     _galaxySyncButtonComputing();
@@ -2030,9 +2030,20 @@ function _gFadeColor(color, multiplier, alpha) {
     return `rgba(${Math.round(r * mul)},${Math.round(g * mul)},${Math.round(b * mul)},${alpha})`;
 }
 
+/** Returns the current theme's bg hex color, falling back to the dark default. */
+function _gThemeBgHex() {
+    const t = document.documentElement.getAttribute('data-theme') || 'dark';
+    if (t === 'claude')    return '#f3efee';
+    if (t === 'parchment') return '#dfd5c7';
+    return '#060a10'; // dark galaxy default
+}
+
 function _gBlendWithBg(hex, amount) {
-    // Mix color toward galaxy background (#060a10) — avoids WebGL transparency glow artifacts
-    const bgR = 6, bgG = 10, bgB = 16;
+    // Mix color toward the current theme's galaxy background to avoid WebGL glow artifacts
+    const bg = _gThemeBgHex();
+    const bgR = parseInt(bg.slice(1, 3), 16);
+    const bgG = parseInt(bg.slice(3, 5), 16);
+    const bgB = parseInt(bg.slice(5, 7), 16);
     let r, g, b;
     if (!hex) return hex;
     if (hex.charAt(0) === '#') {
@@ -2182,13 +2193,37 @@ function _buildGNeighborSet(node) {
 
 function _galaxyRefreshThemeColors() {
     _gApplyThemeTypeColors();
+
+    // Recompute community palette dim/fog blends for the new theme background
+    if (typeof _G_COMMUNITY_PALETTE !== 'undefined' && _G_COMMUNITY_PALETTE) {
+        _G_COMMUNITY_DIM        = _G_COMMUNITY_PALETTE.map(c => _gBlendHex(c, 0.12));
+        _G_COMMUNITY_FOG        = _G_COMMUNITY_PALETTE.map(c => _gBlendHex(c, 0.15));
+        _G_COMMUNITY_HLDIM      = _G_COMMUNITY_PALETTE.map(c => _gBlendHex(c, 0.20));
+        _G_COMMUNITY_SEARCHDIM  = _G_COMMUNITY_PALETTE.map(c => _gBlendHex(c, 0.35));
+        _G_COMMUNITY_BRIGHT     = _G_COMMUNITY_PALETTE.map(c => _gBrightHex(c, 1.4));
+    }
+
     if (_gGraph) {
         _gGraph.forEachNode((node, attrs) => {
-            _gGraph.setNodeAttribute(node, 'color', _gNodeTypeColor(attrs._t, attrs._symbolKind, true));
+            const color = _gNodeTypeColor(attrs._t, attrs._symbolKind, true);
+            // Recompute dim/fog blends against the new theme background
+            _gGraph.mergeNodeAttributes(node, {
+                color,
+                _colorDim:       _gBlendHex(color, 0.12),
+                _colorFog:       _gBlendHex(color, 0.15),
+                _colorHlDim:     _gBlendHex(color, 0.20),
+                _colorSearchDim: _gBlendHex(color, 0.18),
+                _colorBright:    _gBrightHex(color, 1.4),
+            });
         });
     }
     if (state?.galaxyActive) _galaxyBuildFilterPanel();
-    if (_gSig) _gSig.refresh();
+
+    // Update Sigma label color to match the new theme
+    if (_gSig) {
+        _gSig.setSetting('labelColor', { color: _tC('#cbd5e1', '#716040') });
+        _gSig.refresh();
+    }
 }
 
 // ── Public API: Highlight node from Explorer click ────────────────────────────

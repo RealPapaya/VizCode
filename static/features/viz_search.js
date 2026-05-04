@@ -1408,6 +1408,7 @@ function onSearch(e) {
 // ── Mode toggle ───────────────────────────────────────────────────────────────
 function _srSetMode(mode) {
     _srState.mode = mode;
+    try { localStorage.setItem('vizcode-search-mode', mode); } catch (_) {}
     document.querySelectorAll('.sr-mode').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.mode === mode);
     });
@@ -1435,7 +1436,10 @@ function initSearch() {
     const input = document.getElementById('search');
     if (!input) return;
 
-    // Mode pills
+    // Mode pills — restore last-used mode from localStorage
+    const _savedMode = (() => { try { return localStorage.getItem('vizcode-search-mode'); } catch (_) { return null; } })();
+    if (_savedMode === 'code' || _savedMode === 'files') _srSetMode(_savedMode);
+
     document.querySelectorAll('.sr-mode').forEach(btn => {
         btn.addEventListener('click', () => _srSetMode(btn.dataset.mode));
     });

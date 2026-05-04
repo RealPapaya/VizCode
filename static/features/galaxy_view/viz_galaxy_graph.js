@@ -122,6 +122,12 @@ function _gMethodLookup() {
 // Background color #060a10 = rgb(6, 10, 16). Only handle #rrggbb and rgba().
 
 function _gBlendHex(color, t) {
+    // Read bg from current theme so dim/fog colors blend toward the right background
+    const bgHex = (typeof _gThemeBgHex === 'function') ? _gThemeBgHex() : '#060a10';
+    const bgR = parseInt(bgHex.slice(1, 3), 16);
+    const bgG = parseInt(bgHex.slice(3, 5), 16);
+    const bgB = parseInt(bgHex.slice(5, 7), 16);
+
     let r, g, b;
     if (color && color[0] === '#') {
         r = parseInt(color.slice(1, 3), 16);
@@ -129,13 +135,13 @@ function _gBlendHex(color, t) {
         b = parseInt(color.slice(5, 7), 16);
     } else {
         const m = color && color.match(/rgba?\(([^)]+)\)/i);
-        if (!m) return color || '#060a10';
+        if (!m) return color || bgHex;
         const p = m[1].split(',');
         r = +p[0]; g = +p[1]; b = +p[2];
     }
-    const nr = (6 + (r - 6) * t + 0.5) | 0;
-    const ng = (10 + (g - 10) * t + 0.5) | 0;
-    const nb = (16 + (b - 16) * t + 0.5) | 0;
+    const nr = (bgR + (r - bgR) * t + 0.5) | 0;
+    const ng = (bgG + (g - bgG) * t + 0.5) | 0;
+    const nb = (bgB + (b - bgB) * t + 0.5) | 0;
     return '#' + (nr < 16 ? '0' : '') + nr.toString(16)
         + (ng < 16 ? '0' : '') + ng.toString(16)
         + (nb < 16 ? '0' : '') + nb.toString(16);

@@ -419,13 +419,40 @@
     font-style: italic;
 }
 
-/* ── Toggle buttons (Aa / ab / .*) ── */
+/* ── Toggle buttons (Aa / ab / .*) — hidden by default, slide in on focus ── */
 #sr-toggles {
     display: flex;
     align-items: center;
     gap: 1px;
     flex-shrink: 0;
     padding: 2px 0;
+    overflow: hidden;
+    max-width: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: max-width 0.22s cubic-bezier(0.2, 0, 0, 1), opacity 0.18s ease;
+}
+
+#sr-input-row:focus-within #sr-toggles {
+    max-width: 110px;
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ── Separator between toggle group and mode group ── */
+#sr-sep {
+    display: block;
+    width: 1px;
+    height: 16px;
+    flex-shrink: 0;
+    background: var(--border);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+#sr-input-row:focus-within #sr-sep {
+    opacity: 1;
 }
 
 .sr-toggle {
@@ -477,7 +504,7 @@
 #sr-panel {
     position: absolute;
     top: calc(100% + 4px);
-    right: 0;
+    left: 0;
     width: 520px;
     max-height: 560px;
     display: none;
