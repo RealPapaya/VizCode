@@ -455,7 +455,7 @@ function _galaxyLayoutStorageLoad() {
 function _galaxyBuildFilterPanel() {
     const wrap = document.getElementById('sb-body-filters');
     if (!wrap) return;
-    _gFilterPanelSaved = wrap.innerHTML;
+    if (_gFilterPanelSaved === null) _gFilterPanelSaved = wrap.innerHTML;
 
     const hdr = (label, actions = '') =>
         `<div class="flt-section-hdr" style="${actions ? '' : 'pointer-events:none'}">` +
@@ -493,6 +493,7 @@ function _galaxyBuildFilterPanel() {
     const depthDisabled = !_gPinned;  // Disable depth filter when no pinned node
 
     wrap.innerHTML =
+        `<div id="filters-title" data-i18n="filters">${typeof T === 'function' ? T('filters') : 'Filters'}</div>` +
         `<div style="padding:4px 0 6px">${searchHtml}</div>` +
         `${hdr('Node Types', ntActions)}<div style="padding:4px 0 8px">${nodeRows}</div>` +
         `${hdr('Edge Types', etActions)}<div style="padding:4px 0 8px">${edgeRows}</div>` +
