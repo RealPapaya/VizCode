@@ -208,10 +208,14 @@ function openDashboard() {
     const breadcrumb = document.getElementById('breadcrumb');
     const chatCard = document.getElementById('chat-card');
     const chatPanel = document.getElementById('chat-panel');
+    const railExplorerBtn = document.getElementById('rail-explorer-btn');
+    const railFilterBtn = document.getElementById('rail-filter-btn');
     if (topbar) topbar.style.display = 'none';
     if (sidebar) sidebar.style.display = 'none';
     if (breadcrumb) breadcrumb.style.display = 'none';
     if (chatCard) chatCard.style.display = 'none';
+    if (railExplorerBtn) railExplorerBtn.style.display = 'none';
+    if (railFilterBtn) railFilterBtn.style.display = 'none';
     if (chatPanel && chatPanel.classList.contains('open')) {
         chatPanel.classList.remove('open');
     }
@@ -234,10 +238,14 @@ function closeDashboard() {
     const sidebar = document.getElementById('sidebar');
     const breadcrumb = document.getElementById('breadcrumb');
     const chatCard = document.getElementById('chat-card');
+    const railExplorerBtn = document.getElementById('rail-explorer-btn');
+    const railFilterBtn = document.getElementById('rail-filter-btn');
     if (topbar) topbar.style.display = '';
     if (sidebar) sidebar.style.display = '';
     if (breadcrumb) breadcrumb.style.display = '';
     if (chatCard) chatCard.style.display = '';
+    if (railExplorerBtn) railExplorerBtn.style.display = '';
+    if (railFilterBtn) railFilterBtn.style.display = '';
     
     if (typeof syncTopbarModeButtons === 'function') syncTopbarModeButtons();
 }

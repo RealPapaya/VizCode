@@ -39,7 +39,7 @@
     padding: 8px 12px;
     background: rgba(15, 17, 14, 0.92);
     border: 1px solid var(--border, #2c2d2a);
-    border-radius: 10px;
+    border-radius: 14px;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
     backdrop-filter: blur(6px);
     overflow: visible;

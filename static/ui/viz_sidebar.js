@@ -410,9 +410,13 @@ function buildEdgeFilter() {
         return;
     }
 
-    // Structure view or L0: placeholder
-    if ((window._sv && window._sv.active) || state.level === 0) {
+    // Structure view: placeholder. L0 already shows the file-type navigation prompt.
+    if (window._sv && window._sv.active) {
         wrap.innerHTML = '<div class="ft-filter-placeholder">Navigate to a module to filter edge types.</div>';
+        return;
+    }
+    if (state.level === 0) {
+        wrap.innerHTML = '';
         return;
     }
 
@@ -1148,4 +1152,3 @@ function filterGraphToSubPath(modId, subPath) {
 }
 
 // ─── L0: Module View ──────────────────────────────────────────────────────────
-

@@ -380,7 +380,7 @@
     align-items: center;
     background: var(--panel2);
     border: 0.5px solid var(--border);
-    border-radius: 6px;
+    border-radius: 12px;
     padding: 0 8px;
     gap: 5px;
     transition: border-color 0.2s, box-shadow 0.2s;

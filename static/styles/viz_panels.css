@@ -234,7 +234,7 @@
     padding: 8px 12px;
     background: rgba(9, 14, 20, 0.92);
     border: 0.5px solid var(--border);
-    border-radius: 10px;
+    border-radius: 14px;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
     backdrop-filter: blur(6px);
     /* contain children — never let them bleed outside */

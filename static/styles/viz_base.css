@@ -1,9 +1,10 @@
 :root {
     --radius: 8px;
     --sidebar: 220px;
-    --topbar: 44px;
+    --topbar: calc(var(--topbar-control) + 8px);
     --rail: 52px;
     --breadcrumb: 30px;
+    --topbar-control: 36px;
     --code-panel: 700px;
     --node-w0: 190px;
     --node-w1: 160px;
@@ -54,14 +55,14 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 8px 0;
+    padding: 16px 0 8px;
     gap: 4px;
     z-index: 100;
 }
 
 .rail-logo {
     width: 36px;
-    height: 36px;
+    height: var(--topbar-control);
     display: grid;
     place-items: center;
     color: var(--accent);
@@ -133,7 +134,7 @@ body {
     display: flex;
     align-items: stretch;
     gap: 8px;
-    padding: 4px 0;
+    padding: 2px 0 6px;
     flex-shrink: 0;
     z-index: 100;
 }
@@ -148,7 +149,7 @@ body {
     padding: 0 12px;
     background: var(--panel);
     border: 0.5px solid var(--border);
-    border-radius: 12px;
+    border-radius: 16px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     position: relative;
     overflow: visible;
@@ -168,7 +169,7 @@ body {
     align-items: center;
     background: var(--panel);
     border: 0.5px solid var(--border);
-    border-radius: 12px;
+    border-radius: 16px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     flex-shrink: 0;
     padding: 0 4px;
@@ -200,7 +201,7 @@ body {
     gap: 6px;
     min-height: 32px;
     padding: 5px 10px;
-    border-radius: 8px;
+    border-radius: 12px;
     border: 1px solid var(--border);
     background: transparent;
     color: var(--muted);
@@ -321,7 +322,7 @@ body {
     border: 0.5px solid var(--border);
     color: var(--text);
     padding: 5px 10px 5px 28px;
-    border-radius: 6px;
+    border-radius: 12px;
     font-size: 12px;
     width: 220px;
     max-width: 220px;
@@ -471,7 +472,7 @@ body {
 /* ── Breadcrumb action buttons ───────────────────────────────────────────── */
 #back-btn {
     padding: 0 12px;
-    border-radius: 8px;
+    border-radius: 12px;
     border: 1px solid var(--border);
     background: transparent;
     color: var(--muted);
@@ -493,7 +494,7 @@ body {
 /* Code toggle — sits inside its own card */
 #code-toggle-btn {
     padding: 0 14px;
-    border-radius: 8px;
+    border-radius: 12px;
     border: none;
     background: transparent;
     color: var(--muted);
@@ -533,7 +534,7 @@ body {
     align-items: stretch;
     position: relative;
     border: none;
-    border-radius: 8px;
+    border-radius: 12px;
     overflow: hidden;
     height: 100%;
     flex-shrink: 0;
@@ -805,13 +806,13 @@ body {
     flex-direction: column;
     overflow: hidden;
     flex-shrink: 0;
-    padding-top: 8px; /* match #app-rail top padding so Explorer title aligns with V logo */
+    padding-top: 16px; /* align Explorer/Filters title with the topbar cards */
     transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #sidebar-title,
 #filters-title {
-    height: 44px; /* same visual slot as rail-logo (36px) + its margin-bottom (8px) */
+    height: var(--topbar-control);
     display: flex;
     align-items: center;
     padding: 0 12px;
