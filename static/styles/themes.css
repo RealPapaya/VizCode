@@ -26,12 +26,12 @@
     --bg: #f3efee;
     --panel: #fcfbfc;
     --panel2: #f5f2f2;
-    --border: #e2e5ea;
+    --border: #d1d5db;
     --card-bg: #ffffff;
     --accent: #d97706;
     --accent2: #b45309;
     --text: #111827;
-    --muted: #6b7280;
+    --muted: #4b5563;
 
     --green: #16a34a;
     --red: #e8194b;
@@ -162,13 +162,13 @@
 
 /* Light: graph canvas background */
 [data-theme="claude"] #cy {
-    background: #f3efee;
+    background: var(--panel);
 }
 
 [data-theme="claude"] #cy.l2-view {
-    background-color: #ede9e8;
+    background-color: var(--panel);
     background-image:
-        radial-gradient(circle at center, rgba(217, 119, 6, 0.04) 0%, rgba(237, 233, 232, 1) 70%),
+        radial-gradient(circle at center, rgba(217, 119, 6, 0.04) 0%, transparent 70%),
         linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
         linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
     background-size: 100% 100%, 40px 40px, 40px 40px;
@@ -216,7 +216,7 @@
 
 /* Light: Galaxy view */
 [data-theme="claude"] #galaxy-container {
-    background: #f3efee;
+    background: var(--panel);
 }
 
 [data-theme="claude"] #galaxy-container::before {
@@ -324,7 +324,7 @@
     --bg: #dfd5c7;
     --panel: #f0e8db;
     --panel2: #e4d9ca;
-    --border: #c4b49e;
+    --border: #b3a48e;
     --card-bg: #f5efe8;
     --accent: #8c7851;
     --accent2: #716040;
@@ -496,16 +496,16 @@ body[data-top-mode="galaxy"] #l2-toggle-ext-lines {
 
 /* ── Parchment: Graph canvas overrides ── */
 [data-theme="parchment"] #cy.l2-view {
-    background-color: #ede4d8;
+    background-color: var(--panel);
     background-image:
-        radial-gradient(circle at center, rgba(140, 120, 81, 0.07) 0%, rgba(237, 228, 216, 1) 70%),
+        radial-gradient(circle at center, rgba(140, 120, 81, 0.07) 0%, transparent 70%),
         linear-gradient(rgba(2, 8, 38, 0.04) 1px, transparent 1px),
         linear-gradient(90deg, rgba(2, 8, 38, 0.04) 1px, transparent 1px);
     background-size: 100% 100%, 40px 40px, 40px 40px;
 }
 
 [data-theme="parchment"] #galaxy-container {
-    background: #ede4d8;
+    background: var(--panel);
 }
 
 [data-theme="parchment"] #galaxy-container::before {

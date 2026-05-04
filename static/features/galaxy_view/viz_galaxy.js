@@ -103,7 +103,7 @@ const _G_COLORS = {
     typedef: '#a78bfa',
     function: '#10b981',
     method: '#34d399',
-    contain: 'rgba(99, 102, 241, 0.4)',
+    contain: 'rgba(99, 102, 241, 0.6)',
     define: '#f59e0b',
     import: '#38bdf8',
     call: '#f87171',
@@ -111,6 +111,13 @@ const _G_COLORS = {
     implements: '#ec4899',
     override: '#fb923c',
 };
+
+let _G_DIM_EDGE_COLOR = (() => {
+    const t = document.documentElement.getAttribute('data-theme');
+    if (t === 'claude') return '#e8e4e3';
+    if (t === 'parchment') return '#d4c9bc';
+    return '#080c14';
+})();
 
 // Graph builder + physics functions live in viz_galaxy_graph.js / viz_galaxy_physics.js
 
@@ -1917,7 +1924,7 @@ function _galaxyEdgeReducer(edge, data) {
             data.hidden = true;
             return data;
         }
-        data.color = '#080c14';
+        data.color = _G_DIM_EDGE_COLOR;
         data.size = 0.3;
         data.zIndex = 0;
         return data;
@@ -1942,7 +1949,7 @@ function _galaxyEdgeReducer(edge, data) {
             data.zIndex = 10;
             return data;
         }
-        data.color = '#080c14';  // very dark — guaranteed dim for all edge types
+        data.color = _G_DIM_EDGE_COLOR;  // guaranteed dim for all edge types
         data.size = 0.2;
         data.zIndex = 0;
         return data;
@@ -2203,6 +2210,11 @@ function _galaxyRefreshThemeColors() {
         _G_COMMUNITY_SEARCHDIM  = _G_COMMUNITY_PALETTE.map(c => _gBlendHex(c, 0.35));
         _G_COMMUNITY_BRIGHT     = _G_COMMUNITY_PALETTE.map(c => _gBrightHex(c, 1.4));
     }
+
+    const t = document.documentElement.getAttribute('data-theme') || 'dark';
+    if (t === 'claude') _G_DIM_EDGE_COLOR = '#e8e4e3';
+    else if (t === 'parchment') _G_DIM_EDGE_COLOR = '#d4c9bc';
+    else _G_DIM_EDGE_COLOR = '#080c14';
 
     if (_gGraph) {
         _gGraph.forEachNode((node, attrs) => {
