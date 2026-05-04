@@ -199,7 +199,8 @@ HTML_SKELETON = """\
     <div id="l1-toolbar" class="l2-toolbar hidden">
       <div class="l2-left">
         <div class="l2-title"><span class="banner-lvl l1-clr">Level 1</span> · File Graph</div>
-        <div class="l2-sub" id="l1-mod-label" data-i18n="noModule">No module</div>
+        <div class="banner-breadcrumb" id="l1-breadcrumb-items"></div>
+        <div class="l2-sub l2-sub-fallback" id="l1-mod-label" data-i18n="noModule">No module</div>
       </div>
         <div class="l2-actions">
           <button id="l1-prev" class="l2-btn" disabled>&#x21A9;</button>
@@ -213,7 +214,8 @@ HTML_SKELETON = """\
     <div id="l2-toolbar" class="l2-toolbar hidden">
       <div class="l2-left">
         <div class="l2-title"><span class="banner-lvl l2-clr">Level 2</span> · Call Flow</div>
-        <div class="l2-sub" id="l2-file-label" data-i18n="noFile">No file</div>
+        <div class="banner-breadcrumb" id="l2-breadcrumb-items"></div>
+        <div class="l2-sub l2-sub-fallback" id="l2-file-label" data-i18n="noFile">No file</div>
       </div>
         <div class="l2-actions">
           <button id="l2-prev" class="l2-btn">&#x21A9;</button>

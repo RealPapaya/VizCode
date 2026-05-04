@@ -111,7 +111,7 @@ function _svEnsureDom() {
       <div id="sv-toolbar">
         <div class="sv-tb-top">
           <span class="sv-tb-title"><span class="banner-lvl l3-clr">Level 3</span> · Structure</span>
-          <span id="sv-breadcrumb"></span>
+          <span id="sv-breadcrumb" class="banner-breadcrumb"></span>
           <button id="sv-close-btn" title="Close">&times;</button>
         </div>
         <div class="sv-tb-actions">

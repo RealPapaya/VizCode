@@ -890,7 +890,11 @@ function _svShowLoading(on) {
 
 function _svUpdateBreadcrumbFile(fileRel, model) {
     const brd = document.getElementById('sv-breadcrumb');
-    if (brd) brd.textContent = fileRel || '';
+    if (typeof updateBreadcrumb === 'function') {
+        updateBreadcrumb();
+    } else if (brd) {
+        brd.textContent = fileRel || '';
+    }
     const stats = document.getElementById('sv-stats');
     if (stats && model) {
         const n = model.nodes ? model.nodes.length : 0;

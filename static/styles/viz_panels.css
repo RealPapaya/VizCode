@@ -4,7 +4,7 @@
     position: relative;
     min-width: 0;
     overflow: clip;
-    border-radius: 0 0 12px 12px;
+    border-radius: 12px;
     /* prevent absolutely positioned children from bleeding into code panel */
 }
 
@@ -233,8 +233,8 @@
     z-index: 6;
     display: flex;
     flex-direction: column;
-    gap: 5px;
-    padding: 8px 12px;
+    gap: 8px;
+    padding: 10px 14px;
     background: rgba(9, 14, 20, 0.92);
     border: 0.5px solid var(--border);
     border-radius: 14px;
@@ -253,14 +253,14 @@
 .l2-left {
     display: flex;
     align-items: baseline;
-    gap: 7px;
+    gap: 10px;
     min-width: 0;
     width: 100%;
     overflow: hidden;
 }
 
 .l2-title {
-    font-size: 10px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 1px;
     color: var(--muted);
@@ -286,6 +286,25 @@
     transition: color 0.15s;
 }
 
+.l2-sub-fallback {
+    display: none;
+}
+
+.banner-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    flex-wrap: nowrap;
+}
+
+.banner-breadcrumb .bc-item,
+#sv-breadcrumb .bc-item {
+    max-width: 220px;
+}
+
 /* Hover → reveal full path */
 .l2-toolbar:hover .l2-sub {
     white-space: normal;
@@ -297,7 +316,7 @@
 .l2-actions {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 7px;
     flex-wrap: wrap;
     /* wrap onto next line — never overflow */
     min-width: 0;
@@ -308,7 +327,7 @@
     background: var(--panel2);
     border: 1px solid var(--border);
     color: var(--text);
-    padding: 5px 9px;
+    padding: 6px 10px;
     border-radius: 6px;
     font-size: 12px;
     cursor: pointer;

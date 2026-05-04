@@ -97,7 +97,19 @@ function loadLevel0() {
     if (!l0Preset || (l0Preset.requires && !_isLayoutAvailable(l0Preset.requires))) {
         _syncLayoutIndicator('cose'); // fallback indicator
     }
-    applyLayoutWithCache('L0', l0Config, () => showLoading(false));
+    applyLayoutWithCache('L0', l0Config, () => {
+        showLoading(false);
+        _fitGraphAfterNavigation();
+    });
+}
+
+function _fitGraphAfterNavigation(padding = 40) {
+    if (!cy || !cy.elements || !cy.elements().length) return;
+    requestAnimationFrame(() => {
+        if (!cy || !cy.elements || !cy.elements().length) return;
+        cy.stop();
+        cy.fit(cy.elements(), padding);
+    });
 }
 
 // ─── L1: Module → show ALL files flat (no folder nodes ever) ─────────────────
@@ -736,4 +748,3 @@ function restoreL1FromCallGraph() {
     l2State._l1Snapshot = null;
     updateBreadcrumb();
 }
-

@@ -316,6 +316,13 @@ window.switchTab = function (tab) {
 
 window.goBack = goBack;
 
+function _clearGraphNavigationViewport() {
+    if (typeof depMapState === 'undefined') return;
+    depMapState.preserveViewport = null;
+    depMapState.expandOriginPos = null;
+    depMapState.pendingFocusFile = null;
+}
+
 function updateBreadcrumb() {
     const container = document.getElementById('bc-items');
     container.innerHTML = '';
@@ -336,16 +343,16 @@ function updateBreadcrumb() {
     }
 
     // Level 0: always show Modules
-    addSeg(T('sidebarModules'), () => { state.history = []; loadLevel0(); }, state.level === 0, 'Modules');
+    addSeg(T('sidebarModules'), () => { _clearGraphNavigationViewport(); state.history = []; loadLevel0(); }, state.level === 0, 'Modules');
 
     if (state.level >= 1 && state.activeModule) {
         const isModActive = state.level === 1 && !state.activeSubDir;
         addSeg(state.activeModule,
             isModActive ? null : () => {
                 if (state.level >= 2) {
-                    const h = [...state.history]; drillToModule(state.activeModule); state.history = h;
+                    const h = [...state.history]; _clearGraphNavigationViewport(); drillToModule(state.activeModule); state.history = h;
                 } else {
-                    drillToModule(state.activeModule);
+                    _clearGraphNavigationViewport(); drillToModule(state.activeModule);
                 }
             },
             isModActive,
@@ -398,6 +405,8 @@ function updateBreadcrumb() {
         });
     }
 
+    _updateBannerBreadcrumbs();
+
     // Update Back button visibility (now managed via disabled attribute)
     const backBtn = document.getElementById('back-btn');
     if (backBtn) {
@@ -413,6 +422,106 @@ function updateBreadcrumb() {
         const isL2 = state.level >= 2;
         const structActive = !!(window._sv && window._sv.active);
         window._lswUpdate({ active: structActive ? 2 : (isL2 ? 1 : 0) });
+    }
+}
+
+function _updateBannerBreadcrumbs() {
+    const containers = [
+        document.getElementById('l1-breadcrumb-items'),
+        document.getElementById('l2-breadcrumb-items'),
+        document.getElementById('sv-breadcrumb')
+    ].filter(Boolean);
+    if (!containers.length) return;
+
+    const structActive = !!(window._sv && window._sv.active);
+    containers.forEach(container => { container.innerHTML = ''; });
+
+    function addSeg(label, clickFn, isCurrent, title) {
+        containers.forEach(container => {
+            if (container.children.length > 0) {
+                const sep = document.createElement('span');
+                sep.className = 'bc-sep';
+                sep.textContent = '>';
+                container.appendChild(sep);
+            }
+
+            const seg = document.createElement('span');
+            seg.className = 'bc-item' + (isCurrent ? ' bc-current' : '');
+            seg.textContent = label;
+            seg.title = title || label || '';
+            if (clickFn) seg.addEventListener('click', clickFn);
+            container.appendChild(seg);
+        });
+    }
+
+    addSeg(T('sidebarModules'), () => { _clearGraphNavigationViewport(); state.history = []; loadLevel0(); }, state.level === 0, 'Modules');
+
+    if (state.level >= 1 && state.activeModule) {
+        const isModActive = state.level === 1 && !state.activeSubDir;
+        addSeg(state.activeModule,
+            isModActive ? null : () => {
+                if (state.level >= 2) {
+                    const h = [...state.history];
+                    _clearGraphNavigationViewport(); drillToModule(state.activeModule);
+                    state.history = h;
+                } else {
+                    _clearGraphNavigationViewport(); drillToModule(state.activeModule);
+                }
+            },
+            isModActive,
+            state.activeModule);
+    }
+
+    if (state.level === 1 && state.activeSubDir) {
+        const parts = state.activeSubDir.split('/');
+        parts.forEach((part, i) => {
+            const isLast = i === parts.length - 1;
+            const subPath = parts.slice(0, i + 1).join('/');
+            const fullPath = (state.activeModule ? state.activeModule + '/' : '') + subPath;
+            addSeg(part,
+                isLast ? null : () => {
+                    filterGraphToSubPath(state.activeModule, subPath);
+                    setSubdirActive(state.activeModule, subPath);
+                },
+                isLast,
+                fullPath);
+        });
+    }
+
+    if (state.level >= 2 && state.level < 3 && state.activeFile) {
+        const modId = state.activeModule || '';
+        const full = state.activeFile;
+        const prefix = modId ? modId + '/' : '';
+        const rel = full.startsWith(prefix) ? full.slice(prefix.length) : full;
+        const parts = rel.split('/');
+
+        parts.forEach((part, i) => {
+            const isLast = i === parts.length - 1;
+            const canReturnFromStructure = isLast && structActive;
+            const subPath = parts.slice(0, i + 1).join('/');
+            const fullPath = (modId ? modId + '/' : '') + subPath;
+            addSeg(part,
+                isLast && !canReturnFromStructure ? null : () => {
+                    if (canReturnFromStructure && window.svHideSvView) {
+                        svHideSvView();
+                        updateBreadcrumb();
+                        return;
+                    }
+                    state.level = 1;
+                    hideFuncView();
+                    if (window._sv && window._sv.active && window.svHideSvView) window.svHideSvView();
+                    if (window.svHideStructureBtn) svHideStructureBtn();
+                    setCodeBtnEnabled(false);
+                    filterGraphToSubPath(state.activeModule, subPath);
+                    setSubdirActive(state.activeModule, subPath);
+                },
+                isLast && !canReturnFromStructure,
+                fullPath);
+        });
+    }
+
+    if (structActive) {
+        addSeg('Structure', null, true, 'Structure');
     }
 }
 

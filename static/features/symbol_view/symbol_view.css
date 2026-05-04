@@ -35,8 +35,8 @@
     z-index: 25;
     display: flex;
     flex-direction: column;
-    gap: 5px;
-    padding: 8px 12px;
+    gap: 8px;
+    padding: 10px 14px;
     background: rgba(15, 17, 14, 0.92);
     border: 1px solid var(--border, #2c2d2a);
     border-radius: 14px;
@@ -50,13 +50,13 @@
 .sv-tb-top {
     display: flex;
     align-items: baseline;
-    gap: 7px;
+    gap: 10px;
     min-width: 0;
     width: 100%;
 }
 
 .sv-tb-title {
-    font-size: 10px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 1px;
     color: var(--muted, #93918b);
@@ -65,6 +65,9 @@
 }
 
 #sv-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 0;
     font-size: 13px;
     font-weight: 600;
     color: var(--text, #eae8e3);
@@ -78,8 +81,6 @@
 }
 
 #sv-toolbar:hover #sv-breadcrumb {
-    white-space: normal;
-    word-break: break-all;
     color: var(--accent, #dfa745);
 }
 
@@ -128,7 +129,7 @@
     border: 1px solid var(--border, #2c2d2a);
     color: var(--text, #eae8e3);
     border-radius: 6px;
-    padding: 5px 9px;
+    padding: 6px 10px;
     font-size: 12px;
     cursor: pointer;
     white-space: nowrap;
