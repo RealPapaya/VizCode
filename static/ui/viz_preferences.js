@@ -266,17 +266,65 @@ const CY_THEME_OVERRIDES = {
             }
         }
     ],
-    claude: [
+        claude: [
         {
+            selector: 'node', style: {
+                'color': '#111827',
+            }
+        },
+                {
             selector: 'node[simple=0][lvl=1]', style: {
-                'background-color': '#251b11', // --card-bg
+                'background-color': '#f5f2f2', // --card-bg
             }
         },
         {
             selector: 'node[simple=0][lvl=0]', style: {
-                'background-color': '#211810', // --panel
+                'background-color': '#fcfbfc', // --panel
             }
-        }
+        },
+        {
+            selector: 'node:selected', style: {
+                'border-color': '#e8194b',
+            }
+        },
+        {
+            selector: 'node[simple=1]:selected', style: {
+                'border-color': '#e8194b',
+            }
+        },
+        {
+            selector: 'node.selected-label', style: {
+                'color': '#111827',
+            }
+        },
+        {
+            selector: 'node.neighbor-label', style: {
+                'color': '#6b7280',
+            }
+        },
+        {
+            selector: 'node.node-hovered', style: {
+                'text-background-color': '#ffffff',
+                'color': '#111827',
+            }
+        },
+        {
+            selector: 'edge', style: {
+                'text-background-color': '#f4f5f7',
+                'text-background-opacity': 0.92,
+            }
+        },
+        {
+            selector: '.hl', style: {
+                'border-color': 'data(bc)', 'outline-color': 'data(bc)', 'outline-width': 1, 'outline-opacity': 1, 'outline-offset': 4,
+            }
+        },
+        {
+            selector: 'node[_t="drill_group"]', style: {
+                'background-color': '#e8eaed',
+                'background-opacity': 0.88,
+            }
+        },
     ],
     parchment: [
         {
@@ -360,7 +408,7 @@ function _applyThemeModuleColors(th) {
     // 0. Read the 10 module colors from the currently applied CSS theme, with fallback for aggressive browsers caching themes.css
     const DEFAULT_PALETTES = {
         dark: ['#dfa745', '#849646', '#d16d6a', '#5f8b9e', '#9d7e79', '#c28b5e', '#7b947c', '#8c6e8f', '#b8a663', '#a76a5c'],
-        claude: ['#d4704a', '#d1b26f', '#6b8872', '#5b7b8c', '#a37c76', '#c99a5b', '#7e9680', '#6c8b99', '#b58882', '#b36142'],
+        claude: ['#e8194b', '#2563eb', '#16a34a', '#7c3aed', '#0891b2', '#d97706', '#059669', '#9333ea', '#dc2626', '#0284c7'],
         parchment: ['#8c7851', '#5a7d66', '#a8504a', '#4a687d', '#7a597a', '#9c855a', '#6b9177', '#a16561', '#56758c', '#8a658a']
     };
     const style = getComputedStyle(document.documentElement);
@@ -407,10 +455,10 @@ function applyTheme(theme) {
     applyCyTheme(th);
 }
 
-// Returns `light` value when parchment theme is active, otherwise `dark`.
+// Returns `light` value when a light theme (parchment or claude/Light) is active, otherwise `dark`.
 function _tC(dark, light) {
     const t = document.documentElement.getAttribute('data-theme') || 'dark';
-    return t === 'parchment' ? light : dark;
+    return (t === 'parchment' || t === 'claude') ? light : dark;
 }
 
 function _applyLang(lang) {
@@ -444,8 +492,8 @@ function _updateCodevizPref(key, value) {
 }
 
 const _PREF_THEME_PALETTES = {
-    dark: { bg: '#0f110e', panel: '#161715', accent: '#dfa745', text: '#eae8e3', muted: '#6a6860', card: '#1e1f1c', name: 'Dark' },
-    claude: { bg: '#1a1410', panel: '#211810', accent: '#d4704a', text: '#f0e8df', muted: '#6a5a50', card: '#251b11', name: 'Dawn' },
+        dark: { bg: '#0f110e', panel: '#161715', accent: '#dfa745', text: '#eae8e3', muted: '#6a6860', card: '#1e1f1c', name: 'Dark' },
+    claude: { bg: '#f3efee', panel: '#fcfbfc', accent: '#e8194b', text: '#111827', muted: '#6b7280', card: '#f5f2f2', name: 'Light' },
     parchment: { bg: '#f9f4ef', panel: '#eaddcf', accent: '#8c7851', text: '#020826', muted: '#9c8c78', card: '#ede8e0', name: 'Parchment' },
 };
 
@@ -474,7 +522,7 @@ function _buildPrefModalHTML() {
             <label for="pref-theme-select" style="${LS}" data-i18n="themeLabel">Theme</label>
             <select id="pref-theme-select" style="${SS}">
               <option value="dark" data-i18n="themeOptDark">Dark</option>
-              <option value="claude" data-i18n="themeOptClaude">Dawn</option>
+              <option value="claude" data-i18n="themeOptClaude">Light</option>
               <option value="parchment" data-i18n="themeOptParchment">Parchment</option>
             </select>
           </div>

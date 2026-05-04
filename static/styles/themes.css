@@ -23,21 +23,26 @@
 }
 
 [data-theme="claude"] {
-    --bg: #120d09;
-    --panel: #221710;
-    --panel2: #2e2018;
-    --border: #3e2e1e;
-    --card-bg: #251b11;
-    --accent: #d4704a;
-    --accent2: #b05538;
-    --text: #f0e8df;
-    --muted: #8a7260;
+    --bg: #f3efee;
+    --panel: #fcfbfc;
+    --panel2: #f5f2f2;
+    --border: #e2e5ea;
+    --card-bg: #ffffff;
+    --accent: #e8194b;
+    --accent2: #c01038;
+    --text: #111827;
+    --muted: #6b7280;
+
+    --green: #16a34a;
+    --red: #e8194b;
+    --yellow: #d97706;
 
     /* Module Colors */
-    --m1: #d4704a; --m2: #d1b26f; --m3: #6b8872; --m4: #5b7b8c; --m5: #a37c76;
-    --m6: #c99a5b; --m7: #7e9680; --m8: #6c8b99; --m9: #b58882; --m10: #b36142;
+    --m1: #e8194b; --m2: #2563eb; --m3: #16a34a; --m4: #7c3aed; --m5: #0891b2;
+    --m6: #d97706; --m7: #059669; --m8: #9333ea; --m9: #dc2626; --m10: #0284c7;
 }
 
+/* ── Light theme: crisp white cards on cool-gray base ── */
 [data-theme="claude"] .tab.active,
 [data-theme="claude"] .tab:hover {
     background: var(--accent);
@@ -60,13 +65,18 @@
 }
 
 [data-theme="claude"] .badge {
-    background: rgba(212, 112, 74, 0.12);
-    border-color: rgba(212, 112, 74, 0.28);
+    background: rgba(232, 25, 75, 0.10);
+    border-color: rgba(232, 25, 75, 0.25);
 }
 
 [data-theme="claude"] .tree-row.active,
 [data-theme="claude"] .subdir-row.active {
     box-shadow: inset 2px 0 0 var(--accent);
+    background: rgba(232, 25, 75, 0.06);
+}
+
+[data-theme="claude"] .tree-row:hover {
+    background: rgba(0, 0, 0, 0.04);
 }
 
 [data-theme="claude"] .pref-section-label {
@@ -103,37 +113,32 @@
 }
 
 [data-theme="claude"] .ls-header:hover {
-    background: rgba(212, 112, 74, 0.08);
+    background: rgba(232, 25, 75, 0.06);
 }
 
 [data-theme="claude"] .ls-btn:hover {
-    background: rgba(212, 112, 74, 0.09);
-    border-color: rgba(212, 112, 74, 0.3);
-    color: #e8c4aa;
+    background: rgba(232, 25, 75, 0.07);
+    border-color: rgba(232, 25, 75, 0.28);
+    color: var(--accent);
 }
 
 [data-theme="claude"] .ls-btn.active {
-    background: rgba(212, 112, 74, 0.16);
-    border-color: rgba(212, 112, 74, 0.6);
+    background: rgba(232, 25, 75, 0.12);
+    border-color: rgba(232, 25, 75, 0.5);
     color: var(--accent);
 }
 
 [data-theme="claude"] .ls-btn.active .ls-icon {
-    filter: drop-shadow(0 0 4px rgba(212, 112, 74, 0.65));
+    filter: drop-shadow(0 0 4px rgba(232, 25, 75, 0.45));
 }
 
 [data-theme="claude"] #layout-switcher:hover {
-    box-shadow: 0 6px 32px rgba(212, 112, 74, 0.14);
+    box-shadow: 0 6px 32px rgba(232, 25, 75, 0.10);
 }
 
 [data-theme="claude"] #code-toggle-btn:hover,
 [data-theme="claude"] #code-toggle-btn.active {
-    border-color: var(--accent);
     color: var(--accent);
-}
-
-[data-theme="claude"] #code-toggle-btn.active {
-    background: rgba(212, 112, 74, 0.1);
 }
 
 [data-theme="claude"] .gt-head {
@@ -141,26 +146,137 @@
 }
 
 [data-theme="claude"] #g-tooltip {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(212, 112, 74, 0.09);
+    background: #ffffff;
+    border-color: var(--border);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(232, 25, 75, 0.08);
+    color: var(--text);
 }
 
 [data-theme="claude"] ::-webkit-scrollbar-thumb {
-    background: #3e2e1e;
+    background: #d1d5db;
 }
 
 [data-theme="claude"] ::-webkit-scrollbar-thumb:hover {
-    background: var(--accent);
+    background: #9ca3af;
+}
+
+/* Light: graph canvas background */
+[data-theme="claude"] #cy {
+    background: #f3efee;
+}
+
+[data-theme="claude"] #cy.l2-view {
+    background-color: #ede9e8;
+    background-image:
+        radial-gradient(circle at center, rgba(232, 25, 75, 0.04) 0%, rgba(237, 233, 232, 1) 70%),
+        linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+    background-size: 100% 100%, 40px 40px, 40px 40px;
 }
 
 [data-theme="claude"] .sr-fuzzy-mark {
-    color: #e8894a;
-    border-bottom-color: rgba(232, 137, 74, 0.5);
+    color: #e8194b;
+    border-bottom-color: rgba(232, 25, 75, 0.4);
 }
 
 [data-theme="claude"] .sr-fi-name .sr-fuzzy-mark,
 [data-theme="claude"] .sr-file-name .sr-fuzzy-mark {
-    color: #e8894a;
-    background: rgba(232, 137, 74, 0.14);
+    color: #c01038;
+    background: rgba(232, 25, 75, 0.12);
+}
+
+/* Light: floating panel overrides */
+[data-theme="claude"] .l2-toolbar {
+    background: rgba(255, 255, 255, 0.96);
+    border-color: var(--border);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
+}
+
+[data-theme="claude"] #layout-switcher {
+    background: rgba(255, 255, 255, 0.96);
+    border-color: var(--border);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
+}
+
+[data-theme="claude"] #graph-zoom-controls .graph-zoom-btn {
+    background: rgba(255, 255, 255, 0.92);
+    border-color: rgba(0, 0, 0, 0.12);
+    color: #6b7280;
+}
+
+[data-theme="claude"] #graph-zoom-controls .graph-zoom-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(232, 25, 75, 0.06);
+}
+
+[data-theme="claude"] #dashboard-overlay {
+    background: rgba(244, 245, 247, 0.96);
+}
+
+/* Light: node modal / tooltip */
+[data-theme="claude"] .tip-body {
+    color: var(--text);
+}
+
+[data-theme="claude"] #node-modal {
+    background: #ffffff;
+    border-color: var(--border);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.14);
+    color: var(--text);
+}
+
+/* Light: code panel */
+[data-theme="claude"] .code-line:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="claude"] .code-line.fn-highlight {
+    background: rgba(232, 25, 75, 0.08) !important;
+}
+
+/* Light: syntax highlight (same as parchment light-mode tokens) */
+[data-theme="claude"] .hljs {
+    color: #111827;
+}
+
+[data-theme="claude"] .hljs-keyword,
+[data-theme="claude"] .hljs-literal,
+[data-theme="claude"] .hljs-operator {
+    color: #9c1616;
+}
+
+[data-theme="claude"] .hljs-built_in,
+[data-theme="claude"] .hljs-meta {
+    color: #8c4a00;
+}
+
+[data-theme="claude"] .hljs-type,
+[data-theme="claude"] .hljs-attr {
+    color: #1a3a7c;
+}
+
+[data-theme="claude"] .hljs-number {
+    color: #1a5a8c;
+}
+
+[data-theme="claude"] .hljs-string {
+    color: #2d6b2d;
+}
+
+[data-theme="claude"] .hljs-comment {
+    color: #9ca3af;
+    font-style: italic;
+}
+
+[data-theme="claude"] .hljs-function,
+[data-theme="claude"] .hljs-title {
+    color: #5a2870;
+}
+
+[data-theme="claude"] .hljs-params,
+[data-theme="claude"] .hljs-variable {
+    color: #111827;
 }
 
 [data-theme="parchment"] {

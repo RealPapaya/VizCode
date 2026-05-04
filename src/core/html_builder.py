@@ -80,10 +80,10 @@ HTML_SKELETON = """\
 
     <div class="rail-divider"></div>
 
-    <button id="rail-explorer-btn" class="rail-btn" type="button" title="Explorer" onclick="document.getElementById('sb-collapse-btn').click()">
+    <button id="rail-explorer-btn" class="rail-btn" type="button" title="Explorer" onclick="(function(){{var s=document.getElementById('sidebar');var isCollapsed=s&&s.classList.contains('sb-collapsed');var onExplorer=typeof _sbActiveTab!=='undefined'&&_sbActiveTab==='explorer';if(!isCollapsed&&onExplorer){{document.getElementById('sb-collapse-btn').click();return;}}if(typeof _sbActiveTab!=='undefined'){{_sbActiveTab='explorer';}}if(isCollapsed){{document.getElementById('sb-collapse-btn').click();}}else if(typeof _applySidebarTab==='function'){{_applySidebarTab();}}}})()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
     </button>
-    <button id="rail-filter-btn" class="rail-btn" type="button" title="Filter" onclick="(function(){{var s=document.getElementById('sidebar');if(s&&s.classList.contains('sb-collapsed')){{document.getElementById('sb-collapse-btn').click();}}var t=document.querySelector('.sb-tab[data-tab=&quot;filters&quot;]');if(t){{t.click();}}}})()">
+    <button id="rail-filter-btn" class="rail-btn" type="button" title="Filter" onclick="(function(){{var s=document.getElementById('sidebar');var isCollapsed=s&&s.classList.contains('sb-collapsed');var onFilters=typeof _sbActiveTab!=='undefined'&&_sbActiveTab==='filters';if(!isCollapsed&&onFilters){{document.getElementById('sb-collapse-btn').click();return;}}if(typeof _sbActiveTab!=='undefined'){{_sbActiveTab='filters';}}if(isCollapsed){{document.getElementById('sb-collapse-btn').click();}}else if(typeof _applySidebarTab==='function'){{_applySidebarTab();}}}})()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
     </button>
 
