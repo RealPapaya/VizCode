@@ -2,7 +2,7 @@
     --radius: 8px;
     --sidebar: 220px;
     --topbar: 44px;
-    --rail: 44px;
+    --rail: 52px;
     --breadcrumb: 30px;
     --code-panel: 700px;
     --node-w0: 190px;
@@ -50,7 +50,7 @@ body {
 #app-rail {
     width: var(--rail);
     flex-shrink: 0;
-    background: var(--panel);
+    background: transparent;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -60,19 +60,21 @@ body {
 }
 
 .rail-logo {
-    width: 28px;
-    height: 28px;
+    width: 36px;
+    height: 36px;
     display: grid;
     place-items: center;
     color: var(--accent);
     font-weight: 700;
-    font-size: 14px;
+    font-size: 18px;
     letter-spacing: 1px;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .rail-divider {
-    width: 24px;
+    width: 28px;
     height: 0.5px;
     background: var(--border);
     margin: 6px 0;
@@ -85,13 +87,13 @@ body {
 
 #app-rail .rail-btn,
 #app-rail #pref-btn {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     padding: 0;
     border: none;
     background: transparent;
     color: var(--muted);
-    border-radius: 6px;
+    border-radius: 8px;
     cursor: pointer;
     display: grid;
     place-items: center;
@@ -105,8 +107,8 @@ body {
 
 #app-rail .rail-btn svg {
     display: block;
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
 }
 
 #app-rail .rail-btn:hover,
@@ -123,21 +125,22 @@ body {
     box-shadow: none;
 }
 
-/* ── Top Bar (transparent passthrough — card inside provides visuals) ── */
+/* ── Top Bar (transparent passthrough — each child is its own card) ── */
 #topbar {
     height: var(--topbar);
     background: transparent;
     border-bottom: none;
     display: flex;
-    align-items: center;
-    gap: 0;
-    padding: 0;
+    align-items: stretch;
+    gap: 8px;
+    padding: 4px 0;
     flex-shrink: 0;
     z-index: 100;
 }
 
 #search-card {
-    flex: 1;
+    flex: 0 0 auto;
+    width: clamp(260px, 30%, 420px);
     height: 100%;
     display: flex;
     align-items: center;
@@ -149,6 +152,26 @@ body {
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     position: relative;
     overflow: visible;
+}
+
+/* Spacer pushes right-side topbar cards to the far right */
+#topbar-spacer {
+    flex: 1;
+}
+
+/* Level-switcher / Code / Chat cards: own card border, right-aligned */
+#level-switcher-card,
+#code-card,
+#chat-card {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    background: var(--panel);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    flex-shrink: 0;
+    padding: 0 4px;
 }
 
 .logo {
@@ -418,8 +441,7 @@ body {
 }
 
 /* ── Breadcrumb action buttons ───────────────────────────────────────────── */
-#back-btn,
-#code-toggle-btn {
+#back-btn {
     padding: 0 12px;
     border-radius: 8px;
     border: 1px solid var(--border);
@@ -429,7 +451,6 @@ body {
     font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.04em;
-    margin-left: 8px;
     height: 32px;
     min-width: 0;
     flex-shrink: 0;
@@ -441,6 +462,28 @@ body {
     transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.2s;
 }
 
+/* Code toggle — sits inside its own card */
+#code-toggle-btn {
+    padding: 0 14px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    height: 100%;
+    min-width: 0;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    white-space: nowrap;
+    transition: color 0.15s, opacity 0.2s;
+}
+
 #back-btn:disabled,
 #code-toggle-btn:disabled {
     opacity: 0.35;
@@ -449,26 +492,22 @@ body {
 
 #back-btn:not(:disabled):hover,
 #code-toggle-btn:not(:disabled):hover {
-    border-color: var(--accent);
     color: var(--accent);
 }
 
 #code-toggle-btn.active {
     color: var(--accent);
-    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
-/* ── Level Switcher ─────────────────────────────────────────────────────────── */
+/* ── Level Switcher — sits inside its own card ─────────────────────────────── */
 #level-switcher {
     display: flex;
     align-items: stretch;
     position: relative;
-    border: 1px solid var(--border);
+    border: none;
     border-radius: 8px;
     overflow: hidden;
-    height: 32px;
-    margin-left: 8px;
+    height: 100%;
     flex-shrink: 0;
     user-select: none;
     background: transparent;
@@ -693,32 +732,58 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: relative;
     background: var(--panel);
     border: 0.5px solid var(--border);
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
+/* Sidebar resize handle — sits on left edge of content-card, hover reveals ⋮ */
+#sb-resize-handle {
+    position: absolute;
+    left: -5px;
+    top: 0;
+    width: 10px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#sb-resize-handle::after {
+    content: '⋮';
+    font-size: 14px;
+    color: transparent;
+    transition: color 0.15s;
+    pointer-events: none;
+}
+
+#sb-resize-handle:hover::after,
+#sb-resize-handle.dragging::after {
+    color: var(--muted);
+}
+
 #sidebar {
     width: var(--sidebar);
-    background: var(--panel);
-    border-right: 0.5px solid var(--border);
+    background: transparent;
+    border-right: none;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     flex-shrink: 0;
-    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), border-right-width 0.22s;
+    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #sidebar-title {
-    padding: 6px 8px 4px;
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: .7px;
+    padding: 10px 12px 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: .3px;
     flex-shrink: 0;
-    border-bottom: 1px solid var(--border);
     text-align: left;
 }
 
@@ -758,24 +823,9 @@ body {
     box-shadow: inset 2px 0 0 #60a5fa;
 }
 
-/* expand arrow */
+/* expand arrow — hidden for clean minimal look */
 .tree-arrow {
-    flex-shrink: 0;
-    width: 16px;
-    text-align: center;
-    font-size: 9px;
-    color: var(--muted);
-    transition: transform .15s;
-    line-height: 1
-}
-
-.tree-arrow.open {
-    transform: rotate(90deg)
-}
-
-.tree-arrow.leaf {
-    opacity: 0;
-    pointer-events: none
+    display: none;
 }
 
 /* module row */
@@ -914,17 +964,17 @@ body {
 .tree-children.open {
     display: block;
     position: relative;
-    padding-left: 8px;
+    padding-left: 14px;
 }
 
 /* ── Explorer tree connector lines (VS Code / Codename style) ── */
-/* vertical guide line — runs along the left of each open subtree */
+/* vertical guide line — height set by JS via --guide-h so it stops at last child row center */
 .tree-children.open::before {
     content: '';
     position: absolute;
-    left: 7px;
+    left: 13px;
     top: 0;
-    bottom: 0;
+    height: var(--guide-h, 100%);
     width: 0.5px;
     background: var(--border);
     pointer-events: none;
@@ -940,14 +990,18 @@ body {
     position: absolute;
     left: -1px;
     top: 50%;
-    width: 6px;
+    /* Extend to reach the folder/file icon (indent spacer area) */
+    width: calc(var(--tree-indent, 6px) + 1px);
     height: 0.5px;
     background: var(--border);
     pointer-events: none;
 }
 
-/* unified tree — drop section header label */
-#sidebar-title {
+/* Root-level tree-children: no connector lines (root folders sit flush) */
+#module-list > .tree-children.open::before {
+    display: none;
+}
+#module-list > .tree-children.open > .tree-row::before {
     display: none;
 }
 

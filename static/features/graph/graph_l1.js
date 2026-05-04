@@ -163,7 +163,8 @@ function drillToModule(modId, opts) {
                 const children = modRow.nextElementSibling;
                 if (children && !children.classList.contains('open')) {
                     children.classList.add('open');
-                    modRow.querySelector('.tree-arrow')?.classList.add('open');
+                    const iconEl = modRow.querySelector('.subdir-icon');
+                    if (iconEl) iconEl.innerHTML = _iconFolderOpen();
                 }
             }
 

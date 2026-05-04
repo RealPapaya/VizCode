@@ -109,7 +109,7 @@ HTML_SKELETON = """\
       <button id="sb-collapse-btn" title="Collapse sidebar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></svg></button>
     </div>
     <div id="sb-body-explorer" class="sb-body">
-      <div id="sidebar-title" data-collapsible="true" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;"><span data-i18n="fileSystem">File System</span><span class="legend-toggle" style="font-size:13px;transition:transform 0.2s;">▾</span></div>
+      <div id="sidebar-title"></div>
       <div id="module-list"></div>
     </div>
     <div id="sb-body-filters" class="sb-body" style="display:none">
@@ -123,8 +123,6 @@ HTML_SKELETON = """\
       <span id="sb-stat-edges">&#x2013;</span>
     </div>
   </div>
-  <div id="sidebar-resizer"></div>
-
   <!-- MAIN AREA (topbar + breadcrumb + content) ───────────────────────── -->
   <div id="main-area">
 
@@ -133,7 +131,7 @@ HTML_SKELETON = """\
       <div id="search-wrap">
         <div id="sr-input-row">
           <span id="sr-icon">⌕</span>
-          <input id="search" type="text" data-i18n-attr="placeholder" data-i18n="searchPlaceholderFiles" placeholder="Search files… ( / )" autocomplete="off" spellcheck="false">
+          <input id="search" type="text" data-i18n-attr="placeholder" data-i18n="searchPlaceholderFiles" placeholder="Search files…" autocomplete="off" spellcheck="false">
           <div id="sr-toggles">
             <button class="sr-toggle" id="srt-case" data-i18n-attr="data-tip" data-i18n="searchMatchCase">Aa</button>
             <button class="sr-toggle" id="srt-word" data-i18n-attr="data-tip" data-i18n="searchMatchWord">ab</button>
@@ -167,7 +165,9 @@ HTML_SKELETON = """\
           <div id="sr-results"></div>
         </div>
       </div>
-      <div style="flex:1"></div>
+      </div><!-- /#search-card -->
+      <div id="topbar-spacer"></div>
+      <div id="level-switcher-card" class="topbar-card">
       <div id="level-switcher" class="lsw-disabled">
         <div class="lsw-pill"></div>
         <button class="lsw-seg lsw-active" data-seg="0" title="File Graph"><svg class="lsw-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="11" x2="17" y2="6.5"/><line x1="7" y1="13" x2="17" y2="17.5"/></svg><span class="lsw-label">File Graph</span></button>
@@ -176,12 +176,17 @@ HTML_SKELETON = """\
         <div class="lsw-div"></div>
         <button class="lsw-seg" data-seg="2" title="Structure"><svg class="lsw-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="6" rx="1"/><path d="M12 9v4"/><path d="M5 13h14"/><path d="M5 13v3"/><rect x="2" y="16" width="6" height="5" rx="1"/><path d="M19 13v3"/><rect x="16" y="16" width="6" height="5" rx="1"/></svg><span class="lsw-label">Structure</span></button>
       </div>
+      </div><!-- /#level-switcher-card -->
+      <div id="code-card" class="topbar-card">
       <button id="code-toggle-btn" disabled data-i18n-attr="data-tip" data-i18n="codePanelToggleTip"><span class="code-icon">&#60;&#92;&#62;</span> <span data-i18n="codePanelToggle">Code</span></button>
+      </div><!-- /#code-card -->
+      <div id="chat-card" class="topbar-card">
       <button id="chat-btn" title="VizCode AI (Alt+C)"></button>
-      </div><!-- /#search-card -->
+      </div><!-- /#chat-card -->
     </div>
 
     <div id="content-card">
+    <div id="sb-resize-handle"></div>
     <div id="breadcrumb">
       <span id="bc-items" style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;overflow:hidden"></span>
       <button id="back-btn" onclick="goBack()" data-i18n="back" disabled>&#8592; Back</button>

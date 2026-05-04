@@ -1,13 +1,13 @@
 /* ── VizBridge Chat Panel ─────────────────────────────────────────────────── */
 
 /* ── Toggle button (breadcrumb bar) ─────────────────────────────────────── */
+/* Chat btn — blends into app background */
 #chat-btn {
-    height: 32px;
-    padding: 0 12px;
+    height: 100%;
+    padding: 0 14px;
     gap: 5px;
-    margin-left: 8px;
     border-radius: 8px;
-    border: 1px solid var(--border);
+    border: none;
     background: transparent;
     color: var(--muted);
     cursor: pointer;
@@ -19,18 +19,15 @@
     font-weight: 600;
     letter-spacing: 0.04em;
     white-space: nowrap;
-    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    transition: color 0.15s;
 }
 
 #chat-btn:hover {
-    border-color: var(--accent);
     color: var(--accent);
 }
 
 #chat-btn.active {
     color: var(--accent);
-    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 #chat-btn svg {

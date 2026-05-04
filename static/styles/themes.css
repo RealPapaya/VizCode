@@ -3,10 +3,10 @@
  */
 
 :root, [data-theme="dark"] {
-    --bg: #0f110e;
-    --panel: #161715;
-    --panel2: #1b1c19;
-    --border: #2c2d2a;
+    --bg: #09100a;
+    --panel: #181c17;
+    --panel2: #1f231e;
+    --border: #2e302b;
     --accent: #dfa745;
     --accent2: #c69137;
     --text: #eae8e3;
@@ -23,9 +23,9 @@
 }
 
 [data-theme="claude"] {
-    --bg: #1a1410;
-    --panel: #211810;
-    --panel2: #2c2018;
+    --bg: #120d09;
+    --panel: #221710;
+    --panel2: #2e2018;
     --border: #3e2e1e;
     --card-bg: #251b11;
     --accent: #d4704a;
@@ -164,9 +164,9 @@
 }
 
 [data-theme="parchment"] {
-    --bg: #f9f4ef;
-    --panel: #eaddcf;
-    --panel2: #d8ccbc;
+    --bg: #dfd5c7;
+    --panel: #f0e8db;
+    --panel2: #e4d9ca;
     --border: #c4b49e;
     --card-bg: #f5efe8;
     --accent: #8c7851;

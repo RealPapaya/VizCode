@@ -300,6 +300,7 @@ function buildFtFilter(modId = null, subDir = null) {
                 : allFiles;
             renderFilesFlat(state.activeModule, filtered, state.activeSubDir);
         }
+        applyFtFilterToExplorer();
         updateSidebarStats();
     };
     titleEl.addEventListener('click', () => {
@@ -334,6 +335,18 @@ function buildFtFilter(modId = null, subDir = null) {
             rerender();
         });
     });
+}
+
+// ─── Sync Explorer tree with file-type filter ───────────────────────────────
+// Dims/hides file rows in the Explorer whose file_type is not in ftActiveFilter.
+function applyFtFilterToExplorer() {
+    document.querySelectorAll('#module-list .file-row').forEach(row => {
+        const ft = row.dataset.fileType || 'other';
+        const visible = ftActiveFilter.has(ft);
+        row.style.display = visible ? '' : 'none';
+    });
+    // After hiding rows, recalculate guide line heights
+    requestAnimationFrame(_updateAllGuideHeights);
 }
 
 // ─── Edge type filter ─────────────────────────────────────────────────────────
@@ -653,6 +666,22 @@ function updateSidebarStats() {
 // Builds a tree in the sidebar: Module → sub-folders (expandable)
 // Graph always shows file nodes only.
 
+// Set --guide-h on a .tree-children container so the vertical connector
+// line stops at the vertical center of its last direct child row.
+function _updateGuideHeight(container) {
+    if (!container || !container.classList.contains('open')) return;
+    const rows = container.querySelectorAll(':scope > .tree-row');
+    if (!rows.length) return;
+    const lastRow = rows[rows.length - 1];
+    const h = lastRow.offsetTop + lastRow.offsetHeight / 2;
+    container.style.setProperty('--guide-h', h + 'px');
+}
+
+// Update guide heights for all currently-open .tree-children in the sidebar.
+function _updateAllGuideHeights() {
+    document.querySelectorAll('#module-list .tree-children.open').forEach(_updateGuideHeight);
+}
+
 let fsCollapsed = false;
 
 function collectAllFilesForTree() {
@@ -714,15 +743,14 @@ function buildFullTreeRows(container, node, depth) {
         const count = countFiles(child);
         if (isTop) {
             row.innerHTML =
-                `<span class="tree-arrow ${hasKids ? '' : 'leaf'}">▶</span>` +
                 `<span class="subdir-icon">${_iconFolderClosed()}</span>` +
                 `<span class="mod-name" data-tip="${child.path}">${child.name}</span>` +
                 `<span class="mod-count" data-tip="${count} files">${count}</span>`;
         } else {
-            const indent = 20 + depth * 14;
+            const indent = 6 + depth * 10;
+            row.style.setProperty('--tree-indent', indent + 'px');
             row.innerHTML =
                 `<span style="flex-shrink:0;width:${indent}px"></span>` +
-                `<span class="tree-arrow ${hasKids ? '' : 'leaf'}">▶</span>` +
                 `<span class="subdir-icon">${_iconFolderClosed()}</span>` +
                 `<span class="subdir-name" data-tip="${child.path}">${child.name}</span>` +
                 `<span class="subdir-count">${count}</span>`;
@@ -739,13 +767,13 @@ function buildFullTreeRows(container, node, depth) {
         });
         row.addEventListener('click', e => {
             e.stopPropagation();
-            const arrow = row.querySelector('.tree-arrow');
             const iconEl = row.querySelector('.subdir-icon');
             const isOpen = children.classList.contains('open');
             if (hasKids) {
                 children.classList.toggle('open', !isOpen);
-                arrow?.classList.toggle('open', !isOpen);
                 if (iconEl) iconEl.innerHTML = isOpen ? _iconFolderClosed() : _iconFolderOpen();
+                // Recalculate guide line heights after expand/collapse
+                requestAnimationFrame(_updateAllGuideHeights);
             }
             // Skip navigation in Galaxy mode - just expand/collapse
             if (state?.galaxyActive) return;
@@ -762,11 +790,13 @@ function buildFullTreeRows(container, node, depth) {
         container.appendChild(children);
     });
 
-    const fileIndent = 24 + depth * 14;
+    const fileIndent = 10 + depth * 10;
     node.files.forEach(f => {
         const row = document.createElement('div');
         row.className = 'tree-row file-row';
         row.dataset.path = f.path;
+        row.dataset.fileType = f.file_type || 'other';
+        row.style.setProperty('--tree-indent', fileIndent + 'px');
         const label = f.label || f.path;
         row.innerHTML =
             `<span style="flex-shrink:0;width:${fileIndent}px"></span>` +
@@ -911,41 +941,9 @@ function buildSidebar() {
     const list = document.getElementById('module-list');
     list.innerHTML = '';
 
-    // Handle collapsible sidebar title
-    const sidebarTitle = document.getElementById('sidebar-title');
-    if (sidebarTitle) {
-        const togglerStyle = fsCollapsed ? 'transform: rotate(-90deg);' : '';
-        const titleKey = (state.level === 0) ? 'sidebarModules' : 'sidebarFileSystem';
-        sidebarTitle.innerHTML = `<span class="legend-toggle" style="font-size:15px; transition:transform 0.2s; ${togglerStyle}">▾</span><span class="sidebar-title-text">${T(titleKey)}</span>`;
-        sidebarTitle.style.cursor = 'pointer';
-        sidebarTitle.style.display = 'flex';
-        sidebarTitle.style.justifyContent = 'flex-start';
-        sidebarTitle.style.alignItems = 'center';
-        sidebarTitle.style.gap = '6px';
-
-        // Remove old listener if exists, normally not needed if innerHTML clears, but here it's on the title itself
-        const newTitle = sidebarTitle.cloneNode(true);
-        sidebarTitle.parentNode.replaceChild(newTitle, sidebarTitle);
-
-        newTitle.addEventListener('click', () => {
-            fsCollapsed = !fsCollapsed;
-            const toggle = newTitle.querySelector('.legend-toggle');
-            if (!fsCollapsed) {
-                list.style.display = '';
-                toggle.style.transform = '';
-            } else {
-                list.style.display = 'none';
-                toggle.style.transform = 'rotate(-90deg)';
-            }
-        });
-
-        // Apply initial state
-        if (fsCollapsed) {
-            list.style.display = 'none';
-        } else {
-            list.style.display = '';
-        }
-    }
+    // Show "Explorer" label in sidebar title
+    const titleEl = document.getElementById('sidebar-title');
+    if (titleEl) titleEl.textContent = 'Explorer';
 
     const rootPath = (DATA.stats?.root || '').replace(/\\/g, '/').replace(/\/$/, '');
     const rootName = rootPath.split('/').filter(Boolean).pop() || 'VIZCODE';
@@ -954,11 +952,16 @@ function buildSidebar() {
     const totalCount = countFiles(tree);
     const hasKids = tree.children.length > 0 || tree.files.length > 0;
 
-    // Skip root row — render children directly so the project folder itself is hidden
+    // Render children directly — root folders sit flush without connector lines
     const rootChildren = document.createElement('div');
     rootChildren.className = 'tree-children open';
     if (hasKids) buildFullTreeRows(rootChildren, tree, 0);
     list.appendChild(rootChildren);
+
+    // Calculate vertical guide line heights after DOM is painted
+    requestAnimationFrame(_updateAllGuideHeights);
+    // Sync explorer visibility with current file-type filter
+    requestAnimationFrame(applyFtFilterToExplorer);
 }
 
 // Recursively build a virtual tree node from flat file list
@@ -1003,7 +1006,7 @@ function buildTreeRows(container, node, modId, modColor, depth) {
     node.children.forEach(child => {
         const fileCount = countFiles(child);
         const hasKids = child.children.length > 0;
-        const indent = 20 + depth * 14; // px left indent
+        const indent = 14 + depth * 10; // px left indent
 
         // Sub-folder row
         const row = document.createElement('div');
@@ -1011,9 +1014,9 @@ function buildTreeRows(container, node, modId, modColor, depth) {
         row.dataset.modId = modId;
         row.dataset.subPath = child.path;
         row.dataset.path = `${modId}/${child.path}`;
+        row.style.setProperty('--tree-indent', indent + 'px');
         row.innerHTML =
             `<span style="flex-shrink:0;width:${indent}px"></span>` +
-            `<span class="tree-arrow ${hasKids ? '' : 'leaf'}">▶</span>` +
             `<span class="subdir-icon">${_iconFolderClosed()}</span>` +
             `<span class="subdir-name" data-tip="${modId}/${child.path}">${child.name}</span>` +
             `<span class="subdir-count">${fileCount}</span>`;
@@ -1027,14 +1030,13 @@ function buildTreeRows(container, node, modId, modColor, depth) {
 
         row.addEventListener('click', e => {
             e.stopPropagation();
-            const arrow = row.querySelector('.tree-arrow');
             const iconEl = row.querySelector('.subdir-icon');
             const isOpen = subChildren.classList.contains('open');
 
             if (hasKids) {
                 subChildren.classList.toggle('open', !isOpen);
-                arrow.classList.toggle('open', !isOpen);
                 if (iconEl) iconEl.innerHTML = isOpen ? _iconFolderClosed() : _iconFolderOpen();
+                requestAnimationFrame(_updateAllGuideHeights);
             }
             // Show files under this path in graph
             filterGraphToSubPath(modId, child.path);
@@ -1076,10 +1078,9 @@ function _sidebarSetFolderOpen(row, isOpen) {
     const children = row.nextElementSibling;
     if (!children || !children.classList.contains('tree-children')) return;
     children.classList.toggle('open', isOpen);
-    const arrow = row.querySelector('.tree-arrow');
     const iconEl = row.querySelector('.subdir-icon');
-    arrow?.classList.toggle('open', isOpen);
     if (iconEl) iconEl.innerHTML = isOpen ? _iconFolderOpen() : _iconFolderClosed();
+    requestAnimationFrame(_updateAllGuideHeights);
 }
 
 function _sidebarExpandToPath(path) {

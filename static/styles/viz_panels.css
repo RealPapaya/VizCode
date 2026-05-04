@@ -348,9 +348,8 @@
     opacity: 1;
 }
 
-/* ── Resizer ── */
-#resizer,
-#sidebar-resizer {
+/* ── Code Panel Resizer ── */
+#resizer {
     width: 1px;
     background: var(--border);
     cursor: col-resize;
@@ -362,15 +361,12 @@
 }
 
 #resizer:hover,
-#resizer.dragging,
-#sidebar-resizer:hover,
-#sidebar-resizer.dragging {
+#resizer.dragging {
     background: var(--accent);
     box-shadow: -1.5px 0 0 var(--accent), 1.5px 0 0 var(--accent)
 }
 
-#resizer::after,
-#sidebar-resizer::after {
+#resizer::after {
     content: '⋮';
     position: absolute;
     top: 50%;
@@ -383,11 +379,12 @@
 }
 
 #resizer:hover::after,
-#resizer.dragging::after,
-#sidebar-resizer:hover::after,
-#sidebar-resizer.dragging::after {
+#resizer.dragging::after {
     color: var(--muted)
 }
+
+/* #sidebar-resizer removed — replaced by #sb-resize-handle on #content-card */
+#sidebar-resizer { display: none; }
 
 /* ── Sidebar tabs + header (visually hidden — rail handles tab switching + collapse) ── */
 #sb-header {
@@ -478,8 +475,7 @@
 #sidebar.sb-collapsed {
     width: 0 !important;
     min-width: 0;
-    border-right-width: 0;
-    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), border-right-width 0.22s
+    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1)
 }
 
 #sidebar:not(.sb-collapsed) {
@@ -511,7 +507,6 @@
 #sb-footer {
     flex-shrink: 0;
     padding: 5px 10px;
-    border-top: 0.5px solid var(--border);
     font-size: 10px;
     color: var(--muted);
     display: flex;
