@@ -9,6 +9,7 @@ venv/
 
 # ── VizCode caches & local state ────────────────────────────────────────────
 .vizcode/
+.local/
 *.log
 
 # ── AI secrets (API keys live here — NEVER commit) ──────────────────────────
