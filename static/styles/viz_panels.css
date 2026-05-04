@@ -4,6 +4,7 @@
     position: relative;
     min-width: 0;
     overflow: clip;
+    border-radius: 0 0 12px 12px;
     /* prevent absolutely positioned children from bleeding into code panel */
 }
 
@@ -26,6 +27,8 @@
     inset: 0;
     background: #060a10;
     z-index: 5;
+    border-radius: inherit;
+    overflow: hidden;
 }
 
 #galaxy-container.active {

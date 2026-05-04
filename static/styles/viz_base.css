@@ -416,6 +416,7 @@ body {
     height: var(--breadcrumb);
     background: var(--panel2);
     border-bottom: 0.5px solid var(--border);
+    border-radius: 12px 12px 0 0;
     display: flex;
     align-items: center;
     padding: 0 12px;
@@ -702,7 +703,7 @@ body {
     height: 100vh !important;
     z-index: 9000;
     background: var(--bg);
-    border-radius: 0;
+    border-radius: 0 !important;
 }
 
 #graph-wrap.graph-fullscreen #cy,
@@ -753,6 +754,12 @@ body {
     flex: 1;
     overflow: hidden;
     min-height: 0;
+    border-radius: 0 0 12px 12px;
+}
+
+body[data-top-mode="galaxy"] #layout,
+body[data-top-mode="galaxy"] #graph-wrap {
+    border-radius: 12px;
 }
 
 #content-card {
