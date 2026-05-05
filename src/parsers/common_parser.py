@@ -142,6 +142,101 @@ def _mask_strings(src: str) -> str:
     return src
 
 
+# ─── LOC counter ──────────────────────────────────────────────────────────────
+
+_LOC_HASH_EXTS = {
+    '.py', '.rb', '.sh', '.bash', '.zsh', '.pl', '.pm', '.r', '.R',
+    '.jl', '.ex', '.exs', '.nim', '.cr', '.zig', '.toml', '.yml', '.yaml',
+    '.coffee', '.tcl',
+}
+_LOC_SLASH_EXTS = {
+    '.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx', '.go', '.rs',
+    '.java', '.kt', '.kts', '.scala', '.cs', '.fs', '.fsx',
+    '.swift', '.dart', '.groovy', '.c', '.cpp', '.cc', '.cxx',
+    '.h', '.hpp', '.hxx', '.m', '.mm', '.d', '.css', '.scss',
+    '.sass', '.less', '.styl', '.proto', '.graphql', '.gql',
+}
+_LOC_DASH_EXTS = {'.sql', '.hs', '.lua', '.elm'}
+_LOC_SEMI_EXTS = {'.clj', '.cljs', '.lisp', '.scm', '.el'}
+
+
+def count_loc(text: str, ext: str = '') -> dict:
+    """Classify each line of *text* as code / comment / blank.
+
+    Block comments handled: C-family slash-star and Python triple-quote
+    docstrings. Trailing comments don't reclassify a line — only lines whose
+    first non-blank token is a comment marker count as comment.
+
+    Returns a dict with three int keys: ``code``, ``comment``, ``blank``.
+    """
+    if not text:
+        return {'code': 0, 'comment': 0, 'blank': 0}
+
+    line_markers = []
+    if ext in _LOC_HASH_EXTS:
+        line_markers.append('#')
+    if ext in _LOC_SLASH_EXTS:
+        line_markers.append('//')
+    if ext in _LOC_DASH_EXTS:
+        line_markers.append('--')
+    if ext in _LOC_SEMI_EXTS:
+        line_markers.append(';')
+    if not line_markers:
+        line_markers = ['#', '//']  # safe default for unknown text files
+
+    code = comment = blank = 0
+    in_c_block = False        # /* ... */
+    in_py_triple = False      # """ ... """ or ''' ... '''
+    py_quote = ''
+
+    try:
+        for raw in text.splitlines():
+            s = raw.strip()
+
+            if in_c_block:
+                comment += 1
+                if '*/' in s:
+                    in_c_block = False
+                continue
+            if in_py_triple:
+                comment += 1
+                if py_quote in s:
+                    in_py_triple = False
+                    py_quote = ''
+                continue
+
+            if not s:
+                blank += 1
+                continue
+
+            if s.startswith('/*'):
+                comment += 1
+                if '*/' not in s[2:]:
+                    in_c_block = True
+                continue
+
+            if ext == '.py' and (s.startswith('"""') or s.startswith("'''")):
+                quote = s[:3]
+                comment += 1
+                # Closes on same line if the closing triple-quote appears
+                # again after the opening one (and isn't immediately adjacent).
+                if quote not in s[3:]:
+                    in_py_triple = True
+                    py_quote = quote
+                continue
+
+            if any(s.startswith(m) for m in line_markers):
+                comment += 1
+                continue
+
+            code += 1
+    except Exception:
+        # Silent fail — return whatever we counted so far.
+        pass
+
+    return {'code': code, 'comment': comment, 'blank': blank}
+
+
 # ─── Doc comment extraction ──────────────────────────────────────────────────
 
 _RE_DOC_COMMENT = re.compile(r'/\*\*(.*?)\*/', re.DOTALL)

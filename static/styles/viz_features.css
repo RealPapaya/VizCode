@@ -310,6 +310,254 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   DASHBOARD V2 — Phase 1 widgets (code health, tech debt, complexity, dup)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.dash-section {
+    display: block;
+    margin-bottom: 16px;
+}
+
+/* ── Code Health ─────────────────────────────────────────────────────────── */
+.dash-health-body {
+    display: grid;
+    grid-template-columns: minmax(140px, 180px) 1fr;
+    gap: 24px;
+    align-items: center;
+    padding: 12px 4px 4px;
+}
+.dash-health-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    border: 4px solid var(--health-color, var(--accent));
+    background: color-mix(in srgb, var(--health-color, var(--accent)) 14%, transparent);
+}
+.dash-health-badge-score {
+    font-size: 44px;
+    font-weight: 700;
+    color: var(--health-color, var(--accent));
+    line-height: 1;
+}
+.dash-health-badge-max {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+    letter-spacing: 0.08em;
+}
+.dash-health-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.dash-health-row {
+    display: grid;
+    grid-template-columns: 110px 38px 1fr 36px;
+    gap: 10px;
+    align-items: center;
+    font-size: 12px;
+}
+.dash-health-row-label {
+    color: var(--text);
+    font-weight: 500;
+}
+.dash-health-row-weight {
+    color: var(--muted);
+    font-size: 11px;
+    text-align: right;
+}
+.dash-health-row-track {
+    height: 8px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--border) 50%, transparent);
+    overflow: hidden;
+}
+.dash-health-row-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.4s ease-out;
+}
+.dash-health-row-value {
+    text-align: right;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+/* ── Tech Debt ───────────────────────────────────────────────────────────── */
+.dash-debt-body {
+    display: grid;
+    grid-template-columns: minmax(140px, 180px) 1fr;
+    gap: 24px;
+    align-items: center;
+    padding: 12px 4px 4px;
+}
+.dash-debt-headline {
+    text-align: center;
+}
+.dash-debt-hours {
+    font-size: 44px;
+    font-weight: 700;
+    color: #fb923c;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+.dash-debt-hours-unit {
+    font-size: 18px;
+    margin-left: 4px;
+    color: var(--muted);
+}
+.dash-debt-sub {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    margin-top: 8px;
+    text-transform: uppercase;
+}
+.dash-debt-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.dash-debt-row {
+    display: grid;
+    grid-template-columns: 110px 70px 1fr 50px;
+    gap: 10px;
+    align-items: center;
+    font-size: 12px;
+}
+.dash-debt-row-label {
+    color: var(--text);
+    font-weight: 500;
+}
+.dash-debt-row-weight {
+    color: var(--muted);
+    font-size: 10px;
+    text-align: right;
+}
+.dash-debt-row-track {
+    height: 8px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--border) 50%, transparent);
+    overflow: hidden;
+}
+.dash-debt-row-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.4s ease-out;
+}
+.dash-debt-row-value {
+    text-align: right;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+/* ── Duplication ─────────────────────────────────────────────────────────── */
+.dash-dup-body {
+    display: grid;
+    grid-template-columns: minmax(140px, 200px) 1fr;
+    gap: 24px;
+    align-items: start;
+    padding: 12px 4px 4px;
+}
+.dash-dup-gauge {
+    text-align: center;
+}
+.dash-dup-pct {
+    font-size: 44px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+.dash-dup-pct-track {
+    width: 100%;
+    height: 8px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--border) 50%, transparent);
+    overflow: hidden;
+    margin-top: 12px;
+}
+.dash-dup-pct-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.4s ease-out;
+}
+.dash-dup-sub {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    margin-top: 10px;
+    text-transform: uppercase;
+}
+.dash-dup-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 260px;
+    overflow-y: auto;
+}
+.dash-dup-row {
+    background: color-mix(in srgb, var(--panel) 30%, transparent);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    transition: border-color 0.18s, background 0.18s;
+}
+.dash-dup-row:hover {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.dash-dup-row-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+.dash-dup-row-name {
+    flex: 1;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.dash-dup-row-line {
+    color: var(--muted);
+    font-weight: 400;
+    margin-left: 4px;
+}
+.dash-dup-row-count {
+    background: #1e293b;
+    border-radius: 4px;
+    padding: 1px 8px;
+    font-size: 11px;
+    color: #fbbf24;
+    flex-shrink: 0;
+}
+.dash-dup-row-sample {
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ─── Responsive: stack the gauge / breakdown on narrow viewports ─────── */
+@media (max-width: 720px) {
+    .dash-health-body,
+    .dash-debt-body,
+    .dash-dup-body {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    SEARCH SYSTEM V3 — VS Code Style
    ═══════════════════════════════════════════════════════════════════════════ */
 

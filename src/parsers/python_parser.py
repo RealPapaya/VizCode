@@ -33,6 +33,80 @@ PY_KEYWORDS = {
 }
 
 
+# ─── Cyclomatic branch counter (Python AST) ──────────────────────────────────
+
+class _BranchCounter(ast.NodeVisitor):
+    """Count cyclomatic branches inside a function body.
+
+    Starts at 1 (the entry path) and adds for each independent decision:
+    `if` / `elif`, ternary `IfExp`, `for`, `while`, comprehension `if` clauses,
+    `BoolOp` operands beyond the first (`and` / `or` chains), `match_case`,
+    and `except` handlers. Nested function and class definitions are skipped —
+    they get their own complexity computed separately.
+    """
+
+    def __init__(self):
+        self.count = 1
+
+    def visit_If(self, node):
+        self.count += 1
+        self.generic_visit(node)
+
+    def visit_IfExp(self, node):
+        self.count += 1
+        self.generic_visit(node)
+
+    def visit_For(self, node):
+        self.count += 1
+        self.generic_visit(node)
+
+    def visit_AsyncFor(self, node):
+        self.count += 1
+        self.generic_visit(node)
+
+    def visit_While(self, node):
+        self.count += 1
+        self.generic_visit(node)
+
+    def visit_ExceptHandler(self, node):
+        self.count += 1
+        self.generic_visit(node)
+
+    def visit_BoolOp(self, node):
+        if isinstance(node.op, (ast.And, ast.Or)):
+            self.count += max(0, len(node.values) - 1)
+        self.generic_visit(node)
+
+    def visit_comprehension(self, node):
+        self.count += len(node.ifs)
+        self.generic_visit(node)
+
+    def visit_match_case(self, node):
+        self.count += 1
+        self.generic_visit(node)
+
+    # ── Boundaries: don't recurse into nested defs ──────────────────────────
+    def visit_FunctionDef(self, node):
+        return
+
+    def visit_AsyncFunctionDef(self, node):
+        return
+
+    def visit_ClassDef(self, node):
+        return
+
+
+def _compute_complexity(node) -> int:
+    """Run :class:`_BranchCounter` over a function-def AST node's body."""
+    bc = _BranchCounter()
+    try:
+        for stmt in node.body:
+            bc.visit(stmt)
+    except Exception:
+        return 1
+    return bc.count
+
+
 # ─── AST-based analyzer ─────────────────────────────────────────────────────
 
 class _PyAnalyzer(ast.NodeVisitor):
@@ -153,6 +227,7 @@ class _PyAnalyzer(ast.NodeVisitor):
             'doc':        doc,
             'decorators': decorators,
             'signature':  signature,
+            'complexity': _compute_complexity(node),
         })
 
         # Track calls inside this function body

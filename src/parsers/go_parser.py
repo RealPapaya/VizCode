@@ -153,6 +153,39 @@ def _extract_calls(text: str) -> list:
     ]
 
 
+# ─── Cyclomatic complexity (regex approximation for Go) ──────────────────────
+_RE_GO_STRINGS = re.compile(
+    r'"(?:[^"\\]|\\.)*"'
+    r"|'(?:[^'\\]|\\.)*'"
+    r'|`[^`]*`',
+    re.DOTALL
+)
+_RE_GO_BRANCH_KW = re.compile(r'\b(?:if|for|case|select)\b')
+
+
+def _count_complexity_go(body: str) -> int:
+    """Approximate cyclomatic complexity for a Go function body.
+
+    Adds +1 per branch keyword (``if`` / ``for`` / ``case`` / ``select``)
+    and per short-circuit operator (``&&`` / ``||``). Go has no ``while``
+    (``for`` covers all loops) and no ternary. String / raw-string literals
+    are masked first to avoid false positives.
+
+    Approximate by design — Go has no real AST in this project.
+    """
+    if not body:
+        return 1
+    try:
+        masked = _RE_GO_STRINGS.sub('""', body)
+    except Exception:
+        masked = body
+    count = 1
+    count += len(_RE_GO_BRANCH_KW.findall(masked))
+    count += masked.count('&&')
+    count += masked.count('||')
+    return count
+
+
 def _extract_struct_embedding(clean: str, struct_start: int) -> list:
     """Extract embedded types from a struct body (for composition tracking)."""
     open_idx = clean.find('{', struct_start)
@@ -265,15 +298,17 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
         line_no = src[:m.start()].count('\n') + 1
         open_idx = clean.find('{', m.end())
         end_line = _brace_end_line(clean, open_idx, line_no) if open_idx != -1 else line_no
+        mbody = _brace_body(clean, open_idx) if open_idx != -1 else ''
         symbols.append({
-            'kind':      'method',
-            'name':      mname,
-            'line':      line_no,
-            'end_line':  end_line,
-            'bases':     [],
-            'parent':    receiver,
-            'is_public': mname[0].isupper(),
-            'doc':       doc_map.get(line_no, None),
+            'kind':       'method',
+            'name':       mname,
+            'line':       line_no,
+            'end_line':   end_line,
+            'bases':      [],
+            'parent':     receiver,
+            'is_public':  mname[0].isupper(),
+            'doc':        doc_map.get(line_no, None),
+            'complexity': _count_complexity_go(mbody),
         })
 
     # ── Package-level functions (non-method) ─────────────────────────────────
@@ -284,15 +319,17 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
         line_no = src[:m.start()].count('\n') + 1
         open_idx = clean.find('{', m.end())
         end_line = _brace_end_line(clean, open_idx, line_no) if open_idx != -1 else line_no
+        fbody = _brace_body(clean, open_idx) if open_idx != -1 else ''
         symbols.append({
-            'kind':      'function',
-            'name':      name,
-            'line':      line_no,
-            'end_line':  end_line,
-            'bases':     [],
-            'parent':    None,
-            'is_public': name[0].isupper(),
-            'doc':       doc_map.get(line_no, None),
+            'kind':       'function',
+            'name':       name,
+            'line':       line_no,
+            'end_line':   end_line,
+            'bases':      [],
+            'parent':     None,
+            'is_public':  name[0].isupper(),
+            'doc':        doc_map.get(line_no, None),
+            'complexity': _count_complexity_go(fbody),
         })
 
     return symbols

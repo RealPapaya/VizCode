@@ -57,7 +57,7 @@ try:
     from parsers.js_parser     import scan_js, scan_ts
     from parsers.go_parser     import scan_go
     from parsers.json_parser   import scan_json
-    from parsers.common_parser import scan_common
+    from parsers.common_parser import scan_common, count_loc
     from detector              import detect_project_type, fmt_detection_banner
     _PARSERS_LOADED = True
 except ImportError as _pe:
@@ -66,6 +66,7 @@ except ImportError as _pe:
     _console_print(f'[WARN] Could not load language parsers: {_pe}', file=sys.stderr)
 
 import parse_memo
+from code_health import compute_code_health
 
 # ─── Parser-fingerprint cache (populated lazily in scan_file) ─────────────────
 # Maps a parser callable to the SHA-256 of its source file. Built once per
@@ -612,6 +613,9 @@ def scan_file(filepath: str, root: str, _memo: Optional[dict] = None):
     except Exception:
         src = ''
 
+    # ── Real LOC pass (computed once; cached via the parser tuple's extra) ──
+    loc_data = count_loc(src, ext) if _PARSERS_LOADED else {'code': 0, 'comment': 0, 'blank': 0}
+
     # ── Parser dispatch (single exit point for cache-write) ──────────────────
     raw = None
 
@@ -657,38 +661,17 @@ def scan_file(filepath: str, root: str, _memo: Optional[dict] = None):
             padded = list(raw)[:7] + [None] * max(0, 7 - n)
             result = tuple(padded)
     else:
-        # Final safety net: .c, .cpp, .h, .hpp → C-like analysis
-        clean = strip_comments(src)
-        masked = mask_string_literals(clean)
-        includes = RE_INCLUDE.findall(clean)
+        # Reached only when parser imports failed (_PARSERS_LOADED is False).
+        # Return an empty 7-tuple so build_graph keeps going with no symbols.
+        result = ([], [], [], None, [], [], None)
 
-        funcdefs, funccalls, func_calls_by_func = [], [], []
-        for m in RE_FUNCDEF.finditer(clean):
-            is_efiapi = bool(m.group(1))
-            name = m.group(2)
-            if name in C_KEYWORDS or len(name) < 2:
-                continue
-            line_before = clean[:m.start()].rstrip()
-            is_static = bool(RE_STATIC.search(line_before.split('\n')[-1] if '\n' in line_before else line_before))
-            funcdefs.append({'label': name, 'is_efiapi': is_efiapi, 'is_static': is_static})
-
-            open_idx = m.end() - 1  # regex ends at '{'
-            close_idx = find_matching_brace(masked, open_idx)
-            body = masked[open_idx + 1:close_idx] if close_idx > open_idx else ''
-            calls = []
-            if body:
-                for cm in RE_FUNCCALL.finditer(body):
-                    cname = cm.group(1)
-                    if cname not in C_KEYWORDS and len(cname) >= 2:
-                        calls.append(cname)
-            func_calls_by_func.append(calls)
-
-        for m in RE_FUNCCALL.finditer(clean):
-            name = m.group(1)
-            if name not in C_KEYWORDS and len(name) >= 2:
-                funccalls.append(name)
-
-        result = (includes, funcdefs, funccalls, None, func_calls_by_func, [], None)
+    # ── Inject LOC into the extra slot so it's cached with the parser tuple ─
+    _extra = result[3]
+    if isinstance(_extra, dict):
+        _extra = {**_extra, 'loc': loc_data}
+    else:
+        _extra = {'loc': loc_data}
+    result = (result[0], result[1], result[2], _extra) + tuple(result[4:])
 
     # ── Cache write ───────────────────────────────────────────────────────────
     if _memo is not None and rel is not None:
@@ -701,6 +684,193 @@ def scan_file(filepath: str, root: str, _memo: Optional[dict] = None):
 def get_module(rel_path: str) -> str:
     parts = rel_path.replace('\\', '/').split('/')
     return parts[0] if len(parts) > 1 else '_root'
+
+
+# ─── Quality-metric helpers (consumed by build_graph stats) ──────────────────
+
+def _aggregate_loc(file_meta: dict) -> dict:
+    """Sum per-file LOC into project totals.
+
+    Returns ``{'total': N, 'code': N, 'comment': N, 'blank': N}``.
+    """
+    code = comment = blank = 0
+    for meta in file_meta.values():
+        loc = meta.get('loc') or {}
+        code    += int(loc.get('code', 0) or 0)
+        comment += int(loc.get('comment', 0) or 0)
+        blank   += int(loc.get('blank', 0) or 0)
+    return {
+        'total':   code + comment + blank,
+        'code':    code,
+        'comment': comment,
+        'blank':   blank,
+    }
+
+
+_FUNC_KINDS = {'function', 'method'}
+_COMPLEXITY_BUCKETS = (
+    ('1-5', 1, 5),
+    ('6-10', 6, 10),
+    ('11-15', 11, 15),
+    ('16-20', 16, 20),
+    ('21+', 21, 10**9),
+)
+
+
+def _aggregate_complexity(symbol_index: dict, top_n: int = 10) -> dict:
+    """Histogram + top offenders for the cyclomatic-complexity widget.
+
+    Functions whose parser doesn't report complexity (``None``) are skipped.
+    """
+    distribution = [{'range': label, 'count': 0} for label, _, _ in _COMPLEXITY_BUCKETS]
+    offenders = []
+    total = 0
+    high_count = 0   # functions with complexity > 15 (used by tech-debt formula)
+    sum_cx = 0
+
+    for sym in symbol_index.values():
+        if sym.get('kind') not in _FUNC_KINDS:
+            continue
+        cx = sym.get('complexity')
+        if cx is None:
+            continue
+        cx = int(cx)
+        total += 1
+        sum_cx += cx
+        if cx > 15:
+            high_count += 1
+        for i, (_label, lo, hi) in enumerate(_COMPLEXITY_BUCKETS):
+            if lo <= cx <= hi:
+                distribution[i]['count'] += 1
+                break
+        offenders.append({
+            'file':       sym.get('file', ''),
+            'name':       sym.get('name', ''),
+            'line':       sym.get('line', 0),
+            'complexity': cx,
+        })
+
+    offenders.sort(key=lambda x: x['complexity'], reverse=True)
+    return {
+        'distribution':   distribution,
+        'top_offenders':  offenders[:top_n],
+        'total_funcs':    total,
+        'avg':            (sum_cx / total) if total else 0.0,
+        'high_count':     high_count,
+    }
+
+
+# Comment / boilerplate prefixes used by the duplication line-filter.
+_DUP_COMMENT_PREFIXES = ('#', '//', '--', '/*', '*', ';')
+
+
+def _compute_duplication(root: str, file_meta: dict, window: int = 6) -> dict:
+    """Detect duplicated *window*-line code blocks across the project.
+
+    Each file's lines are normalised (whitespace collapsed, comments and very
+    short lines dropped); rolling-hash windows are grouped by hash; any hash
+    appearing twice or more is flagged as a duplicate block.
+
+    Returns ``{'percent': float (0-1), 'blocks': list[dict]}`` with at most
+    10 sample blocks.
+    """
+    import hashlib
+
+    file_lines: dict = {}
+    total_code_lines = 0
+    for rel in file_meta:
+        full_path = os.path.join(root, rel)
+        try:
+            with open(full_path, 'rb') as f:
+                raw = f.read()
+        except Exception:
+            continue
+        try:
+            text = raw.decode('utf-8', errors='replace')
+        except Exception:
+            continue
+
+        norm = []
+        for line_no, line in enumerate(text.splitlines(), start=1):
+            s = line.strip()
+            if len(s) < 8:
+                continue
+            if any(s.startswith(p) for p in _DUP_COMMENT_PREFIXES):
+                continue
+            norm.append((line_no, ' '.join(s.split())))
+        if norm:
+            file_lines[rel] = norm
+            total_code_lines += len(norm)
+
+    if total_code_lines == 0 or window < 2:
+        return {'percent': 0.0, 'blocks': []}
+
+    hash_to_locs: dict = {}
+    for rel, lines in file_lines.items():
+        if len(lines) < window:
+            continue
+        for i in range(len(lines) - window + 1):
+            chunk = '\n'.join(lines[i + k][1] for k in range(window))
+            h = hashlib.md5(chunk.encode('utf-8')).hexdigest()[:16]
+            hash_to_locs.setdefault(h, []).append((rel, lines[i][0], lines[i][1]))
+
+    duplicated_lines: set = set()
+    blocks = []
+    dups = sorted(
+        ((h, locs) for h, locs in hash_to_locs.items() if len(locs) >= 2),
+        key=lambda x: len(x[1]),
+        reverse=True,
+    )
+    for h, locs in dups:
+        for rel, ln, _sample in locs:
+            for k in range(window):
+                duplicated_lines.add((rel, ln + k))
+        if len(blocks) < 10:
+            blocks.append({
+                'hash':        h,
+                'occurrences': [{'file': rel, 'line': ln} for rel, ln, _ in locs[:10]],
+                'lines':       window,
+                'sample':      locs[0][2][:80],
+            })
+
+    return {
+        'percent': len(duplicated_lines) / total_code_lines,
+        'blocks':  blocks,
+    }
+
+
+# Default tech-debt minute weights — exposed in stats so the dashboard can
+# show the formula transparently.
+_DEFAULT_TECH_DEBT_WEIGHTS = {
+    'circular':    60,   # min per circular-dependency cycle
+    'dead':        5,    # min per uncalled function
+    'god':         90,   # min per god file (top-tier caller)
+    'complexity':  30,   # min per function with complexity > 15
+    'duplication': 20,   # min per duplicate block
+}
+
+
+def _compute_tech_debt(circular_count: int,
+                       dead_count: int,
+                       god_count: int,
+                       high_complexity_count: int,
+                       duplication_block_count: int) -> dict:
+    """Return total minutes/hours plus the per-issue breakdown."""
+    w = _DEFAULT_TECH_DEBT_WEIGHTS
+    breakdown = {
+        'circular':    circular_count * w['circular'],
+        'dead':        dead_count * w['dead'],
+        'god':         god_count * w['god'],
+        'complexity':  high_complexity_count * w['complexity'],
+        'duplication': duplication_block_count * w['duplication'],
+    }
+    minutes = sum(breakdown.values())
+    return {
+        'minutes':   minutes,
+        'hours':     round(minutes / 60.0, 1),
+        'breakdown': breakdown,
+        'weights':   dict(w),
+    }
 
 
 # ─── build_graph ─────────────────────────────────────────────────────────────
@@ -841,10 +1011,15 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         if extra and 'meta' in extra:
             bios_meta = extra['meta']
 
+        loc_meta = (extra or {}).get('loc') if isinstance(extra, dict) else None
+        if not isinstance(loc_meta, dict):
+            loc_meta = {'code': 0, 'comment': 0, 'blank': 0}
+
         file_meta[rel] = {
             'label':     os.path.basename(fp),
             'ext':       ext,
             'size':      os.path.getsize(fp),
+            'loc':       loc_meta,
             'module':    get_module(rel),
             'file_type': FILE_TYPE_MAP.get(ext, 'other'),
             'bios_meta': bios_meta,
@@ -1351,6 +1526,9 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                 'docstring': sym.get('doc', ''),
                 'decorators': sym.get('decorators', []),
                 'is_static': sym.get('is_static', False),
+                # Cyclomatic complexity for function-shaped kinds. None when
+                # the parser doesn't compute it (e.g. BIOS / common fallback).
+                'complexity': sym.get('complexity'),
                 # Flag set when the parser had to fall back (e.g. ast.parse failed).
                 # Truthy value is a short diagnostic message; falsy → clean symbol.
                 'parse_error': file_parse_error,
@@ -1418,6 +1596,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     # ── Phase G: Community Detection (Louvain) ─────────────────────────────────
     communities: dict = {}
     community_stats: list = []
+    graph_modularity: float = 0.0
     try:
         adj: dict = defaultdict(lambda: defaultdict(float))
         total_weight = 0.0
@@ -1487,6 +1666,13 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                     'size': len(members),
                     'label': ' / '.join(top_names[:2]) if top_names else f'Community {c_id}',
                 })
+
+            # Modularity Q — feeds the cohesion sub-score in code_health.
+            if m2 > 0:
+                graph_modularity = sum(
+                    (comm_inner[c] / m2) - (comm_total[c] / m2) ** 2
+                    for c in set(node_comm.values())
+                )
     except Exception:
         pass
 
@@ -1787,6 +1973,58 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         _result['stats']['surprising_connections'] = surprising_connections(_result)
     except Exception:
         pass
+
+    # ── Quality Metrics (Phase 1 dashboard rewrite) ──────────────────────────
+    try:
+        loc_totals = _aggregate_loc(file_meta)
+        _result['stats']['loc_total']   = loc_totals['total']
+        _result['stats']['loc_code']    = loc_totals['code']
+        _result['stats']['loc_comment'] = loc_totals['comment']
+        _result['stats']['loc_blank']   = loc_totals['blank']
+
+        cx = _aggregate_complexity(symbol_index)
+        _result['stats']['complexity_distribution']  = cx['distribution']
+        _result['stats']['complexity_top_offenders'] = cx['top_offenders']
+        _result['stats']['avg_complexity']           = round(cx['avg'], 1)
+
+        dup = _compute_duplication(root, file_meta)
+        _result['stats']['duplication_percent'] = round(dup['percent'] * 100, 1)
+        _result['stats']['duplication_blocks']  = dup['blocks']
+
+        # God-file count = top-tier callers (existing top_caller_files is top 5)
+        god_count = len(_result['stats'].get('top_caller_files', []))
+
+        debt = _compute_tech_debt(
+            circular_count=circular_dep_count,
+            dead_count=uncalled_func_count,
+            god_count=god_count,
+            high_complexity_count=cx['high_count'],
+            duplication_block_count=len(dup['blocks']),
+        )
+        _result['stats']['tech_debt_minutes']   = debt['minutes']
+        _result['stats']['tech_debt_hours']     = debt['hours']
+        _result['stats']['tech_debt_breakdown'] = debt['breakdown']
+        _result['stats']['tech_debt_weights']   = debt['weights']
+
+        health = compute_code_health(
+            avg_complexity=cx['avg'],
+            circular_deps=circular_dep_count,
+            god_files=god_count,
+            dead_funcs=uncalled_func_count,
+            total_funcs=cx['total_funcs'] or total_funcs,
+            duplication_percent=dup['percent'],
+            graph_modularity=graph_modularity,
+        )
+        _result['stats']['code_health_score']     = health['score']
+        _result['stats']['code_health_breakdown'] = health['breakdown']
+        _result['stats']['code_health_weights']   = health['weights']
+
+        _result['stats']['has_git_history'] = bool(
+            root and os.path.isdir(os.path.join(root, '.git'))
+        )
+    except Exception as _qm_err:
+        _console_print(f'[WARN] Quality-metric pass failed: {_qm_err}', file=sys.stderr)
+
     return _result
 
 

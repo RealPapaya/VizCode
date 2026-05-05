@@ -197,6 +197,42 @@ def _extract_calls(text: str) -> list:
     ]
 
 
+# ─── Cyclomatic complexity (regex approximation for JS/TS) ───────────────────
+_RE_JS_STRINGS = re.compile(
+    r'"(?:[^"\\]|\\.)*"'
+    r"|'(?:[^'\\]|\\.)*'"
+    r'|`(?:[^`\\]|\\.)*`',
+    re.DOTALL
+)
+_RE_JS_BRANCH_KW = re.compile(r'\b(?:if|for|while|case|catch)\b')
+
+
+def _count_complexity_js(body: str) -> int:
+    """Approximate cyclomatic complexity for a JS/TS function body.
+
+    Adds +1 per branch keyword (``if`` / ``for`` / ``while`` / ``case`` /
+    ``catch``), per short-circuit operator (``&&`` / ``||``), and per
+    ternary ``?``. String literals are masked first; ``?.`` and ``??``
+    are neutralised so they don't false-positive on the ternary count.
+
+    Approximate by design — JS has no real AST in this project. Documented
+    as inexact in the dashboard.
+    """
+    if not body:
+        return 1
+    try:
+        masked = _RE_JS_STRINGS.sub('""', body)
+    except Exception:
+        masked = body
+    masked = masked.replace('?.', ' ').replace('??', ' ')
+    count = 1
+    count += len(_RE_JS_BRANCH_KW.findall(masked))
+    count += masked.count('&&')
+    count += masked.count('||')
+    count += masked.count('?')
+    return count
+
+
 def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
     """Extract class + method + interface + enum + type symbols from JS/TS source."""
     symbols = []
@@ -235,18 +271,20 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
             if mname in JS_KEYWORDS:
                 continue
             mline = body_start_line + body[:mm.start()].count('\n')
-            # Method end_line
+            # Method end_line + body for complexity
             method_brace = body.find('{', mm.end() - 1)
             m_end = _brace_end_line(body, method_brace, mline) if method_brace != -1 else mline
+            method_body = _brace_body(body, method_brace) if method_brace != -1 else ''
             symbols.append({
-                'kind':      'method',
-                'name':      mname,
-                'line':      mline,
-                'end_line':  m_end,
-                'bases':     [],
-                'parent':    name,
-                'is_public': not mname.startswith('_') and not mname.startswith('#'),
-                'doc':       doc_map.get(mline, None),
+                'kind':       'method',
+                'name':       mname,
+                'line':       mline,
+                'end_line':   m_end,
+                'bases':      [],
+                'parent':     name,
+                'is_public':  not mname.startswith('_') and not mname.startswith('#'),
+                'doc':        doc_map.get(mline, None),
+                'complexity': _count_complexity_js(method_body),
             })
 
     # ── Top-level functions ──────────────────────────────────────────────────
@@ -258,15 +296,17 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
         line_no = src[:m.start()].count('\n') + 1
         open_idx = clean.find('{', m.end())
         end_line = _brace_end_line(clean, open_idx, line_no) if open_idx != -1 else line_no
+        fbody = _brace_body(clean, open_idx) if open_idx != -1 else ''
         symbols.append({
-            'kind':      'function',
-            'name':      fname,
-            'line':      line_no,
-            'end_line':  end_line,
-            'bases':     [],
-            'parent':    None,
-            'is_public': not fname.startswith('_'),
-            'doc':       doc_map.get(line_no, None),
+            'kind':       'function',
+            'name':       fname,
+            'line':       line_no,
+            'end_line':   end_line,
+            'bases':      [],
+            'parent':     None,
+            'is_public':  not fname.startswith('_'),
+            'doc':        doc_map.get(line_no, None),
+            'complexity': _count_complexity_js(fbody),
         })
         seen_names.add(fname)
 
@@ -279,15 +319,17 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
             line_no = src[:m.start()].count('\n') + 1
             open_idx = clean.find('{', m.end())
             end_line = _brace_end_line(clean, open_idx, line_no) if open_idx != -1 else line_no
+            fbody = _brace_body(clean, open_idx) if open_idx != -1 else ''
             symbols.append({
-                'kind':      'function',
-                'name':      fname,
-                'line':      line_no,
-                'end_line':  end_line,
-                'bases':     [],
-                'parent':    None,
-                'is_public': not fname.startswith('_'),
-                'doc':       doc_map.get(line_no, None),
+                'kind':       'function',
+                'name':       fname,
+                'line':       line_no,
+                'end_line':   end_line,
+                'bases':      [],
+                'parent':     None,
+                'is_public':  not fname.startswith('_'),
+                'doc':        doc_map.get(line_no, None),
+                'complexity': _count_complexity_js(fbody),
             })
             seen_names.add(fname)
 
@@ -378,14 +420,15 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
             continue
         line_no = src[:m.start()].count('\n') + 1
         symbols.append({
-            'kind':      'function',
-            'name':      name,
-            'line':      line_no,
-            'end_line':  line_no,
-            'bases':     [],
-            'parent':    None,
-            'is_public': True,
-            'doc':       doc_map.get(line_no, None),
+            'kind':       'function',
+            'name':       name,
+            'line':       line_no,
+            'end_line':   line_no,
+            'bases':      [],
+            'parent':     None,
+            'is_public':  True,
+            'doc':        doc_map.get(line_no, None),
+            'complexity': 1,  # declare-only — no body to count
         })
         seen_names.add(name)
 

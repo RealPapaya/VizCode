@@ -516,7 +516,25 @@ def build_html(data: dict, job_id: str = None) -> str:
         base / 'features' / 'graph' / 'graph_interact.js',
         # ── features ──────────────────────────────────────────────────────────
         base / 'features' / 'viz_search.js',
-        base / 'features' / 'viz_dashboard.js',
+        # ── features/Dashboard_view (multi-file dashboard) ───────────────────
+        # Order: consts (config, charts, utils) → widgets → orchestration.
+        base / 'features' / 'Dashboard_view' / 'dashboard_health_config.js',
+        base / 'features' / 'Dashboard_view' / 'dashboard_charts.js',
+        base / 'features' / 'Dashboard_view' / 'dashboard_utils.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_kpi_strip.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_code_health.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_tech_debt.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_complexity.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_duplication.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_coupling.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_issues.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_structure.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_graph_intelligence.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_temporal.js',
+        base / 'features' / 'Dashboard_view' / 'dashboard_dom.js',
+        base / 'features' / 'Dashboard_view' / 'dashboard_lifecycle.js',
+        base / 'features' / 'Dashboard_view' / 'dashboard_render.js',
+        base / 'features' / 'Dashboard_view' / 'dashboard_index.js',
         # ── features/galaxy_view ──────────────────────────────────────────────
         base / 'features' / 'galaxy_view' / 'viz_galaxy.js',          # state, constants, UI, Sigma, reducers
         base / 'features' / 'galaxy_view' / 'viz_galaxy_physics.js',  # FA2 physics (BH, FA2, Noverlap)
