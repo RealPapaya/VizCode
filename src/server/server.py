@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 server.py — VIZCODE Local Server V4
 Serves launcher.html and runs analyze_viz.py on demand.
@@ -1902,11 +1902,12 @@ class Handler(BaseHTTPRequestHandler):
                 self.json_resp({'error': f'Path not found or not a directory: {root}'}, 400)
                 return
 
+            gen_report = bool(body.get('generate_report', False))
             jid = str(uuid.uuid4())[:8]
             with JOBS_LOCK:
                 JOBS[jid] = _make_job_dict(root)
-            _run_analysis_thread(jid, root)
-            print(f'[START] Job {jid}: {root}')
+            _run_analysis_thread(jid, root, generate_report=gen_report)
+            print(f'[START] Job {jid}: {root} (report={gen_report})')
             self.json_resp({'job_id': jid})
 
         elif p == '/upload-zip':

@@ -240,8 +240,12 @@ def _close_job_viewer(jid: str, viewer_id: str):
     return True, remaining
 
 
-def _run_analysis_thread(jid: str, root: str, pre_fn=None):
-    """Background thread: optionally run pre_fn(tmp_dir) then build_graph(root)."""
+def _run_analysis_thread(jid: str, root: str, pre_fn=None, generate_report: bool = False):
+    """Background thread: optionally run pre_fn(tmp_dir) then build_graph(root).
+
+    If generate_report is True, analytics_helpers.generate_report() is called
+    after build_graph completes, driving the 90→100 % progress window.
+    """
     import importlib
 
     def run():
@@ -259,16 +263,48 @@ def _run_analysis_thread(jid: str, root: str, pre_fn=None):
             else:
                 root_to_use = root
 
-            def cb(pct, msg, **kwargs):
-                with JOBS_LOCK:
-                    JOBS[jid].update({'pct': pct, 'msg': msg})
-                    if kwargs:
-                        JOBS[jid].update(kwargs)
+            # Progress callback: maps 0-99 from build_graph into 0-89 overall
+            # (the final 90-100 window is reserved for report generation).
+            if generate_report:
+                def cb(pct, msg, **kwargs):
+                    scaled = int(pct * 0.90)   # remap 0-100 → 0-90
+                    with JOBS_LOCK:
+                        JOBS[jid].update({'pct': scaled, 'msg': msg})
+                        if kwargs:
+                            JOBS[jid].update(kwargs)
+            else:
+                def cb(pct, msg, **kwargs):
+                    with JOBS_LOCK:
+                        JOBS[jid].update({'pct': pct, 'msg': msg})
+                        if kwargs:
+                            JOBS[jid].update(kwargs)
 
             importlib.reload(analyze_bios)
             graph_data = analyze_bios.build_graph(root_to_use, progress_cb=cb)
 
             s = graph_data['stats']
+
+            # ── Optional report generation (90 → 100 %) ──────────────────────
+            if generate_report:
+                with JOBS_LOCK:
+                    JOBS[jid].update({
+                        'pct': 90,
+                        'msg': 'Generating AI report…',
+                        'stage': 'report',
+                        'stage_label': 'Generate AI report',
+                    })
+                try:
+                    from analytics_helpers import generate_report as _gen_report
+                    report_path = os.path.join(root_to_use, '.vizcode', 'vizcode_report.md')
+                    _gen_report(graph_data, report_path)
+                    print(f'[REPORT] Job {jid}: report tree written to {os.path.dirname(report_path)}')
+                    with JOBS_LOCK:
+                        JOBS[jid].update({'pct': 99, 'msg': 'AI report ready', 'report_done': True})
+                except Exception as _re:
+                    print(f'[REPORT] Job {jid}: report failed: {_re}')
+                    with JOBS_LOCK:
+                        JOBS[jid].update({'pct': 99, 'msg': f'Report skipped: {_re}', 'report_done': False})
+
             with JOBS_LOCK:
                 JOBS[jid].update({
                     'pct': 100, 'done': True,
