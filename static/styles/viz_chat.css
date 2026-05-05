@@ -478,7 +478,7 @@
 .chat-msg-user {
     align-self: flex-end;
     background: var(--accent);
-    color: #fff;
+    color: var(--text);
     border-bottom-right-radius: 3px;
 }
 
@@ -807,7 +807,7 @@
 /* ── Send btn (round) ────────────────────────────────────────────────────── */
 #chat-send {
     background: var(--accent, #60a5fa);
-    color: #fff;
+    color: var(--text);
     border: none;
     border-radius: 50%;
     width: 30px;
@@ -1100,7 +1100,7 @@
 
 #chat-config-save {
     background: var(--accent);
-    color: #fff;
+    color: var(--text);
     border: none;
     border-radius: 8px;
     padding: 9px 0;
@@ -1239,8 +1239,8 @@
     position: fixed;
     max-width: 320px;
     padding: 8px 12px;
-    background: rgba(9, 21, 37, .92);
-    color: #e5e7eb;
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    color: var(--text);
     border: 1px solid color-mix(in srgb, var(--accent, #60a5fa) 40%, transparent);
     border-radius: 8px;
     font-size: 12px;

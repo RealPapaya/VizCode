@@ -40,6 +40,11 @@
     /* Module Colors */
     --m1: #e8194b; --m2: #2563eb; --m3: #16a34a; --m4: #7c3aed; --m5: #0891b2;
     --m6: #d97706; --m7: #059669; --m8: #9333ea; --m9: #dc2626; --m10: #0284c7;
+
+    /* Symbol View Ghost Nodes */
+    --sv-ghost-bg: #f8fafc;
+    --sv-ghost-stroke: #94a3b8;
+    --sv-ghost-tag: #0f766e;
 }
 
 /* ── Light theme: crisp white cards on cool-gray base ── */
@@ -236,13 +241,9 @@
 [data-theme="claude"] .galaxy-tooltip {
     background: #ffffff;
     border-color: var(--border);
-    color: var(--text);
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+    color: var(--text);
 }
-[data-theme="claude"] .galaxy-tooltip .gt-type { color: #6b7280; }
-[data-theme="claude"] .galaxy-tooltip .gt-loc  { color: #9ca3af; }
-[data-theme="claude"] .galaxy-tooltip .gt-mod  { color: #9ca3af; }
-[data-theme="claude"] .galaxy-tooltip .gt-degree { color: #9ca3af; }
 
 /* Light: Level 3 Structure view */
 [data-theme="claude"] #sym-view {
@@ -334,6 +335,11 @@
     /* Module Colors */
     --m1: #8c7851; --m2: #5a7d66; --m3: #a8504a; --m4: #4a687d; --m5: #7a597a;
     --m6: #9c855a; --m7: #6b9177; --m8: #a16561; --m9: #56758c; --m10: #8a658a;
+
+    /* Symbol View Ghost Nodes */
+    --sv-ghost-bg: #eaddcb;
+    --sv-ghost-stroke: #b3a48e;
+    --sv-ghost-tag: #4a687d;
 }
 
 [data-theme="parchment"] .tab.active,
@@ -525,13 +531,9 @@ body[data-top-mode="galaxy"] #l2-toggle-ext-lines {
 [data-theme="parchment"] .galaxy-tooltip {
     background: #f5efe8;
     border-color: var(--border);
-    color: var(--text);
     box-shadow: 0 6px 20px rgba(2, 8, 38, 0.12);
+    color: var(--text);
 }
-[data-theme="parchment"] .galaxy-tooltip .gt-type { color: #716040; }
-[data-theme="parchment"] .galaxy-tooltip .gt-loc  { color: #9c8c78; }
-[data-theme="parchment"] .galaxy-tooltip .gt-mod  { color: #9c8c78; }
-[data-theme="parchment"] .galaxy-tooltip .gt-degree { color: #9c8c78; }
 
 /* Parchment: Level 3 Structure view */
 [data-theme="parchment"] #sym-view {

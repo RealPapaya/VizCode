@@ -455,7 +455,7 @@
 .sv-node.sv-ghost .sv-node-bg {
     fill: rgba(45, 212, 191, 0.05);
     stroke-dasharray: 4 3;
-    stroke: #64748b;
+    stroke: var(--sv-ghost-stroke, #64748b);
 }
 
 .sv-ghost-path {
@@ -468,7 +468,7 @@
     font-size: 9px;
     font-weight: 700;
     letter-spacing: 0.08em;
-    fill: #2dd4bf;
+    fill: var(--sv-ghost-tag, #2dd4bf);
 }
 
 .sv-node-name,

@@ -340,10 +340,9 @@ function buildFtFilter(modId = null, subDir = null) {
 // ─── Sync Explorer tree with file-type filter ───────────────────────────────
 // Dims/hides file rows in the Explorer whose file_type is not in ftActiveFilter.
 function applyFtFilterToExplorer() {
+    // User request: Show all files in Explorer, do not hide them
     document.querySelectorAll('#module-list .file-row').forEach(row => {
-        const ft = row.dataset.fileType || 'other';
-        const visible = ftActiveFilter.has(ft);
-        row.style.display = visible ? '' : 'none';
+        row.style.display = '';
     });
     // After hiding rows, recalculate guide line heights
     requestAnimationFrame(_updateAllGuideHeights);
@@ -782,6 +781,9 @@ function buildFullTreeRows(container, node, depth) {
             // Skip navigation in Galaxy mode - just expand/collapse
             if (state?.galaxyActive) return;
             
+            clearSidebarActive();
+            row.classList.add('active');
+            
             if (isTop) {
                 drillToModule(modId);
             } else {
@@ -812,6 +814,9 @@ function buildFullTreeRows(container, node, depth) {
         });
         row.addEventListener('click', e => {
             e.stopPropagation();
+            
+            clearSidebarActive();
+            row.classList.add('active');
             
             // Galaxy mode: highlight the node instead of navigating
             if (state?.galaxyActive && typeof galaxyHighlightByPath === 'function') {
@@ -1099,14 +1104,15 @@ function _sidebarExpandToPath(path) {
     });
 }
 
-function _clearGalaxyExplorerHighlight() {
-    document.querySelectorAll('.tree-row.galaxy-active').forEach(row => row.classList.remove('galaxy-active'));
+function clearSidebarActive() {
+    document.querySelectorAll('.tree-row.active, .tree-row.galaxy-active').forEach(row => row.classList.remove('active', 'galaxy-active'));
 }
 
-window.clearSidebarGalaxyExplorerHighlight = _clearGalaxyExplorerHighlight;
+window.clearSidebarActive = clearSidebarActive;
+window.clearSidebarGalaxyExplorerHighlight = clearSidebarActive;
 
 function setSubdirActive(modId, subPath) {
-    document.querySelectorAll('.subdir-row').forEach(el => el.classList.remove('active'));
+    clearSidebarActive();
     const row = document.querySelector(`.subdir-row[data-mod-id="${modId}"][data-sub-path="${subPath}"]`);
     if (row) row.classList.add('active');
 }
@@ -1114,14 +1120,14 @@ function setSubdirActive(modId, subPath) {
 function revealSidebarExplorerPath(path, kind = 'file') {
     if (_sbActiveTab === 'filters') return false;
     const norm = _sidebarNormPath(path);
-    _clearGalaxyExplorerHighlight();
+    clearSidebarActive();
     if (!norm) return false;
 
     if (kind === 'folder') {
         _sidebarExpandToPath(norm);
         const folderRow = _sidebarFindRowByPath(norm, '.mod-row, .subdir-row');
         if (!folderRow) return false;
-        folderRow.classList.add('galaxy-active');
+        folderRow.classList.add('active');
         folderRow.scrollIntoView({ block: 'nearest' });
         return true;
     }
@@ -1129,7 +1135,7 @@ function revealSidebarExplorerPath(path, kind = 'file') {
     _sidebarExpandToPath(_sidebarDirname(norm));
     const fileRow = _sidebarFindRowByPath(norm, '.file-row');
     if (!fileRow) return false;
-    fileRow.classList.add('galaxy-active');
+    fileRow.classList.add('active');
     fileRow.scrollIntoView({ block: 'nearest' });
     return true;
 }

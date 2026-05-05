@@ -83,7 +83,7 @@
 }
 
 .dash-card:hover {
-    border-color: #2a3f5a;
+    border-color: var(--border);
 }
 
 .dash-card-title {
@@ -877,7 +877,7 @@
 .sr-line-text {
     font-family: 'JetBrains Mono', monospace;
     font-size: 11px;
-    color: #94a3b8;
+    color: var(--muted);
     white-space: pre;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1350,7 +1350,7 @@
 
 .sr-fi-other {
     font-size: 9px;
-    color: #9ca3af;
+    color: var(--muted);
     padding: 0 2px;
     flex-shrink: 0;
     opacity: 0.7;
@@ -1452,7 +1452,7 @@
 
 #layout-switcher:hover {
     box-shadow: 0 6px 32px color-mix(in srgb, var(--accent) 12%, transparent);
-    border-color: #253545;
+    border-color: var(--border);
 }
 
 .ls-header {
@@ -1879,7 +1879,7 @@
 .gt-line {
     display: block;
     font-size: 11px;
-    color: #94a3b8;
+    color: var(--muted);
     line-height: 1.5;
     white-space: normal;
     word-break: break-word;
@@ -1905,7 +1905,7 @@
 }
 
 .gf-row:hover {
-    background: #1a2432;
+    background: var(--panel);
 }
 
 .gf-row:not(.active) {
@@ -1927,7 +1927,7 @@
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 6px;
-    color: #e2e8f0;
+    color: var(--text);
     font-size: 12px;
     padding: 5px 9px;
     outline: none;
@@ -1958,7 +1958,7 @@
     border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     background: rgba(255, 255, 255, 0.04);
-    color: #94a3b8;
+    color: var(--muted);
     cursor: pointer;
     transition: background .15s, color .15s, opacity .15s, border-color .15s;
     user-select: none;
@@ -1966,7 +1966,7 @@
 
 .gf-ext-chip:hover {
     background: rgba(255, 255, 255, 0.09);
-    color: #e2e8f0;
+    color: var(--text);
 }
 
 .gf-ext-chip.active {
@@ -2018,7 +2018,7 @@
 
 .gf-slider-label {
     font-size: 11px;
-    color: #64748b;
+    color: var(--muted);
     text-align: center;
 }
 

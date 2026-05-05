@@ -97,7 +97,7 @@
     position: absolute;
     top: 12px;
     right: 12px;
-    background: rgba(15, 20, 30, 0.85);
+    background: color-mix(in srgb, var(--panel) 85%, transparent);
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 6px 12px;
@@ -110,13 +110,13 @@
 .galaxy-tooltip {
     position: absolute;
     pointer-events: none;
-    background: #12121c;
+    background: var(--panel);
     border: 1px solid rgba(148, 163, 184, 0.25);
     border-radius: 8px;
     padding: 6px 10px;
     font-size: 11px;
     font-weight: 500;
-    color: #e4e4ed;
+    color: var(--text);
     max-width: 320px;
     white-space: nowrap;
     text-align: left;
@@ -125,11 +125,11 @@
     line-height: 1.35;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38);
 }
-.galaxy-tooltip .gt-name { font-weight: 700; font-size: 12px; margin-bottom: 2px; }
-.galaxy-tooltip .gt-type { color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
-.galaxy-tooltip .gt-loc { color: #64748b; font-size: 10px; font-family: 'JetBrains Mono', monospace; white-space: normal; word-break: break-all; }
-.galaxy-tooltip .gt-mod { color: #64748b; font-size: 10px; }
-.galaxy-tooltip .gt-degree { color: #475569; font-size: 10px; margin-top: 2px; }
+.galaxy-tooltip .gt-name { font-weight: 700; font-size: 12px; margin-bottom: 2px; color: var(--text); }
+.galaxy-tooltip .gt-type { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+.galaxy-tooltip .gt-loc { color: var(--muted); font-size: 10px; font-family: 'JetBrains Mono', monospace; white-space: normal; word-break: break-all; }
+.galaxy-tooltip .gt-mod { color: var(--muted); font-size: 10px; }
+.galaxy-tooltip .gt-degree { color: var(--muted); font-size: 10px; margin-top: 2px; }
 
 .galaxy-info-card {
     position: absolute;
@@ -160,7 +160,7 @@
 .galaxy-info-title {
     font-size: 13px;
     font-weight: 700;
-    color: #e2e8f0;
+    color: var(--text);
     line-height: 1.35;
     word-break: break-word;
 }
@@ -192,13 +192,13 @@
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #64748b;
+    color: var(--muted);
 }
 
 .galaxy-info-value {
     font-size: 12px;
     line-height: 1.45;
-    color: #cbd5e1;
+    color: var(--text);
     word-break: break-word;
 }
 
@@ -235,7 +235,7 @@
     flex-direction: column;
     gap: 8px;
     padding: 10px 14px;
-    background: rgba(9, 14, 20, 0.92);
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
     border: 0.5px solid var(--border);
     border-radius: 14px;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
@@ -756,7 +756,7 @@
 
 .ft-chip:hover,
 .ef-row:hover {
-    background: #1a2432;
+    background: var(--panel);
 }
 
 .ft-label,

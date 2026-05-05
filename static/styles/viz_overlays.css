@@ -135,7 +135,7 @@
 /* ── Sidebar extra file count badge ── */
 .mod-count-extra {
     font-size: 9px;
-    color: #4b5563;
+    color: var(--muted);
     background: rgba(255, 255, 255, 0.04);
     border-radius: 6px;
     padding: 0 3px;
@@ -174,7 +174,7 @@
     z-index: 21;
     min-width: 160px;
     max-width: 200px;
-    background: rgba(5, 10, 15, 0.92);
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
     border: 1px solid #2d3f55;
     border-radius: 8px;
     backdrop-filter: blur(6px);
@@ -292,13 +292,13 @@
 }
 
 .hex-addr {
-    color: #64748b;
+    color: var(--muted);
     min-width: 9ch;
     user-select: none;
 }
 
 .hex-bytes {
-    color: #94a3b8;
+    color: var(--muted);
     min-width: 49ch;
     letter-spacing: 0.03em;
 }
@@ -387,7 +387,7 @@
     display: none;
     position: fixed;
     inset: 0 0 0 var(--rail);
-    background: rgba(5, 10, 15, 0.92);
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
     z-index: 90;
     backdrop-filter: blur(4px);
     animation: dash-fade-in 0.25s ease-out;

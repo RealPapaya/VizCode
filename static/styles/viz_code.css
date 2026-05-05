@@ -823,7 +823,7 @@
 .tip-brief {
     font-size: 13px;
     font-weight: 600;
-    color: #f1f5f9;
+    color: var(--text);
     white-space: nowrap;
     max-width: 260px;
     overflow: hidden;
@@ -850,7 +850,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    color: #f1f5f9;
+    color: var(--text);
 }
 
 #tooltip:hover .tip-title {
@@ -862,7 +862,7 @@
 .tip-path {
     font-size: 11px;
     font-style: italic;
-    color: #475569;
+    color: var(--muted);
     margin-top: 2px;
     margin-bottom: 6px;
     white-space: nowrap;
@@ -880,7 +880,7 @@
 .tip-body {
     margin-top: 4px;
     font-size: 12px;
-    color: #cbd5e1;
+    color: var(--text);
     display: -webkit-box;
     -webkit-line-clamp: 6;
     line-clamp: 6;
@@ -896,7 +896,7 @@
 }
 
 .tip-row-key {
-    color: #64748b;
+    color: var(--muted);
     white-space: nowrap;
     flex-shrink: 0;
 }
@@ -906,7 +906,7 @@
 }
 
 .tip-row-val {
-    color: #e2e8f0;
+    color: var(--text);
     font-weight: 500;
     word-break: break-all;
 }
@@ -985,13 +985,13 @@
     font-weight: 700;
     max-width: none;
     white-space: normal;
-    color: #f1f5f9;
+    color: var(--text);
 }
 
 #node-modal-content .tip-path {
     font-size: 16px;
     font-style: italic;
-    color: #94a3b8;
+    color: var(--muted);
     max-width: none;
     white-space: normal;
     word-break: break-all;
@@ -1031,7 +1031,7 @@
 }
 
 .tip-btn:hover {
-    background: #1e293b;
+    background: var(--panel2);
     border-color: var(--accent);
     color: var(--accent);
 }
