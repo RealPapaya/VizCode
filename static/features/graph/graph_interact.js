@@ -1,5 +1,6 @@
 // ─── Node Tap ─────────────────────────────────────────────────────────────────
 function onNodeTap(node) {
+    hideTooltip();
     clearHighlight();
     const d = node.data();
 

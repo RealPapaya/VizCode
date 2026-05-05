@@ -1614,6 +1614,7 @@ function _galaxyInitSigma() {
     });
 
         _gSig.on('clickNode', ({ node }) => {
+        _galaxyHideTooltip();
         if (_gPinned === node) {
             _gPinned = null;
             _gNeighborSet = null;
