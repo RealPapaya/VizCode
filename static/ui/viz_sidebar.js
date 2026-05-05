@@ -1144,6 +1144,11 @@ window.revealSidebarExplorerPath = revealSidebarExplorerPath;
 
 // Show files under a given sub-path (all depths) in the graph
 function filterGraphToSubPath(modId, subPath) {
+    if (typeof pushGlobalNavSnapshot === 'function' && !isGlobalNavRestoring()) {
+        pushGlobalNavSnapshot('filter-subpath');
+    }
+    state.level = 1;
+    state.activeModule = modId;
     state.activeSubDir = subPath;
     const prefix = modId + '/' + subPath + '/';
     const allFiles = DATA.files_by_module[modId] || [];

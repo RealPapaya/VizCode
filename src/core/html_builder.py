@@ -497,6 +497,7 @@ def build_html(data: dict, job_id: str = None) -> str:
         base / 'core' / 'i18n.js',
         base / 'core' / 'viz_utils.js',
         base / 'core' / 'viz_state.js',
+        base / 'core' / 'viz_nav_history.js',
         base / 'core' / 'viz_constants.js',
         # ── ui ────────────────────────────────────────────────────────────────
         base / 'ui' / 'viz_preferences.js',
