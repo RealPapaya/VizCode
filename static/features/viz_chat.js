@@ -1,4 +1,4 @@
-﻿// ── VizBridge Chat Panel ──────────────────────────────────────────────────────
+// ── VizBridge Chat Panel ──────────────────────────────────────────────────────
 //
 // Floating AI chat panel for VizCode graph visualization.
 // Communicates with server.py via:
@@ -53,6 +53,11 @@
     let _isDragging = false;
     let _dragOffsetX = 0;
     let _dragOffsetY = 0;
+
+    // ── Panel mode ('side' | 'float') ────────────────────────────────────────
+    // 'side' = docked right-side panel (Mode 1, default)
+    // 'float' = free-floating window (Mode 2)
+    let _panelMode = localStorage.getItem('vizcode.chat.panelMode') || 'side';
 
     // ── Markdown-lite renderer ────────────────────────────────────────────────
     // Handles: ```mermaid blocks, ``` code blocks, `inline code`, **bold**, *italic*
@@ -129,6 +134,7 @@
     function _open() {
         _isOpen = true;
         _panel.classList.add('open');
+        if (_panelMode === 'side' && _chatResizer) _chatResizer.style.display = 'block';
         _btn.classList.add('active');
         _updateButtonIcon();
         setTimeout(() => _input.focus(), 220);
@@ -137,6 +143,7 @@
     function _close() {
         _isOpen = false;
         _panel.classList.remove('open');
+        if (_chatResizer) _chatResizer.style.display = 'none';
         _btn.classList.remove('active');
         _updateButtonIcon();
     }
@@ -1220,6 +1227,8 @@
         if (!header) return;
 
         header.addEventListener('mousedown', (e) => {
+            // Disable dragging in side mode
+            if (_panelMode === 'side') return;
             if (e.target.closest('button') || e.target.closest('.chat-cfg-btn')) return;
             _isDragging = true;
             const rect = _panel.getBoundingClientRect();
@@ -1297,7 +1306,8 @@
                 const proposedWidth = startWidth - dx;
                 if (proposedWidth >= minW) {
                     newWidth = proposedWidth;
-                    newLeft = startLeft + dx;
+                    // In side mode panel is a flex item — no left repositioning needed
+                    if (_panelMode !== 'side') newLeft = startLeft + dx;
                 }
             }
 
@@ -1315,9 +1325,10 @@
             // Apply new dimensions
             _panel.style.width = newWidth + 'px';
             _panel.style.height = newHeight + 'px';
+
             
-            // Update position if resizing from left or top
-            if (resizeDirection.includes('w') || resizeDirection.includes('n')) {
+            // Update position if resizing from left or top (float mode only)
+            if (_panelMode !== 'side' && (resizeDirection.includes('w') || resizeDirection.includes('n'))) {
                 _panel.style.left = Math.max(0, Math.min(newLeft, window.innerWidth - newWidth)) + 'px';
                 _panel.style.top = Math.max(0, Math.min(newTop, window.innerHeight - newHeight)) + 'px';
                 _panel.style.right = 'auto';
@@ -1742,6 +1753,129 @@
         });
     }
 
+    // ── Side Panel Resizer ───────────────────────────────────────────────────
+    let _chatResizer = null;
+
+    function _initSideResizer() {
+        _chatResizer = document.createElement('div');
+        _chatResizer.id = 'chat-resizer';
+        _chatResizer.style.display = 'none';
+
+        let startX, startW;
+
+        _chatResizer.addEventListener('mousedown', (e) => {
+            if (_panelMode !== 'side') return;
+            startX = e.clientX;
+            startW = _panel.offsetWidth;
+            _chatResizer.classList.add('dragging');
+            _panel.style.transition = 'none';
+            const gw = document.getElementById('graph-wrap');
+            if (gw) gw.style.pointerEvents = 'none';
+            
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('mouseup', stopDrag);
+            e.preventDefault();
+        });
+
+        let dragRaf;
+        function onDrag(e) {
+            if (dragRaf) cancelAnimationFrame(dragRaf);
+            dragRaf = requestAnimationFrame(() => {
+                // Dragging left increases width (since it's docked to the right)
+                const delta = startX - e.clientX;
+                const newW = Math.max(260, Math.min(1200, startW + delta));
+                _panel.style.width = newW + 'px';
+                document.documentElement.style.setProperty('--chat-side-w', newW + 'px');
+            });
+        }
+
+        function stopDrag() {
+            _chatResizer.classList.remove('dragging');
+            _panel.style.transition = '';
+            const gw = document.getElementById('graph-wrap');
+            if (gw) gw.style.pointerEvents = '';
+            document.removeEventListener('mousemove', onDrag);
+            document.removeEventListener('mouseup', stopDrag);
+            if (window.cy) window.cy.resize();
+        }
+    }
+
+    // ── Panel mode toggle (side ↔ float) ─────────────────────────────────────
+    // side : panel moved into #layout as a flex sibling of #code-panel
+    // float: panel lives on document.body (position:fixed, draggable)
+    const _ICON_SIDE  = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="2" y="3" width="16" height="14" rx="2"/><line x1="13" y1="3" x2="13" y2="17"/></svg>`;
+    const _ICON_FLOAT = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="4" y="4" width="12" height="12" rx="2"/><path d="M8 1h8a2 2 0 0 1 2 2v8"/></svg>`;
+
+    // Saved DOM position for restoring float mode
+    let _floatParent      = null;
+    let _floatNextSibling = null;
+
+    function _applyPanelMode(mode, skipResize) {
+        _panelMode = mode;
+        localStorage.setItem('vizcode.chat.panelMode', mode);
+
+        const btn    = document.getElementById('chat-mode-toggle-btn');
+        const layout = document.getElementById('layout');
+
+        if (mode === 'side') {
+            // Move panel into #layout (rightmost flex child)
+            if (_panel.parentElement !== layout) {
+                _floatParent      = _panel.parentElement || document.body;
+                _floatNextSibling = _panel.nextSibling;
+                layout.appendChild(_chatResizer);
+                layout.appendChild(_panel);
+            }
+            _panel.classList.add('side-mode');
+            _panel.classList.remove('open');
+            if (_isOpen) _panel.classList.add('open');
+            document.body.classList.remove('chat-side-open');
+            if (btn) {
+                btn.innerHTML = _ICON_FLOAT;
+                btn.title = 'Switch to floating window';
+            }
+        } else {
+            // Move panel back to float parent
+            const parent = _floatParent || document.body;
+            if (_panel.parentElement !== parent) {
+                if (_floatNextSibling && _floatNextSibling.parentElement === parent) {
+                    parent.insertBefore(_panel, _floatNextSibling);
+                } else {
+                    parent.appendChild(_panel);
+                }
+                if (_chatResizer.parentElement) {
+                    _chatResizer.parentElement.removeChild(_chatResizer);
+                }
+            }
+            _chatResizer.style.display = 'none';
+            _panel.classList.remove('side-mode');
+            _panel.classList.remove('open');
+            if (_isOpen) _panel.classList.add('open');
+            document.body.classList.remove('chat-side-open');
+            if (btn) {
+                btn.innerHTML = _ICON_SIDE;
+                btn.title = 'Switch to side panel mode';
+            }
+        }
+
+        if (!skipResize) {
+            setTimeout(() => { if (window.cy) window.cy.resize(); }, 50);
+        }
+    }
+
+    function _initPanelModeToggle() {
+        const btn = document.getElementById('chat-mode-toggle-btn');
+        if (!btn) return;
+        // Save initial float position before moving
+        _floatParent      = _panel.parentElement || document.body;
+        _floatNextSibling = _panel.nextSibling;
+        // Apply saved mode (skip cy resize — not ready yet)
+        _applyPanelMode(_panelMode, true);
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            _applyPanelMode(_panelMode === 'side' ? 'float' : 'side');
+        });
+    }
+
         // ── Public init ───────────────────────────────────────────────────────────
     function initChat() {
         if (!_buildDOM()) return;   // HTML elements not present (launcher page)
@@ -1749,6 +1883,8 @@
         _attachEvents();
         _initModeBtn();
         _initDepthBtn();
+        _initSideResizer();
+        _initPanelModeToggle();
         _setBusy(false);    // initialise send button icon
         _checkConfig();
         _loadHistory();

@@ -67,6 +67,76 @@
     transform: scale(1) translateY(0);
 }
 
+/* ── Side panel mode ──────────────────────────────────────────────────────── */
+/* In side mode, #chat-panel is moved into #layout as a flex sibling of       */
+/* #code-panel. No position: fixed needed — it participates in flex layout.   */
+#chat-panel.side-mode {
+    position: relative;  /* override fixed */
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    flex-shrink: 0;
+    width: var(--chat-side-w, 360px);
+    min-width: 260px;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    border-radius: 0;
+    border-top: none;
+    border-right: none;
+    border-bottom: none;
+    border-left: none;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    box-shadow: none;
+    transform: none;
+    opacity: 1;
+    pointer-events: none;
+    transition: none;
+    z-index: auto;
+    /* Hidden by default — shown via .open class below */
+    display: none;
+}
+
+#chat-panel.side-mode.open {
+    display: flex;
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+}
+
+/* In side-mode, cursor on header is default (no dragging) */
+#chat-panel.side-mode #chat-header {
+    cursor: default;
+    border-radius: 0;
+}
+
+/* In side mode, only show the left (w) resize handle */
+#chat-panel.side-mode .chat-resize-handle {
+    display: none;
+}
+#chat-panel.side-mode .chat-resize-handle.w {
+    display: none;
+}
+
+/* Mode toggle button icon */
+#chat-mode-toggle-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 2px 5px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    transition: color 0.15s;
+}
+
+#chat-mode-toggle-btn:hover {
+    color: var(--accent);
+}
+
 /* Resize handles (all edges and corners) */
 .chat-resize-handle {
     position: absolute;
@@ -159,7 +229,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 14px;
+    padding: 10px 14px;
+    min-height: 42px;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
     cursor: move;

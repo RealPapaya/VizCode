@@ -371,18 +371,23 @@
 }
 
 /* ── Code Panel Resizer ── */
-#resizer {
+#resizer, #chat-resizer {
     width: 6px;
     background: transparent;
     cursor: col-resize;
     flex-shrink: 0;
     position: relative;
     z-index: 10;
-    overflow: visible
+    overflow: visible;
+}
+
+/* Hide chat-resizer when not in use */
+#chat-resizer {
+    display: none;
 }
 
 /* 1px visible border line */
-#resizer::before {
+#resizer::before, #chat-resizer::before {
     content: '';
     position: absolute;
     top: 0;
@@ -392,16 +397,18 @@
     transform: translateX(-50%);
     background: var(--border);
     pointer-events: none;
-    transition: background 0.15s
+    transition: background 0.15s;
 }
 
 #resizer:hover::before,
-#resizer.dragging::before {
-    background: color-mix(in srgb, var(--accent) 70%, transparent)
+#resizer.dragging::before,
+#chat-resizer:hover::before,
+#chat-resizer.dragging::before {
+    background: color-mix(in srgb, var(--accent) 70%, transparent);
 }
 
-/* pill indicator — hidden by default, appears on hover/drag */
-#resizer::after {
+/* pill indicator */
+#resizer::after, #chat-resizer::after {
     content: '';
     position: absolute;
     top: 50%;
@@ -412,13 +419,16 @@
     border-radius: 99px;
     background: transparent;
     pointer-events: none;
-    transition: background 0.15s, box-shadow 0.15s
+    transition: background 0.15s, box-shadow 0.15s;
+    box-shadow: none;
 }
 
 #resizer:hover::after,
-#resizer.dragging::after {
+#resizer.dragging::after,
+#chat-resizer:hover::after,
+#chat-resizer.dragging::after {
     background: var(--accent);
-    box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 50%, transparent)
+    box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 /* #sidebar-resizer removed — replaced by #sb-resize-handle on #content-card */

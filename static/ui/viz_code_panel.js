@@ -207,12 +207,16 @@ function initResizer() {
         document.addEventListener('mouseup', stopDrag);
         e.preventDefault();
     });
+    let dragRaf;
     function onDrag(e) {
-        const delta = startX - e.clientX;
-        const newW = Math.max(200, Math.min(1200, startW + delta));
-        panel.style.width = newW + 'px';
-        document.documentElement.style.setProperty('--code-panel', newW + 'px');
-        if (cy) cy.resize();
+        if (dragRaf) cancelAnimationFrame(dragRaf);
+        dragRaf = requestAnimationFrame(() => {
+            const delta = startX - e.clientX;
+            const newW = Math.max(200, Math.min(1200, startW + delta));
+            panel.style.width = newW + 'px';
+            document.documentElement.style.setProperty('--code-panel', newW + 'px');
+            // Only resize cy on drag end or less frequently to prevent lag
+        });
     }
     function stopDrag() {
         resizer.classList.remove('dragging');
@@ -241,12 +245,16 @@ function initSidebarResizer() {
         document.addEventListener('mouseup', stopDrag);
         e.preventDefault();
     });
+    let dragRaf;
     function onDrag(e) {
-        const delta = e.clientX - startX;
-        const newW = Math.max(150, Math.min(800, startW + delta));
-        panel.style.width = newW + 'px';
-        document.documentElement.style.setProperty('--sidebar', newW + 'px');
-        if (typeof cy !== 'undefined' && cy) cy.resize();
+        if (dragRaf) cancelAnimationFrame(dragRaf);
+        dragRaf = requestAnimationFrame(() => {
+            const delta = e.clientX - startX;
+            const newW = Math.max(150, Math.min(800, startW + delta));
+            panel.style.width = newW + 'px';
+            document.documentElement.style.setProperty('--sidebar', newW + 'px');
+            // Only resize cy on drag end to prevent lag
+        });
     }
     function stopDrag() {
         handle.classList.remove('dragging');

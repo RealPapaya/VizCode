@@ -29,9 +29,9 @@
 #cp-file-bar {
     display: flex;
     align-items: center;
-    padding: 8px 12px;
+    padding: 10px 14px;
     gap: 8px;
-    min-height: 40px
+    min-height: 42px
 }
 
 #cp-filename {
