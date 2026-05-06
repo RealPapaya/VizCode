@@ -59,29 +59,16 @@ function _dashRenderComplexity(container, stats) {
         list.innerHTML = top.map((sym, i) => {
             const pct = Math.round((sym.complexity / max) * 60);
             const fileShort = String(sym.file || '').split('/').pop();
+            const fileJSON = JSON.stringify(sym.file).replace(/"/g, '&quot;');
+            const nameJSON = JSON.stringify(sym.name).replace(/"/g, '&quot;');
             return `
-<div class="dash-list-row" data-tip="${_dashEscape(sym.file)}"
-     onclick="_dashJumpToFunction(${JSON.stringify(sym.file).replace(/"/g, '&quot;')}, ${JSON.stringify(sym.name).replace(/"/g, '&quot;')})"
-     style="cursor:pointer">
+<div class="dash-list-row" data-clickable="true" data-tip="${_dashEscape(sym.file)}"
+     onclick="_dashDrill(${fileJSON}, ${nameJSON})">
   <span class="dash-list-rank">${i + 1}</span>
   <span class="dash-list-name">${_dashEscape(sym.name)}<span style="color:#64748b;font-size:11px;margin-left:4px">${_dashEscape(fileShort)}</span></span>
   <div class="dash-list-bar" style="width:${pct}px;background:#a78bfa"></div>
   <span class="dash-list-val" style="color:#a78bfa">${sym.complexity}</span>
 </div>`;
         }).join('') || `<div class="dash-empty">${_dashEscape(_dashT('dashNoData'))}</div>`;
-    }
-}
-
-// Jump-through helper — used by Complexity, Duplication, and Issues widgets.
-function _dashJumpToFunction(filePath, funcName) {
-    if (typeof closeDashboard === 'function') closeDashboard();
-    const target = _dashFlatFiles().find(f =>
-        (f.path || '').replace(/\\/g, '/') === String(filePath).replace(/\\/g, '/')
-    );
-    if (target && typeof drillFile === 'function') {
-        drillFile(target);
-        if (funcName && typeof openCodePanel === 'function') {
-            setTimeout(() => openCodePanel(target, funcName), 300);
-        }
     }
 }

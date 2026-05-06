@@ -15,8 +15,9 @@ function _dashRenderDuplication(container, stats) {
         const occurrences = blk.occurrences || [];
         const first = occurrences[0] || {};
         const firstFile = String(first.file || '').split('/').pop();
+        const fileJSON = JSON.stringify(first.file || '').replace(/"/g, '&quot;');
         return `
-<div class="dash-dup-row" onclick="_dashJumpToFile(${JSON.stringify(first.file || '').replace(/"/g, '&quot;')}, ${first.line || 0})" style="cursor:pointer">
+<div class="dash-dup-row" data-clickable="true" onclick="_dashDrill(${fileJSON}, null)">
   <div class="dash-dup-row-head">
     <span class="dash-list-rank">${i + 1}</span>
     <span class="dash-dup-row-name">${_dashEscape(firstFile)}<span class="dash-dup-row-line">:${first.line || '?'}</span></span>
@@ -40,13 +41,4 @@ function _dashRenderDuplication(container, stats) {
     <div class="dash-dup-list">${blocksHTML}</div>
   </div>
 </div>`;
-}
-
-function _dashJumpToFile(filePath, _lineNo) {
-    if (!filePath) return;
-    if (typeof closeDashboard === 'function') closeDashboard();
-    const target = _dashFlatFiles().find(f =>
-        (f.path || '').replace(/\\/g, '/') === String(filePath).replace(/\\/g, '/')
-    );
-    if (target && typeof drillFile === 'function') drillFile(target);
 }

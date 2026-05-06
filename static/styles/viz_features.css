@@ -557,6 +557,110 @@
     }
 }
 
+/* ─── Cross-cutting: clickable rows hover cue ─────────────────────────── */
+[data-clickable="true"] {
+    cursor: pointer;
+    transition: background 0.15s ease-out, border-color 0.15s ease-out;
+}
+[data-clickable="true"]:hover {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+}
+
+/* ─── Chart-type toggle group (inline in card titles) ─────────────────── */
+.dash-chart-toggle {
+    display: inline-flex;
+    gap: 2px;
+    margin-left: auto;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--panel) 40%, transparent);
+}
+.dash-chart-toggle-btn {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    width: 24px;
+    height: 22px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+    padding: 0;
+}
+.dash-chart-toggle-btn:hover  { color: var(--text); }
+.dash-chart-toggle-btn.active {
+    background: color-mix(in srgb, var(--accent) 20%, transparent);
+    color: var(--accent);
+}
+
+/* ─── Phase 2: Temporal Analysis ──────────────────────────────────────── */
+.dash-temporal-period {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--panel) 30%, transparent);
+    font-size: 12px;
+}
+.dash-temporal-period-label {
+    color: var(--text);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}
+.dash-temporal-period-range {
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+}
+.dash-temporal-period-meta {
+    color: var(--muted);
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+}
+.dash-temporal-pair {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    overflow: hidden;
+}
+.dash-temporal-pair-name {
+    color: #a78bfa;
+    font-size: 12px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 1px 4px;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    transition: background 0.15s, border-color 0.15s;
+}
+.dash-temporal-pair-name[data-clickable="true"]:hover {
+    background: color-mix(in srgb, #a78bfa 14%, transparent);
+    border-color: color-mix(in srgb, #a78bfa 50%, var(--border));
+}
+.dash-temporal-pair-arrow {
+    color: var(--muted);
+    flex-shrink: 0;
+}
+.dash-temporal-support {
+    background: #1e293b;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 11px;
+    color: #a78bfa;
+    flex-shrink: 0;
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    SEARCH SYSTEM V3 — VS Code Style
    ═══════════════════════════════════════════════════════════════════════════ */

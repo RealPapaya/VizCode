@@ -41,9 +41,10 @@ function _dashRenderHotspots(items) {
     const max = items[0]?.degree || 1;
     el.innerHTML = items.map((item, i) => {
         const fileShort = String(item.file || '').replace(/\\/g, '/').split('/').pop();
+        const fileJSON = JSON.stringify(item.file).replace(/"/g, '&quot;');
         return `
-<div class="dash-list-row" style="cursor:pointer"
-     onclick="_dashJumpToFile(${JSON.stringify(item.file).replace(/"/g, '&quot;')}, 0)">
+<div class="dash-list-row" data-clickable="true"
+     onclick="_dashDrill(${fileJSON}, null)">
   <span class="dash-list-rank">${i + 1}</span>
   <span class="dash-list-name">${_dashEscape(item.label)}<span style="color:#64748b;font-size:11px;margin-left:4px">${_dashEscape(fileShort)}</span></span>
   <div class="dash-list-bar" style="width:${Math.round(item.degree / max * 60)}px;background:#60a5fa"></div>

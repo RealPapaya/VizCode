@@ -31,8 +31,10 @@ function _dashCouplingRows(items, color, suffix) {
     const max = items[0].count || 1;
     return items.map((item, i) => {
         const fileShort = String(item.file || '').split('/').pop();
+        const fileJSON = JSON.stringify(item.file).replace(/"/g, '&quot;');
         return `
-<div class="dash-list-row" data-tip="${_dashEscape(item.file)}">
+<div class="dash-list-row" data-clickable="true" data-tip="${_dashEscape(item.file)}"
+     onclick="_dashDrill(${fileJSON}, null)">
   <span class="dash-list-rank">${i + 1}</span>
   <span class="dash-list-name">${_dashEscape(fileShort)}</span>
   <div class="dash-list-bar" style="width:${Math.round(item.count / max * 60)}px;background:${color}"></div>

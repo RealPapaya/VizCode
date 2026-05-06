@@ -66,13 +66,16 @@ function _dashCircularList(cycles) {
 function _dashLongestFuncsRows(items) {
     if (!items.length) return `<div class="dash-empty">${_dashEscape(_dashT('dashNoData'))}</div>`;
     const max = items[0].lines || 1;
-    return items.slice(0, 8).map((it, i) => `
-<div class="dash-list-row" data-tip="${_dashEscape(it.file)}"
-     onclick="_dashJumpToFunction(${JSON.stringify(it.file).replace(/"/g, '&quot;')}, ${JSON.stringify(it.name).replace(/"/g, '&quot;')})"
-     style="cursor:pointer">
+    return items.slice(0, 8).map((it, i) => {
+        const fileJSON = JSON.stringify(it.file).replace(/"/g, '&quot;');
+        const nameJSON = JSON.stringify(it.name).replace(/"/g, '&quot;');
+        return `
+<div class="dash-list-row" data-clickable="true" data-tip="${_dashEscape(it.file)}"
+     onclick="_dashDrill(${fileJSON}, ${nameJSON})">
   <span class="dash-list-rank">${i + 1}</span>
   <span class="dash-list-name">${_dashEscape(it.name)}</span>
   <div class="dash-list-bar" style="width:${Math.round(it.lines / max * 60)}px;background:#f472b6"></div>
   <span class="dash-list-val" style="color:#f472b6">${it.lines} lines</span>
-</div>`).join('');
+</div>`;
+    }).join('');
 }

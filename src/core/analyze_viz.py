@@ -2025,6 +2025,34 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     except Exception as _qm_err:
         _console_print(f'[WARN] Quality-metric pass failed: {_qm_err}', file=sys.stderr)
 
+    # ── Phase 2: Temporal Analysis (git log) ─────────────────────────────────
+    if _result['stats'].get('has_git_history'):
+        try:
+            from git_history import compute_git_history, _compute_hotspot
+            gh = compute_git_history(root)
+            if gh is not None:
+                # Git tracks historical paths (including renames). Filter
+                # the live dashboard view to files that still exist in the
+                # current tree. Cache stays unfiltered for re-use.
+                live_files = set(file_meta.keys())
+                full_churn = gh.pop('_full_file_churn', gh.get('file_churn', []))
+                full_churn = [r for r in full_churn if r['file'] in live_files]
+                gh['file_churn'] = full_churn[:50]
+                gh['change_coupling'] = [
+                    p for p in gh.get('change_coupling', [])
+                    if p['file_a'] in live_files and p['file_b'] in live_files
+                ]
+                gh['hotspot_files'] = _compute_hotspot(
+                    full_churn, symbol_index, file_meta,
+                )
+                _result['stats'].update(gh)
+            else:
+                # git binary missing or git failed — degrade silently.
+                _result['stats']['has_git_history'] = False
+        except Exception as _gh_err:
+            _console_print(f'[WARN] Git-history pass failed: {_gh_err}', file=sys.stderr)
+            _result['stats']['has_git_history'] = False
+
     return _result
 
 

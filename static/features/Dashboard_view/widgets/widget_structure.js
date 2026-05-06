@@ -1,6 +1,14 @@
 // @module Dashboard_view/widgets/widget_structure
 // Structure — file types doughnut, language distribution bar, module treemap.
 
+const _DASH_TYPES_KEY    = 'structure_file_types';
+const _DASH_TYPES_TYPES  = ['doughnut', 'bar'];
+const _DASH_TYPES_DEFAULT = 'doughnut';
+
+const _DASH_LANG_KEY      = 'structure_lang_dist';
+const _DASH_LANG_TYPES    = ['bar', 'pie'];
+const _DASH_LANG_DEFAULT  = 'bar';
+
 function _dashRenderStructure(container, stats) {
     if (!container) return;
 
@@ -9,12 +17,14 @@ function _dashRenderStructure(container, stats) {
   <div class="dash-card">
     <div class="dash-card-title">
       <span class="dash-card-title-dot" style="background:#dfa745"></span>${_dashEscape(_dashT('dashStructureFileTypes'))}
+      ${_dashChartToggleHTML(_DASH_TYPES_KEY, _DASH_TYPES_TYPES, _DASH_TYPES_DEFAULT)}
     </div>
     <div class="dash-chart-wrap" style="min-height:240px"><canvas id="dash-chart-types"></canvas></div>
   </div>
   <div class="dash-card">
     <div class="dash-card-title">
       <span class="dash-card-title-dot" style="background:#60a5fa"></span>${_dashEscape(_dashT('dashStructureLangDist'))}
+      ${_dashChartToggleHTML(_DASH_LANG_KEY, _DASH_LANG_TYPES, _DASH_LANG_DEFAULT)}
     </div>
     <div class="dash-chart-wrap" style="min-height:240px"><canvas id="dash-chart-lang"></canvas></div>
   </div>
@@ -25,6 +35,9 @@ function _dashRenderStructure(container, stats) {
   </div>
   <div class="dash-treemap" id="dash-treemap-target" style="min-height:120px"></div>
 </div>`;
+
+    _dashRegisterChartSwitch(_DASH_TYPES_KEY, () => _dashChartFileTypes(stats));
+    _dashRegisterChartSwitch(_DASH_LANG_KEY,  () => _dashChartLanguageDist(stats));
 
     _dashChartFileTypes(stats);
     _dashChartLanguageDist(stats);
@@ -41,22 +54,34 @@ function _dashChartFileTypes(stats) {
     const vals   = sorted.map(([, v]) => v);
     const colors = sorted.map((_, i) => _DASH_PALETTE[i % _DASH_PALETTE.length]);
 
-    _dashMkChart(canvas, 'doughnut', {
+    const type = _dashChartCurrentType(_DASH_TYPES_KEY, _DASH_TYPES_DEFAULT);
+    const isCircular = (type === 'doughnut' || type === 'pie');
+
+    _dashMkChart(canvas, type, {
         labels,
         datasets: [{
+            label: 'Files',
             data: vals,
             backgroundColor: colors.map(c => c + 'cc'),
             borderColor: colors,
             borderWidth: 1.5,
-            hoverOffset: 6,
+            hoverOffset: isCircular ? 6 : 0,
+            borderRadius: isCircular ? 0 : 4,
         }],
     }, {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '60%',
+        cutout: type === 'doughnut' ? '60%' : 0,
+        indexAxis: type === 'bar' ? 'y' : undefined,
         plugins: {
-            legend: { position: 'right', labels: { color: '#94a3b8', boxWidth: 10, padding: 12 } },
+            legend: isCircular
+                ? { position: 'right', labels: { color: '#94a3b8', boxWidth: 10, padding: 12 } }
+                : { display: false },
         },
+        scales: type === 'bar' ? {
+            x: { grid: { color: '#1a253588' }, ticks: { color: '#64748b' } },
+            y: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11 } } },
+        } : {},
     });
 }
 
@@ -70,25 +95,32 @@ function _dashChartLanguageDist(stats) {
     const vals   = sorted.map(([, v]) => v);
     const colors = sorted.map((_, i) => _DASH_PALETTE[i % _DASH_PALETTE.length]);
 
-    _dashMkChart(canvas, 'bar', {
+    const type = _dashChartCurrentType(_DASH_LANG_KEY, _DASH_LANG_DEFAULT);
+    const isPie = (type === 'pie');
+
+    _dashMkChart(canvas, type, {
         labels,
         datasets: [{
             label: 'Files',
             data: vals,
-            backgroundColor: colors.map(c => c + '99'),
+            backgroundColor: colors.map(c => c + (isPie ? 'cc' : '99')),
             borderColor: colors,
             borderWidth: 1.5,
-            borderRadius: 4,
+            borderRadius: isPie ? 0 : 4,
         }],
     }, {
-        indexAxis: 'y',
+        indexAxis: type === 'bar' ? 'y' : undefined,
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
+        plugins: {
+            legend: isPie
+                ? { position: 'right', labels: { color: '#94a3b8', boxWidth: 10, padding: 10 } }
+                : { display: false },
+        },
+        scales: type === 'bar' ? {
             x: { grid: { color: '#1a253588' }, ticks: { color: '#64748b' } },
             y: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11, family: 'JetBrains Mono, monospace' } } },
-        },
+        } : {},
     });
 }
 
@@ -100,7 +132,8 @@ function _dashBuildTreemap() {
         .map(m => {
             const files = (DATA.files_by_module || {})[m.id] || [];
             const size = files.reduce((sum, f) => sum + (f.size || 0), 0);
-            return Object.assign({}, m, { size });
+            const firstFile = files.length ? files[0].path : '';
+            return Object.assign({}, m, { size, firstFile });
         })
         .filter(m => m.size > 0)
         .sort((a, b) => b.size - a.size);
@@ -116,8 +149,11 @@ function _dashBuildTreemap() {
         const rows   = Math.max(2, Math.round((m.size / max) * 5));
         const height = Math.max(40, rows * 22);
         const label  = `${m.label} • ${_dashFmtBytes(m.size)}`;
+        const click  = m.firstFile
+            ? ` data-clickable="true" onclick="_dashDrill(${JSON.stringify(m.firstFile).replace(/"/g, '&quot;')}, null)"`
+            : '';
         return `
-<div class="dash-tm-cell" data-tip="${_dashEscape(label)}"
+<div class="dash-tm-cell"${click} data-tip="${_dashEscape(label)}"
      style="flex: ${pct} 1 180px; min-height:${height}px; background:${m.color || '#60a5fa'};">
   <span class="dash-tm-label">${_dashEscape(label)}</span>
 </div>`;

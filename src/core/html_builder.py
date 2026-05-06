@@ -530,6 +530,10 @@ def build_html(data: dict, job_id: str = None) -> str:
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_issues.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_structure.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_graph_intelligence.js',
+        # ── Phase 2: Temporal sub-widgets must precede the orchestrator ─────
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_temporal_hotspot.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_temporal_coupling.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_temporal_timeline.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_temporal.js',
         base / 'features' / 'Dashboard_view' / 'dashboard_dom.js',
         base / 'features' / 'Dashboard_view' / 'dashboard_lifecycle.js',

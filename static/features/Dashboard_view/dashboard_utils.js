@@ -52,3 +52,21 @@ function _dashT(key) {
     }
     return key;
 }
+
+// Single drill-through helper used by every clickable row. Closes the
+// dashboard, navigates to the file, and (optionally) opens the code panel
+// at the named function. Replaces the per-widget _dashJumpToFile /
+// _dashJumpToFunction copies that lived in widget_duplication.js and
+// widget_complexity.js.
+function _dashDrill(filePath, funcName) {
+    if (!filePath) return;
+    if (typeof closeDashboard === 'function') closeDashboard();
+    const target = _dashFlatFiles().find(f =>
+        (f.path || '').replace(/\\/g, '/') === String(filePath).replace(/\\/g, '/')
+    );
+    if (!target || typeof drillFile !== 'function') return;
+    drillFile(target);
+    if (funcName && typeof openCodePanel === 'function') {
+        setTimeout(() => openCodePanel(target, funcName), 300);
+    }
+}
