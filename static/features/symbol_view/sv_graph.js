@@ -1592,6 +1592,9 @@ function _svRenderFileGraph(newModel) {
                 }
             }
             requestAnimationFrame(edgeFade);
+            if (typeof applyPendingGlobalNavRestore === 'function') {
+                applyPendingGlobalNavRestore('l3');
+            }
         }
     }
     requestAnimationFrame(frame);
@@ -2411,6 +2414,7 @@ function _svHandleNodeClick(symId, el) {
 
     // If this node is already focused, do nothing extra (avoid flicker).
     if (_svState.focusId === symId) return;
+    if (!isGlobalNavRestoring()) pushGlobalNavSnapshot('sv-node-focus');
     _svState.focusId = symId;
     _svState.detailSectionCollapsed.clear();
     _svState.edgeJumpCursor.clear();
@@ -2423,6 +2427,7 @@ async function _svHandleEdgeClick(ed) {
     if (!ed) return;
     const model = _svState.currentGraph;
     if (!model) return;
+    if (!isGlobalNavRestoring()) pushGlobalNavSnapshot('sv-edge');
     _svState.selectedEdgeId = ed.id || null;
     _svApplyFocus();
 

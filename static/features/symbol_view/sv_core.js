@@ -151,8 +151,8 @@ function _svEnsureDom() {
     _svState.viewport = root.querySelector('.sv-viewport');
     _svState.measureHost = root.querySelector('#sv-card-measure');
 
-        root.querySelector('#sv-back-btn').onclick    = _svGoBack;
-    root.querySelector('#sv-fwd-btn').onclick     = _svGoForward;
+        root.querySelector('#sv-back-btn').onclick    = goGlobalBack;
+    root.querySelector('#sv-fwd-btn').onclick     = goGlobalForward;
     root.querySelector('#sv-close-btn').onclick = symViewClose;
             root.querySelector('#sv-expand-all-btn').onclick  = _svExpandAll;
     root.querySelector('#sv-collapse-all-btn').onclick = _svCollapseAll;
@@ -217,6 +217,7 @@ function _svInitPanZoom() {
             || e.target.classList.contains('sv-cards')
             || e.target.classList.contains('sv-ghosts');
         if (onBackground && _svState.focusId) {
+            pushGlobalNavSnapshot('sv-clear-focus');
             _svState.focusId = null;
             if (typeof _svRebuildForFocus === 'function') _svRebuildForFocus();
             else if (typeof _svApplyFocus === 'function') _svApplyFocus();
@@ -272,6 +273,7 @@ function symViewOpen(fileRel) {
 
     const root = document.getElementById('sym-view');
     if (!root) return;
+    if (!isGlobalNavRestoring()) pushGlobalNavSnapshot('sv-open');
     const cy = document.getElementById('cy');
     if (cy) cy.style.display = 'none';
     const ls = document.getElementById('layout-switcher');
@@ -311,6 +313,7 @@ function symViewActivate(symId) {
 
     const root = document.getElementById('sym-view');
     if (!root) return;
+    if (!isGlobalNavRestoring()) pushGlobalNavSnapshot('sv-activate');
     const cy = document.getElementById('cy');
     if (cy) cy.style.display = 'none';
     const ls = document.getElementById('layout-switcher');
@@ -345,6 +348,9 @@ function symViewActivate(symId) {
 }
 
 function symViewClose() {
+    if (window._sv && window._sv.active && !isGlobalNavRestoring()) {
+        pushGlobalNavSnapshot('sv-close');
+    }
     const root = document.getElementById('sym-view');
     if (root) root.classList.remove('active');
     const cy = document.getElementById('cy');
@@ -419,6 +425,7 @@ function _svJumpTo(snap) {
 }
 
 function _svSetFocus(symId) {
+    if (!isGlobalNavRestoring()) pushGlobalNavSnapshot('sv-focus');
     _svPushHistory();
     _svState.focusId = symId;
     _svState.detailSectionCollapsed.clear();
@@ -430,16 +437,65 @@ function _svSetFocus(symId) {
 }
 
 function _svSyncNavBtns() {
-    const back = document.getElementById('sv-back-btn');
-    const fwd  = document.getElementById('sv-fwd-btn');
-    if (back) back.disabled = !_svState.history.length;
-    if (fwd)  fwd.disabled  = !_svState.future.length;
+    if (typeof syncGlobalNavButtons === 'function') syncGlobalNavButtons();
     
     // Reset hideUnrelated when no focus
     if (!_svState.focusId) _svState.hideUnrelated = false;
     
     // Refresh graph zoom controls (includes Focus Only button)
     if (typeof refreshGraphZoomControls === 'function') refreshGraphZoomControls();
+}
+
+function svGetNavSnapshot() {
+    return {
+        fileRel: _svState.fileRel || null,
+        focusId: _svState.focusId || null,
+        zoom: _svState.zoom ? { ..._svState.zoom } : null,
+    };
+}
+
+function svRestoreNavSnapshot(snap) {
+    if (!snap || !snap.fileRel) return false;
+    _svEnsureDom();
+    _svState.jobId = window.JOB_ID || null;
+    const root = document.getElementById('sym-view');
+    if (!root) return false;
+    const cyEl = document.getElementById('cy');
+    if (cyEl) cyEl.style.display = 'none';
+    const ls = document.getElementById('layout-switcher');
+    if (ls) ls.style.display = 'none';
+    root.classList.add('active');
+    _svSaveLegend();
+    _svHideLegend();
+
+    _svState.fileRel = snap.fileRel;
+    _svState.focusId = snap.focusId || null;
+    _svState.detailSectionCollapsed.clear();
+    _svState.compoundCollapsed.clear();
+    _svState.edgeJumpCursor.clear();
+    _svState.selectedEdgeId = null;
+    _svState.baseLayoutSnapshot = null;
+    _svState.focusLayoutSnapshot = null;
+    _svState.activeAnimationToken += 1;
+    _svSyncActive();
+    if (typeof _svLoadFileGraph === 'function') {
+        _svLoadFileGraph(snap.fileRel, snap.focusId ? { pendingFocus: snap.focusId } : {});
+    }
+    _svSyncNavBtns();
+    _svUpdateStructBtn(true);
+    return true;
+}
+
+function svApplyNavSnapshot(snap) {
+    if (!snap) return false;
+    if (!_svState.currentGraph || _svState.fileRel !== snap.fileRel) return false;
+    if (snap.zoom) {
+        _svState.zoom = { ...snap.zoom };
+        _svApplyZoom();
+    }
+    _svSyncNavBtns();
+    if (typeof refreshGraphZoomControls === 'function') refreshGraphZoomControls();
+    return true;
 }
 
 function _svUpdateStructBtn(isOpen) {
@@ -494,6 +550,9 @@ window._svState        = _svState;  // Expose state for viz_layout.js
 window.symViewOpen     = symViewOpen;
 window.symViewActivate = symViewActivate;
 window.symViewClose    = symViewClose;
+window.svGetNavSnapshot = svGetNavSnapshot;
+window.svRestoreNavSnapshot = svRestoreNavSnapshot;
+window.svApplyNavSnapshot = svApplyNavSnapshot;
 window.svHideSvView    = symViewClose;
 window.svToggleStructView = function () {
     const fileRel = window.codeState && window.codeState.currentFile;

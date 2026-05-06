@@ -221,6 +221,7 @@ function initResizer() {
     function stopDrag() {
         resizer.classList.remove('dragging');
         panel.style.transition = '';
+        panel.style.width = '';
         document.getElementById('graph-wrap').style.pointerEvents = '';
         document.removeEventListener('mousemove', onDrag);
         document.removeEventListener('mouseup', stopDrag);
@@ -269,6 +270,7 @@ function initSidebarResizer() {
 
 function openCodePanel() {
     const panel = document.getElementById('code-panel');
+    panel.style.width = '';
     panel.classList.add('open');
     const codeBtn = document.getElementById('code-toggle-btn');
     if (codeBtn) { codeBtn.disabled = false; codeBtn.classList.add('active'); }
@@ -282,6 +284,7 @@ function openCodePanel() {
 function closeCodePanel() {
     const panel = document.getElementById('code-panel');
     panel.classList.remove('open');
+    panel.style.width = '';
     document.getElementById('code-toggle-btn').classList.remove('active');
     codeState.isOpen = false;
     codeState.userClosed = true;

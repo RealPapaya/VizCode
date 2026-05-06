@@ -391,6 +391,14 @@ function renderL2Flowchart(fileRel, focusFuncName = null) {
             updateExternalFuncsToggle();
             focusL2Func(fileRel, l2State.activeFuncIdx || 0, { center: false, openCodePanel: false });
 
+            if (typeof applyPendingGlobalNavRestore === 'function' && applyPendingGlobalNavRestore('l2')) {
+                l2State.preserveViewport = null;
+                l2State.expandOriginPos = null;
+                l2State._prevNodeIds = null;
+                renderL2Legend();
+                return;
+            }
+
             const savedVP = l2State.preserveViewport;
             const originPos = l2State.expandOriginPos;
             const prevIds = l2State._prevNodeIds || new Set();
@@ -655,6 +663,9 @@ function clearL2Legend() {
 
 // ─── L2: Function View ────────────────────────────────────────────────────────
 function drillToFile(fileRel) {
+    if (typeof pushGlobalNavSnapshot === 'function' && !isGlobalNavRestoring()) {
+        pushGlobalNavSnapshot('drill-file');
+    }
     // Save L1 viewport + selected node so we can restore exactly when toggling back
     if (state.level < 2 && cy) {
         const sel = cy.nodes(':selected').first();
@@ -665,7 +676,7 @@ function drillToFile(fileRel) {
         };
     }
 
-    state.history.push({ level: 1, activeModule: state.activeModule });
+    if (!isGlobalNavRestoring()) state.history.push({ level: 1, activeModule: state.activeModule });
     state.level = 2; state.activeFile = fileRel;
     clearSelection();
     updateBreadcrumb();

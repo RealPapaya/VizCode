@@ -1,4 +1,7 @@
 function loadLevel0() {
+    if (typeof pushGlobalNavSnapshot === 'function' && !isGlobalNavRestoring() && (state.level !== 0 || _navSelectedNodeId())) {
+        pushGlobalNavSnapshot('load-l0');
+    }
     if (state.galaxyActive && typeof closeGalaxy === 'function') closeGalaxy();
     showLoading(true, T('renderingModules'));
     clearSelection();
@@ -99,7 +102,9 @@ function loadLevel0() {
     }
     applyLayoutWithCache('L0', l0Config, () => {
         showLoading(false);
-        _fitGraphAfterNavigation();
+        if (typeof applyPendingGlobalNavRestore !== 'function' || !applyPendingGlobalNavRestore('l0')) {
+            _fitGraphAfterNavigation();
+        }
     });
 }
 
@@ -115,12 +120,15 @@ function _fitGraphAfterNavigation(padding = 40) {
 // ─── L1: Module → show ALL files flat (no folder nodes ever) ─────────────────
 function drillToModule(modId, opts) {
     // opts: { focusFile?: string, closeExt?: bool }
+    if (typeof pushGlobalNavSnapshot === 'function' && !isGlobalNavRestoring()) {
+        pushGlobalNavSnapshot('drill-module');
+    }
     if (window._sv && window._sv.active && window.svHideSvView) window.svHideSvView();
     if (window.svHideStructureBtn) svHideStructureBtn();
     setCodeBtnEnabled(false);
     if (window._lswUpdate) window._lswUpdate({ disabled: false, active: 0, l2Available: false, l3Available: false });
 
-    if (state.level === 0) state.history.push({ level: 0 });
+    if (state.level === 0 && !isGlobalNavRestoring()) state.history.push({ level: 0 });
     state.level = 1; state.activeModule = modId; state.activeSubDir = null;
     showLoading(true, T('loadingModule', { module: modId }));
     clearSelection();
@@ -439,6 +447,7 @@ function renderFilesFlat(modId, files, subPath) {
             buildEdgeFilter();
             buildNodeLegend();
             updateSidebarStats();
+            if (typeof applyPendingGlobalNavRestore === 'function') applyPendingGlobalNavRestore('l1');
             return;
         } else if (emptyOverlay) {
             emptyOverlay.style.display = 'none';
@@ -570,6 +579,14 @@ function _postLayoutL1() {
     const originPos = depMapState.expandOriginPos;
     const focusPath = depMapState.pendingFocusFile;
     const prevIds = depMapState._prevNodeIds || new Set();
+
+    if (typeof applyPendingGlobalNavRestore === 'function' && applyPendingGlobalNavRestore('l1')) {
+        depMapState.preserveViewport = null;
+        depMapState.expandOriginPos = null;
+        depMapState.pendingFocusFile = null;
+        depMapState._prevNodeIds = null;
+        return;
+    }
 
     // Clear all state immediately to prevent re-entrancy issues
     depMapState.preserveViewport = null;

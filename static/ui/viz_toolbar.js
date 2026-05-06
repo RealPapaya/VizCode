@@ -11,8 +11,8 @@ function initL1Toolbar() {
     const expandBtn = document.getElementById('l1-expand-all-ext');
     const collapseBtn = document.getElementById('l1-collapse-all-ext');
 
-    if (prevBtn) prevBtn.addEventListener('click', goL1Prev);
-    if (nextBtn) nextBtn.addEventListener('click', goL1Next);
+    if (prevBtn) prevBtn.addEventListener('click', goGlobalBack);
+    if (nextBtn) nextBtn.addEventListener('click', goGlobalForward);
 
     if (toggleBtn) {
         toggleBtn.addEventListener('click', () => {
@@ -60,6 +60,7 @@ function updateL1Toolbar(modId, fileCount) {
 }
 
 function pushL1History(modId, subDir) {
+    if (typeof isGlobalNavRestoring === 'function' && isGlobalNavRestoring()) return;
     if (depMapState._navigating) return;
     const entry = { modId, subDir: subDir || null };
     // Truncate forward history when navigating fresh
@@ -75,10 +76,7 @@ function pushL1History(modId, subDir) {
 }
 
 function updateL1NavButtons() {
-    const prevBtn = document.getElementById('l1-prev');
-    const nextBtn = document.getElementById('l1-next');
-    if (prevBtn) prevBtn.disabled = depMapState.navHistoryIdx <= 0;
-    if (nextBtn) nextBtn.disabled = depMapState.navHistoryIdx >= depMapState.navHistory.length - 1;
+    if (typeof syncGlobalNavButtons === 'function') syncGlobalNavButtons();
 }
 
 function goL1Prev() {
@@ -114,10 +112,10 @@ function onL1MouseNav(e) {
     if (state.level !== 1) return;
     if (e.button === 3) {
         e.preventDefault();
-        goL1Prev();
+        goGlobalBack();
     } else if (e.button === 4) {
         e.preventDefault();
-        goL1Next();
+        goGlobalForward();
     }
 }
 
@@ -160,8 +158,8 @@ function initL2Toolbar() {
     const expandBtn = document.getElementById('l2-expand-all');
     const collapseBtn = document.getElementById('l2-collapse-all');
 
-    if (prevBtn) prevBtn.addEventListener('click', goL2Prev);
-    if (nextBtn) nextBtn.addEventListener('click', goL2Next);
+    if (prevBtn) prevBtn.addEventListener('click', goGlobalBack);
+    if (nextBtn) nextBtn.addEventListener('click', goGlobalForward);
     if (toggleExtLinesBtn) {
         toggleExtLinesBtn.addEventListener('click', () => {
             l2State.showExternalEdges = !l2State.showExternalEdges;
@@ -593,10 +591,10 @@ function onL2MouseNav(e) {
     if (state.level !== 2) return;
     if (e.button === 3) {
         e.preventDefault();
-        goL2Prev();
+        goGlobalBack();
     } else if (e.button === 4) {
         e.preventDefault();
-        goL2Next();
+        goGlobalForward();
     }
 }
 
@@ -621,12 +619,7 @@ function applyExternalEdgeVisibility() {
 }
 
 function updateL2NavButtons() {
-    const prevBtn = document.getElementById('l2-prev');
-    const nextBtn = document.getElementById('l2-next');
-    const canPrev = l2State.fileHistoryIdx > 0;
-    const canNext = l2State.fileHistoryIdx >= 0 && l2State.fileHistoryIdx < l2State.fileHistory.length - 1;
-    if (prevBtn) prevBtn.disabled = !canPrev;
-    if (nextBtn) nextBtn.disabled = !canNext;
+    if (typeof syncGlobalNavButtons === 'function') syncGlobalNavButtons();
 }
 
 function _saveL2Snapshot() {

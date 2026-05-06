@@ -6,6 +6,7 @@ function onNodeTap(node) {
 
     if (state.level === 2) {
         if (d._t === 'func') {
+            pushGlobalNavSnapshot('l2-func');
             pinHighlightNode(node);
             focusL2Func(d._f, d.idx, { center: true });
             return;
@@ -21,6 +22,7 @@ function onNodeTap(node) {
         }
         // sys_func node — highlight and scroll code panel to the callsite
         if (d._t === 'sys_func') {
+            pushGlobalNavSnapshot('l2-sys-func');
             pinHighlightNode(node);
             const callerIdx = pickCallerIdxForExternal(node);
             if (callerIdx != null) l2State.activeFuncIdx = callerIdx;
@@ -40,6 +42,7 @@ function onNodeTap(node) {
             // NOTE: drill expand/collapse is handled exclusively by the cy.on('dbltap') handler.
             // Do NOT call drillDownExtFunc here — it races with dbltap: the second tap fires
             // drillDownExtFunc (collapse), then dbltap fires it again (re-expand). ✗
+            pushGlobalNavSnapshot('l2-ext-func');
             pinHighlightNode(node);
             if (d._f) {
                 _syncCodePanel(d._f, d.fn);
@@ -52,6 +55,7 @@ function onNodeTap(node) {
         }
         if (d._t === 'potential_func') {
             // Same — drill handled exclusively by dbltap handler.
+            pushGlobalNavSnapshot('l2-potential-func');
             pinHighlightNode(node);
             if (d._f) {
                 _syncCodePanel(d._f, d.fn);
@@ -65,6 +69,8 @@ function onNodeTap(node) {
     }
 
     if (state.level === 0 && d._t === 'module') {
+        pinHighlightNode(node);
+        pushGlobalNavSnapshot('l0-module');
         drillToModule(d._m.id);
         return;
     }
@@ -77,6 +83,7 @@ function onNodeTap(node) {
 
     // ─── L1 external file node: preview in code panel ────────────────────────
     if (state.level === 1 && d._t === 'dep_ext_file') {
+        pushGlobalNavSnapshot('l1-ext-file');
         pinHighlightNode(node);
         if (d._f?.path) loadFileInPanel(d._f.path);
         return;
@@ -90,6 +97,7 @@ function onNodeTap(node) {
         extClickLastId = node.id();
         extClickLastTime = now;
 
+        pushGlobalNavSnapshot(isDouble ? 'l1-file-drill' : 'l1-file');
         pinHighlightNode(node);
 
         if (isDouble) {
@@ -128,6 +136,7 @@ function onEdgeTap(edge) {
         const srcData = cy.$id(d.source).data();
         const tgtData = cy.$id(d.target).data();
         if (srcData._t === 'func') {
+            pushGlobalNavSnapshot('l2-edge');
             const fileRel = srcData._f;
             if (fileRel) _syncCodePanel(fileRel, srcData.fn, tgtData.fn);
         }
@@ -140,6 +149,7 @@ function onEdgeTap(edge) {
         const srcFile = srcNode.data('_f');
         const tgtLabel = tgtNode.data('label') || tgtNode.data('_f')?.label || '';
         if (srcFile?.path) {
+            pushGlobalNavSnapshot('l1-edge');
             _lastTappedEdge = edge;  // remember for code-panel reverse sync
             updateCallGraphBtn(srcFile.path);
             _syncCodePanel(srcFile.path, null, null, tgtLabel);
@@ -281,24 +291,7 @@ window.cpSyncToGraph = function cpSyncToGraph(lineIdx, word) {
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
 function goBack() {
-    // If Galaxy is active, close it and return to previous view
-    if (state.galaxyActive) {
-        if (typeof closeGalaxy === 'function') closeGalaxy();
-        return;
-    }
-    const prev = state.history.pop();
-    if (!prev) return;
-    if (cy) {
-        cy.elements().removeClass('faded hl');
-    }
-    hideFuncView();
-    if (prev.level === 0) {
-        loadLevel0();
-    } else if (prev.level === 1) {
-        const savedHistory = [...state.history];
-        drillToModule(prev.activeModule);
-        state.history = savedHistory;
-    }
+    goGlobalBack();
 }
 
 window.goLevel = function (n) {
@@ -393,6 +386,7 @@ function updateBreadcrumb() {
             const fullPath = (modId ? modId + '/' : '') + subPath;
             addSeg(part,
                 isLast ? null : () => {
+                    pushGlobalNavSnapshot('breadcrumb-l2-subpath');
                     state.level = 1;
                     hideFuncView();
                     if (window._sv && window._sv.active && window.svHideSvView) window.svHideSvView();
@@ -408,15 +402,7 @@ function updateBreadcrumb() {
 
     _updateBannerBreadcrumbs();
 
-    // Update Back button visibility (now managed via disabled attribute)
-    const backBtn = document.getElementById('back-btn');
-    if (backBtn) {
-        if (state.history.length > 0) {
-            backBtn.disabled = false;
-        } else {
-            backBtn.disabled = true;
-        }
-    }
+    if (typeof syncGlobalNavButtons === 'function') syncGlobalNavButtons();
 
     // Sync level switcher active segment
     if (window._lswUpdate) {
