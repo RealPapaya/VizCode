@@ -112,11 +112,10 @@ function _svEnsureDom() {
         <div class="sv-tb-top">
           <span class="sv-tb-title"><span class="banner-lvl l3-clr">Level 3</span> · Structure</span>
           <span id="sv-breadcrumb" class="banner-breadcrumb"></span>
-          <button id="sv-close-btn" title="Close">&times;</button>
         </div>
         <div class="sv-tb-actions">
-                    <button id="sv-back-btn" title="Back" disabled>&larr;</button>
-          <button id="sv-fwd-btn"  title="Forward" disabled>&rarr;</button>
+          <button id="sv-back-btn" class="l2-btn" title="Back" disabled>&#x21A9;</button>
+          <button id="sv-fwd-btn"  class="l2-btn" title="Forward" disabled>&#x21AA;</button>
           <button id="sv-expand-all-btn" title="Expand all classes">Expand All</button>
           <button id="sv-collapse-all-btn" title="Collapse all classes">Collapse All</button>
           <button id="sv-ext-btn" title="Show/hide external symbols">External Symbol</button>
@@ -151,10 +150,9 @@ function _svEnsureDom() {
     _svState.viewport = root.querySelector('.sv-viewport');
     _svState.measureHost = root.querySelector('#sv-card-measure');
 
-        root.querySelector('#sv-back-btn').onclick    = goGlobalBack;
+    root.querySelector('#sv-back-btn').onclick    = goGlobalBack;
     root.querySelector('#sv-fwd-btn').onclick     = goGlobalForward;
-    root.querySelector('#sv-close-btn').onclick = symViewClose;
-            root.querySelector('#sv-expand-all-btn').onclick  = _svExpandAll;
+    root.querySelector('#sv-expand-all-btn').onclick  = _svExpandAll;
     root.querySelector('#sv-collapse-all-btn').onclick = _svCollapseAll;
     root.querySelector('#sv-ext-btn').onclick = _svToggleExternal;
     root.querySelector('#sv-ext-btn').classList.toggle('sv-btn-active', _svState.showExternal);

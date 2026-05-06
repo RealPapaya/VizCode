@@ -46,7 +46,7 @@
     min-width: 0;
 }
 
-/* Row 1: title + file path + close */
+/* Row 1: title + file path */
 .sv-tb-top {
     display: flex;
     align-items: baseline;
@@ -94,19 +94,6 @@
     0%, 100% { opacity: 0.3; }
     50%       { opacity: 1;   }
 }
-
-#sv-close-btn {
-    background: transparent;
-    border: none;
-    color: var(--muted, #93918b);
-    font-size: 18px;
-    line-height: 1;
-    cursor: pointer;
-    padding: 0 2px;
-    flex-shrink: 0;
-    transition: color 0.15s;
-}
-#sv-close-btn:hover { color: var(--text, #eae8e3); }
 
 /* Row 2: nav + action buttons + search + stats */
 .sv-tb-actions {
