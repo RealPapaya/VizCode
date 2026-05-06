@@ -55,18 +55,53 @@ function _dashT(key) {
 
 // Single drill-through helper used by every clickable row. Closes the
 // dashboard, navigates to the file, and (optionally) opens the code panel
-// at the named function. Replaces the per-widget _dashJumpToFile /
-// _dashJumpToFunction copies that lived in widget_duplication.js and
-// widget_complexity.js.
+// at the named function.
+//
+// Navigation flow:
+//   1. closeDashboard()
+//   2. drillToModule(modId)   — puts the graph into L1 context
+//   3. drillToFile(rel)       — opens L2 function view
+//   4. (optional) openCodePanel + jump to funcName
 function _dashDrill(filePath, funcName) {
     if (!filePath) return;
     if (typeof closeDashboard === 'function') closeDashboard();
-    const target = _dashFlatFiles().find(f =>
-        (f.path || '').replace(/\\/g, '/') === String(filePath).replace(/\\/g, '/')
-    );
-    if (!target || typeof drillFile !== 'function') return;
-    drillFile(target);
-    if (funcName && typeof openCodePanel === 'function') {
-        setTimeout(() => openCodePanel(target, funcName), 300);
+
+    const rel = String(filePath).replace(/\\/g, '/');
+
+    if (typeof drillToFile !== 'function') return;
+
+    const modId = _dashFindModule(rel);
+
+    if (modId && typeof drillToModule === 'function') {
+        // drillToModule re-renders L1; wait a tick before drilling to L2
+        drillToModule(modId);
+        setTimeout(() => {
+            drillToFile(rel);
+            if (funcName) {
+                setTimeout(() => {
+                    if (typeof openCodePanel === 'function') openCodePanel();
+                }, 400);
+            }
+        }, 150);
+    } else {
+        // Fallback: attempt direct L2 drill (works if already in correct module)
+        drillToFile(rel);
+        if (funcName) {
+            setTimeout(() => {
+                if (typeof openCodePanel === 'function') openCodePanel();
+            }, 400);
+        }
     }
+}
+
+// Find the module ID that contains the given file path (forward-slash normalised).
+function _dashFindModule(fileRel) {
+    if (!window.DATA) return null;
+    const norm = String(fileRel).replace(/\\/g, '/');
+    for (const [modId, files] of Object.entries(DATA.files_by_module || {})) {
+        if ((files || []).some(f => (f.path || '').replace(/\\/g, '/') === norm)) {
+            return modId;
+        }
+    }
+    return null;
 }

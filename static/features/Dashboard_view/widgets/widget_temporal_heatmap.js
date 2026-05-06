@@ -53,19 +53,20 @@ ${_dashTemporalHeatmapSVG(model)}
 }
 
 function _dashBuildTemporalHeatmapModel(rows, stats) {
+    // dayMap key = 'YYYY-MM-DD' string from git log (already UTC-agnostic ISO date)
     const dayMap = new Map();
     let maxCommits = 0;
     let totalCommits = 0;
 
     rows.forEach(row => {
-        const date = String(row.date || '');
-        if (!_dashHeatmapParseISO(date)) return;
-        const commits = Math.max(0, Number(row.commits || 0));
+        const date = String(row.date || '').trim();
+        if (!_dashHeatmapValidISO(date)) return;
+        const commits   = Math.max(0, Number(row.commits   || 0));
         const additions = Math.max(0, Number(row.additions || 0));
         const deletions = Math.max(0, Number(row.deletions || 0));
         const prev = dayMap.get(date) || { commits: 0, additions: 0, deletions: 0 };
         const next = {
-            commits: prev.commits + commits,
+            commits:   prev.commits   + commits,
             additions: prev.additions + additions,
             deletions: prev.deletions + deletions,
         };
@@ -76,22 +77,32 @@ function _dashBuildTemporalHeatmapModel(rows, stats) {
     dayMap.forEach(v => { totalCommits += v.commits; });
 
     const sortedDates = Array.from(dayMap.keys()).sort();
-    let start = _dashHeatmapParseISO(stats.window_start);
-    let end = _dashHeatmapParseISO(stats.window_end) ||
-        _dashHeatmapParseISO(stats.period_end);
+    if (!sortedDates.length) return null;
 
-    if (!end && sortedDates.length) end = _dashHeatmapParseISO(sortedDates[sortedDates.length - 1]);
-    if (!start && end) {
-        const span = Math.max(0, Number(stats.window_days || 180));
-        start = _dashHeatmapAddDays(end, -span);
+    // Determine visible window: prefer stats metadata, fall back to data extent
+    let endStr   = stats.window_end   || stats.period_end   || sortedDates[sortedDates.length - 1];
+    let startStr = stats.window_start || stats.period_start || sortedDates[0];
+
+    // If window_end is missing, compute from today
+    if (!endStr) {
+        const today = new Date();
+        endStr = `${today.getUTCFullYear()}-${String(today.getUTCMonth()+1).padStart(2,'0')}-${String(today.getUTCDate()).padStart(2,'0')}`;
     }
-    if (!start && sortedDates.length) start = _dashHeatmapParseISO(sortedDates[0]);
+    // If window_start is missing, use window_days fallback
+    if (!startStr) {
+        const span = Math.max(1, Number(stats.window_days || 180));
+        const endD = _dashHeatmapParseISO(endStr);
+        if (endD) startStr = _dashHeatmapISOStr(_dashHeatmapAddDays(endD, -span));
+    }
+
+    const start = _dashHeatmapParseISO(startStr);
+    const end   = _dashHeatmapParseISO(endStr);
     if (!start || !end || start > end) return null;
 
-    const gridStart = _dashHeatmapWeekStart(start);
-    const gridEnd = _dashHeatmapWeekEnd(end);
-    const totalDays = Math.round((gridEnd - gridStart) / 86400000) + 1;
-    const weeks = Math.max(1, Math.ceil(totalDays / 7));
+    const gridStart  = _dashHeatmapWeekStart(start);
+    const gridEnd    = _dashHeatmapWeekEnd(end);
+    const totalDays  = Math.round((gridEnd - gridStart) / 86400000) + 1;
+    const weeks      = Math.max(1, Math.ceil(totalDays / 7));
 
     return { dayMap, start, end, gridStart, totalDays, weeks, maxCommits, totalCommits };
 }
@@ -131,12 +142,13 @@ function _dashTemporalHeatmapSVG(model) {
         const date = _dashHeatmapAddDays(model.gridStart, i);
         if (date < model.start || date > model.end) continue;
 
-        const iso = _dashHeatmapISO(date);
+        // Use UTC-based ISO string that matches dayMap keys from git log
+        const iso  = _dashHeatmapISOStr(date);
         const info = model.dayMap.get(iso) || { commits: 0, additions: 0, deletions: 0 };
         const week = Math.floor(i / 7);
-        const day = _dashHeatmapDayIndex(date);
-        const x = labelW + week * (cell + gap);
-        const y = monthH + day * (cell + gap);
+        const day  = _dashHeatmapDayIndex(date);
+        const x    = labelW + week * (cell + gap);
+        const y    = monthH + day * (cell + gap);
         const fill = _dashHeatmapColor(info.commits, model.maxCommits);
         const commitsLabel = `${info.commits} ${_dashT('dashTemporalCommits')}`;
         const title = `${iso}: ${commitsLabel}, +${info.additions} / -${info.deletions}`;
@@ -175,14 +187,25 @@ function _dashHeatmapColor(commits, maxCommits) {
 
 function _dashHeatmapParseISO(value) {
     if (!value || typeof value !== 'string') return null;
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
     if (!m) return null;
+    // Construct as UTC midnight — consistent with _dashHeatmapISOStr
     const date = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
     return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function _dashHeatmapISO(date) {
-    return date.toISOString().slice(0, 10);
+// Check date string validity without constructing a Date object
+function _dashHeatmapValidISO(value) {
+    return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim());
+}
+
+// Canonical ISO string from a Date object — always uses UTC fields
+// to stay consistent with Date objects built via Date.UTC()
+function _dashHeatmapISOStr(date) {
+    const y = date.getUTCFullYear();
+    const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(date.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
 }
 
 function _dashHeatmapAddDays(date, days) {

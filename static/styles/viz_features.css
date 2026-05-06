@@ -600,14 +600,15 @@
 /* ─── Phase 2: Temporal Analysis ──────────────────────────────────────── */
 .dash-temporal-period {
     display: flex;
-    align-items: baseline;
-    gap: 16px;
-    padding: 8px 12px;
+    align-items: center;
+    gap: 14px;
+    padding: 7px 12px;
     margin-bottom: 12px;
     border: 1px solid var(--border);
     border-radius: 6px;
     background: color-mix(in srgb, var(--panel) 30%, transparent);
     font-size: 12px;
+    flex-wrap: wrap;
 }
 .dash-temporal-period-label {
     color: var(--text);
@@ -622,6 +623,37 @@
     color: var(--muted);
     margin-left: auto;
     font-variant-numeric: tabular-nums;
+}
+/* Day-range pill selector */
+.dash-temporal-pills {
+    display: inline-flex;
+    gap: 3px;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--panel) 60%, transparent);
+    flex-shrink: 0;
+}
+.dash-temporal-pill {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    transition: background 0.14s, color 0.14s;
+    white-space: nowrap;
+}
+.dash-temporal-pill:hover {
+    color: var(--text);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.dash-temporal-pill.active {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    color: var(--accent);
 }
 .dash-temporal-pair {
     display: inline-flex;
