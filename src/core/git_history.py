@@ -2,7 +2,9 @@
 """
 core/git_history.py — VIZCODE Phase 2 Temporal Analysis
 
-Single-pass `git log` parser that produces four temporal views:
+Single-pass `git log` parser that produces five temporal views:
+
+    commit_activity_daily -> daily buckets for the contribution heatmap
 
     file_churn        → top files by recent commits / line additions / deletions
     change_coupling   → file pairs that change together within the window
@@ -35,11 +37,11 @@ from itertools import combinations
 from pathlib import Path
 
 # ─── Tunables ────────────────────────────────────────────────────────────────
-DEFAULT_WINDOW_DAYS = 90
+DEFAULT_WINDOW_DAYS = 180
 COMMIT_FILE_LIMIT   = 20      # skip commits touching > N files (refactor noise)
 COUPLING_MIN        = 3       # filter pairs below this co-change count
 GIT_TIMEOUT_SEC     = 60
-SCHEMA_REV          = 1
+SCHEMA_REV          = 2
 
 # Hotspot scoring tuning. Files without computed complexity get a neutral
 # 0.5 multiplier so they're neither boosted nor punished by the score.
@@ -178,6 +180,13 @@ def _iso_week_start(date_str: str) -> str:
     return monday.isoformat()
 
 
+def _window_bounds(window_days: int) -> tuple:
+    """Return the UTC calendar bounds represented by the git history window."""
+    end = datetime.utcnow().date()
+    start = end - timedelta(days=window_days)
+    return start.isoformat(), end.isoformat()
+
+
 # ─── Aggregation passes ──────────────────────────────────────────────────────
 
 def _aggregate_file_churn(commits: list) -> list:
@@ -239,6 +248,25 @@ def _aggregate_timeline(commits: list) -> list:
         'additions':  weekly_add[wk],
         'deletions':  weekly_del[wk],
     } for wk in weeks]
+
+
+def _aggregate_daily_activity(commits: list) -> list:
+    daily_commits = Counter()
+    daily_add     = Counter()
+    daily_del     = Counter()
+    for c in commits:
+        day = c['date']
+        daily_commits[day] += 1
+        for f in c['files']:
+            daily_add[day] += f['add']
+            daily_del[day] += f['del']
+    days = sorted(daily_commits.keys())
+    return [{
+        'date':      day,
+        'commits':   daily_commits[day],
+        'additions': daily_add[day],
+        'deletions': daily_del[day],
+    } for day in days]
 
 
 # ─── Hotspot scoring (consumes file_churn + symbol_index) ────────────────────
@@ -319,9 +347,13 @@ def compute_git_history(root: str,
     file_churn      = _aggregate_file_churn(commits)
     change_coupling = _aggregate_coupling(commits, len(commits))
     churn_timeline  = _aggregate_timeline(commits)
+    daily_activity  = _aggregate_daily_activity(commits)
+    window_start, window_end = _window_bounds(since_days)
 
     payload = {
         'window_days':      since_days,
+        'window_start':     window_start,
+        'window_end':       window_end,
         'period_start':     commits[-1]['date'],
         'period_end':       commits[0]['date'],
         'commits_analyzed': len(commits),
@@ -331,6 +363,7 @@ def compute_git_history(root: str,
         # file_meta — we leave the slot here so the cached blob carries it.
         'hotspot_files':    [],
         'churn_timeline':   churn_timeline,
+        'commit_activity_daily': daily_activity,
         # Carry the full file_churn (capped) so the caller can recompute
         # hotspot_files without re-running git when only complexity changed.
         '_full_file_churn': file_churn,
@@ -343,16 +376,18 @@ def compute_git_history(root: str,
 
 def _empty_payload(window_days: int) -> dict:
     """Shape returned when git ran but no commits fell inside the window."""
-    today = datetime.utcnow().date()
-    start = today - timedelta(days=window_days)
+    start, end = _window_bounds(window_days)
     return {
         'window_days':      window_days,
-        'period_start':     start.isoformat(),
-        'period_end':       today.isoformat(),
+        'window_start':     start,
+        'window_end':       end,
+        'period_start':     start,
+        'period_end':       end,
         'commits_analyzed': 0,
         'file_churn':       [],
         'change_coupling':  [],
         'hotspot_files':    [],
         'churn_timeline':   [],
+        'commit_activity_daily': [],
         '_full_file_churn': [],
     }

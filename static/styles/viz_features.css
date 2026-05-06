@@ -661,6 +661,63 @@
     font-variant-numeric: tabular-nums;
 }
 
+.dash-temporal-heatmap-body {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+.dash-temporal-heatmap-svg {
+    display: block;
+    width: 100%;
+    min-width: 380px;
+    height: auto;
+}
+.dash-temporal-heatmap-label,
+.dash-temporal-heatmap-month {
+    fill: var(--muted);
+    font-size: 9px;
+    font-weight: 600;
+}
+.dash-temporal-heatmap-month {
+    text-transform: uppercase;
+}
+.dash-temporal-heatmap-cell {
+    stroke: color-mix(in srgb, var(--panel) 75%, #ffffff);
+    stroke-width: 0.5;
+    transition: stroke 0.12s ease-out, stroke-width 0.12s ease-out;
+}
+.dash-temporal-heatmap-cell:hover {
+    stroke: var(--text);
+    stroke-width: 1.4;
+}
+.dash-temporal-heatmap-legend {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+}
+.dash-temporal-heatmap-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    flex: 0 0 auto;
+}
+.dash-temporal-heatmap-summary {
+    margin-left: auto;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+    .dash-temporal-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    SEARCH SYSTEM V3 — VS Code Style
    ═══════════════════════════════════════════════════════════════════════════ */
