@@ -128,7 +128,21 @@ function initCy() {
         });
     });
     document.getElementById('cy').addEventListener('contextmenu', e => e.preventDefault());
+
+    // ── Multi-select visual style ─────────────────────────────────────────────
+    // The ms-selected class is toggled by graph_multiselect.js.
+    // We register it here (after cy is created) so it picks up the live
+    // cytoscape instance and overrides gracefully.
+    cy.style().selector('.ms-selected').style({
+        'overlay-color':   'var(--accent, #dfa745)',
+        'overlay-opacity': 0.22,
+        'overlay-padding': 6,
+        'border-width':    3,
+        'border-color':    'var(--accent, #dfa745)',
+        'border-opacity':  0.85,
+    }).update();
 }
+
 
 function clearSelection() {
     _graphHideIsolateBtn();

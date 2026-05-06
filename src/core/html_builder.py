@@ -515,6 +515,7 @@ def build_html(data: dict, job_id: str = None) -> str:
         base / 'features' / 'graph' / 'graph_l2.js',
         base / 'features' / 'graph' / 'graph_l1.js',
         base / 'features' / 'graph' / 'graph_interact.js',
+        base / 'features' / 'graph' / 'graph_multiselect.js',
         # ── features ──────────────────────────────────────────────────────────
         base / 'features' / 'viz_search.js',
         # ── features/Dashboard_view (multi-file dashboard) ───────────────────
@@ -549,6 +550,7 @@ def build_html(data: dict, job_id: str = None) -> str:
         base / 'ui' / 'viz_layout.js',
         # ── features (continued) ──────────────────────────────────────────────
         base / 'features' / 'viz_chat.js',
+        base / 'features' / 'viz_help.js',                      # ? help panel + shortcuts
         # ── boot (must be last) ───────────────────────────────────────────────
         base / 'viz.js',
         # ── features/symbol_view ──────────────────────────────────────────────
