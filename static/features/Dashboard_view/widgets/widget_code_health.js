@@ -34,6 +34,8 @@ function _dashRenderCodeHealth(container, stats) {
     <div class="dash-health-render" id="dash-health-render"></div>
   </div>
 </div>`;
+    // The status-band dot keeps its semantic colour (var(--status-*)) — these
+    // are the only non-accent colours allowed beside accent on the dashboard.
 
     _dashRegisterChartSwitch(_DASH_HEALTH_KEY, () => _dashRenderCodeHealth(container, stats));
 
@@ -47,7 +49,10 @@ function _dashRenderCodeHealth(container, stats) {
 function _dashRenderHealthBars(breakdown, weights) {
     const target = document.getElementById('dash-health-render');
     if (!target) return;
-    const barsHTML = _DASH_HEALTH_SUBSCORES.map(s => {
+    // All sub-score bars use accent at decreasing alpha — visual depth without
+    // multi-hue palettes (DASHBOARD_DESIGN_SPEC.md §4).
+    const fills = _dashAccentSeries(_DASH_HEALTH_SUBSCORES.length);
+    const barsHTML = _DASH_HEALTH_SUBSCORES.map((s, i) => {
         const v       = Number(breakdown[s.key] || 0);
         const weight  = Number(weights[s.key] || 0);
         const pct     = Math.max(0, Math.min(100, (v / 10) * 100));
@@ -57,7 +62,7 @@ function _dashRenderHealthBars(breakdown, weights) {
   <span class="dash-health-row-label">${_dashEscape(_dashT(s.label))}</span>
   <span class="dash-health-row-weight">${weightPct}%</span>
   <div class="dash-health-row-track">
-    <div class="dash-health-row-fill" style="width:${pct}%;background:${s.color}"></div>
+    <div class="dash-health-row-fill" style="width:${pct}%;background:${fills[i]}"></div>
   </div>
   <span class="dash-health-row-value">${v.toFixed(1)}</span>
 </div>`;
@@ -68,7 +73,7 @@ function _dashRenderHealthBars(breakdown, weights) {
 function _dashRenderHealthRadar(breakdown) {
     const target = document.getElementById('dash-health-render');
     if (!target) return;
-    target.innerHTML = `<div class="dash-chart-wrap" style="min-height:240px"><canvas id="dash-chart-health"></canvas></div>`;
+    target.innerHTML = `<div class="dash-chart-wrap dash-chart-wrap--tall"><canvas id="dash-chart-health"></canvas></div>`;
     const canvas = document.getElementById('dash-chart-health');
     if (!canvas || typeof Chart === 'undefined') return;
 
@@ -80,10 +85,10 @@ function _dashRenderHealthRadar(breakdown) {
         datasets: [{
             label: _dashT('dashCodeHealthTitle'),
             data,
-            backgroundColor: '#a78bfa44',
-            borderColor: '#a78bfa',
+            backgroundColor:      _dashAccentTint(0.25),
+            borderColor:          _dashAccentTint(1.0),
             borderWidth: 2,
-            pointBackgroundColor: '#a78bfa',
+            pointBackgroundColor: _dashAccentTint(1.0),
             pointRadius: 4,
         }],
     }, {
@@ -95,10 +100,10 @@ function _dashRenderHealthRadar(breakdown) {
                 beginAtZero: true,
                 min: 0,
                 max: 10,
-                grid:        { color: '#1a253588' },
-                angleLines:  { color: '#1a253588' },
-                pointLabels: { color: '#94a3b8', font: { size: 11 } },
-                ticks:       { color: '#64748b', backdropColor: 'transparent', stepSize: 2 },
+                grid:        { color: _dashBorderTint(0.6) },
+                angleLines:  { color: _dashBorderTint(0.6) },
+                pointLabels: { font: { size: 11 } },
+                ticks:       { backdropColor: 'transparent', stepSize: 2 },
             },
         },
     });

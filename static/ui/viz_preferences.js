@@ -442,6 +442,9 @@ function _applyThemeModuleColors(th) {
     // 3. Refresh corresponding UI components
     if (typeof buildSidebar === 'function') buildSidebar();
     if (typeof _galaxyRefreshThemeColors === 'function') _galaxyRefreshThemeColors();
+    // Reapply Chart.js defaults so dashboard tooltip / axis colours follow
+    // the new theme tokens (DASHBOARD_DESIGN_SPEC.md §4.2).
+    if (typeof _dashApplyChartDefaults === 'function') _dashApplyChartDefaults();
     const dashOverlay = document.getElementById('dashboard-overlay');
     if (typeof _renderDashboard === 'function' && dashOverlay && dashOverlay.style.display === 'block') {
         _renderDashboard();

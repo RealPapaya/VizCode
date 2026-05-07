@@ -12,7 +12,7 @@
     --text: #eae8e3;
     --muted: #93918b;
     --card-bg: #1e1f1c;
-    
+
     --green: #849646;
     --red: #d16d6a;
     --yellow: #dfa745;
@@ -20,6 +20,50 @@
     /* Module Colors */
     --m1: #dfa745; --m2: #849646; --m3: #d16d6a; --m4: #5f8b9e; --m5: #9d7e79;
     --m6: #c28b5e; --m7: #7b947c; --m8: #8c6e8f; --m9: #b8a663; --m10: #a76a5c;
+
+    /* ── Dashboard Design Tokens (DASHBOARD_DESIGN_SPEC.md §1) ── */
+    /* Accent ramp — same hue family as --accent (warm gold) */
+    --accent-50:  #fdf6e9;
+    --accent-100: #f7e4b8;
+    --accent-200: #eccf85;
+    --accent-300: #e3ba5f;
+    --accent-500: #dfa745;
+    --accent-600: #c69137;
+    --accent-700: #9c6f24;
+
+    /* Surface */
+    --surface-base:     var(--bg);
+    --surface-card:     var(--panel);
+    --surface-elevated: #22241f;
+    --surface-hero:     var(--accent);
+    --text-on-accent:   #191614;
+    --muted-series:     var(--muted);
+
+    /* Status (semantic — only red/amber/green allowed beside accent) */
+    --status-good: #6c9a4e;
+    --status-warn: #dfa745;
+    --status-bad:  #d16d6a;
+
+    /* Spacing scale (4px base) */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+
+    /* Radius */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-pill: 999px;
+
+    /* Shadow */
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.18), 0 1px 1px rgba(0,0,0,.12);
+    --shadow-md: 0 4px 12px rgba(0,0,0,.22), 0 2px 4px rgba(0,0,0,.14);
+    --shadow-lg: 0 12px 28px rgba(0,0,0,.32), 0 4px 8px rgba(0,0,0,.18);
 }
 
 [data-theme="claude"] {
@@ -45,6 +89,36 @@
     --sv-ghost-bg: #f8fafc;
     --sv-ghost-stroke: #94a3b8;
     --sv-ghost-tag: #0f766e;
+
+    /* ── Dashboard Design Tokens (DASHBOARD_DESIGN_SPEC.md §1) ── */
+    --accent-50:  #fff7ed;
+    --accent-100: #fde4c4;
+    --accent-200: #fbcc8a;
+    --accent-300: #f4ad4f;
+    --accent-500: #d97706;
+    --accent-600: #b45309;
+    --accent-700: #7c3a05;
+
+    --surface-base:     var(--bg);
+    --surface-card:     var(--panel);
+    --surface-elevated: #ffffff;
+    --surface-hero:     var(--accent);
+    --text-on-accent:   #ffffff;
+    --muted-series:     var(--muted);
+
+    --status-good: #16a34a;
+    --status-warn: #d97706;
+    --status-bad:  #e8194b;
+
+    --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+    --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+
+    --radius-sm: 8px;  --radius-md: 12px; --radius-lg: 16px; --radius-pill: 999px;
+
+    /* Lighter alphas for light theme */
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.06), 0 1px 1px rgba(0,0,0,.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,.10), 0 2px 4px rgba(0,0,0,.06);
+    --shadow-lg: 0 12px 28px rgba(0,0,0,.16), 0 4px 8px rgba(0,0,0,.08);
 }
 
 /* ── Light theme: crisp white cards on cool-gray base ── */
@@ -340,6 +414,35 @@
     --sv-ghost-bg: #eaddcb;
     --sv-ghost-stroke: #b3a48e;
     --sv-ghost-tag: #4a687d;
+
+    /* ── Dashboard Design Tokens (DASHBOARD_DESIGN_SPEC.md §1) ── */
+    --accent-50:  #f1ece1;
+    --accent-100: #dccfb6;
+    --accent-200: #c5b18a;
+    --accent-300: #a99467;
+    --accent-500: #8c7851;
+    --accent-600: #716040;
+    --accent-700: #544730;
+
+    --surface-base:     var(--bg);
+    --surface-card:     var(--panel);
+    --surface-elevated: #f5efe8;
+    --surface-hero:     var(--accent);
+    --text-on-accent:   #ffffff;
+    --muted-series:     var(--muted);
+
+    --status-good: #5a7d66;
+    --status-warn: #9c855a;
+    --status-bad:  #a8504a;
+
+    --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+    --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+
+    --radius-sm: 8px;  --radius-md: 12px; --radius-lg: 16px; --radius-pill: 999px;
+
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.08), 0 1px 1px rgba(0,0,0,.05);
+    --shadow-md: 0 4px 12px rgba(0,0,0,.12), 0 2px 4px rgba(0,0,0,.07);
+    --shadow-lg: 0 12px 28px rgba(0,0,0,.18), 0 4px 8px rgba(0,0,0,.09);
 }
 
 [data-theme="parchment"] .tab.active,

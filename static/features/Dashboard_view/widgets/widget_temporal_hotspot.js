@@ -7,7 +7,7 @@ function _dashRenderTemporalHotspot(container, stats) {
     const items = stats.hotspot_files || [];
     container.innerHTML = `
 <div class="dash-card-title">
-  <span class="dash-card-title-dot" style="background:#fb923c"></span>${_dashEscape(_dashT('dashTemporalHotspot'))}
+  <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashTemporalHotspot'))}
 </div>
 <div class="dash-list" id="dash-temporal-hotspot-list"></div>`;
 
@@ -26,9 +26,9 @@ function _dashRenderTemporalHotspot(container, stats) {
 <div class="dash-list-row" data-clickable="true" data-tip="${_dashEscape(it.file)}"
      onclick="_dashOpenDrilldown(${fileJSON})">
   <span class="dash-list-rank">${i + 1}</span>
-  <span class="dash-list-name">${_dashEscape(fileShort)}<span style="color:#64748b;font-size:11px;margin-left:6px">${cxLabel} · ${it.churn} commits</span></span>
-  <div class="dash-list-bar" style="width:${Math.round(it.score / max * 60)}px;background:#fb923c"></div>
-  <span class="dash-list-val" style="color:#fb923c">${it.score}</span>
+  <span class="dash-list-name">${_dashEscape(fileShort)}<span class="dash-list-meta">${cxLabel} · ${it.churn} commits</span></span>
+  <div class="dash-list-bar" style="width:${Math.round(it.score / max * 60)}px"></div>
+  <span class="dash-list-val">${it.score}</span>
 </div>`;
     }).join('');
 }

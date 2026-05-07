@@ -9,20 +9,24 @@ const _DASH_HEALTH_BANDS = {
     // anything >= 7 → green
 };
 
+// Status traffic-light → semantic CSS tokens (themes.css).
+// These are the only non-accent colours allowed beside accent on the dashboard.
 const _DASH_HEALTH_COLORS = {
-    red:   '#f87171',
-    amber: '#fbbf24',
-    green: '#34d399',
+    red:   'var(--status-bad)',
+    amber: 'var(--status-warn)',
+    green: 'var(--status-good)',
 };
 
-// Display order + labels + bar colour for the per-sub-score breakdown panel.
-// Keys must match keys returned by code_health.py:compute_code_health.
+// Display order + label keys for the per-sub-score breakdown panel.
+// All sub-score bars derive their fill from var(--accent) at decreasing alpha
+// (see widget_code_health.js); the previous per-key hex literals violated
+// DASHBOARD_DESIGN_SPEC.md §5 rule 2.
 const _DASH_HEALTH_SUBSCORES = [
-    { key: 'complexity',  label: 'dashHealthComplexity',  color: '#a78bfa' },
-    { key: 'coupling',    label: 'dashHealthCoupling',    color: '#f87171' },
-    { key: 'dead_code',   label: 'dashHealthDeadCode',    color: '#94a3b8' },
-    { key: 'duplication', label: 'dashHealthDuplication', color: '#fb923c' },
-    { key: 'cohesion',    label: 'dashHealthCohesion',    color: '#60a5fa' },
+    { key: 'complexity',  label: 'dashHealthComplexity'  },
+    { key: 'coupling',    label: 'dashHealthCoupling'    },
+    { key: 'dead_code',   label: 'dashHealthDeadCode'    },
+    { key: 'duplication', label: 'dashHealthDuplication' },
+    { key: 'cohesion',    label: 'dashHealthCohesion'    },
 ];
 
 function _dashHealthColor(score) {

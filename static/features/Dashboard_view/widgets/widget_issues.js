@@ -5,33 +5,36 @@
 function _dashRenderIssues(container, stats) {
     if (!container) return;
 
+    // Issue cards differ in semantics: circular = warning, dead = neutral,
+    // entry = positive. We map to status tokens for the headline number while
+    // keeping the title-dot on accent (single-accent identity).
     container.innerHTML = `
-<div class="dash-grid dash-grid-3" style="margin-bottom:12px">
+<div class="dash-grid dash-grid-3" style="margin-bottom:var(--space-3)">
   ${_dashIssueCard(
         _dashT('dashIssuesCircular'),
-        '#fb923c',
+        'var(--status-warn)',
         stats.circular_dependencies || 0,
         _dashT('dashIssuesCirculaSub'),
         _dashCircularList(stats.top_circular_deps || [])
     )}
   ${_dashIssueCard(
         _dashT('dashIssuesDead'),
-        '#94a3b8',
+        'var(--muted)',
         stats.uncalled_functions || 0,
         _dashT('dashIssuesDeadSub'),
-        `<div style="text-align:center;color:#64748b;font-size:11px">${stats.unimported_files || 0} ${_dashEscape(_dashT('dashIssuesUnimported'))}</div>`
+        `<div class="dash-issue-foot">${stats.unimported_files || 0} ${_dashEscape(_dashT('dashIssuesUnimported'))}</div>`
     )}
   ${_dashIssueCard(
         _dashT('dashIssuesEntry'),
-        '#34d399',
+        'var(--status-good)',
         stats.entry_points || 0,
         _dashT('dashIssuesEntrySub'),
-        `<div style="text-align:center;color:#64748b;font-size:11px">${stats.isolated_files || 0} ${_dashEscape(_dashT('dashIssuesIsolated'))}</div>`
+        `<div class="dash-issue-foot">${stats.isolated_files || 0} ${_dashEscape(_dashT('dashIssuesIsolated'))}</div>`
     )}
 </div>
 <div class="dash-card">
   <div class="dash-card-title">
-    <span class="dash-card-title-dot" style="background:#f472b6"></span>${_dashEscape(_dashT('dashIssuesLongestFuncs'))}
+    <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashIssuesLongestFuncs'))}
   </div>
   <div class="dash-list">${_dashLongestFuncsRows(stats.longest_functions || [])}</div>
 </div>`;
@@ -41,23 +44,23 @@ function _dashIssueCard(title, color, value, sub, extra) {
     return `
 <div class="dash-card">
   <div class="dash-card-title">
-    <span class="dash-card-title-dot" style="background:${color}"></span>${_dashEscape(title)}
+    <span class="dash-card-title-dot"></span>${_dashEscape(title)}
   </div>
-  <div class="dash-stat-value" style="color:${color};font-size:36px;text-align:center;margin:16px 0 4px">${_dashFmtNum(value)}</div>
-  <div class="dash-stat-sub" style="text-align:center">${_dashEscape(sub)}</div>
+  <div class="dash-issue-value" style="color:${color}">${_dashFmtNum(value)}</div>
+  <div class="dash-stat-sub dash-issue-sub">${_dashEscape(sub)}</div>
   ${extra || ''}
 </div>`;
 }
 
 function _dashCircularList(cycles) {
-    if (!cycles.length) return `<div style="text-align:center;color:#64748b;font-size:11px;margin-top:8px">✅ ${_dashEscape(_dashT('dashIssuesNoCycles'))}</div>`;
-    return `<div class="dash-list" style="margin-top:8px">${cycles.slice(0, 3).map((cycle, i) => `
-<div class="dash-list-row" style="flex-direction:column;align-items:flex-start;gap:2px">
-  <div style="display:flex;align-items:center;gap:6px;width:100%">
+    if (!cycles.length) return `<div class="dash-issue-foot">✅ ${_dashEscape(_dashT('dashIssuesNoCycles'))}</div>`;
+    return `<div class="dash-list" style="margin-top:var(--space-2)">${cycles.slice(0, 3).map((cycle, i) => `
+<div class="dash-list-row dash-list-row--stacked">
+  <div class="dash-cycle-head">
     <span class="dash-list-rank">${i + 1}</span>
-    <span style="font-size:11px;color:#fb923c;font-weight:600">${cycle.length} files</span>
+    <span class="dash-cycle-count">${cycle.length} files</span>
   </div>
-  <div style="font-size:10px;color:#64748b;margin-left:24px">
+  <div class="dash-cycle-path">
     ${cycle.slice(0, 3).map(f => _dashEscape(String(f).split('/').pop())).join(' → ')}${cycle.length > 3 ? ` → +${cycle.length - 3}` : ''}
   </div>
 </div>`).join('')}</div>`;
@@ -74,8 +77,8 @@ function _dashLongestFuncsRows(items) {
      onclick="_dashDrill(${fileJSON}, ${nameJSON})">
   <span class="dash-list-rank">${i + 1}</span>
   <span class="dash-list-name">${_dashEscape(it.name)}</span>
-  <div class="dash-list-bar" style="width:${Math.round(it.lines / max * 60)}px;background:#f472b6"></div>
-  <span class="dash-list-val" style="color:#f472b6">${it.lines} lines</span>
+  <div class="dash-list-bar" style="width:${Math.round(it.lines / max * 60)}px"></div>
+  <span class="dash-list-val">${it.lines} lines</span>
 </div>`;
     }).join('');
 }

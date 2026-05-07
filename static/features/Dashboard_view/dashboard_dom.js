@@ -196,18 +196,8 @@ function _dashBindTabBarDragDrop(bar) {
 
 // ── Tab editor modal (create / edit custom tab) ────────────────────────────
 
-const _DASH_PREVIEW_COLORS = {
-    kpi_strip:          '#38bdf8',
-    code_health:        '#4ade80',
-    tech_debt:          '#f87171',
-    complexity:         '#fb923c',
-    duplication:        '#a78bfa',
-    coupling:           '#34d399',
-    issues:             '#fbbf24',
-    structure:          '#60a5fa',
-    graph_intelligence: '#e879f9',
-    temporal:           '#94a3b8',
-};
+// DASHBOARD_DESIGN_SPEC.md §5 rule 2: no per-widget identity colour.
+// Every preview tile uses var(--accent); shape/label distinguishes widgets.
 
 // Fixed skeleton bar-width patterns per widget (avoids Math.random flicker).
 const _DASH_PREVIEW_BARS = {
@@ -221,7 +211,6 @@ const _DASH_PREVIEW_BARS = {
 };
 
 function _dashPreviewCard(key) {
-    const col   = _DASH_PREVIEW_COLORS[key] || '#64748b';
     const label = _dashT(_DASH_WIDGET_LABEL_KEYS[key] || key) || key;
 
     let body = '';
@@ -257,7 +246,7 @@ function _dashPreviewCard(key) {
 
     return `<div class="dash-preview-card">
   <div class="dash-preview-card-title">
-    <div class="dash-preview-dot" style="background:${col}"></div>
+    <div class="dash-preview-dot"></div>
     <span>${_dashEscape(label)}</span>
   </div>
   <div class="dash-preview-body">${body}</div>

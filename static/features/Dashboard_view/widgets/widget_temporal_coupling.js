@@ -7,7 +7,7 @@ function _dashRenderTemporalCoupling(container, stats) {
     const items = stats.change_coupling || [];
     container.innerHTML = `
 <div class="dash-card-title">
-  <span class="dash-card-title-dot" style="background:#a78bfa"></span>${_dashEscape(_dashT('dashTemporalCoupling'))}
+  <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashTemporalCoupling'))}
 </div>
 <div class="dash-list" id="dash-temporal-coupling-list"></div>`;
 
@@ -25,8 +25,8 @@ function _dashRenderTemporalCoupling(container, stats) {
         const aJSON = JSON.stringify(p.file_a).replace(/"/g, '&quot;');
         const bJSON = JSON.stringify(p.file_b).replace(/"/g, '&quot;');
         return `
-<div class="dash-list-row" style="flex-direction:column;align-items:flex-start;gap:4px">
-  <div style="display:flex;align-items:center;gap:6px;width:100%">
+<div class="dash-list-row dash-list-row--stacked">
+  <div class="dash-pair-head">
     <span class="dash-list-rank">${i + 1}</span>
     <span class="dash-temporal-pair">
       <span class="dash-temporal-pair-name" data-clickable="true" data-tip="${_dashEscape(p.file_a)}"
@@ -37,9 +37,9 @@ function _dashRenderTemporalCoupling(container, stats) {
     </span>
     <span class="dash-temporal-support">${supportPct}%</span>
   </div>
-  <div style="display:flex;align-items:center;gap:8px;width:100%;padding-left:24px">
-    <div class="dash-list-bar" style="flex:0 0 auto;width:${Math.round(p.co_changes / max * 60)}px;background:#a78bfa"></div>
-    <span style="color:#a78bfa;font-size:11px">${p.co_changes} ${_dashEscape(_dashT('dashTemporalCoChange'))}</span>
+  <div class="dash-pair-body">
+    <div class="dash-list-bar" style="flex:0 0 auto;width:${Math.round(p.co_changes / max * 60)}px"></div>
+    <span class="dash-pair-count">${p.co_changes} ${_dashEscape(_dashT('dashTemporalCoChange'))}</span>
   </div>
 </div>`;
     }).join('');

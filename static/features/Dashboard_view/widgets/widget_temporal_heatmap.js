@@ -1,19 +1,25 @@
 // @module Dashboard_view/widgets/widget_temporal_heatmap
 // GitHub-style daily commit activity heatmap rendered with SVG.
 
-const _DASH_HEATMAP_COLORS = [
-    '#172033',
-    '#d1fae5',
-    '#86efac',
-    '#4ade80',
-    '#16a34a',
-    '#14532d',
-];
+// Heatmap colour ramp comes from accent alpha steps at render time —
+// see _dashHeatmapColors() below. Matches DASHBOARD_DESIGN_SPEC.md §4 row 5.
 
 const _DASH_HEATMAP_MONTHS = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
+
+// Index 0 = empty cell (surface-elevated), 1..5 = accent at increasing alpha.
+function _dashHeatmapColors() {
+    return [
+        _dashCssVar('--surface-elevated', '#22241f'),
+        _dashAccentTint(0.18),
+        _dashAccentTint(0.36),
+        _dashAccentTint(0.58),
+        _dashAccentTint(0.80),
+        _dashAccentTint(1.00),
+    ];
+}
 
 function _dashRenderTemporalHeatmap(container, stats) {
     if (!container) return;
@@ -21,7 +27,7 @@ function _dashRenderTemporalHeatmap(container, stats) {
     const rows = stats.commit_activity_daily || [];
     container.innerHTML = `
 <div class="dash-card-title">
-  <span class="dash-card-title-dot" style="background:#22c55e"></span>${_dashEscape(_dashT('dashTemporalHeatmap'))}
+  <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashTemporalHeatmap'))}
 </div>
 <div class="dash-temporal-heatmap-body" id="dash-temporal-heatmap-body"></div>`;
 
@@ -38,11 +44,12 @@ function _dashRenderTemporalHeatmap(container, stats) {
         return;
     }
 
+    const palette = _dashHeatmapColors();
     host.innerHTML = `
 ${_dashTemporalHeatmapSVG(model)}
 <div class="dash-temporal-heatmap-legend">
   <span>${_dashEscape(_dashT('dashTemporalLess'))}</span>
-  ${_DASH_HEATMAP_COLORS.slice(1).map(c =>
+  ${palette.slice(1).map(c =>
         `<span class="dash-temporal-heatmap-swatch" style="background:${c}"></span>`
     ).join('')}
   <span>${_dashEscape(_dashT('dashTemporalMore'))}</span>
@@ -178,11 +185,12 @@ function _dashHeatmapDayLabel(text, day, labelW, monthH, cell, gap) {
 }
 
 function _dashHeatmapColor(commits, maxCommits) {
-    if (!commits) return _DASH_HEATMAP_COLORS[0];
-    if (commits <= 1) return _DASH_HEATMAP_COLORS[1];
-    if (!maxCommits) return _DASH_HEATMAP_COLORS[1];
+    const palette = _dashHeatmapColors();
+    if (!commits) return palette[0];
+    if (commits <= 1) return palette[1];
+    if (!maxCommits) return palette[1];
     const level = Math.max(2, Math.min(5, Math.ceil((commits / maxCommits) * 5)));
-    return _DASH_HEATMAP_COLORS[level];
+    return palette[level];
 }
 
 function _dashHeatmapParseISO(value) {

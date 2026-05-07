@@ -1,29 +1,86 @@
 // @module Dashboard_view/dashboard_charts
 // Chart.js helpers shared by every widget that draws a chart. Owns the
 // _dashCharts registry so charts can be destroyed / recreated on re-render.
+//
+// Token-driven colour rules (DASHBOARD_DESIGN_SPEC.md §4):
+//   • Single-accent: every chart's primary colour resolves to var(--accent)
+//   • Multi-series: use _dashAccentTint(alpha) ladders, or var(--muted-series)
+//   • No widget-specific hex literals — always go through these helpers
 
 const _dashCharts = {};   // canvas-id → Chart instance
 
-const _DASH_PALETTE = [
-    '#dfa745', '#a78bfa', '#34d399', '#ffd700', '#fb923c',
-    '#f472b6', '#60a5fa', '#e879f9', '#10b981', '#f87171',
-    '#38bdf8', '#c084fc', '#4ade80', '#facc15', '#ff6b35',
-];
+// Read a CSS custom property from :root. Trim because getComputedStyle
+// returns the value with leading whitespace.
+function _dashCssVar(name, fallback) {
+    if (typeof document === 'undefined') return fallback || '';
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name);
+    const out = (v || '').trim();
+    return out || (fallback || '');
+}
+
+function _dashHexToRgb(hex) {
+    let h = String(hex || '').trim().replace('#', '');
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    if (h.length !== 6 && h.length !== 8) return { r: 223, g: 167, b: 69 };
+    return {
+        r: parseInt(h.slice(0, 2), 16),
+        g: parseInt(h.slice(2, 4), 16),
+        b: parseInt(h.slice(4, 6), 16),
+    };
+}
+
+// Returns rgba(...) string for var(--accent) at the given alpha.
+// alpha defaults to 1 (= solid accent).
+function _dashAccentTint(alpha) {
+    const a = (alpha == null) ? 1 : Math.max(0, Math.min(1, alpha));
+    const { r, g, b } = _dashHexToRgb(_dashCssVar('--accent', '#dfa745'));
+    return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+// Same idea for muted gray (var(--muted)) — used where a true grey-out is
+// needed (axis ticks, background series, "other" buckets in pies).
+function _dashMutedTint(alpha) {
+    const a = (alpha == null) ? 1 : Math.max(0, Math.min(1, alpha));
+    const { r, g, b } = _dashHexToRgb(_dashCssVar('--muted', '#93918b'));
+    return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+// Faded border colour — for chart gridlines / axis lines.
+function _dashBorderTint(alpha) {
+    const a = (alpha == null) ? 1 : Math.max(0, Math.min(1, alpha));
+    const { r, g, b } = _dashHexToRgb(_dashCssVar('--border', '#2e302b'));
+    return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+// Generate N categorical fills derived from accent. For N=1 → solid accent.
+// For larger N, alpha steps from 1.0 down to 0.30 across the series.
+function _dashAccentSeries(n) {
+    if (!n || n < 1) return [];
+    if (n === 1) return [_dashAccentTint(1)];
+    const out = [];
+    const top = 1.0;
+    const bot = 0.30;
+    for (let i = 0; i < n; i++) {
+        const t = i / (n - 1);
+        out.push(_dashAccentTint(top - t * (top - bot)));
+    }
+    return out;
+}
 
 function _dashApplyChartDefaults() {
     if (typeof Chart === 'undefined') return;
-    Chart.defaults.color = '#64748b';
-    Chart.defaults.borderColor = '#1a2535';
-    Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
-    Chart.defaults.font.size = 11;
+    Chart.defaults.color           = _dashCssVar('--muted', '#93918b');
+    Chart.defaults.borderColor     = _dashCssVar('--border', '#2e302b');
+    Chart.defaults.font.family     = "'Segoe UI', system-ui, sans-serif";
+    Chart.defaults.font.size       = 11;
     Chart.defaults.plugins.legend.labels.boxWidth = 10;
-    Chart.defaults.plugins.legend.labels.padding = 14;
-    Chart.defaults.plugins.tooltip.backgroundColor = '#0d1520';
-    Chart.defaults.plugins.tooltip.borderColor = '#1a2535';
-    Chart.defaults.plugins.tooltip.borderWidth = 1;
-    Chart.defaults.plugins.tooltip.titleColor = '#e2e8f0';
-    Chart.defaults.plugins.tooltip.bodyColor = '#94a3b8';
-    Chart.defaults.plugins.tooltip.padding = 10;
+    Chart.defaults.plugins.legend.labels.padding  = 14;
+    Chart.defaults.plugins.tooltip.backgroundColor = _dashCssVar('--surface-elevated', '#22241f');
+    Chart.defaults.plugins.tooltip.borderColor     = _dashCssVar('--border', '#2e302b');
+    Chart.defaults.plugins.tooltip.borderWidth     = 1;
+    Chart.defaults.plugins.tooltip.titleColor      = _dashCssVar('--text', '#eae8e3');
+    Chart.defaults.plugins.tooltip.bodyColor       = _dashCssVar('--muted', '#93918b');
+    Chart.defaults.plugins.tooltip.padding         = 10;
 }
 
 function _dashMkChart(canvas, type, data, options) {

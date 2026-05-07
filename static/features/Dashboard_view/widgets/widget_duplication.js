@@ -7,8 +7,11 @@ function _dashRenderDuplication(container, stats) {
     const pct    = Number(stats.duplication_percent || 0);   // already 0-100
     const blocks = stats.duplication_blocks || [];
 
-    // Color: green <5%, amber <15%, red otherwise
-    const color = pct < 5 ? '#34d399' : (pct < 15 ? '#fbbf24' : '#f87171');
+    // Status colour: green <5%, amber <15%, red otherwise.
+    // Status semantics live in --status-* tokens (themes.css).
+    const color = pct < 5 ? 'var(--status-good)'
+                : pct < 15 ? 'var(--status-warn)'
+                : 'var(--status-bad)';
     const fillPct = Math.max(0, Math.min(100, pct));
 
     const blocksHTML = blocks.map((blk, i) => {

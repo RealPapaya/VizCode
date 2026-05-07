@@ -13,27 +13,27 @@ function _dashRenderStructure(container, stats) {
     if (!container) return;
 
     container.innerHTML = `
-<div class="dash-grid dash-grid-2" style="margin-bottom:12px">
+<div class="dash-grid dash-grid-2" style="margin-bottom:var(--space-3)">
   <div class="dash-card">
     <div class="dash-card-title">
-      <span class="dash-card-title-dot" style="background:#dfa745"></span>${_dashEscape(_dashT('dashStructureFileTypes'))}
+      <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureFileTypes'))}
       ${_dashChartToggleHTML(_DASH_TYPES_KEY, _DASH_TYPES_TYPES, _DASH_TYPES_DEFAULT)}
     </div>
-    <div class="dash-chart-wrap" style="min-height:240px"><canvas id="dash-chart-types"></canvas></div>
+    <div class="dash-chart-wrap dash-chart-wrap--tall"><canvas id="dash-chart-types"></canvas></div>
   </div>
   <div class="dash-card">
     <div class="dash-card-title">
-      <span class="dash-card-title-dot" style="background:#60a5fa"></span>${_dashEscape(_dashT('dashStructureLangDist'))}
+      <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureLangDist'))}
       ${_dashChartToggleHTML(_DASH_LANG_KEY, _DASH_LANG_TYPES, _DASH_LANG_DEFAULT)}
     </div>
-    <div class="dash-chart-wrap" style="min-height:240px"><canvas id="dash-chart-lang"></canvas></div>
+    <div class="dash-chart-wrap dash-chart-wrap--tall"><canvas id="dash-chart-lang"></canvas></div>
   </div>
 </div>
 <div class="dash-card">
   <div class="dash-card-title">
-    <span class="dash-card-title-dot" style="background:#34d399"></span>${_dashEscape(_dashT('dashStructureTreemap'))}
+    <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureTreemap'))}
   </div>
-  <div class="dash-treemap" id="dash-treemap-target" style="min-height:120px"></div>
+  <div class="dash-treemap" id="dash-treemap-target"></div>
 </div>`;
 
     _dashRegisterChartSwitch(_DASH_TYPES_KEY, () => _dashChartFileTypes(stats));
@@ -52,7 +52,10 @@ function _dashChartFileTypes(stats) {
     if (!sorted.length) return;
     const labels = sorted.map(([k]) => k.replace('_', ' '));
     const vals   = sorted.map(([, v]) => v);
-    const colors = sorted.map((_, i) => _DASH_PALETTE[i % _DASH_PALETTE.length]);
+    // Categorical fills derived from accent at decreasing alpha — replaces
+    // the old 15-colour _DASH_PALETTE rainbow.
+    const fills   = _dashAccentSeries(sorted.length);
+    const strokes = fills.map(() => _dashAccentTint(1.0));
 
     const type = _dashChartCurrentType(_DASH_TYPES_KEY, _DASH_TYPES_DEFAULT);
     const isCircular = (type === 'doughnut' || type === 'pie');
@@ -62,8 +65,8 @@ function _dashChartFileTypes(stats) {
         datasets: [{
             label: 'Files',
             data: vals,
-            backgroundColor: colors.map(c => c + 'cc'),
-            borderColor: colors,
+            backgroundColor: fills,
+            borderColor:     strokes,
             borderWidth: 1.5,
             hoverOffset: isCircular ? 6 : 0,
             borderRadius: isCircular ? 0 : 4,
@@ -75,12 +78,12 @@ function _dashChartFileTypes(stats) {
         indexAxis: type === 'bar' ? 'y' : undefined,
         plugins: {
             legend: isCircular
-                ? { position: 'right', labels: { color: '#94a3b8', boxWidth: 10, padding: 12 } }
+                ? { position: 'right', labels: { boxWidth: 10, padding: 12 } }
                 : { display: false },
         },
         scales: type === 'bar' ? {
-            x: { grid: { color: '#1a253588' }, ticks: { color: '#64748b' } },
-            y: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11 } } },
+            x: { grid: { color: _dashBorderTint(0.6) } },
+            y: { grid: { display: false }, ticks: { font: { size: 11 } } },
         } : {},
     });
 }
@@ -93,7 +96,8 @@ function _dashChartLanguageDist(stats) {
     if (!sorted.length) return;
     const labels = sorted.map(([ext]) => ext || 'unknown');
     const vals   = sorted.map(([, v]) => v);
-    const colors = sorted.map((_, i) => _DASH_PALETTE[i % _DASH_PALETTE.length]);
+    const fills   = _dashAccentSeries(sorted.length);
+    const strokes = fills.map(() => _dashAccentTint(1.0));
 
     const type = _dashChartCurrentType(_DASH_LANG_KEY, _DASH_LANG_DEFAULT);
     const isPie = (type === 'pie');
@@ -103,8 +107,8 @@ function _dashChartLanguageDist(stats) {
         datasets: [{
             label: 'Files',
             data: vals,
-            backgroundColor: colors.map(c => c + (isPie ? 'cc' : '99')),
-            borderColor: colors,
+            backgroundColor: fills,
+            borderColor:     strokes,
             borderWidth: 1.5,
             borderRadius: isPie ? 0 : 4,
         }],
@@ -114,12 +118,12 @@ function _dashChartLanguageDist(stats) {
         maintainAspectRatio: false,
         plugins: {
             legend: isPie
-                ? { position: 'right', labels: { color: '#94a3b8', boxWidth: 10, padding: 10 } }
+                ? { position: 'right', labels: { boxWidth: 10, padding: 10 } }
                 : { display: false },
         },
         scales: type === 'bar' ? {
-            x: { grid: { color: '#1a253588' }, ticks: { color: '#64748b' } },
-            y: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11, family: 'JetBrains Mono, monospace' } } },
+            x: { grid: { color: _dashBorderTint(0.6) } },
+            y: { grid: { display: false }, ticks: { font: { size: 11, family: 'JetBrains Mono, monospace' } } },
         } : {},
     });
 }
@@ -154,7 +158,7 @@ function _dashBuildTreemap() {
             : '';
         return `
 <div class="dash-tm-cell"${click} data-tip="${_dashEscape(label)}"
-     style="flex: ${pct} 1 180px; min-height:${height}px; background:${m.color || '#60a5fa'};">
+     style="flex: ${pct} 1 180px; min-height:${height}px; background:${m.color || 'var(--accent)'};">
   <span class="dash-tm-label">${_dashEscape(label)}</span>
 </div>`;
     }).join('');

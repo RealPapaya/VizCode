@@ -7,27 +7,30 @@ function _dashRenderKpiStrip(container, stats) {
     const score = Number(stats.code_health_score || 0);
     const healthColor = _dashHealthColor(score);
 
+    // KPI strip is a single accent family — health card uses semantic status
+    // colour (the only non-accent allowed). DASHBOARD_DESIGN_SPEC.md §5 rule 2.
+    const ACCENT = 'var(--accent)';
     const cards = [
         {
             id: 'files',
             label: _dashT('dashKpiFiles'),
             value: _dashFmtNum(stats.files || 0),
             sub:   `${stats.other_files || 0} other`,
-            accent: '#dfa745',
+            accent: ACCENT,
         },
         {
             id: 'functions',
             label: _dashT('dashKpiFunctions'),
             value: _dashFmtNum(stats.functions || 0),
             sub:   `${(stats.calls || 0).toLocaleString()} calls`,
-            accent: '#a78bfa',
+            accent: ACCENT,
         },
         {
             id: 'loc',
             label: _dashT('dashKpiLoc'),
             value: _dashFmtNum(stats.loc_total || 0),
             sub:   `${_dashFmtNum(stats.loc_code || 0)} code · ${_dashFmtNum(stats.loc_comment || 0)} comments`,
-            accent: '#34d399',
+            accent: ACCENT,
         },
         {
             id: 'health',
@@ -96,7 +99,7 @@ function _dashRenderKpiDetail(host, kpiId, stats) {
         return `
         <div class="dash-health-row">
           <div class="dash-health-row-label">.${_dashEscape(ext)}</div>
-          <div class="dash-health-row-track" style="flex:1;"><div class="dash-health-row-fill" style="width:${pct}%;background:#dfa745"></div></div>
+          <div class="dash-health-row-track" style="flex:1;"><div class="dash-health-row-fill" style="width:${pct}%;background:var(--accent)"></div></div>
           <div class="dash-health-row-value">${count}</div>
         </div>`;
     }).join('')}
@@ -122,7 +125,7 @@ function _dashRenderKpiDetail(host, kpiId, stats) {
     ${top10.map(fn => `
     <div class="dash-list-row" data-clickable="true" onclick="_dashDrill('${_dashEscape(fn.file)}', '${_dashEscape(fn.name)}')">
       <div style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-        <span style="color:#a78bfa;font-weight:600;font-size:12px;">${_dashEscape(fn.name)}</span>
+        <span style="color:var(--accent);font-weight:600;font-size:12px;">${_dashEscape(fn.name)}</span>
         <span style="color:var(--muted);font-size:10px;margin-left:8px;">${_dashEscape(fn.file)}</span>
       </div>
       <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);">${fn.lines} lines</div>
@@ -142,17 +145,17 @@ function _dashRenderKpiDetail(host, kpiId, stats) {
   <div style="display:flex;flex-direction:column;gap:12px;margin-top:16px;">
     <div class="dash-health-row">
       <div class="dash-health-row-label">Code</div>
-      <div class="dash-health-row-track" style="flex:1;"><div class="dash-health-row-fill" style="width:${codePct}%;background:#34d399"></div></div>
+      <div class="dash-health-row-track" style="flex:1;"><div class="dash-health-row-fill" style="width:${codePct}%;background:${_dashAccentTint(1.0)}"></div></div>
       <div class="dash-health-row-value">${_dashFmtNum(stats.loc_code || 0)} <span style="color:var(--muted);font-size:10px;margin-left:4px;">(${codePct}%)</span></div>
     </div>
     <div class="dash-health-row">
       <div class="dash-health-row-label">Comments</div>
-      <div class="dash-health-row-track" style="flex:1;"><div class="dash-health-row-fill" style="width:${commPct}%;background:#60a5fa"></div></div>
+      <div class="dash-health-row-track" style="flex:1;"><div class="dash-health-row-fill" style="width:${commPct}%;background:${_dashAccentTint(0.55)}"></div></div>
       <div class="dash-health-row-value">${_dashFmtNum(stats.loc_comment || 0)} <span style="color:var(--muted);font-size:10px;margin-left:4px;">(${commPct}%)</span></div>
     </div>
     <div class="dash-health-row">
       <div class="dash-health-row-label">Blank</div>
-      <div class="dash-health-row-track" style="flex:1;"><div class="dash-health-row-fill" style="width:${blankPct}%;background:#94a3b8"></div></div>
+      <div class="dash-health-row-track" style="flex:1;"><div class="dash-health-row-fill" style="width:${blankPct}%;background:${_dashMutedTint(0.55)}"></div></div>
       <div class="dash-health-row-value">${_dashFmtNum(stats.loc_blank || 0)} <span style="color:var(--muted);font-size:10px;margin-left:4px;">(${blankPct}%)</span></div>
     </div>
   </div>

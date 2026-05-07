@@ -8,13 +8,13 @@ function _dashRenderGraphIntelligence(container, stats) {
 <div class="dash-grid dash-grid-2">
   <div class="dash-card">
     <div class="dash-card-title">
-      <span class="dash-card-title-dot" style="background:#60a5fa"></span>${_dashEscape(_dashT('dashGraphHotspots'))}
+      <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashGraphHotspots'))}
     </div>
     <div class="dash-list" id="dash-graph-hotspots"></div>
   </div>
   <div class="dash-card">
     <div class="dash-card-title">
-      <span class="dash-card-title-dot" style="background:#f472b6"></span>${_dashEscape(_dashT('dashGraphSurprising'))}
+      <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashGraphSurprising'))}
     </div>
     <div class="dash-list" id="dash-graph-surprising"></div>
   </div>
@@ -39,9 +39,9 @@ function _dashRenderHotspots(items) {
 <div class="dash-list-row" data-clickable="true"
      onclick="_dashDrill(${fileJSON}, null)">
   <span class="dash-list-rank">${i + 1}</span>
-  <span class="dash-list-name">${_dashEscape(item.label)}<span style="color:#64748b;font-size:11px;margin-left:4px">${_dashEscape(fileShort)}</span></span>
-  <div class="dash-list-bar" style="width:${Math.round(item.degree / max * 60)}px;background:#60a5fa"></div>
-  <span class="dash-list-val" style="color:#60a5fa">${item.degree}</span>
+  <span class="dash-list-name">${_dashEscape(item.label)}<span class="dash-list-meta">${_dashEscape(fileShort)}</span></span>
+  <div class="dash-list-bar" style="width:${Math.round(item.degree / max * 60)}px"></div>
+  <span class="dash-list-val">${item.degree}</span>
 </div>`;
     }).join('');
 }
@@ -57,14 +57,14 @@ function _dashRenderSurprising(items) {
         const srcShort = String(item.source || '').split('/').pop();
         const tgtShort = String(item.target || '').split('/').pop();
         return `
-<div class="dash-list-row" style="flex-direction:column;align-items:flex-start;gap:2px;padding:6px 8px">
-  <div style="display:flex;align-items:center;gap:6px;width:100%">
-    <span style="color:#f472b6;font-size:11px;font-weight:600">${_dashEscape(srcShort)}</span>
-    <span style="color:#64748b">&rarr;</span>
-    <span style="color:#f472b6;font-size:11px;font-weight:600">${_dashEscape(tgtShort)}</span>
-    <span style="margin-left:auto;background:#1e293b;border-radius:4px;padding:1px 6px;font-size:11px;color:#f472b6">score ${item.score}</span>
+<div class="dash-list-row dash-list-row--stacked">
+  <div class="dash-graph-pair">
+    <span class="dash-graph-node">${_dashEscape(srcShort)}</span>
+    <span class="dash-graph-arrow">&rarr;</span>
+    <span class="dash-graph-node">${_dashEscape(tgtShort)}</span>
+    <span class="dash-graph-score">score ${item.score}</span>
   </div>
-  <div style="color:#64748b;font-size:11px">${_dashEscape(item.reason)}</div>
+  <div class="dash-graph-reason">${_dashEscape(item.reason)}</div>
 </div>`;
     }).join('');
 }

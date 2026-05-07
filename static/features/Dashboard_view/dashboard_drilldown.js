@@ -24,7 +24,8 @@ function _dashOpenDrilldown(filePath) {
     overlay.id = _DASH_DRILL_OVERLAY_ID;
     overlay.style.cssText = [
         'position:fixed', 'inset:0',
-        'background:rgba(8,12,20,0.72)', 'backdrop-filter:blur(3px)',
+        'background:color-mix(in srgb, var(--bg) 70%, transparent)',
+        'backdrop-filter:blur(3px)',
         'z-index:120', 'display:flex', 'align-items:center', 'justify-content:center',
         'animation:dash-fade-in 0.18s ease-out',
     ].join(';');
@@ -80,19 +81,19 @@ function _dashDrilldownShell(fileRel, stats) {
 <div class="dash-drilldown-panel" style="
     width:min(900px,calc(100vw - 80px));
     max-height:calc(100vh - 80px);
-    background:var(--panel);
+    background:var(--surface-card);
     border:1px solid var(--border);
-    border-radius:10px;
-    box-shadow:0 20px 60px rgba(0,0,0,0.5);
+    border-radius:var(--radius-md);
+    box-shadow:var(--shadow-lg);
     display:flex;
     flex-direction:column;
     overflow:hidden;
 ">
   <div style="
       flex-shrink:0;
-      padding:14px 18px;
+      padding:var(--space-3) var(--space-5);
       border-bottom:1px solid var(--border);
-      display:flex;align-items:center;gap:12px;
+      display:flex;align-items:center;gap:var(--space-3);
   ">
     <div style="flex:1;min-width:0">
       <div style="font-size:11px;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase">
@@ -106,23 +107,23 @@ function _dashDrilldownShell(fileRel, stats) {
     </div>
     <button data-drill-close type="button" title="${_dashEscape(_dashT('dashDrilldownClose'))}" style="
         background:transparent;border:1px solid var(--border);color:var(--muted);
-        width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:14px;
+        width:30px;height:30px;border-radius:var(--radius-sm);cursor:pointer;font-size:14px;
         display:flex;align-items:center;justify-content:center;
     ">×</button>
   </div>
-  <div style="flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+  <div style="flex:1;overflow-y:auto;padding:var(--space-4) var(--space-5);display:flex;flex-direction:column;gap:var(--space-3)">
     <div class="dash-card">
       <div class="dash-card-title">
-        <span class="dash-card-title-dot" style="background:#fb923c"></span>${_dashEscape(_dashT('dashDrilldownFunctions'))}
+        <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashDrilldownFunctions'))}
       </div>
       ${funcsHTML}
     </div>
     <div class="dash-card">
       <div class="dash-card-title">
-        <span class="dash-card-title-dot" style="background:#34d399"></span>${_dashEscape(_dashT('dashDrilldownChurn'))}
+        <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashDrilldownChurn'))}
       </div>
       ${hasChurn
-          ? `<div class="dash-chart-wrap" style="min-height:200px"><canvas id="${_DASH_DRILL_CHART_ID}"></canvas></div>`
+          ? `<div class="dash-chart-wrap"><canvas id="${_DASH_DRILL_CHART_ID}"></canvas></div>`
           : churnEmpty}
     </div>
   </div>
@@ -157,9 +158,9 @@ function _dashDrilldownFunctionsHTML(fileRel) {
      onclick="_dashDrill(${fileJSON}, ${nameJSON})"
      data-tip="${_dashEscape(s.name || '')}">
   <span class="dash-list-rank">${i + 1}</span>
-  <span class="dash-list-name">${_dashEscape(s.name || '(anon)')}<span style="color:#64748b;font-size:11px;margin-left:6px">${_dashEscape(lineRange)}</span></span>
-  <div class="dash-list-bar" style="width:${cxBar}px;background:#fb923c"></div>
-  <span class="dash-list-val" style="color:#fb923c">cx ${cx}</span>
+  <span class="dash-list-name">${_dashEscape(s.name || '(anon)')}<span class="dash-list-meta">${_dashEscape(lineRange)}</span></span>
+  <div class="dash-list-bar" style="width:${cxBar}px"></div>
+  <span class="dash-list-val">cx ${cx}</span>
 </div>`;
     }).join('');
     return `<div class="dash-list">${html}</div>`;
@@ -183,8 +184,8 @@ function _dashDrilldownDrawChart(fileRel, stats) {
                 label: _dashT('dashTemporalCommits'),
                 data:  commits,
                 yAxisID: 'yCommits',
-                borderColor: '#34d399',
-                backgroundColor: '#34d39955',
+                borderColor:     _dashAccentTint(1.0),
+                backgroundColor: _dashAccentTint(0.25),
                 borderWidth: 2,
                 tension: 0.25,
                 pointRadius: 3,
@@ -194,8 +195,8 @@ function _dashDrilldownDrawChart(fileRel, stats) {
                 label: _dashT('dashTemporalAdditions'),
                 data:  additions,
                 yAxisID: 'yLines',
-                borderColor: '#60a5fa',
-                backgroundColor: '#60a5fa55',
+                borderColor:     _dashAccentTint(0.55),
+                backgroundColor: _dashAccentTint(0.12),
                 borderWidth: 1.5,
                 tension: 0.25,
                 pointRadius: 2,
@@ -205,8 +206,8 @@ function _dashDrilldownDrawChart(fileRel, stats) {
                 label: _dashT('dashTemporalDeletions'),
                 data:  deletions,
                 yAxisID: 'yLines',
-                borderColor: '#f87171',
-                backgroundColor: '#f8717155',
+                borderColor:     _dashMutedTint(0.7),
+                backgroundColor: _dashMutedTint(0.15),
                 borderWidth: 1.5,
                 tension: 0.25,
                 pointRadius: 2,
@@ -218,23 +219,22 @@ function _dashDrilldownDrawChart(fileRel, stats) {
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-            legend: { position: 'top', labels: { color: '#94a3b8', boxWidth: 10, padding: 10 } },
+            legend: { position: 'top', labels: { boxWidth: 10, padding: 10 } },
         },
         scales: {
             x: {
-                grid: { color: '#1a253588' },
-                ticks: { color: '#64748b', maxRotation: 45, minRotation: 0, autoSkip: true, maxTicksLimit: 10 },
+                grid:  { color: _dashBorderTint(0.6) },
+                ticks: { maxRotation: 45, minRotation: 0, autoSkip: true, maxTicksLimit: 10 },
             },
             yCommits: {
                 position: 'left',
-                grid: { color: '#1a253588' },
-                ticks: { color: '#34d399' },
+                grid:  { color: _dashBorderTint(0.6) },
+                ticks: { color: _dashAccentTint(1.0) },
                 beginAtZero: true,
             },
             yLines: {
                 position: 'right',
-                grid: { display: false },
-                ticks: { color: '#64748b' },
+                grid:  { display: false },
             },
         },
     });

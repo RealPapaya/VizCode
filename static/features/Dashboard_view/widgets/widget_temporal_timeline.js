@@ -13,10 +13,10 @@ function _dashRenderTemporalTimeline(container, stats) {
 
     container.innerHTML = `
 <div class="dash-card-title">
-  <span class="dash-card-title-dot" style="background:#34d399"></span>${_dashEscape(_dashT('dashTemporalChurn'))}
+  <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashTemporalChurn'))}
   ${_dashChartToggleHTML(_DASH_TIMELINE_KEY, _DASH_TIMELINE_TYPES, _DASH_TIMELINE_DEFAULT)}
 </div>
-<div class="dash-chart-wrap" style="min-height:220px"><canvas id="dash-chart-timeline"></canvas></div>`;
+<div class="dash-chart-wrap"><canvas id="dash-chart-timeline"></canvas></div>`;
 
     if (!buckets.length) {
         const wrap = container.querySelector('.dash-chart-wrap');
@@ -49,8 +49,8 @@ function _dashDrawTimelineChart(buckets) {
                 label: _dashT('dashTemporalCommits'),
                 data:  commits,
                 yAxisID: 'yCommits',
-                borderColor: '#34d399',
-                backgroundColor: '#34d39955',
+                borderColor:     _dashAccentTint(1.0),
+                backgroundColor: _dashAccentTint(0.25),
                 borderWidth: 2,
                 tension: 0.25,
                 pointRadius: 3,
@@ -60,8 +60,8 @@ function _dashDrawTimelineChart(buckets) {
                 label: _dashT('dashTemporalAdditions'),
                 data:  additions,
                 yAxisID: 'yLines',
-                borderColor: '#60a5fa',
-                backgroundColor: '#60a5fa55',
+                borderColor:     _dashAccentTint(0.55),
+                backgroundColor: _dashAccentTint(0.12),
                 borderWidth: 1.5,
                 tension: 0.25,
                 pointRadius: 2,
@@ -72,8 +72,8 @@ function _dashDrawTimelineChart(buckets) {
                 label: _dashT('dashTemporalDeletions'),
                 data:  deletions,
                 yAxisID: 'yLines',
-                borderColor: '#f87171',
-                backgroundColor: '#f8717155',
+                borderColor:     _dashMutedTint(0.7),
+                backgroundColor: _dashMutedTint(0.15),
                 borderWidth: 1.5,
                 tension: 0.25,
                 pointRadius: 2,
@@ -86,25 +86,24 @@ function _dashDrawTimelineChart(buckets) {
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-            legend: { position: 'top', labels: { color: '#94a3b8', boxWidth: 10, padding: 10 } },
+            legend: { position: 'top', labels: { boxWidth: 10, padding: 10 } },
         },
         scales: {
             x: {
-                grid: { color: '#1a253588' },
-                ticks: { color: '#64748b', maxRotation: 45, minRotation: 0, autoSkip: true, maxTicksLimit: 12 },
+                grid:  { color: _dashBorderTint(0.6) },
+                ticks: { maxRotation: 45, minRotation: 0, autoSkip: true, maxTicksLimit: 12 },
             },
             yCommits: {
                 position: 'left',
-                grid: { color: '#1a253588' },
-                ticks: { color: '#34d399' },
-                title: { display: true, text: _dashT('dashTemporalCommits'), color: '#34d399' },
+                grid:  { color: _dashBorderTint(0.6) },
+                ticks: { color: _dashAccentTint(1.0) },
+                title: { display: true, text: _dashT('dashTemporalCommits'), color: _dashAccentTint(1.0) },
                 beginAtZero: true,
             },
             yLines: {
                 position: 'right',
-                grid: { display: false },
-                ticks: { color: '#64748b' },
-                title: { display: true, text: '+/-', color: '#94a3b8' },
+                grid:  { display: false },
+                title: { display: true, text: '+/-' },
             },
         },
     });

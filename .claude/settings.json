@@ -58,7 +58,11 @@
       "Bash(node --check _dash_bundle.js)",
       "Bash(node --check _bundle.js)",
       "Bash(grep -n \"^\\\\\\\\.dash-section\\\\|^\\\\\\\\.dash-card\" \"d:/Google AI/CodeViz/static/styles/viz_overlays.css\")",
-      "Bash(grep -E \"\\\\.\\(css|js\\)$\")"
+      "Bash(grep -E \"\\\\.\\(css|js\\)$\")",
+      "Bash(Get-ChildItem -Path \"d:\\\\Google AI\\\\CodeViz\" -Recurse -Force)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(grep -E \"\\\\.\\(js|css|html\\)$\")",
+      "Bash(grep -E \"\\(rgb|#[0-9a-fA-F]{3,6}|'#|\\\\\"#\\)\")"
     ],
     "additionalDirectories": [
       "D:\\Google AI\\CodeViz\\testproject\\.local",

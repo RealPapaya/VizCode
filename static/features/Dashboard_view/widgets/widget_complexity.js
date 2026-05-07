@@ -13,14 +13,14 @@ function _dashRenderComplexity(container, stats) {
 <div class="dash-grid dash-grid-2">
   <div class="dash-card">
     <div class="dash-card-title">
-      <span class="dash-card-title-dot" style="background:#a78bfa"></span>${_dashEscape(_dashT('dashComplexityTitle'))}
+      <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashComplexityTitle'))}
       <span class="dash-card-sub">avg ${avg.toFixed(1)}</span>
     </div>
-    <div class="dash-chart-wrap" style="min-height:220px"><canvas id="${cardId}"></canvas></div>
+    <div class="dash-chart-wrap"><canvas id="${cardId}"></canvas></div>
   </div>
   <div class="dash-card">
     <div class="dash-card-title">
-      <span class="dash-card-title-dot" style="background:#f472b6"></span>${_dashEscape(_dashT('dashComplexityTopOffenders'))}
+      <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashComplexityTopOffenders'))}
     </div>
     <div class="dash-list" id="dash-cyclo-top"></div>
   </div>
@@ -36,8 +36,8 @@ function _dashRenderComplexity(container, stats) {
             datasets: [{
                 label: _dashT('dashComplexityFunctions'),
                 data: vals,
-                backgroundColor: '#a78bfa66',
-                borderColor: '#a78bfa',
+                backgroundColor: _dashAccentTint(0.4),
+                borderColor:     _dashAccentTint(1.0),
                 borderWidth: 1.5,
                 borderRadius: 4,
             }],
@@ -46,8 +46,8 @@ function _dashRenderComplexity(container, stats) {
             maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
-                x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
-                y: { grid: { color: '#1a253588' }, ticks: { color: '#64748b' }, beginAtZero: true },
+                x: { grid: { display: false } },
+                y: { grid: { color: _dashBorderTint(0.6) }, beginAtZero: true },
             },
         });
     }
@@ -65,9 +65,9 @@ function _dashRenderComplexity(container, stats) {
 <div class="dash-list-row" data-clickable="true" data-tip="${_dashEscape(sym.file)}"
      onclick="_dashDrill(${fileJSON}, ${nameJSON})">
   <span class="dash-list-rank">${i + 1}</span>
-  <span class="dash-list-name">${_dashEscape(sym.name)}<span style="color:#64748b;font-size:11px;margin-left:4px">${_dashEscape(fileShort)}</span></span>
-  <div class="dash-list-bar" style="width:${pct}px;background:#a78bfa"></div>
-  <span class="dash-list-val" style="color:#a78bfa">${sym.complexity}</span>
+  <span class="dash-list-name">${_dashEscape(sym.name)}<span class="dash-list-meta">${_dashEscape(fileShort)}</span></span>
+  <div class="dash-list-bar" style="width:${pct}px"></div>
+  <span class="dash-list-val">${sym.complexity}</span>
 </div>`;
         }).join('') || `<div class="dash-empty">${_dashEscape(_dashT('dashNoData'))}</div>`;
     }

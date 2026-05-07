@@ -3,12 +3,14 @@
 // breakdown is rendered as a horizontal bar list (default) or as a pie
 // chart showing each category's share of the cleanup effort.
 
+// Per-issue colours come from accent alpha steps at render time —
+// no per-key hex (DASHBOARD_DESIGN_SPEC.md §5 rule 2).
 const _DASH_DEBT_ORDER = [
-    { key: 'circular',    label: 'dashDebtCircular',    color: '#fb923c' },
-    { key: 'god',         label: 'dashDebtGod',         color: '#fbbf24' },
-    { key: 'complexity',  label: 'dashDebtComplexity',  color: '#a78bfa' },
-    { key: 'duplication', label: 'dashDebtDuplication', color: '#f472b6' },
-    { key: 'dead',        label: 'dashDebtDead',        color: '#94a3b8' },
+    { key: 'circular',    label: 'dashDebtCircular'    },
+    { key: 'god',         label: 'dashDebtGod'         },
+    { key: 'complexity',  label: 'dashDebtComplexity'  },
+    { key: 'duplication', label: 'dashDebtDuplication' },
+    { key: 'dead',        label: 'dashDebtDead'        },
 ];
 
 const _DASH_DEBT_KEY     = 'tech_debt';
@@ -25,7 +27,7 @@ function _dashRenderTechDebt(container, stats) {
     container.innerHTML = `
 <div class="dash-card">
   <div class="dash-card-title">
-    <span class="dash-card-title-dot" style="background:#fb923c"></span>${_dashEscape(_dashT('dashTechDebtTitle'))}
+    <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashTechDebtTitle'))}
     ${_dashChartToggleHTML(_DASH_DEBT_KEY, _DASH_DEBT_TYPES, _DASH_DEBT_DEFAULT)}
   </div>
   <div class="dash-debt-body">
@@ -52,7 +54,8 @@ function _dashRenderDebtBars(breakdown, weights) {
     if (!target) return;
     const totalMinutes = Object.values(breakdown).reduce((a, n) => a + Number(n || 0), 0);
     const denom = totalMinutes || 1;
-    const rowsHTML = _DASH_DEBT_ORDER.map(d => {
+    const fills = _dashAccentSeries(_DASH_DEBT_ORDER.length);
+    const rowsHTML = _DASH_DEBT_ORDER.map((d, i) => {
         const minutes = Number(breakdown[d.key] || 0);
         const pct     = Math.round((minutes / denom) * 100);
         const weight  = Number(weights[d.key] || 0);
@@ -61,7 +64,7 @@ function _dashRenderDebtBars(breakdown, weights) {
   <span class="dash-debt-row-label">${_dashEscape(_dashT(d.label))}</span>
   <span class="dash-debt-row-weight">${weight}m / item</span>
   <div class="dash-debt-row-track">
-    <div class="dash-debt-row-fill" style="width:${pct}%;background:${d.color}"></div>
+    <div class="dash-debt-row-fill" style="width:${pct}%;background:${fills[i]}"></div>
   </div>
   <span class="dash-debt-row-value">${minutes}m</span>
 </div>`;
@@ -72,20 +75,21 @@ function _dashRenderDebtBars(breakdown, weights) {
 function _dashRenderDebtPie(breakdown) {
     const target = document.getElementById('dash-debt-render');
     if (!target) return;
-    target.innerHTML = `<div class="dash-chart-wrap" style="min-height:220px"><canvas id="dash-chart-debt"></canvas></div>`;
+    target.innerHTML = `<div class="dash-chart-wrap"><canvas id="dash-chart-debt"></canvas></div>`;
     const canvas = document.getElementById('dash-chart-debt');
     if (!canvas || typeof Chart === 'undefined') return;
 
     const labels = _DASH_DEBT_ORDER.map(d => _dashT(d.label));
     const data   = _DASH_DEBT_ORDER.map(d => Number(breakdown[d.key] || 0));
-    const colors = _DASH_DEBT_ORDER.map(d => d.color);
+    const fills   = _dashAccentSeries(_DASH_DEBT_ORDER.length);
+    const strokes = fills.map(() => _dashAccentTint(1.0));
 
     _dashMkChart(canvas, 'pie', {
         labels,
         datasets: [{
             data,
-            backgroundColor: colors.map(c => c + 'cc'),
-            borderColor: colors,
+            backgroundColor: fills,
+            borderColor:     strokes,
             borderWidth: 1.5,
             hoverOffset: 6,
         }],
@@ -93,7 +97,7 @@ function _dashRenderDebtPie(breakdown) {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { position: 'right', labels: { color: '#94a3b8', boxWidth: 10, padding: 10 } },
+            legend: { position: 'right', labels: { boxWidth: 10, padding: 10 } },
             tooltip: {
                 callbacks: {
                     label: ctx => ` ${ctx.label}: ${ctx.parsed} min`,
