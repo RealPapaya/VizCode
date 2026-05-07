@@ -544,7 +544,6 @@ def build_html(data: dict, job_id: str = None) -> str:
         base / 'features' / 'Dashboard_view' / 'dashboard_settings.js',
         base / 'features' / 'Dashboard_view' / 'dashboard_lifecycle.js',
         base / 'features' / 'Dashboard_view' / 'dashboard_drilldown.js',
-        base / 'features' / 'Dashboard_view' / 'dashboard_export.js',
         base / 'features' / 'Dashboard_view' / 'dashboard_render.js',
         base / 'features' / 'Dashboard_view' / 'dashboard_index.js',
         # ── features/galaxy_view ──────────────────────────────────────────────

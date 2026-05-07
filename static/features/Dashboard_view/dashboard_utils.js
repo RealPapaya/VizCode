@@ -1,5 +1,5 @@
 // @module Dashboard_view/dashboard_utils
-// Small formatting and DATA-walking helpers shared by every widget.
+// Small formatting, DATA-walking, and shared widget-list UI helpers.
 
 function _dashFmtNum(n) {
     if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
@@ -93,6 +93,67 @@ function _dashDrill(filePath, funcName) {
         }
     }
 }
+
+// ── Widget label keys (shared by settings and tab editor) ─────────────────
+
+const _DASH_WIDGET_LABEL_KEYS = {
+    kpi_strip:          'dashSettingsWidgetKpi',
+    code_health:        'dashCodeHealthTitle',
+    tech_debt:          'dashTechDebtTitle',
+    complexity:         'dashComplexityTitle',
+    duplication:        'dashDuplicationTitle',
+    coupling:           'dashSettingsWidgetCoupling',
+    issues:             'dashSettingsWidgetIssues',
+    structure:          'dashSettingsWidgetStructure',
+    graph_intelligence: 'dashSettingsWidgetGraph',
+    temporal:           'dashTemporalTitle',
+};
+
+// Generate the HTML for one draggable widget row in a settings / tab-editor list.
+function _dashSettingsWidgetRow(key, visible) {
+    const labelKey = _DASH_WIDGET_LABEL_KEYS[key] || key;
+    const label = _dashT(labelKey);
+    return `
+<li class="dash-settings-row" data-widget="${key}" draggable="true">
+  <span class="dash-settings-grip" aria-hidden="true">⋮⋮</span>
+  <label class="dash-settings-toggle">
+    <input type="checkbox" data-toggle="${key}" ${visible ? 'checked' : ''}>
+    <span>${_dashEscape(label)}</span>
+  </label>
+  <span class="dash-settings-key">${key}</span>
+</li>`;
+}
+
+// Bind HTML5 drag-and-drop reordering to a <ul> of .dash-settings-row elements.
+// onReorder (optional) is called after each successful drop.
+function _dashSettingsBindReorder(list, onReorder) {
+    if (!list) return;
+    let dragged = null;
+
+    list.addEventListener('dragstart', e => {
+        const row = e.target.closest('.dash-settings-row');
+        if (!row) return;
+        dragged = row;
+        row.classList.add('dragging');
+        try { e.dataTransfer.setData('text/plain', row.dataset.widget); } catch (_) {}
+    });
+    list.addEventListener('dragend', () => {
+        if (dragged) dragged.classList.remove('dragging');
+        dragged = null;
+        if (typeof onReorder === 'function') onReorder();
+    });
+    list.addEventListener('dragover', e => {
+        e.preventDefault();
+        if (!dragged) return;
+        const target = e.target.closest('.dash-settings-row');
+        if (!target || target === dragged) return;
+        const rect = target.getBoundingClientRect();
+        const before = (e.clientY - rect.top) < rect.height / 2;
+        list.insertBefore(dragged, before ? target : target.nextSibling);
+    });
+}
+
+// ── Module navigation helpers ──────────────────────────────────────────────
 
 // Find the module ID that contains the given file path (forward-slash normalised).
 function _dashFindModule(fileRel) {

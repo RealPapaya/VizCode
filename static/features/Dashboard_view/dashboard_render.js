@@ -1,6 +1,6 @@
 // @module Dashboard_view/dashboard_render
-// Orchestrator: refreshes section containers from the current config,
-// then dispatches each visible widget to its renderer in user order.
+// Orchestrator: renders the tab bar, refreshes section containers from the
+// active tab's config, then dispatches each visible widget to its renderer.
 
 const _DASH_WIDGET_RENDERERS = {
     kpi_strip:          _dashRenderKpiStrip,
@@ -21,9 +21,11 @@ function _renderDashboard() {
 
     _dashDestroyAllCharts();
 
-    const cfg = _dashConfigCurrent();
-    const sections = _dashRefreshSections(cfg);
-    _dashApplyToolbarLabels();
+    const cfg    = _dashConfigCurrent();
+    _dashRenderTabBar(cfg);
+
+    const tabCfg  = _dashGetActiveTabConfig(cfg);
+    const sections = _dashRefreshSections(tabCfg);
 
     for (const sec of sections) {
         const container = document.getElementById(sec.id);
