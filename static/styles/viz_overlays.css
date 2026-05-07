@@ -472,3 +472,66 @@
     scrollbar-color: var(--border) transparent;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   DASHBOARD PRINT EXPORT
+   Activated by body.dash-printing (set by _dashExportPrint just before
+   window.print()). Isolates the dashboard overlay and re-skins it for paper.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media print {
+    body.dash-printing > *:not(#dashboard-overlay) { display: none !important; }
+
+    body.dash-printing #dashboard-overlay {
+        display: block !important;
+        position: static !important;
+        inset: auto !important;
+        background: white !important;
+        backdrop-filter: none !important;
+        animation: none !important;
+        z-index: auto !important;
+    }
+
+    body.dash-printing #dashboard-panel {
+        position: static !important;
+        background: white !important;
+        color: black !important;
+        overflow: visible !important;
+    }
+
+    body.dash-printing #dashboard-toolbar { display: none !important; }
+
+    body.dash-printing #dashboard-scroll {
+        overflow: visible !important;
+        padding: 0 !important;
+    }
+
+    body.dash-printing .dash-section,
+    body.dash-printing .dash-card {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        background: white !important;
+        color: black !important;
+        box-shadow: none !important;
+        border-color: #cbd5e1 !important;
+    }
+
+    body.dash-printing .dash-card-title,
+    body.dash-printing .dash-list-name,
+    body.dash-printing .dash-list-rank {
+        color: black !important;
+    }
+
+    body.dash-printing .dash-empty,
+    body.dash-printing .dash-card-title-dot { color: #4b5563 !important; }
+
+    /* Hide chart toggle / interactive controls — printout is static. */
+    body.dash-printing .dash-chart-toggle,
+    body.dash-printing .dash-temporal-pills,
+    body.dash-printing .dash-settings-overlay,
+    body.dash-printing #dash-drilldown-overlay {
+        display: none !important;
+    }
+
+    @page { margin: 12mm; }
+}
+

@@ -41,7 +41,7 @@ DEFAULT_WINDOW_DAYS = 180
 COMMIT_FILE_LIMIT   = 20      # skip commits touching > N files (refactor noise)
 COUPLING_MIN        = 3       # filter pairs below this co-change count
 GIT_TIMEOUT_SEC     = 60
-SCHEMA_REV          = 2
+SCHEMA_REV          = 4   # bump invalidates caches that lack per_file_churn_timeline
 
 # Hotspot scoring tuning. Files without computed complexity get a neutral
 # 0.5 multiplier so they're neither boosted nor punished by the score.
@@ -112,12 +112,16 @@ def _save_cache(root: str, window_days: int, head_sha: str, payload: dict) -> No
 # ─── git log invocation + parser ─────────────────────────────────────────────
 
 def _run_git_log(root: str, since_days: int) -> str:
-    """Return raw `git log` text, or empty string on any failure."""
+    """Return raw `git log` text, or empty string on any failure.
+
+    The COMMIT header carries SHA / date / author name so the parser can
+    aggregate per-author activity without a second git invocation.
+    """
     try:
         proc = subprocess.run(
             ['git', 'log',
              f'--since={since_days} days ago',
-             '--pretty=format:COMMIT %H %ad',
+             '--pretty=format:COMMIT %H %ad %an',
              '--date=short',
              '--numstat'],
             cwd=root, capture_output=True, text=True,
@@ -145,9 +149,16 @@ def _parse_log(text: str) -> list:
         if not line:
             continue
         if line.startswith('COMMIT '):
-            parts = line.split(' ', 2)
+            # Format: ``COMMIT <sha> <YYYY-MM-DD> <author name with spaces>``.
+            # Author name comes last so split with maxsplit=3 keeps it intact.
+            parts = line.split(' ', 3)
             if len(parts) >= 3:
-                current = {'sha': parts[1], 'date': parts[2], 'files': []}
+                current = {
+                    'sha':    parts[1],
+                    'date':   parts[2],
+                    'author': parts[3] if len(parts) >= 4 else '',
+                    'files':  [],
+                }
                 commits.append(current)
             continue
         if current is None:
@@ -188,6 +199,33 @@ def _window_bounds(window_days: int) -> tuple:
 
 
 # ─── Aggregation passes ──────────────────────────────────────────────────────
+
+def _aggregate_authors(commits: list) -> list:
+    """Per-author commit / additions / deletions, ranked by commit count.
+
+    Returns ``[{author, commits, additions, deletions, share}, ...]`` where
+    ``share`` is the fraction of total commits in the window. Capped at 20.
+    """
+    per_commits = Counter()
+    per_add     = Counter()
+    per_del     = Counter()
+    for c in commits:
+        author = (c.get('author') or '').strip() or 'Unknown'
+        per_commits[author] += 1
+        for f in c['files']:
+            per_add[author] += f['add']
+            per_del[author] += f['del']
+    total = len(commits) or 1
+    rows = [{
+        'author':    a,
+        'commits':   per_commits[a],
+        'additions': per_add[a],
+        'deletions': per_del[a],
+        'share':     round(per_commits[a] / total, 3),
+    } for a in per_commits]
+    rows.sort(key=lambda r: -r['commits'])
+    return rows[:20]
+
 
 def _aggregate_file_churn(commits: list) -> list:
     per_file_commits = Counter()
@@ -248,6 +286,42 @@ def _aggregate_timeline(commits: list) -> list:
         'additions':  weekly_add[wk],
         'deletions':  weekly_del[wk],
     } for wk in weeks]
+
+
+def _aggregate_per_file_timeline(commits: list, file_paths: set) -> dict:
+    """Per-file weekly churn for the supplied paths.
+
+    Returns ``{file_path: [{week_start, commits, additions, deletions}, ...]}``
+    sorted by week_start. Files with no commits inside the window are omitted.
+    Used by the hotspot drilldown panel — restrict the input set so the
+    payload size stays bounded (callers pass top-N churn files only).
+    """
+    if not file_paths:
+        return {}
+    weekly = defaultdict(lambda: defaultdict(lambda: {'commits': 0, 'add': 0, 'del': 0}))
+    for c in commits:
+        wk = _iso_week_start(c['date'])
+        seen = set()
+        for f in c['files']:
+            path = f['path']
+            if path not in file_paths:
+                continue
+            bucket = weekly[path][wk]
+            if path not in seen:
+                bucket['commits'] += 1
+                seen.add(path)
+            bucket['add'] += f['add']
+            bucket['del'] += f['del']
+    out = {}
+    for path, weeks in weekly.items():
+        rows = [{
+            'week_start': wk,
+            'commits':    weeks[wk]['commits'],
+            'additions':  weeks[wk]['add'],
+            'deletions':  weeks[wk]['del'],
+        } for wk in sorted(weeks.keys())]
+        out[path] = rows
+    return out
 
 
 def _aggregate_daily_activity(commits: list) -> list:
@@ -348,6 +422,11 @@ def compute_git_history(root: str,
     change_coupling = _aggregate_coupling(commits, len(commits))
     churn_timeline  = _aggregate_timeline(commits)
     daily_activity  = _aggregate_daily_activity(commits)
+    author_activity = _aggregate_authors(commits)
+    # Per-file weekly timeline for the top churn files. Hotspots are a
+    # strict subset of churn, so this is enough for the drilldown panel.
+    top_churn_paths = {r['file'] for r in file_churn[:TOP_FILE_CHURN]}
+    per_file_timeline = _aggregate_per_file_timeline(commits, top_churn_paths)
     window_start, window_end = _window_bounds(since_days)
 
     payload = {
@@ -364,6 +443,8 @@ def compute_git_history(root: str,
         'hotspot_files':    [],
         'churn_timeline':   churn_timeline,
         'commit_activity_daily': daily_activity,
+        'author_activity':  author_activity,
+        'per_file_churn_timeline': per_file_timeline,
         # Carry the full file_churn (capped) so the caller can recompute
         # hotspot_files without re-running git when only complexity changed.
         '_full_file_churn': file_churn,
@@ -389,5 +470,7 @@ def _empty_payload(window_days: int) -> dict:
         'hotspot_files':    [],
         'churn_timeline':   [],
         'commit_activity_daily': [],
+        'author_activity':  [],
+        'per_file_churn_timeline': {},
         '_full_file_churn': [],
     }

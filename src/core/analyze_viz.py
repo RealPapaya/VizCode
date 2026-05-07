@@ -2028,8 +2028,19 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     # ── Phase 2: Temporal Analysis (git log) ─────────────────────────────────
     if _result['stats'].get('has_git_history'):
         try:
-            from git_history import compute_git_history, _compute_hotspot
-            gh = compute_git_history(root)
+            from git_history import compute_git_history, _compute_hotspot, DEFAULT_WINDOW_DAYS
+            window_days = DEFAULT_WINDOW_DAYS
+            cfg_path = os.path.join(root, '.vizcode', 'dashboard_config.json')
+            if os.path.isfile(cfg_path):
+                try:
+                    with open(cfg_path, 'r', encoding='utf-8') as _f:
+                        _cfg = json.load(_f)
+                    cd = _cfg.get('git_window_days')
+                    if isinstance(cd, (int, float)) and 7 <= cd <= 3650:
+                        window_days = int(cd)
+                except Exception:
+                    pass
+            gh = compute_git_history(root, since_days=window_days)
             if gh is not None:
                 # Git tracks historical paths (including renames). Filter
                 # the live dashboard view to files that still exist in the

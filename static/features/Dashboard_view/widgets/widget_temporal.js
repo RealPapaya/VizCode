@@ -62,6 +62,8 @@ function _dashTemporalRefreshSubs(container, stats) {
     _dashRenderTemporalCoupling(document.getElementById('dash-temporal-coupling'), stats);
     _dashRenderTemporalHeatmap(document.getElementById('dash-temporal-heatmap'), filtered);
     _dashRenderTemporalTimeline(document.getElementById('dash-temporal-timeline'), filtered);
+    // Authors use unfiltered stats — counts must match commits_analyzed.
+    _dashRenderTemporalAuthors(document.getElementById('dash-temporal-authors'), stats);
 }
 
 function _dashTemporalShell(stats) {
@@ -91,5 +93,6 @@ function _dashTemporalShell(stats) {
   <div class="dash-card" id="dash-temporal-coupling"></div>
   <div class="dash-card" id="dash-temporal-heatmap"></div>
   <div class="dash-card" id="dash-temporal-timeline"></div>
+  <div class="dash-card" id="dash-temporal-authors"></div>
 </div>`;
 }

@@ -24,7 +24,7 @@ function _dashRenderTemporalHotspot(container, stats) {
         const fileJSON = JSON.stringify(it.file).replace(/"/g, '&quot;');
         return `
 <div class="dash-list-row" data-clickable="true" data-tip="${_dashEscape(it.file)}"
-     onclick="_dashDrill(${fileJSON}, null)">
+     onclick="_dashOpenDrilldown(${fileJSON})">
   <span class="dash-list-rank">${i + 1}</span>
   <span class="dash-list-name">${_dashEscape(fileShort)}<span style="color:#64748b;font-size:11px;margin-left:6px">${cxLabel} · ${it.churn} commits</span></span>
   <div class="dash-list-bar" style="width:${Math.round(it.score / max * 60)}px;background:#fb923c"></div>

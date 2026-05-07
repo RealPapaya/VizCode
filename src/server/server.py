@@ -1808,6 +1808,28 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.json_resp({'history': []})
 
+        elif p == '/dashboard-config':
+            # ── Dashboard Mode 2: load saved widget layout / settings ─────
+            jid = qs.get('job', [''])[0]
+            with JOBS_LOCK:
+                job = JOBS.get(jid, {})
+            root = job.get('root', '')
+            if not root:
+                with JOBS_LOCK:
+                    recent = [(v.get('started', 0), v.get('root', ''))
+                              for v in JOBS.values() if v.get('root')]
+                if recent:
+                    root = sorted(recent, reverse=True)[0][1]
+            cfg_path = os.path.join(root, '.vizcode', 'dashboard_config.json') if root else ''
+            if cfg_path and os.path.isfile(cfg_path):
+                try:
+                    with open(cfg_path, 'r', encoding='utf-8') as f:
+                        self.json_resp(json.load(f))
+                        return
+                except Exception:
+                    pass
+            self.json_resp({})
+
         else:
             self.json_resp({'error': 'Not found'}, 404)
 
@@ -2030,6 +2052,37 @@ class Handler(BaseHTTPRequestHandler):
                     json.dump({'session_id': session_id, 'created': created,
                                'history': history}, f, ensure_ascii=False, indent=2)
                 self.json_resp({'ok': True, 'count': len(history)})
+            except Exception as e:
+                self.json_resp({'error': str(e)}, 500)
+
+        elif p == '/dashboard-config':
+            # ── Dashboard Mode 2: persist widget layout / settings ─────────
+            length = int(self.headers.get('Content-Length', 0))
+            try:
+                body = json.loads(self.rfile.read(length).decode('utf-8'))
+            except Exception as e:
+                self.json_resp({'error': str(e)}, 400)
+                return
+            jid = body.pop('job_id', '') or body.pop('job', '')
+            with JOBS_LOCK:
+                job = JOBS.get(jid, {})
+            root = job.get('root', '')
+            if not root:
+                with JOBS_LOCK:
+                    recent = [(v.get('started', 0), v.get('root', ''))
+                              for v in JOBS.values() if v.get('root')]
+                if recent:
+                    root = sorted(recent, reverse=True)[0][1]
+            if not root:
+                self.json_resp({'error': 'No active job'}, 400)
+                return
+            cfg_dir = os.path.join(root, '.vizcode')
+            try:
+                os.makedirs(cfg_dir, exist_ok=True)
+                fpath = os.path.join(cfg_dir, 'dashboard_config.json')
+                with open(fpath, 'w', encoding='utf-8') as f:
+                    json.dump(body, f, ensure_ascii=False, indent=2)
+                self.json_resp({'ok': True})
             except Exception as e:
                 self.json_resp({'error': str(e)}, 500)
 

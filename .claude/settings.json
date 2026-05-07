@@ -55,7 +55,8 @@
       "Bash(node -c static/features/galaxy_view/viz_galaxy_graph.js)",
       "Bash(awk '{print $5, $9}')",
       "PowerShell(Get-ChildItem \"d:\\\\Google AI\\\\CodeViz\\\\static\" -Recurse -File | Select-Object @{N='Path';E={$_.FullName.Replace\\('d:\\\\Google AI\\\\CodeViz\\\\static\\\\',''\\)}} | Sort-Object Path | Format-Table -AutoSize)",
-      "Bash(node --check _dash_bundle.js)"
+      "Bash(node --check _dash_bundle.js)",
+      "Bash(node --check _bundle.js)"
     ],
     "additionalDirectories": [
       "D:\\Google AI\\CodeViz\\testproject\\.local",

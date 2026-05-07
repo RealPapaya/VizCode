@@ -1,6 +1,6 @@
 // @module Dashboard_view/dashboard_render
-// Orchestrator: walks _DASH_SECTIONS and dispatches each one to its widget
-// renderer. Each widget owns its container DOM; this file owns the order.
+// Orchestrator: refreshes section containers from the current config,
+// then dispatches each visible widget to its renderer in user order.
 
 const _DASH_WIDGET_RENDERERS = {
     kpi_strip:          _dashRenderKpiStrip,
@@ -21,7 +21,11 @@ function _renderDashboard() {
 
     _dashDestroyAllCharts();
 
-    for (const sec of _DASH_SECTIONS) {
+    const cfg = _dashConfigCurrent();
+    const sections = _dashRefreshSections(cfg);
+    _dashApplyToolbarLabels();
+
+    for (const sec of sections) {
         const container = document.getElementById(sec.id);
         const renderer  = _DASH_WIDGET_RENDERERS[sec.widget];
         if (!container || typeof renderer !== 'function') continue;
