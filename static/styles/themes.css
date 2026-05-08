@@ -22,14 +22,21 @@
     --m6: #c28b5e; --m7: #7b947c; --m8: #8c6e8f; --m9: #b8a663; --m10: #a76a5c;
 
     /* ── Dashboard Design Tokens (DASHBOARD_DESIGN_SPEC.md §1) ── */
-    /* Accent ramp — same hue family as --accent (warm gold) */
-    --accent-50:  #fdf6e9;
-    --accent-100: #f7e4b8;
-    --accent-200: #eccf85;
-    --accent-300: #e3ba5f;
-    --accent-500: #dfa745;
-    --accent-600: #c69137;
-    --accent-700: #9c6f24;
+    /* Accent ramp — 5-stop warm gold scale */
+    --accent-50:  #eedcbc;
+    --accent-100: #eedcbc;
+    --accent-200: #DFA745;
+    --accent-300: #c57429;
+    --accent-500: #DFA745;
+    --accent-600: #955223;
+    --accent-700: #673606;
+
+    /* Dashboard 5-stop scale (named for dashboard use) */
+    --dash-a1: #eedcbc;
+    --dash-a2: #DFA745;
+    --dash-a3: #c57429;
+    --dash-a4: #955223;
+    --dash-a5: #673606;
 
     /* Surface */
     --surface-base:     var(--bg);
@@ -38,6 +45,14 @@
     --surface-hero:     var(--accent);
     --text-on-accent:   #191614;
     --muted-series:     var(--muted);
+
+    /* Type scale */
+    --text-caption:  10px;
+    --text-xs:       11px;
+    --text-sm:       12px;
+    --text-base:     14px;
+    --text-stat:     26px;
+    --text-display:  44px;
 
     /* Status (semantic — only red/amber/green allowed beside accent) */
     --status-good: #6c9a4e;
@@ -99,12 +114,27 @@
     --accent-600: #b45309;
     --accent-700: #7c3a05;
 
+    /* Dashboard 5-stop scale */
+    --dash-a1: #fde4c4;
+    --dash-a2: #d97706;
+    --dash-a3: #b45309;
+    --dash-a4: #92400e;
+    --dash-a5: #78350f;
+
     --surface-base:     var(--bg);
     --surface-card:     var(--panel);
     --surface-elevated: #ffffff;
     --surface-hero:     var(--accent);
     --text-on-accent:   #ffffff;
     --muted-series:     var(--muted);
+
+    /* Type scale */
+    --text-caption:  10px;
+    --text-xs:       11px;
+    --text-sm:       12px;
+    --text-base:     14px;
+    --text-stat:     26px;
+    --text-display:  44px;
 
     --status-good: #16a34a;
     --status-warn: #d97706;

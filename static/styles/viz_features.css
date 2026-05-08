@@ -90,7 +90,7 @@
 .dash-card:hover {
     transform: translateY(-1px);
     box-shadow: var(--shadow-md);
-    border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+    border-color: color-mix(in srgb, #DFA745 30%, var(--border));
 }
 
 .dash-card-title {
@@ -822,8 +822,8 @@
 }
 .dash-chart-toggle-btn:hover  { color: var(--text); }
 .dash-chart-toggle-btn.active {
-    background: color-mix(in srgb, var(--accent) 20%, transparent);
-    color: var(--accent);
+    color: #191614;
+    background: #DFA745;
 }
 
 /* ─── Phase 2: Temporal Analysis ──────────────────────────────────────── */

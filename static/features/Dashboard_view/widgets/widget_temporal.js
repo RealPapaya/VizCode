@@ -96,3 +96,11 @@ function _dashTemporalShell(stats) {
   <div class="dash-card" id="dash-temporal-authors"></div>
 </div>`;
 }
+
+_dashRegisterWidget({
+    id: 'temporal',
+    labelKey: 'dashTemporalTitle',
+    defaultSize: 'L',
+    render(container, size, stats) { _dashRenderTemporal(container, stats); },
+    renderDetail(container, stats) { _dashRenderTemporal(container, stats); },
+});

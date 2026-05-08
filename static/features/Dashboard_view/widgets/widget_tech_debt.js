@@ -1,10 +1,5 @@
 // @module Dashboard_view/widgets/widget_tech_debt
-// Tech Debt — total hours headline + per-issue minute breakdown. The
-// breakdown is rendered as a horizontal bar list (default) or as a pie
-// chart showing each category's share of the cleanup effort.
 
-// Per-issue colours come from accent alpha steps at render time —
-// no per-key hex (DASHBOARD_DESIGN_SPEC.md §5 rule 2).
 const _DASH_DEBT_ORDER = [
     { key: 'circular',    label: 'dashDebtCircular'    },
     { key: 'god',         label: 'dashDebtGod'         },
@@ -13,96 +8,90 @@ const _DASH_DEBT_ORDER = [
     { key: 'dead',        label: 'dashDebtDead'        },
 ];
 
-const _DASH_DEBT_KEY     = 'tech_debt';
-const _DASH_DEBT_TYPES   = ['bar', 'pie'];
-const _DASH_DEBT_DEFAULT = 'bar';
+_dashRegisterWidget({
+    id: 'tech_debt',
+    labelKey: 'dashTechDebtTitle',
+    defaultSize: 'M',
 
-function _dashRenderTechDebt(container, stats) {
-    if (!container) return;
+    render(container, size, stats) {
+        const hours     = Number(stats.tech_debt_hours || 0);
+        const breakdown = stats.tech_debt_breakdown || {};
+        const colors    = _dashAccentForSlices(_DASH_DEBT_ORDER.length);
+        const totalMin  = Object.values(breakdown).reduce((a, n) => a + Number(n || 0), 0);
+        const denom     = totalMin || 1;
 
-    const hours     = Number(stats.tech_debt_hours || 0);
-    const breakdown = stats.tech_debt_breakdown || {};
-    const weights   = stats.tech_debt_weights   || {};
+        const bars = _DASH_DEBT_ORDER.map((d, i) => {
+            const minutes = Number(breakdown[d.key] || 0);
+            const pct     = Math.round((minutes / denom) * 100);
+            const col     = colors[Math.min(i, colors.length - 1)];
+            return `<div class="dash-debt-row">
+              <span class="dash-debt-row-label">${_dashEscape(_dashT(d.label))}</span>
+              <div class="dash-debt-row-track">
+                <div class="dash-debt-row-fill" style="width:${pct}%;background:${col}"></div>
+              </div>
+              <span class="dash-debt-row-value">${minutes}m</span>
+            </div>`;
+        }).join('');
 
-    container.innerHTML = `
+        container.innerHTML = `
+<div class="dash-widget-title">${_dashEscape(_dashT('dashTechDebtTitle'))}</div>
+<div class="dash-widget-stat">${hours.toFixed(1)}<small style="font-size:var(--text-xs);color:var(--muted);margin-left:3px">h</small></div>
+<div class="dash-debt-rows" style="margin-top:6px;overflow:hidden;flex:1;">${bars}</div>`;
+    },
+
+    renderDetail(container, stats) {
+        const hours     = Number(stats.tech_debt_hours || 0);
+        const breakdown = stats.tech_debt_breakdown || {};
+        const colors    = _dashAccentForSlices(_DASH_DEBT_ORDER.length);
+        const totalMin  = Object.values(breakdown).reduce((a, n) => a + Number(n || 0), 0);
+        const denom     = totalMin || 1;
+        const canvasId  = 'dash-detail-debt-pie';
+
+        const { labels, data, colors: sliceColors } = _dashGroupedSlices(
+            _DASH_DEBT_ORDER.map(d => _dashT(d.label)),
+            _DASH_DEBT_ORDER.map(d => Number(breakdown[d.key] || 0))
+        );
+
+        const bars = _DASH_DEBT_ORDER.map((d, i) => {
+            const minutes = Number(breakdown[d.key] || 0);
+            const pct     = Math.round((minutes / denom) * 100);
+            const col     = colors[Math.min(i, colors.length - 1)];
+            return `<div class="dash-debt-row">
+              <span class="dash-debt-row-label">${_dashEscape(_dashT(d.label))}</span>
+              <div class="dash-debt-row-track">
+                <div class="dash-debt-row-fill" style="width:${pct}%;background:${col}"></div>
+              </div>
+              <span class="dash-debt-row-value">${minutes}m</span>
+            </div>`;
+        }).join('');
+
+        container.innerHTML = `
 <div class="dash-card">
-  <div class="dash-card-title">
-    <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashTechDebtTitle'))}
-    ${_dashChartToggleHTML(_DASH_DEBT_KEY, _DASH_DEBT_TYPES, _DASH_DEBT_DEFAULT)}
+  <div class="dash-card-title"><span class="dash-card-title-dot"></span>Total Estimated Debt</div>
+  <div style="font-size:var(--text-display);font-weight:700;color:#DFA745;line-height:1;padding:12px 0 4px">
+    ${hours.toFixed(1)}<span style="font-size:var(--text-base);color:var(--muted);margin-left:4px">hours</span>
   </div>
-  <div class="dash-debt-body">
-    <div class="dash-debt-headline">
-      <div class="dash-debt-hours">${hours.toFixed(1)}<span class="dash-debt-hours-unit">h</span></div>
-      <div class="dash-debt-sub">${_dashEscape(_dashT('dashTechDebtSub'))}</div>
+</div>
+<div class="dash-card">
+  <div class="dash-card-title"><span class="dash-card-title-dot"></span>By Category</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;margin-top:8px;">
+    <div class="dash-chart-wrap" style="min-height:180px;">
+      <canvas id="${canvasId}"></canvas>
     </div>
-    <div class="dash-debt-render" id="dash-debt-render"></div>
+    <div class="dash-debt-rows">${bars}</div>
   </div>
 </div>`;
 
-    _dashRegisterChartSwitch(_DASH_DEBT_KEY, () => _dashRenderTechDebt(container, stats));
-
-    const type = _dashChartCurrentType(_DASH_DEBT_KEY, _DASH_DEBT_DEFAULT);
-    if (type === 'pie') {
-        _dashRenderDebtPie(breakdown);
-    } else {
-        _dashRenderDebtBars(breakdown, weights);
-    }
-}
-
-function _dashRenderDebtBars(breakdown, weights) {
-    const target = document.getElementById('dash-debt-render');
-    if (!target) return;
-    const totalMinutes = Object.values(breakdown).reduce((a, n) => a + Number(n || 0), 0);
-    const denom = totalMinutes || 1;
-    const fills = _dashAccentSeries(_DASH_DEBT_ORDER.length);
-    const rowsHTML = _DASH_DEBT_ORDER.map((d, i) => {
-        const minutes = Number(breakdown[d.key] || 0);
-        const pct     = Math.round((minutes / denom) * 100);
-        const weight  = Number(weights[d.key] || 0);
-        return `
-<div class="dash-debt-row">
-  <span class="dash-debt-row-label">${_dashEscape(_dashT(d.label))}</span>
-  <span class="dash-debt-row-weight">${weight}m / item</span>
-  <div class="dash-debt-row-track">
-    <div class="dash-debt-row-fill" style="width:${pct}%;background:${fills[i]}"></div>
-  </div>
-  <span class="dash-debt-row-value">${minutes}m</span>
-</div>`;
-    }).join('');
-    target.innerHTML = `<div class="dash-debt-rows">${rowsHTML}</div>`;
-}
-
-function _dashRenderDebtPie(breakdown) {
-    const target = document.getElementById('dash-debt-render');
-    if (!target) return;
-    target.innerHTML = `<div class="dash-chart-wrap"><canvas id="dash-chart-debt"></canvas></div>`;
-    const canvas = document.getElementById('dash-chart-debt');
-    if (!canvas || typeof Chart === 'undefined') return;
-
-    const labels = _DASH_DEBT_ORDER.map(d => _dashT(d.label));
-    const data   = _DASH_DEBT_ORDER.map(d => Number(breakdown[d.key] || 0));
-    const fills   = _dashAccentSeries(_DASH_DEBT_ORDER.length);
-    const strokes = fills.map(() => _dashAccentTint(1.0));
-
-    _dashMkChart(canvas, 'pie', {
-        labels,
-        datasets: [{
-            data,
-            backgroundColor: fills,
-            borderColor:     strokes,
-            borderWidth: 1.5,
-            hoverOffset: 6,
-        }],
-    }, {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: { position: 'right', labels: { boxWidth: 10, padding: 10 } },
-            tooltip: {
-                callbacks: {
-                    label: ctx => ` ${ctx.label}: ${ctx.parsed} min`,
-                },
-            },
-        },
-    });
-}
+        const canvas = document.getElementById(canvasId);
+        if (canvas && typeof Chart !== 'undefined') {
+            _dashMkChart(canvas, 'doughnut', {
+                labels,
+                datasets: [{ data, backgroundColor: sliceColors, borderWidth: 0, hoverOffset: 8 }],
+            }, {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8 } } },
+                cutout: '65%',
+            });
+        }
+    },
+});

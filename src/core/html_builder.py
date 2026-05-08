@@ -518,32 +518,41 @@ def build_html(data: dict, job_id: str = None) -> str:
         base / 'features' / 'graph' / 'graph_multiselect.js',
         # ── features ──────────────────────────────────────────────────────────
         base / 'features' / 'viz_search.js',
-        # ── features/Dashboard_view (multi-file dashboard) ───────────────────
-        # Order: consts (config, charts, utils) → widgets → orchestration.
+        # ── features/Dashboard_view (bento redesign) ─────────────────────────
+        # Order: consts → layout registry → widgets → orchestration
         base / 'features' / 'Dashboard_view' / 'dashboard_health_config.js',
         base / 'features' / 'Dashboard_view' / 'dashboard_charts.js',
         base / 'features' / 'Dashboard_view' / 'dashboard_utils.js',
-        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_kpi_strip.js',
+        base / 'features' / 'Dashboard_view' / 'dashboard_layout.js',
+        # ── KPI widgets (1×1 bento cells) ────────────────────────────────────
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_kpi_files.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_kpi_functions.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_kpi_lines.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_kpi_health.js',
+        # ── Core widgets ─────────────────────────────────────────────────────
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_code_health.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_tech_debt.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_complexity.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_duplication.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_most_complex.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_dead_code.js',
+        # ── Optional widgets (available via + Add Widget) ─────────────────────
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_coupling.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_issues.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_structure.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_graph_intelligence.js',
-        # ── Phase 2: Temporal sub-widgets must precede the orchestrator ─────
+        # ── Temporal sub-widgets must precede the orchestrator ────────────────
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_temporal_hotspot.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_temporal_coupling.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_temporal_timeline.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_temporal_heatmap.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_temporal_authors.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_temporal.js',
-        base / 'features' / 'Dashboard_view' / 'dashboard_config.js',
-        base / 'features' / 'Dashboard_view' / 'dashboard_dom.js',
-        base / 'features' / 'Dashboard_view' / 'dashboard_settings.js',
+        # ── Orchestration ─────────────────────────────────────────────────────
         base / 'features' / 'Dashboard_view' / 'dashboard_lifecycle.js',
-        base / 'features' / 'Dashboard_view' / 'dashboard_drilldown.js',
+        base / 'features' / 'Dashboard_view' / 'dashboard_dom.js',
+        base / 'features' / 'Dashboard_view' / 'dashboard_detail_panel.js',
+        base / 'features' / 'Dashboard_view' / 'dashboard_customize.js',
         base / 'features' / 'Dashboard_view' / 'dashboard_render.js',
         base / 'features' / 'Dashboard_view' / 'dashboard_index.js',
         # ── features/galaxy_view ──────────────────────────────────────────────

@@ -82,3 +82,11 @@ function _dashLongestFuncsRows(items) {
 </div>`;
     }).join('');
 }
+
+_dashRegisterWidget({
+    id: 'issues',
+    labelKey: 'dashIssuesCircular',
+    defaultSize: 'L',
+    render(container, size, stats) { _dashRenderIssues(container, stats); },
+    renderDetail(container, stats) { _dashRenderIssues(container, stats); },
+});

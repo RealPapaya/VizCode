@@ -42,3 +42,11 @@ function _dashCouplingRows(items, suffix) {
 </div>`;
     }).join('');
 }
+
+_dashRegisterWidget({
+    id: 'coupling',
+    labelKey: 'dashCouplingTopImported',
+    defaultSize: 'L',
+    render(container, size, stats) { _dashRenderCoupling(container, stats); },
+    renderDetail(container, stats) { _dashRenderCoupling(container, stats); },
+});

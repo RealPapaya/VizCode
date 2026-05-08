@@ -163,3 +163,12 @@ function _dashBuildTreemap() {
 </div>`;
     }).join('');
 }
+
+
+_dashRegisterWidget({
+    id: 'structure',
+    labelKey: 'dashStructureFileTypes',
+    defaultSize: 'L',
+    render(container, size, stats) { _dashRenderStructure(container, stats); },
+    renderDetail(container, stats) { _dashRenderStructure(container, stats); },
+});

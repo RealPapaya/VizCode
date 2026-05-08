@@ -68,3 +68,11 @@ function _dashRenderSurprising(items) {
 </div>`;
     }).join('');
 }
+
+_dashRegisterWidget({
+    id: 'graph_intelligence',
+    labelKey: 'dashGraphHotspots',
+    defaultSize: 'L',
+    render(container, size, stats) { _dashRenderGraphIntelligence(container, stats); },
+    renderDetail(container, stats) { _dashRenderGraphIntelligence(container, stats); },
+});

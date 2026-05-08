@@ -1,6 +1,5 @@
 // @module Dashboard_view/dashboard_index
-// Public entry — globals openDashboard / closeDashboard are still expected
-// by switchTopbarMode('dashboard') and the rail button click handler.
+// Public entry — globals openDashboard / closeDashboard.
 
 async function openDashboard() {
     _dashHidePeerUI();
@@ -10,17 +9,22 @@ async function openDashboard() {
     const overlay = document.getElementById('dashboard-overlay');
     if (overlay) overlay.style.display = 'block';
 
-    // Load Mode 2 config (widget order / visibility / git window) before
-    // rendering so the first paint already reflects user preferences.
-    if (typeof _dashLoadConfig === 'function') {
-        await _dashLoadConfig();
-    }
     _renderDashboard();
+    _dashInitCustomizeMode();
 
     if (typeof syncTopbarModeButtons === 'function') syncTopbarModeButtons();
 }
 
 function closeDashboard() {
+    // Close any open detail panel first
+    if (_dashDetailOpen) _dashCloseDetailPanel(true);
+
+    // Exit customize mode silently
+    if (_dashCustomizeActive) {
+        _dashCustomizeActive = false;
+        document.body.classList.remove('dash-customize');
+    }
+
     const overlay = document.getElementById('dashboard-overlay');
     if (overlay) overlay.style.display = 'none';
 
@@ -28,3 +32,12 @@ function closeDashboard() {
 
     if (typeof syncTopbarModeButtons === 'function') syncTopbarModeButtons();
 }
+
+// ESC key: close detail panel first, then close dashboard
+document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const overlay = document.getElementById('dashboard-overlay');
+    if (!overlay || overlay.style.display === 'none') return;
+    if (_dashDetailOpen) return;  // detail panel handles its own ESC
+    closeDashboard();
+});

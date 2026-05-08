@@ -62,7 +62,15 @@
       "Bash(Get-ChildItem -Path \"d:\\\\Google AI\\\\CodeViz\" -Recurse -Force)",
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(grep -E \"\\\\.\\(js|css|html\\)$\")",
-      "Bash(grep -E \"\\(rgb|#[0-9a-fA-F]{3,6}|'#|\\\\\"#\\)\")"
+      "Bash(grep -E \"\\(rgb|#[0-9a-fA-F]{3,6}|'#|\\\\\"#\\)\")",
+      "Bash(Get-ChildItem -Path \"d:\\\\Google AI\\\\CodeViz\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(grep -E \"\\\\.css$|dashboard\")",
+      "Bash(head -1165 \"/d/Google AI/CodeViz/static/styles/viz_overlays.css\")",
+      "Bash(mv \"/tmp/viz_overlays_trimmed.css\" \"/d/Google AI/CodeViz/static/styles/viz_overlays.css\")",
+      "Bash(sleep 5 && tail -10 \"/c/Users/MORRIS~1/AppData/Local/Temp/claude/d--Google-AI-CodeViz/20f915d4-ec93-4c43-bb37-75b0a105363b/tasks/bvw8xfffn.output\" 2>/dev/null || echo \"file not ready\")",
+      "Read(//c/Users/MORRIS~1/AppData/Local/Temp/claude/d--Google-AI-CodeViz/20f915d4-ec93-4c43-bb37-75b0a105363b/tasks/**)",
+      "Bash(node -e ' *)"
     ],
     "additionalDirectories": [
       "D:\\Google AI\\CodeViz\\testproject\\.local",
