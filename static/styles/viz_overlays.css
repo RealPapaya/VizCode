@@ -413,6 +413,10 @@
     padding: 20px 24px 32px;
     scrollbar-width: thin;
     scrollbar-color: var(--border) transparent;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
 }
 
 .dash-tool-btn {
