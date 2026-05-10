@@ -12,7 +12,7 @@ _dashRegisterWidget({
         const colors = _dashAccentForSlices(Math.min(top.length, 5));
 
         container.innerHTML = `
-<div class="dash-card" style="height:100%;box-sizing:border-box;">
+<div style="height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:var(--space-3);">
   <div class="dash-card-title">
     <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashComplexityTitle'))}
     <span class="dash-card-sub">avg ${avg.toFixed(1)}</span>

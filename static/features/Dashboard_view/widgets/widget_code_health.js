@@ -43,7 +43,7 @@ _dashRegisterWidget({
         const gapLen  = _DASH_HEALTH_TRACK_LEN.toFixed(2);
 
         container.innerHTML = `
-<div class="dash-card dash-health-card" style="height:100%;box-sizing:border-box;">
+<div class="dash-health-card" style="height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:var(--space-3);">
   <div class="dash-card-title">
     <span class="dash-card-title-dot" style="background:${color}"></span>${_dashEscape(_dashT('dashCodeHealthTitle'))}
   </div>
