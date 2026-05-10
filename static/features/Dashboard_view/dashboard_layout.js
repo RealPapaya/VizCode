@@ -1,19 +1,16 @@
 // @module Dashboard_view/dashboard_layout
-// 6×3 bento grid model. Owns:
-//   • Default layout definition
-//   • localStorage persistence (vizcode.dashboard.layout / .added)
-//   • Cell placement renderer
-//   • Mount / unmount lifecycle
+// 6x3 bento grid model. Owns:
+//   - Default layout definition
+//   - Browser-style dashboard tabs and localStorage persistence
+//   - Cell placement renderer
+//   - Mount / unmount lifecycle
 
 const _DASH_COLS = 6;
 const _DASH_ROWS = 3;
-const _DASH_LS_LAYOUT = 'vizcode.dashboard.layout';
-const _DASH_LS_ADDED  = 'vizcode.dashboard.added';
+const _DASH_LS_TABS = 'vizcode_dashboard_tabs';
+const _DASH_DEFAULT_TAB_ID = 'default';
 
-// Default 6×3 arrangement (col/row are 0-indexed)
-// Row 1: Files 1×1 | Functions 1×1 | Lines 1×1 | Health 3×1
-// Row 2: CodeHealth gauge 2×2 | TechDebt 2×1 | Complexity 2×1
-// Row 3: (bottom of 2×2) | MostComplex 3×1 | Duplication 1×1
+// Default 6x3 arrangement (col/row are 0-indexed)
 const _DASH_DEFAULT_LAYOUT = [
     { id: 'kpi_files',      col: 0, row: 0, w: 1, h: 1 },
     { id: 'kpi_functions',  col: 1, row: 0, w: 1, h: 1 },
@@ -30,14 +27,13 @@ const _DASH_DEFAULT_LAYOUT = [
 const _DASH_OPTIONAL_IDS = ['dead_code', 'coupling', 'issues', 'structure', 'graph_intelligence', 'temporal'];
 
 // Size tier definitions: S = small, M = medium, L = large
-// Each tier is expressed as { w, h } in grid units
 const _DASH_SIZE_TIERS = {
     S: { w: 1, h: 1 },
     M: { w: 2, h: 1 },
     L: { w: 2, h: 2 },
 };
 
-// Registry: id → widget descriptor (populated by each widget file calling _dashRegisterWidget)
+// Registry: id -> widget descriptor (populated by each widget file calling _dashRegisterWidget)
 const _dashWidgetRegistry = {};
 
 function _dashRegisterWidget(descriptor) {
@@ -45,89 +41,189 @@ function _dashRegisterWidget(descriptor) {
     _dashWidgetRegistry[descriptor.id] = descriptor;
 }
 
-// ── Layout persistence ────────────────────────────────────────────────────
+// -- Tab and layout persistence ------------------------------------------------
 
-function _dashLoadLayout() {
-    try {
-        const raw = localStorage.getItem(_DASH_LS_LAYOUT);
-        if (raw) {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed) && parsed.length) return parsed;
-        }
-    } catch (_) {}
+function _dashCloneLayout(cells) {
+    return (Array.isArray(cells) ? cells : []).map(c => ({
+        id:  String(c.id || ''),
+        col: Number(c.col) || 0,
+        row: Number(c.row) || 0,
+        w:   Number(c.w)   || 1,
+        h:   Number(c.h)   || 1,
+    })).filter(c => c.id);
+}
+
+function _dashDefaultLayout() {
     return _DASH_DEFAULT_LAYOUT.map(c => ({ ...c }));
 }
 
+function _dashDefaultTab(layout) {
+    return {
+        id:     _DASH_DEFAULT_TAB_ID,
+        name:   'Default',
+        locked: true,
+        layout: Array.isArray(layout) ? _dashCloneLayout(layout) : _dashDefaultLayout(),
+    };
+}
+
+function _dashTabsDefaultState() {
+    return {
+        activeTabId: _DASH_DEFAULT_TAB_ID,
+        tabs:        [_dashDefaultTab()],
+    };
+}
+
+function _dashNormalizeTabsState(raw) {
+    if (!raw || typeof raw !== 'object' || !Array.isArray(raw.tabs)) {
+        return _dashTabsDefaultState();
+    }
+
+    const seen = new Set();
+    const customTabs = [];
+    let defaultLayout = null;
+
+    raw.tabs.forEach(tab => {
+        if (!tab || typeof tab.id !== 'string' || seen.has(tab.id)) return;
+        const isDefault = tab.id === _DASH_DEFAULT_TAB_ID || tab.locked === true;
+        const name = isDefault ? 'Default' : String(tab.name || '').trim();
+        if (!isDefault && !name) return;
+
+        seen.add(tab.id);
+        if (isDefault) {
+            defaultLayout = Array.isArray(tab.layout) ? _dashCloneLayout(tab.layout) : _dashDefaultLayout();
+            return;
+        }
+
+        customTabs.push({
+            id:     tab.id,
+            name,
+            locked: false,
+            layout: Array.isArray(tab.layout) ? _dashCloneLayout(tab.layout) : [],
+        });
+    });
+
+    const tabs = [_dashDefaultTab(defaultLayout), ...customTabs];
+    const validIds = new Set(tabs.map(tab => tab.id));
+    return {
+        activeTabId: validIds.has(raw.activeTabId) ? raw.activeTabId : _DASH_DEFAULT_TAB_ID,
+        tabs,
+    };
+}
+
+function _dashLoadTabsState() {
+    try {
+        const raw = localStorage.getItem(_DASH_LS_TABS);
+        if (raw) return _dashNormalizeTabsState(JSON.parse(raw));
+    } catch (_) {}
+    return _dashTabsDefaultState();
+}
+
+function _dashSaveTabsState(state) {
+    const normalized = _dashNormalizeTabsState(state);
+    try {
+        localStorage.setItem(_DASH_LS_TABS, JSON.stringify(normalized));
+    } catch (_) {}
+    return normalized;
+}
+
+function _dashGetActiveTab(state) {
+    const cfg = state || _dashLoadTabsState();
+    return cfg.tabs.find(tab => tab.id === cfg.activeTabId) || cfg.tabs[0];
+}
+
+function _dashLoadLayout() {
+    const active = _dashGetActiveTab();
+    return _dashCloneLayout(active ? active.layout : _dashDefaultLayout());
+}
+
 function _dashSaveLayout(cells) {
-    try {
-        localStorage.setItem(_DASH_LS_LAYOUT, JSON.stringify(cells));
-    } catch (_) {}
+    const state = _dashLoadTabsState();
+    const active = _dashGetActiveTab(state);
+    if (active) active.layout = _dashCloneLayout(cells);
+    _dashSaveTabsState(state);
 }
 
-function _dashLoadAdded() {
-    try {
-        const raw = localStorage.getItem(_DASH_LS_ADDED);
-        if (raw) return JSON.parse(raw);
-    } catch (_) {}
-    return [];
-}
-
-function _dashSaveAdded(ids) {
-    try {
-        localStorage.setItem(_DASH_LS_ADDED, JSON.stringify(ids));
-    } catch (_) {}
-}
-
-// ── Preset system ─────────────────────────────────────────────────────────
-
-const _DASH_LS_PRESETS       = 'vizcode.dashboard.presets';
-const _DASH_LS_ACTIVE_PRESET = 'vizcode.dashboard.activePreset';
-
-function _dashLoadPresets() {
-    const builtins = { Default: _DASH_DEFAULT_LAYOUT.map(c => ({ ...c })) };
-    try {
-        const raw = localStorage.getItem(_DASH_LS_PRESETS);
-        if (raw) return { ...builtins, ...JSON.parse(raw) };
-    } catch (_) {}
-    return builtins;
-}
-
-function _dashSavePreset(name, cells) {
-    if (name === 'Default') return;
-    const raw    = localStorage.getItem(_DASH_LS_PRESETS);
-    const custom = raw ? JSON.parse(raw) : {};
-    custom[name] = cells.map(c => ({ ...c }));
-    localStorage.setItem(_DASH_LS_PRESETS, JSON.stringify(custom));
-}
-
-function _dashDeletePreset(name) {
-    if (name === 'Default') return;
-    const raw = localStorage.getItem(_DASH_LS_PRESETS);
-    if (!raw) return;
-    const custom = JSON.parse(raw);
-    delete custom[name];
-    localStorage.setItem(_DASH_LS_PRESETS, JSON.stringify(custom));
-}
-
-function _dashGetActivePreset() {
-    return localStorage.getItem(_DASH_LS_ACTIVE_PRESET) || 'Default';
-}
-
-function _dashSetActivePreset(name) {
-    localStorage.setItem(_DASH_LS_ACTIVE_PRESET, name);
-}
-
-function _dashApplyPreset(name) {
-    const presets = _dashLoadPresets();
-    if (!presets[name]) return;
-    _dashSaveLayout(presets[name].map(c => ({ ...c })));
-    _dashSetActivePreset(name);
+function _dashSwitchTab(tabId) {
+    const state = _dashLoadTabsState();
+    if (!state.tabs.some(tab => tab.id === tabId)) return;
+    if (typeof _dashExitCustomize === 'function' &&
+        typeof _dashCustomizeActive !== 'undefined' &&
+        _dashCustomizeActive &&
+        _dashExitCustomize() === false) return;
+    state.activeTabId = tabId;
+    _dashSaveTabsState(state);
+    if (typeof _dashRenderTabBar === 'function') _dashRenderTabBar();
     _dashMountLayout();
 }
 
-// ── Grid capacity helpers ─────────────────────────────────────────────────
+function _dashNextCustomName(tabs) {
+    const used = new Set(tabs.map(tab => tab.name));
+    let n = 1;
+    while (used.has(`Custom ${n}`)) n += 1;
+    return `Custom ${n}`;
+}
 
-// Returns true if a (w×h) block fits in the current grid.
+function _dashAddTab() {
+    const state = _dashLoadTabsState();
+    const tab = {
+        id:     `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name:   _dashNextCustomName(state.tabs),
+        locked: false,
+        layout: [],
+    };
+    state.tabs.push(tab);
+    state.activeTabId = tab.id;
+    _dashSaveTabsState(state);
+    if (typeof _dashRenderTabBar === 'function') _dashRenderTabBar();
+    _dashMountLayout();
+    if (typeof _dashEnterCustomize === 'function') _dashEnterCustomize();
+}
+
+function _dashRenameTab(tabId, name) {
+    const state = _dashLoadTabsState();
+    const tab = state.tabs.find(t => t.id === tabId);
+    const next = String(name || '').trim();
+    if (!tab || tab.locked || !next) return;
+    tab.name = next;
+    _dashSaveTabsState(state);
+    if (typeof _dashRenderTabBar === 'function') _dashRenderTabBar();
+}
+
+function _dashDeleteTab(tabId) {
+    const state = _dashLoadTabsState();
+    const tab = state.tabs.find(t => t.id === tabId);
+    if (!tab || tab.locked) return;
+
+    state.tabs = state.tabs.filter(t => t.id !== tabId);
+    if (state.activeTabId === tabId) state.activeTabId = _DASH_DEFAULT_TAB_ID;
+    _dashSaveTabsState(state);
+    if (typeof _dashExitCustomize === 'function' && typeof _dashCustomizeActive !== 'undefined' && _dashCustomizeActive) _dashExitCustomize();
+    if (typeof _dashRenderTabBar === 'function') _dashRenderTabBar();
+    _dashMountLayout();
+}
+
+function _dashResetActiveTabLayout() {
+    const state = _dashLoadTabsState();
+    const active = _dashGetActiveTab(state);
+    if (!active) return;
+    active.layout = active.locked ? _dashDefaultLayout() : [];
+    _dashSaveTabsState(state);
+    _dashMountLayout();
+    if (typeof _dashCustomizeActive !== 'undefined' && _dashCustomizeActive) _dashBindDragHandles();
+}
+
+function _dashAllWidgetIds() {
+    const ordered = [
+        ..._DASH_DEFAULT_LAYOUT.map(c => c.id),
+        ..._DASH_OPTIONAL_IDS,
+        ...Object.keys(_dashWidgetRegistry),
+    ];
+    return [...new Set(ordered)].filter(id => _dashWidgetRegistry[id]);
+}
+
+// -- Grid capacity helpers -----------------------------------------------------
+
+// Returns true if a (w x h) block fits in the current grid.
 // excludeId: widget id whose current cells are excluded from the occupancy check.
 function _dashGridHasRoom(excludeId, w, h) {
     const cells = _dashLoadLayout();
@@ -149,13 +245,10 @@ function _dashAddOptionalWidgetWithSize(widgetId, tier) {
     if (!slot) return;
     cells.push({ id: widgetId, col: slot.col, row: slot.row, w, h });
     _dashSaveLayout(cells);
-    const added = _dashLoadAdded();
-    if (!added.includes(widgetId)) added.push(widgetId);
-    _dashSaveAdded(added);
     _dashMountLayout();
 }
 
-// ── Reflow / collision resolver ───────────────────────────────────────────
+// -- Reflow / collision resolver ----------------------------------------------
 
 function _dashFindFreeSlot(grid, w, h) {
     for (let r = 0; r <= _DASH_ROWS - h; r++) {
@@ -186,26 +279,23 @@ function _dashOccupy(grid, col, row, w, h, id) {
 function _dashReflowCells(cells) {
     const grid = {};
     const out  = [];
-    // Sort by row then col to maintain visual order
     const sorted = [...cells].sort((a, b) => a.row !== b.row ? a.row - b.row : a.col - b.col);
     for (const cell of sorted) {
         if (_dashFits(grid, cell.col, cell.row, cell.w, cell.h)) {
             _dashOccupy(grid, cell.col, cell.row, cell.w, cell.h, cell.id);
             out.push({ ...cell });
         } else {
-            // Try to find a free slot
             const slot = _dashFindFreeSlot(grid, cell.w, cell.h);
             if (slot) {
                 _dashOccupy(grid, slot.col, slot.row, cell.w, cell.h, cell.id);
                 out.push({ ...cell, col: slot.col, row: slot.row });
             }
-            // Skip if no slot found (widget simply doesn't render)
         }
     }
     return out;
 }
 
-// ── Mount ─────────────────────────────────────────────────────────────────
+// -- Mount ---------------------------------------------------------------------
 
 function _dashMountLayout() {
     const bento = document.getElementById('dashboard-bento');
@@ -232,13 +322,9 @@ function _dashMountLayout() {
         el.style.gridColumn = `${cell.col + 1} / span ${cell.w}`;
         el.style.gridRow    = `${cell.row + 1} / span ${cell.h}`;
 
-        // ↗ hover icon
-        el.innerHTML = '<span class="dash-widget-link-icon" aria-hidden="true">↗</span>';
+        el.innerHTML = '<span class="dash-widget-link-icon" aria-hidden="true">&#8599;</span>';
+        el.innerHTML += '<span class="dash-widget-handle" aria-hidden="true">::</span>';
 
-        // Drag handle (shown only in customize mode)
-        el.innerHTML += '<span class="dash-widget-handle" aria-hidden="true">⠿</span>';
-
-        // Size picker (customize mode)
         const tier = _dashSizeTierOf(cell.w, cell.h);
         el.innerHTML += `<div class="dash-widget-size-picker" aria-label="Resize widget">
   <button class="dash-size-btn ${tier === 'S' ? 'active' : ''}" data-tier="S" type="button">S</button>
@@ -246,7 +332,6 @@ function _dashMountLayout() {
   <button class="dash-size-btn ${tier === 'L' ? 'active' : ''}" data-tier="L" type="button">L</button>
 </div>`;
 
-        // Content container
         const content = document.createElement('div');
         content.style.cssText = 'flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;';
 
@@ -255,12 +340,11 @@ function _dashMountLayout() {
             widget.render(content, size, DATA.stats);
         } catch (err) {
             console.error(`[dashboard] widget ${cell.id} failed:`, err);
-            content.innerHTML = `<div class="dash-empty">⚠ widget error</div>`;
+            content.innerHTML = '<div class="dash-empty">Widget error</div>';
         }
 
         el.appendChild(content);
 
-        // Click → detail panel (only when not in customize mode)
         el.addEventListener('click', e => {
             if (document.body.classList.contains('dash-customize')) return;
             if (e.target.closest('.dash-widget-handle,.dash-widget-size-picker,.dash-size-btn')) return;
@@ -283,11 +367,11 @@ function _dashWidgetSizeName(w, h) {
     return 'L';
 }
 
-// ── Add / Remove optional widgets ─────────────────────────────────────────
+// -- Add / Remove optional widgets --------------------------------------------
 
 function _dashAddOptionalWidget(widgetId) {
     const cells = _dashLoadLayout();
-    if (cells.some(c => c.id === widgetId)) return; // already present
+    if (cells.some(c => c.id === widgetId)) return;
 
     const widget = _dashWidgetRegistry[widgetId];
     const tier   = (widget && widget.defaultSize) || 'M';
@@ -298,20 +382,15 @@ function _dashAddOptionalWidget(widgetId) {
         _dashOccupy(grid, c.col, c.row, c.w, c.h, c.id);
     }
     const slot = _dashFindFreeSlot(grid, w, h);
-    if (!slot) return; // no room
+    if (!slot) return;
 
     cells.push({ id: widgetId, col: slot.col, row: slot.row, w, h });
     _dashSaveLayout(cells);
-
-    const added = _dashLoadAdded();
-    if (!added.includes(widgetId)) added.push(widgetId);
-    _dashSaveAdded(added);
-
     _dashMountLayout();
 }
 
 function _dashHiddenWidgetIds() {
     const layout = _dashLoadLayout();
     const present = new Set(layout.map(c => c.id));
-    return _DASH_OPTIONAL_IDS.filter(id => !present.has(id));
+    return _dashAllWidgetIds().filter(id => !present.has(id));
 }
