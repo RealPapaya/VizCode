@@ -99,7 +99,7 @@ function _dashUnbindDragHandles() {
 // ── Pointer down: start drag ──────────────────────────────────────────────
 function _dashOnDown(e) {
     if (!_dashCustomizeActive) return;
-    if (e.target.closest('.dash-widget-size-picker, .dash-size-btn')) return;
+    if (e.target.closest('.dash-widget-size-picker, .dash-size-btn, .dash-widget-remove-btn')) return;
     e.preventDefault();
     _dashDragEl = e.currentTarget.closest('.dash-widget');
     if (!_dashDragEl) return;

@@ -1447,3 +1447,44 @@ body.dash-customize .dash-widget:hover {
 .dash-drag-ghost {
     border: 1px solid color-mix(in srgb, #DFA745 55%, transparent) !important;
 }
+
+/* ── iOS-style remove button ── */
+body.dash-customize .dash-widget {
+    overflow: visible !important;
+}
+.dash-widget-remove-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--panel, #222);
+    border: 1px solid var(--border, #444);
+    color: var(--text, #eee);
+    font-size: 12px;
+    font-family: sans-serif;
+    line-height: 1;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 20;
+    transition: transform 0.15s, background 0.15s, color 0.15s;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+    padding: 0;
+}
+body.dash-customize .dash-widget-remove-btn {
+    display: flex;
+    animation: dash-pop-in 0.25s cubic-bezier(0.3, 1.5, 0.6, 1) forwards;
+}
+.dash-widget-remove-btn:hover {
+    transform: scale(1.15);
+    background: #e55353;
+    border-color: #e55353;
+    color: #fff;
+}
+@keyframes dash-pop-in {
+    0%   { transform: scale(0.1); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}

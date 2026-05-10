@@ -323,6 +323,7 @@ function _dashMountLayout() {
         el.style.gridRow    = `${cell.row + 1} / span ${cell.h}`;
 
         el.innerHTML = '<span class="dash-widget-link-icon" aria-hidden="true">&#8599;</span>';
+        el.innerHTML += `<button class="dash-widget-remove-btn" aria-label="Remove widget" type="button">✕</button>`;
 
         const tier = _dashSizeTierOf(cell.w, cell.h);
         el.innerHTML += `<div class="dash-widget-size-picker" aria-label="Resize widget">
@@ -345,7 +346,13 @@ function _dashMountLayout() {
         el.appendChild(content);
 
         el.addEventListener('click', e => {
-            if (document.body.classList.contains('dash-customize')) return;
+            if (document.body.classList.contains('dash-customize')) {
+                if (e.target.closest('.dash-widget-remove-btn')) {
+                    e.stopPropagation();
+                    _dashRemoveWidget(cell.id);
+                }
+                return;
+            }
             if (e.target.closest('.dash-widget-size-picker,.dash-size-btn')) return;
             _dashOpenDetailPanel(cell.id, el.getBoundingClientRect());
         });
@@ -367,6 +374,17 @@ function _dashWidgetSizeName(w, h) {
 }
 
 // -- Add / Remove optional widgets --------------------------------------------
+
+function _dashRemoveWidget(widgetId) {
+    const cells = _dashLoadLayout();
+    const updated = cells.filter(c => c.id !== widgetId);
+    if (updated.length === cells.length) return;
+    _dashSaveLayout(updated);
+    _dashMountLayout();
+    if (typeof _dashCustomizeActive !== 'undefined' && _dashCustomizeActive) {
+        if (typeof _dashBindDragHandles === 'function') _dashBindDragHandles();
+    }
+}
 
 function _dashAddOptionalWidget(widgetId) {
     const cells = _dashLoadLayout();
