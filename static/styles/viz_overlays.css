@@ -1435,11 +1435,12 @@ body.dash-customize .dash-widget.dash-shifted-widget {
     animation: none !important;
 }
 
-/* ── Handle / title overlap fix ──
-   The drag handle is 28px tall, absolutely positioned at the top of the card.
-   In edit mode, push the widget's content div down to clear the handle.   */
-body.dash-customize .dash-widget > div:last-child {
-    padding-top: 28px;
+/* ── Hover highlight in edit mode ── */
+body.dash-customize .dash-widget {
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+body.dash-customize .dash-widget:hover {
+    box-shadow: 0 0 0 2px var(--accent);
 }
 
 /* ── Ghost border accent (supplements existing .dash-drag-ghost shadow) ── */

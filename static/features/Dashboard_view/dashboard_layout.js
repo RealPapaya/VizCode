@@ -323,7 +323,6 @@ function _dashMountLayout() {
         el.style.gridRow    = `${cell.row + 1} / span ${cell.h}`;
 
         el.innerHTML = '<span class="dash-widget-link-icon" aria-hidden="true">&#8599;</span>';
-        el.innerHTML += '<span class="dash-widget-handle" aria-hidden="true">::</span>';
 
         const tier = _dashSizeTierOf(cell.w, cell.h);
         el.innerHTML += `<div class="dash-widget-size-picker" aria-label="Resize widget">
@@ -347,7 +346,7 @@ function _dashMountLayout() {
 
         el.addEventListener('click', e => {
             if (document.body.classList.contains('dash-customize')) return;
-            if (e.target.closest('.dash-widget-handle,.dash-widget-size-picker,.dash-size-btn')) return;
+            if (e.target.closest('.dash-widget-size-picker,.dash-size-btn')) return;
             _dashOpenDetailPanel(cell.id, el.getBoundingClientRect());
         });
 

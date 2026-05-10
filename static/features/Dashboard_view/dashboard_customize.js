@@ -69,9 +69,12 @@ function _dashExitCustomize() {
 
 let _dashDragEl    = null;   // original widget element (opacity 0 while dragging)
 let _dashDragGhost = null;   // fixed clone that follows the cursor
-let _dashSwapTarget = null;  // widget B currently being displaced
+let _dashDragPlaceholder = null; // visual drop target
 let _dashDragOffsetX = 0;
 let _dashDragOffsetY = 0;
+let _dashDragLayout = [];     // Snapshot of cells at drag start
+let _dashHoverCol = -1;
+let _dashHoverRow = -1;
 
 function _dashBindDragHandles() {
     const bento = document.getElementById('dashboard-bento');
@@ -79,7 +82,7 @@ function _dashBindDragHandles() {
 
     _dashApplyFloatAnimations();
 
-    bento.querySelectorAll('.dash-widget-handle').forEach(handle => {
+    bento.querySelectorAll('.dash-widget').forEach(handle => {
         handle.removeEventListener('pointerdown', _dashOnDown); // remove old if any
         handle.addEventListener('pointerdown', _dashOnDown, { passive: false });
     });
@@ -88,7 +91,7 @@ function _dashBindDragHandles() {
 function _dashUnbindDragHandles() {
     const bento = document.getElementById('dashboard-bento');
     if (!bento) return;
-    bento.querySelectorAll('.dash-widget-handle').forEach(handle => {
+    bento.querySelectorAll('.dash-widget').forEach(handle => {
         handle.removeEventListener('pointerdown', _dashOnDown);
     });
 }
@@ -96,6 +99,7 @@ function _dashUnbindDragHandles() {
 // ── Pointer down: start drag ──────────────────────────────────────────────
 function _dashOnDown(e) {
     if (!_dashCustomizeActive) return;
+    if (e.target.closest('.dash-widget-size-picker, .dash-size-btn')) return;
     e.preventDefault();
     _dashDragEl = e.currentTarget.closest('.dash-widget');
     if (!_dashDragEl) return;
@@ -103,6 +107,13 @@ function _dashOnDown(e) {
     const rect = _dashDragEl.getBoundingClientRect();
     _dashDragOffsetX = e.clientX - rect.left;
     _dashDragOffsetY = e.clientY - rect.top;
+
+    _dashDragLayout = _dashLoadLayout();
+    
+    const w = Number(_dashDragEl.dataset.w);
+    const h = Number(_dashDragEl.dataset.h);
+    const col = Number(_dashDragEl.dataset.col);
+    const row = Number(_dashDragEl.dataset.row);
 
     // Build a fixed ghost clone that follows the cursor
     _dashDragGhost = _dashDragEl.cloneNode(true);
@@ -126,12 +137,21 @@ function _dashOnDown(e) {
     // Hide original in-grid widget (keeps its grid slot as implicit placeholder)
     _dashDragEl.classList.add('dash-dragging');
 
+    _dashDragPlaceholder = document.createElement('div');
+    _dashDragPlaceholder.className = 'dash-drop-placeholder';
+    _dashDragPlaceholder.style.gridColumn = `${col + 1} / span ${w}`;
+    _dashDragPlaceholder.style.gridRow    = `${row + 1} / span ${h}`;
+    document.getElementById('dashboard-bento').appendChild(_dashDragPlaceholder);
+
+    _dashHoverCol = col;
+    _dashHoverRow = row;
+
     document.addEventListener('pointermove', _dashOnMove, { passive: false });
     document.addEventListener('pointerup',   _dashOnUp);
     document.addEventListener('pointercancel', _dashOnUp);
 }
 
-// ── Pointer move: update ghost + compute swap target ─────────────────────
+// ── Pointer move: calculate reflow ─────────────────────────────────────────
 function _dashOnMove(e) {
     if (!_dashDragGhost || !_dashDragEl) return;
     e.preventDefault();
@@ -140,33 +160,75 @@ function _dashOnMove(e) {
     _dashDragGhost.style.left = (e.clientX - _dashDragOffsetX) + 'px';
     _dashDragGhost.style.top  = (e.clientY - _dashDragOffsetY) + 'px';
 
-    // Find the widget under the cursor (excluding the dragged widget itself)
-    const bento = document.getElementById('dashboard-bento');
-    const under = _dashWidgetAtPoint(e.clientX, e.clientY, _dashDragEl, bento);
+    const cell = _dashSnapToCell(e.clientX, e.clientY);
+    if (!cell) return;
 
-    if (under && under !== _dashSwapTarget) {
-        // Clear previous swap target first
-        _dashClearSwap(_dashSwapTarget);
-        _dashSwapTarget = under;
+    if (cell.col !== _dashHoverCol || cell.row !== _dashHoverRow) {
+        _dashHoverCol = cell.col;
+        _dashHoverRow = cell.row;
 
-        // Slide B towards A's current grid position
-        const aRect = _dashDragEl.getBoundingClientRect();
-        const bRect = _dashSwapTarget.getBoundingClientRect();
-        const dx = aRect.left - bRect.left;
-        const dy = aRect.top  - bRect.top;
+        const w = Number(_dashDragEl.dataset.w);
+        const h = Number(_dashDragEl.dataset.h);
+        
+        // Prevent out of bounds
+        if (cell.col + w > _DASH_COLS || cell.row + h > _DASH_ROWS) return;
 
-        _dashSwapTarget.classList.add('dash-shifted-widget');
-        _dashSwapTarget.style.animation = 'none';
-        _dashSwapTarget.style.transform = `translate(${dx}px, ${dy}px)`;
+        // Simulate layout reflow
+        const id = _dashDragEl.dataset.id;
+        const newLayout = _dashCloneLayout(_dashDragLayout);
+        const dragged = newLayout.find(c => c.id === id);
+        if (dragged) {
+            dragged.col = cell.col;
+            dragged.row = cell.row;
+            // Force it to be evaluated first at this col/row
+            dragged._isDragging = true; 
+        }
 
-    } else if (!under && _dashSwapTarget) {
-        // Cursor left all widgets — slide B back
-        _dashClearSwap(_dashSwapTarget);
-        _dashSwapTarget = null;
+        const sorted = newLayout.sort((a, b) => {
+            if (a.row !== b.row) return a.row - b.row;
+            if (a.col !== b.col) return a.col - b.col;
+            if (a._isDragging) return -1;
+            if (b._isDragging) return 1;
+            return 0;
+        });
+
+        const reflowed = _dashReflowCells(sorted);
+        
+        // Find actual resolved position of dragged widget
+        const resolved = reflowed.find(c => c.id === id);
+        if (resolved && _dashDragPlaceholder) {
+            _dashDragPlaceholder.style.display = 'block';
+            _dashDragPlaceholder.style.gridColumn = `${resolved.col + 1} / span ${resolved.w}`;
+            _dashDragPlaceholder.style.gridRow    = `${resolved.row + 1} / span ${resolved.h}`;
+        }
+
+        // Apply smooth transition to all other widgets
+        const bento = document.getElementById('dashboard-bento');
+        bento.querySelectorAll('.dash-widget:not(.dash-dragging)').forEach(el => {
+            const elId = el.dataset.id;
+            const targetCell = reflowed.find(c => c.id === elId);
+            if (!targetCell) return;
+            
+            const origCol = Number(el.dataset.col);
+            const origRow = Number(el.dataset.row);
+            
+            if (origCol !== targetCell.col || origRow !== targetCell.row) {
+                const targetRect = _dashCellRect(targetCell.col, targetCell.row, targetCell.w, targetCell.h);
+                const currentRect = _dashCellRect(origCol, origRow, targetCell.w, targetCell.h);
+                const dx = targetRect.left - currentRect.left;
+                const dy = targetRect.top - currentRect.top;
+                
+                el.classList.add('dash-shifted-widget');
+                el.style.transform = `translate(${dx}px, ${dy}px)`;
+            } else {
+                el.classList.remove('dash-shifted-widget');
+                el.style.transform = '';
+            }
+        });
     }
 }
 
-// ── Pointer up: commit swap and clean up ─────────────────────────────────
+// ── Pointer up: commit reflow and clean up ───────────────────────────────
 function _dashOnUp() {
     document.removeEventListener('pointermove', _dashOnMove);
     document.removeEventListener('pointerup',   _dashOnUp);
@@ -174,33 +236,39 @@ function _dashOnUp() {
 
     if (!_dashDragEl) return;
 
-    if (_dashSwapTarget) {
-        const aId = _dashDragEl.dataset.id;
-        const bId = _dashSwapTarget.dataset.id;
-
-        const cells = _dashLoadLayout();
-        const aCell = cells.find(c => c.id === aId);
-        const bCell = cells.find(c => c.id === bId);
-
-        if (aCell && bCell) {
-            // Swap grid positions only; each widget keeps its own size.
-            // _dashReflowCells() resolves any resulting overlaps on mount.
-            [aCell.col, bCell.col] = [bCell.col, aCell.col];
-            [aCell.row, bCell.row] = [bCell.row, aCell.row];
-            _dashSaveLayout(cells);
-        }
-
-        _dashClearSwap(_dashSwapTarget);
-        _dashSwapTarget = null;
+    // Apply the latest reflowed layout
+    const id = _dashDragEl.dataset.id;
+    const newLayout = _dashCloneLayout(_dashDragLayout);
+    const dragged = newLayout.find(c => c.id === id);
+    if (dragged) {
+        dragged.col = _dashHoverCol;
+        dragged.row = _dashHoverRow;
+        dragged._isDragging = true;
     }
+
+    const sorted = newLayout.sort((a, b) => {
+        if (a.row !== b.row) return a.row - b.row;
+        if (a.col !== b.col) return a.col - b.col;
+        if (a._isDragging) return -1;
+        if (b._isDragging) return 1;
+        return 0;
+    });
+
+    const reflowed = _dashReflowCells(sorted);
+    // remove temp marker
+    reflowed.forEach(c => delete c._isDragging);
+    
+    _dashSaveLayout(reflowed);
 
     _dashDragGhost?.remove();
     _dashDragGhost = null;
 
+    _dashDragPlaceholder?.remove();
+    _dashDragPlaceholder = null;
+
     _dashDragEl.classList.remove('dash-dragging');
     _dashDragEl = null;
 
-    // Rebuild grid and re-attach handles
     _dashMountLayout();
     if (typeof _dashCustomizeActive !== 'undefined' && _dashCustomizeActive) {
         _dashBindDragHandles();
@@ -209,26 +277,40 @@ function _dashOnUp() {
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-function _dashClearSwap(el) {
-    if (!el) return;
-    el.classList.remove('dash-shifted-widget');
-    el.style.transform = '';
-    el.style.animation = '';
+function _dashSnapToCell(clientX, clientY) {
+    const bento = document.getElementById('dashboard-bento');
+    if (!bento) return null;
+    const bentoRect = bento.getBoundingClientRect();
+    const style = getComputedStyle(bento);
+    const gapX = parseFloat(style.columnGap) || 12;
+    const gapY = parseFloat(style.rowGap) || 12;
+    const colW = (bentoRect.width - gapX * (_DASH_COLS - 1)) / _DASH_COLS;
+    const rowH = (bentoRect.height - gapY * (_DASH_ROWS - 1)) / _DASH_ROWS;
+
+    const relX = clientX - bentoRect.left;
+    const relY = clientY - bentoRect.top;
+    const col = Math.floor(relX / (colW + gapX));
+    const row = Math.floor(relY / (rowH + gapY));
+
+    if (col < 0 || col >= _DASH_COLS || row < 0 || row >= _DASH_ROWS) return null;
+    return { col, row };
 }
 
-// Returns the .dash-widget element whose bounding rect contains (cx, cy),
-// excluding `exclude`. Returns null if none found.
-function _dashWidgetAtPoint(cx, cy, exclude, bento) {
-    if (!bento) return null;
-    const widgets = bento.querySelectorAll('.dash-widget:not(.dash-dragging)');
-    for (const w of widgets) {
-        if (w === exclude) continue;
-        const r = w.getBoundingClientRect();
-        if (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom) {
-            return w;
-        }
-    }
-    return null;
+function _dashCellRect(col, row, w, h) {
+    const bento = document.getElementById('dashboard-bento');
+    if (!bento) return { left: 0, top: 0, width: 0, height: 0 };
+    const bentoRect = bento.getBoundingClientRect();
+    const style = getComputedStyle(bento);
+    const gapX = parseFloat(style.columnGap) || 12;
+    const gapY = parseFloat(style.rowGap) || 12;
+    const colW = (bentoRect.width - gapX * (_DASH_COLS - 1)) / _DASH_COLS;
+    const rowH = (bentoRect.height - gapY * (_DASH_ROWS - 1)) / _DASH_ROWS;
+    return {
+        left: bentoRect.left + col * (colW + gapX),
+        top: bentoRect.top + row * (rowH + gapY),
+        width: w * colW + Math.max(0, w - 1) * gapX,
+        height: h * rowH + Math.max(0, h - 1) * gapY,
+    };
 }
 
 // Assigns staggered animation-delay values so widgets don't float in sync.
