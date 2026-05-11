@@ -2,7 +2,6 @@
 
 ## Collaboration Rules
 
-- Reply in Traditional Chinese by default, unless the user switches to English.
 - Clarify scope before acting — especially feature boundaries, target files, and backward compatibility.
 - Always work within the **current repo structure**. Do not assume legacy root-level `server.py` / `analyze_viz.py` still exist.
 

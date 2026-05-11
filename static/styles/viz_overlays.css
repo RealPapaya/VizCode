@@ -2121,6 +2121,11 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     overflow: hidden;
 }
 
+/* Preview box sizing — adapts to S / M / L tier */
+.dash-awp-preview-box[data-tier='S'] { flex: none; aspect-ratio: 1 / 1; max-height: 260px; align-self: flex-start; width: 260px; }
+.dash-awp-preview-box[data-tier='M'] { flex: none; aspect-ratio: 2 / 1; width: 100%; }
+.dash-awp-preview-box[data-tier='L'] { flex: 1; aspect-ratio: auto; min-height: 240px; }
+
 /* Meta section below preview */
 .dash-awp-meta {
     flex-shrink: 0;
@@ -2858,6 +2863,7 @@ body.dash-customize .dash-widget-remove-btn {
     0%   { transform: scale(0.1); opacity: 0; }
     100% { transform: scale(1); opacity: 1; }
 }
+
 
 
 

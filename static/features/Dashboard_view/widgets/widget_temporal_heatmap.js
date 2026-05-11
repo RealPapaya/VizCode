@@ -233,3 +233,12 @@ function _dashHeatmapWeekStart(date) {
 function _dashHeatmapWeekEnd(date) {
     return _dashHeatmapAddDays(date, 6 - _dashHeatmapDayIndex(date));
 }
+
+_dashRegisterWidget({
+    id: 'commit_heatmap',
+    labelKey: 'dashTemporalHeatmap',
+    defaultSize: 'M',
+    render(container, size, stats) {
+        _dashRenderTemporalHeatmap(container, stats);
+    },
+});
