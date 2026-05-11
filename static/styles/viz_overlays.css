@@ -408,14 +408,14 @@
 /* ── Dashboard topbar ── */
 #dashboard-topbar {
     flex-shrink: 0;
-    height: 44px;
+    height: 58px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
-    padding: 0 var(--space-3);
-    border-bottom: 1px solid var(--border);
-    background: var(--panel);
+    padding: 10px var(--space-3) 9px;
+    border-bottom: none;
+    background: transparent;
 }
 
 #dashboard-title {
@@ -494,43 +494,43 @@
     flex: 1;
     height: 100%;
     display: flex;
-    align-items: flex-end;
-    gap: 2px;
+    align-items: center;
+    gap: 8px;
     overflow-x: auto;
     overflow-y: hidden;
 }
 
 .dash-tab {
     position: relative;
-    height: 34px;
+    height: 30px;
     max-width: 190px;
-    min-width: 96px;
+    min-width: 92px;
     display: inline-flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     gap: var(--space-2);
-    padding: 0 8px 0 12px;
+    padding: 0 12px;
     border: 1px solid transparent;
-    border-bottom: none;
-    border-radius: 7px 7px 0 0;
+    border-radius: 999px;
     color: var(--muted);
     background: transparent;
     cursor: pointer;
     user-select: none;
-    transform: translateY(1px);
+    transform: none;
     transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
 }
 
 .dash-tab:hover {
     color: var(--text);
-    background: color-mix(in srgb, var(--surface-elevated) 72%, transparent);
+    border-color: color-mix(in srgb, var(--border) 70%, transparent);
+    background: transparent;
 }
 
 .dash-tab.active {
     color: var(--text);
-    background: var(--bg);
-    border-color: var(--border);
-    transform: translateY(0);
+    background: transparent;
+    border-color: color-mix(in srgb, #DFA745 42%, var(--border));
+    transform: none;
 }
 
 .dash-tab.dragging {
@@ -622,15 +622,14 @@
 }
 
 .dash-tab-add {
-    width: 32px;
+    width: 30px;
     height: 30px;
-    margin-bottom: 3px;
-    flex: 0 0 32px;
+    flex: 0 0 30px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     border: 1px solid transparent;
-    border-radius: var(--radius-sm);
+    border-radius: 999px;
     background: transparent;
     color: var(--muted);
     font-size: 18px;
@@ -709,15 +708,15 @@
 }
 
 #dashboard-bento {
-    flex: 1;
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    gap: var(--space-3);
-    padding: var(--space-3);
-    min-height: 0;
-    overflow: hidden;
-}
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: var(--space-3);
+    padding: 0 var(--space-3) var(--space-3);
+    min-height: 0;
+    overflow: hidden;
+}
 
 /* ── Widget cell ── */
 .dash-widget {

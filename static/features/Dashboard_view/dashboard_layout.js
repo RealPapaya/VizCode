@@ -134,6 +134,11 @@ function _dashGetActiveTab(state) {
     return cfg.tabs.find(tab => tab.id === cfg.activeTabId) || cfg.tabs[0];
 }
 
+function _dashActiveTabEditable(state) {
+    const active = _dashGetActiveTab(state);
+    return !!active && !active.locked;
+}
+
 function _dashLoadLayout() {
     const active = _dashGetActiveTab();
     return _dashCloneLayout(active ? active.layout : _dashDefaultLayout());
@@ -142,6 +147,7 @@ function _dashLoadLayout() {
 function _dashSaveLayout(cells) {
     const state = _dashLoadTabsState();
     const active = _dashGetActiveTab(state);
+    if (active && active.locked) return;
     if (active) active.layout = _dashCloneLayout(cells);
     _dashSaveTabsState(state);
 }
@@ -157,6 +163,7 @@ function _dashSwitchTab(tabId) {
     _dashSaveTabsState(state);
     if (typeof _dashRenderTabBar === 'function') _dashRenderTabBar();
     _dashMountLayout();
+    if (typeof _dashSyncCustomizeButton === 'function') _dashSyncCustomizeButton();
 }
 
 function _dashNextCustomName(tabs) {

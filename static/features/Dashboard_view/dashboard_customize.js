@@ -29,9 +29,28 @@ function _dashInitCustomizeMode() {
     }
 
     _dashExitCustomize();
+    _dashSyncCustomizeButton();
+}
+
+function _dashSyncCustomizeButton() {
+    const btn = document.getElementById('dash-customize-btn');
+    if (!btn) return;
+
+    const editable = typeof _dashActiveTabEditable === 'function' && _dashActiveTabEditable();
+    btn.disabled = !editable;
+    btn.title = editable ? '' : 'Default tab is read-only';
+    if (!editable) {
+        btn.classList.remove('active');
+        btn.textContent = 'Edit';
+    }
 }
 
 function _dashEnterCustomize() {
+    if (typeof _dashActiveTabEditable === 'function' && !_dashActiveTabEditable()) {
+        _dashExitCustomize();
+        _dashSyncCustomizeButton();
+        return false;
+    }
     _dashCustomizeActive = true;
     document.body.classList.add('dash-customize');
     const btn = document.getElementById('dash-customize-btn');
@@ -42,7 +61,9 @@ function _dashEnterCustomize() {
     document.getElementById('dash-customize-controls')?.classList.add('visible');
     localStorage.setItem(_DASH_LS_CUSTOMIZE, 'on');
     if (typeof _dashRenderTabBar === 'function') _dashRenderTabBar();
+    _dashSyncCustomizeButton();
     _dashBindDragHandles();
+    return true;
 }
 
 function _dashExitCustomize() {
@@ -58,6 +79,7 @@ function _dashExitCustomize() {
     localStorage.setItem(_DASH_LS_CUSTOMIZE, 'off');
     if (typeof _dashRenderTabBar === 'function') _dashRenderTabBar();
     _dashUnbindDragHandles();
+    _dashSyncCustomizeButton();
     return true;
 }
 
@@ -354,12 +376,14 @@ function _dashHandleSizePickerClick(e) {
 // -- Reset ---------------------------------------------------------------------
 
 function _dashResetLayout() {
+    if (typeof _dashActiveTabEditable === 'function' && !_dashActiveTabEditable()) return;
     _dashResetActiveTabLayout();
 }
 
 // -- Add Widget picker ---------------------------------------------------------
 
 function _dashOpenAddWidgetPicker() {
+    if (typeof _dashActiveTabEditable === 'function' && !_dashActiveTabEditable()) return;
     if (document.getElementById('dash-add-widget-overlay')) return;
 
     const hidden = _dashHiddenWidgetIds();
