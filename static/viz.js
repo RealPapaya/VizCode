@@ -274,6 +274,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 _probeAvailableLayouts();
 
                 // Sidebar tabs, edge filter, legend, and stats
+                initIconRail();
                 initSidebarTabs();
                 updateFilterTabEnabled();
                 buildEdgeFilter();

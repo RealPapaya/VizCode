@@ -63,8 +63,17 @@ HTML_SKELETON = """\
 
   <!-- LEFT ICON RAIL ────────────────────────────────────────────────────── -->
   <aside id="app-rail">
-    <div class="rail-logo">V</div>
+    <div class="rail-brand-row">
+      <div class="rail-logo">V</div>
+      <button id="rail-toggle-btn" class="rail-btn" type="button" aria-controls="app-rail" aria-expanded="false" data-i18n-attr="data-tip" data-i18n="railExpand" title="Expand rail">
+        <svg class="rail-toggle-icon rail-toggle-expand-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+        <svg class="rail-toggle-icon rail-toggle-collapse-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        <span data-i18n="railCollapse">Collapse</span>
+      </button>
+    </div>
+    <div class="rail-divider rail-toggle-divider"></div>
 
+    <div class="rail-group-label">GENERAL</div>
     <button id="graph-btn" class="rail-btn topbar-mode-btn active" type="button" data-i18n-attr="data-tip" data-i18n="graphHomeTip" onclick="switchTopbarMode('graph')" title="Main Graph">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="6" r="2"></circle><circle cx="19" cy="12" r="2"></circle><circle cx="12" cy="18" r="2"></circle><line x1="6.8" y1="10.9" x2="10.2" y2="7.1"></line><line x1="13.8" y1="7.1" x2="17.2" y2="10.9"></line><line x1="17.2" y1="13.1" x2="13.8" y2="16.9"></line><line x1="10.2" y1="16.9" x2="6.8" y2="13.1"></line></svg>
       <span data-i18n="graphHome">Graph</span>
@@ -80,16 +89,20 @@ HTML_SKELETON = """\
 
     <div class="rail-divider"></div>
 
+    <div class="rail-group-label">SUPPORT</div>
     <button id="rail-explorer-btn" class="rail-btn" type="button" title="Explorer" onclick="(function(){{var s=document.getElementById('sidebar');var isCollapsed=s&&s.classList.contains('sb-collapsed');var onExplorer=typeof _sbActiveTab!=='undefined'&&_sbActiveTab==='explorer';if(!isCollapsed&&onExplorer){{document.getElementById('sb-collapse-btn').click();return;}}if(typeof _sbActiveTab!=='undefined'){{_sbActiveTab='explorer';}}if(isCollapsed){{document.getElementById('sb-collapse-btn').click();}}else if(typeof _applySidebarTab==='function'){{_applySidebarTab();}}}})()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+      <span data-i18n="explorer">Explorer</span>
     </button>
     <button id="rail-filter-btn" class="rail-btn" type="button" title="Filter" onclick="(function(){{var s=document.getElementById('sidebar');var isCollapsed=s&&s.classList.contains('sb-collapsed');var onFilters=typeof _sbActiveTab!=='undefined'&&_sbActiveTab==='filters';if(!isCollapsed&&onFilters){{document.getElementById('sb-collapse-btn').click();return;}}if(typeof _sbActiveTab!=='undefined'){{_sbActiveTab='filters';}}if(isCollapsed){{document.getElementById('sb-collapse-btn').click();}}else if(typeof _applySidebarTab==='function'){{_applySidebarTab();}}}})()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+      <span data-i18n="filters">Filters</span>
     </button>
 
     <div class="rail-spacer"></div>
     <button id="pref-btn" class="rail-btn" type="button" data-i18n-attr="data-tip" data-i18n="settingsButton" title="Settings">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span data-i18n="settingsButton">Settings</span>
     </button>
   </aside>
 

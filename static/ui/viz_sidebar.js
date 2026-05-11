@@ -21,6 +21,32 @@ function initSidebarTabs() {
     }
 }
 
+const _RAIL_TRANSITION_MS = 220;
+
+function initIconRail() {
+    const toggleBtn = document.getElementById('rail-toggle-btn');
+    if (!toggleBtn) return;
+
+    const applyRailState = (expanded) => {
+        document.body.classList.toggle('rail-expanded', expanded);
+        toggleBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        const labelKey = expanded ? 'railCollapse' : 'railExpand';
+        const label = typeof T === 'function'
+            ? T(labelKey)
+            : (expanded ? 'Collapse rail' : 'Expand rail');
+        toggleBtn.setAttribute('data-i18n', labelKey);
+        toggleBtn.setAttribute('data-tip', label);
+        toggleBtn.title = label;
+    };
+
+    applyRailState(false);
+    toggleBtn.addEventListener('click', () => {
+        const expanded = !document.body.classList.contains('rail-expanded');
+        applyRailState(expanded);
+        _startPanelResizeLoop(_RAIL_TRANSITION_MS);
+    });
+}
+
 function _applySidebarTab() {
     document.querySelectorAll('.sb-tab').forEach(t =>
         t.classList.toggle('active', t.dataset.tab === _sbActiveTab));
@@ -28,6 +54,23 @@ function _applySidebarTab() {
     const filt = document.getElementById('sb-body-filters');
     if (expl) expl.style.display = _sbActiveTab === 'explorer' ? '' : 'none';
     if (filt) filt.style.display  = _sbActiveTab === 'filters'  ? '' : 'none';
+    _syncRailPanelButtons();
+}
+
+function _syncRailPanelButtons() {
+    const explorerBtn = document.getElementById('rail-explorer-btn');
+    const filterBtn = document.getElementById('rail-filter-btn');
+    const panelOpen = !_sbCollapsed;
+    if (explorerBtn) {
+        const active = panelOpen && _sbActiveTab === 'explorer';
+        explorerBtn.classList.toggle('active', active);
+        explorerBtn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    }
+    if (filterBtn) {
+        const active = panelOpen && _sbActiveTab === 'filters';
+        filterBtn.classList.toggle('active', active);
+        filterBtn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    }
 }
 
 // Disable the Filters tab at L0 (module overview) where filters have no content.
@@ -66,6 +109,7 @@ function _applySidebarCollapsed() {
         if (resizer) resizer.style.pointerEvents = '';
         _applySidebarTab();
     }
+    _syncRailPanelButtons();
     if (cy) cy.resize();
 }
 
@@ -77,7 +121,8 @@ function _startPanelResizeLoop(durationMs) {
     if (_panelRafId) cancelAnimationFrame(_panelRafId);
     const end = performance.now() + durationMs + 32; // +32ms safety margin
     function tick() {
-        if (cy) cy.resize();
+        if (typeof cy !== 'undefined' && cy) cy.resize();
+        if (window._galaxySigma && typeof window._galaxySigma.refresh === 'function') window._galaxySigma.refresh();
         if (performance.now() < end) _panelRafId = requestAnimationFrame(tick);
         else _panelRafId = null;
     }

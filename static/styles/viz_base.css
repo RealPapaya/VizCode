@@ -2,7 +2,9 @@
     --radius: 8px;
     --sidebar: 220px;
     --topbar: calc(var(--topbar-control) + 8px);
-    --rail: 52px;
+    --rail-collapsed: 52px;
+    --rail-expanded: 168px;
+    --rail: var(--rail-collapsed);
     --breadcrumb: 30px;
     --topbar-control: 36px;
     --code-panel: 700px;
@@ -58,6 +60,38 @@ body {
     padding: 16px 0 8px;
     gap: 4px;
     z-index: 100;
+    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                padding 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.rail-expanded {
+    --rail: var(--rail-expanded);
+}
+
+body.rail-expanded #app-rail {
+    align-items: stretch;
+    padding-inline: 8px;
+}
+
+.rail-brand-row {
+    width: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+    align-self: flex-start;
+    flex-shrink: 0;
+}
+
+body.rail-expanded #app-rail .rail-brand-row {
+    width: 100%;
+    height: var(--topbar-control);
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-left: 0;
 }
 
 .rail-logo {
@@ -72,6 +106,13 @@ body {
     margin-bottom: 8px;
     border-radius: 10px;
     background: color-mix(in srgb, var(--accent) 10%, transparent);
+    align-self: flex-start;
+    flex-shrink: 0;
+}
+
+body.rail-expanded #app-rail .rail-logo {
+    margin-left: 0;
+    margin-bottom: 0;
 }
 
 .rail-divider {
@@ -79,7 +120,28 @@ body {
     height: 0.5px;
     background: var(--border);
     margin: 6px 0;
+    align-self: center;
     flex-shrink: 0;
+}
+
+body.rail-expanded #app-rail .rail-divider {
+    width: 100%;
+    margin: 8px 0;
+}
+
+.rail-group-label {
+    display: none;
+}
+
+body.rail-expanded #app-rail .rail-group-label {
+    display: block;
+    padding: 4px 6px 2px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .rail-spacer {
@@ -98,18 +160,83 @@ body {
     cursor: pointer;
     display: grid;
     place-items: center;
-    transition: color 0.15s, background 0.15s;
+    gap: 10px;
+    white-space: nowrap;
+    letter-spacing: 0;
+    overflow: hidden;
+    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                color 0.15s,
+                background 0.15s;
     flex-shrink: 0;
 }
 
 #app-rail .rail-btn span {
     display: none;
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    font-size: 12px;
+    font-weight: 650;
+    line-height: 1;
+    text-align: left;
+    transition: max-width 0.18s ease, opacity 0.16s ease;
 }
 
 #app-rail .rail-btn svg {
     display: block;
     width: 20px;
     height: 20px;
+    flex-shrink: 0;
+    grid-area: 1 / 1;
+}
+
+#app-rail #rail-toggle-btn {
+    margin-bottom: 0;
+}
+
+#app-rail .rail-toggle-divider {
+    margin: 6px 0;
+}
+
+#app-rail #rail-toggle-btn .rail-toggle-collapse-icon {
+    display: none;
+}
+
+body.rail-expanded #app-rail .rail-btn,
+body.rail-expanded #app-rail #pref-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 12px;
+}
+
+body.rail-expanded #app-rail #rail-toggle-btn {
+    width: 28px;
+    height: 28px;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--muted);
+}
+
+body.rail-expanded #app-rail .rail-btn span {
+    display: inline-block;
+    max-width: 112px;
+    opacity: 1;
+}
+
+body.rail-expanded #app-rail #rail-toggle-btn span {
+    display: none;
+}
+
+body.rail-expanded #app-rail #rail-toggle-btn .rail-toggle-expand-icon {
+    display: none;
+}
+
+body.rail-expanded #app-rail #rail-toggle-btn .rail-toggle-collapse-icon {
+    display: block;
 }
 
 #app-rail .rail-btn:hover,

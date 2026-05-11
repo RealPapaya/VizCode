@@ -775,12 +775,14 @@
     position: fixed;
 
     inset: 0 0 0 var(--rail);
+    left: var(--rail);
 
     background: var(--bg);
 
     z-index: 90;
 
     overflow: hidden;
+    transition: left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 
 }
 

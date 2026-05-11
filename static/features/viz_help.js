@@ -187,20 +187,10 @@
                 <circle cx="12" cy="12" r="9"/>
                 <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
                 <circle cx="12" cy="17" r=".5" fill="currentColor" stroke="none"/>
-            </svg>`;
+            </svg>
+            <span>Help</span>`;
 
         // Match other rail-btn icons: muted, hover → text color + panel2 bg
-        btn.style.cssText = `
-            width:40px;height:40px;
-            border-radius:8px;
-            border:none;
-            background:transparent;
-            color:var(--muted);
-            display:grid;place-items:center;
-            cursor:pointer;
-            transition:color 0.15s, background 0.15s;
-            flex-shrink:0;
-        `;
         btn.addEventListener('mouseover', () => {
             btn.style.color = 'var(--text)';
             btn.style.background = 'var(--panel2)';
