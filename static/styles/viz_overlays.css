@@ -867,6 +867,15 @@ body.dash-customize .dash-widget:hover .dash-widget-size-picker {
     z-index: 3;
 }
 
+body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragging) {
+    animation: none !important;
+    transition:
+        transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        box-shadow 180ms ease,
+        border-color 180ms ease;
+    will-change: transform;
+}
+
 /* Drop target highlight */
 .dash-widget.dash-drop-target {
     border-color: #DFA745;

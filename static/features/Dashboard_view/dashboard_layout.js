@@ -295,6 +295,7 @@ function _dashFindFreeSlot(grid, w, h) {
 }
 
 function _dashFits(grid, col, row, w, h) {
+    if (col < 0 || row < 0 || col + w > _DASH_COLS || row + h > _DASH_ROWS) return false;
     for (let r = row; r < row + h; r++) {
         for (let c = col; c < col + w; c++) {
             if (grid[r] && grid[r][c]) return false;
@@ -310,13 +311,39 @@ function _dashOccupy(grid, col, row, w, h, id) {
     }
 }
 
-// Re-pack cells to ensure no overlaps, returns a new clean array.
-function _dashReflowCells(cells) {
+function _dashCellIndex(col, row) {
+    return row * _DASH_COLS + col;
+}
+
+function _dashNormalizeReflowCell(cell, index) {
+    const w = Math.max(1, Math.min(_DASH_COLS, Number(cell.w) || 1));
+    const h = Math.max(1, Math.min(_DASH_ROWS, Number(cell.h) || 1));
+    const maxCol = Math.max(0, _DASH_COLS - w);
+    const maxRow = Math.max(0, _DASH_ROWS - h);
+    return {
+        ...cell,
+        id: String(cell.id || ''),
+        col: Math.max(0, Math.min(maxCol, Number(cell.col) || 0)),
+        row: Math.max(0, Math.min(maxRow, Number(cell.row) || 0)),
+        w,
+        h,
+        _dashOrder: index,
+    };
+}
+
+function _dashCleanReflowCell(cell) {
+    const out = { ...cell };
+    delete out._dashOrder;
+    delete out._dashPreferredCol;
+    delete out._dashPreferredRow;
+    return out;
+}
+
+function _dashGreedyPackCells(cells, flow) {
     const grid = {};
     const out  = [];
-    const sorted = [...cells].sort((a, b) => a.row !== b.row ? a.row - b.row : a.col - b.col);
-    for (const cell of sorted) {
-        if (_dashFits(grid, cell.col, cell.row, cell.w, cell.h)) {
+    for (const cell of cells) {
+        if (!flow && _dashFits(grid, cell.col, cell.row, cell.w, cell.h)) {
             _dashOccupy(grid, cell.col, cell.row, cell.w, cell.h, cell.id);
             out.push({ ...cell });
         } else {
@@ -328,6 +355,87 @@ function _dashReflowCells(cells) {
         }
     }
     return out;
+}
+
+function _dashCandidateSlots(cell, flow) {
+    const seen = new Set();
+    const slots = [];
+    const preferredCol = Number.isFinite(cell._dashPreferredCol) ? cell._dashPreferredCol : cell.col;
+    const preferredRow = Number.isFinite(cell._dashPreferredRow) ? cell._dashPreferredRow : cell.row;
+    const add = (col, row) => {
+        if (col < 0 || row < 0 || col + cell.w > _DASH_COLS || row + cell.h > _DASH_ROWS) return;
+        const key = `${col},${row}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        slots.push({ col, row });
+    };
+
+    if (!flow) add(preferredCol, preferredRow);
+    const all = [];
+    for (let row = 0; row <= _DASH_ROWS - cell.h; row++) {
+        for (let col = 0; col <= _DASH_COLS - cell.w; col++) {
+            all.push({
+                col,
+                row,
+                dist: Math.abs(col - preferredCol) + Math.abs(row - preferredRow),
+                index: _dashCellIndex(col, row),
+            });
+        }
+    }
+    all.sort((a, b) => flow
+        ? a.index - b.index
+        : (a.dist !== b.dist ? a.dist - b.dist : a.index - b.index));
+    all.forEach(slot => add(slot.col, slot.row));
+    return slots;
+}
+
+function _dashExactPackCells(cells, flow) {
+    const result = [];
+
+    function placeAt(index, grid) {
+        if (index >= cells.length) return true;
+        const cell = cells[index];
+        for (const slot of _dashCandidateSlots(cell, flow)) {
+            if (!_dashFits(grid, slot.col, slot.row, cell.w, cell.h)) continue;
+
+            const nextGrid = {};
+            Object.keys(grid).forEach(row => { nextGrid[row] = { ...grid[row] }; });
+            _dashOccupy(nextGrid, slot.col, slot.row, cell.w, cell.h, cell.id);
+            result[index] = { ...cell, col: slot.col, row: slot.row };
+
+            if (placeAt(index + 1, nextGrid)) return true;
+        }
+        result.length = index;
+        return false;
+    }
+
+    return placeAt(0, {}) ? result : null;
+}
+
+// Re-pack cells to ensure no overlaps. This never intentionally drops widgets:
+// if a greedy pass cannot place everything, a tiny exact solver finds a complete
+// placement for the 6x3 dashboard grid.
+function _dashReflowCells(cells, options) {
+    const keepOrder = !!(options && options.keepOrder);
+    const flow = !!(options && options.flow);
+    const normalized = (Array.isArray(cells) ? cells : [])
+        .map(_dashNormalizeReflowCell)
+        .filter(c => c.id);
+
+    const ordered = keepOrder
+        ? normalized
+        : [...normalized].sort((a, b) => {
+            if (a.row !== b.row) return a.row - b.row;
+            if (a.col !== b.col) return a.col - b.col;
+            return a._dashOrder - b._dashOrder;
+        });
+
+    const greedy = _dashGreedyPackCells(ordered, flow);
+    const totalArea = ordered.reduce((sum, c) => sum + c.w * c.h, 0);
+    const packed = greedy.length === ordered.length || totalArea > _DASH_COLS * _DASH_ROWS
+        ? greedy
+        : (_dashExactPackCells(ordered, flow) || greedy);
+    return packed.map(_dashCleanReflowCell);
 }
 
 // -- Mount ---------------------------------------------------------------------

@@ -91,6 +91,7 @@ let _dashDragPlaceholder = null; // visual drop target
 let _dashDragOffsetX = 0;
 let _dashDragOffsetY = 0;
 let _dashDragLayout = [];     // Snapshot of cells at drag start
+let _dashDragResolvedLayout = [];
 let _dashHoverCol = -1;
 let _dashHoverRow = -1;
 
@@ -126,7 +127,8 @@ function _dashOnDown(e) {
     _dashDragOffsetX = e.clientX - rect.left;
     _dashDragOffsetY = e.clientY - rect.top;
 
-    _dashDragLayout = _dashLoadLayout();
+    _dashDragLayout = _dashReflowCells(_dashLoadLayout());
+    _dashDragResolvedLayout = _dashCloneLayout(_dashDragLayout);
     
     const w = Number(_dashDragEl.dataset.w);
     const h = Number(_dashDragEl.dataset.h);
@@ -159,7 +161,9 @@ function _dashOnDown(e) {
     _dashDragPlaceholder.className = 'dash-drop-placeholder';
     _dashDragPlaceholder.style.gridColumn = `${col + 1} / span ${w}`;
     _dashDragPlaceholder.style.gridRow    = `${row + 1} / span ${h}`;
-    document.getElementById('dashboard-bento').appendChild(_dashDragPlaceholder);
+    const bento = document.getElementById('dashboard-bento');
+    bento?.classList.add('dash-reflowing');
+    bento?.appendChild(_dashDragPlaceholder);
 
     _dashHoverCol = col;
     _dashHoverRow = row;
@@ -191,26 +195,10 @@ function _dashOnMove(e) {
         // Prevent out of bounds
         if (cell.col + w > _DASH_COLS || cell.row + h > _DASH_ROWS) return;
 
-        // Simulate layout reflow
         const id = _dashDragEl.dataset.id;
-        const newLayout = _dashCloneLayout(_dashDragLayout);
-        const dragged = newLayout.find(c => c.id === id);
-        if (dragged) {
-            dragged.col = cell.col;
-            dragged.row = cell.row;
-            // Force it to be evaluated first at this col/row
-            dragged._isDragging = true; 
-        }
-
-        const sorted = newLayout.sort((a, b) => {
-            if (a.row !== b.row) return a.row - b.row;
-            if (a.col !== b.col) return a.col - b.col;
-            if (a._isDragging) return -1;
-            if (b._isDragging) return 1;
-            return 0;
-        });
-
-        const reflowed = _dashReflowCells(sorted);
+        const reflowed = _dashResolveDragLayout(id, cell.col, cell.row);
+        if (!reflowed.length) return;
+        _dashDragResolvedLayout = reflowed;
         
         // Find actual resolved position of dragged widget
         const resolved = reflowed.find(c => c.id === id);
@@ -220,29 +208,7 @@ function _dashOnMove(e) {
             _dashDragPlaceholder.style.gridRow    = `${resolved.row + 1} / span ${resolved.h}`;
         }
 
-        // Apply smooth transition to all other widgets
-        const bento = document.getElementById('dashboard-bento');
-        bento.querySelectorAll('.dash-widget:not(.dash-dragging)').forEach(el => {
-            const elId = el.dataset.id;
-            const targetCell = reflowed.find(c => c.id === elId);
-            if (!targetCell) return;
-            
-            const origCol = Number(el.dataset.col);
-            const origRow = Number(el.dataset.row);
-            
-            if (origCol !== targetCell.col || origRow !== targetCell.row) {
-                const targetRect = _dashCellRect(targetCell.col, targetCell.row, targetCell.w, targetCell.h);
-                const currentRect = _dashCellRect(origCol, origRow, targetCell.w, targetCell.h);
-                const dx = targetRect.left - currentRect.left;
-                const dy = targetRect.top - currentRect.top;
-                
-                el.classList.add('dash-shifted-widget');
-                el.style.transform = `translate(${dx}px, ${dy}px)`;
-            } else {
-                el.classList.remove('dash-shifted-widget');
-                el.style.transform = '';
-            }
-        });
+        _dashApplyDragReflow(reflowed);
     }
 }
 
@@ -254,29 +220,18 @@ function _dashOnUp() {
 
     if (!_dashDragEl) return;
 
-    // Apply the latest reflowed layout
-    const id = _dashDragEl.dataset.id;
-    const newLayout = _dashCloneLayout(_dashDragLayout);
-    const dragged = newLayout.find(c => c.id === id);
-    if (dragged) {
-        dragged.col = _dashHoverCol;
-        dragged.row = _dashHoverRow;
-        dragged._isDragging = true;
-    }
-
-    const sorted = newLayout.sort((a, b) => {
-        if (a.row !== b.row) return a.row - b.row;
-        if (a.col !== b.col) return a.col - b.col;
-        if (a._isDragging) return -1;
-        if (b._isDragging) return 1;
-        return 0;
-    });
-
-    const reflowed = _dashReflowCells(sorted);
-    // remove temp marker
-    reflowed.forEach(c => delete c._isDragging);
+    const reflowed = _dashDragResolvedLayout.length
+        ? _dashCloneLayout(_dashDragResolvedLayout)
+        : _dashResolveDragLayout(_dashDragEl.dataset.id, _dashHoverCol, _dashHoverRow);
     
     _dashSaveLayout(reflowed);
+
+    const bento = document.getElementById('dashboard-bento');
+    bento?.classList.remove('dash-reflowing');
+    bento?.querySelectorAll('.dash-widget').forEach(el => {
+        el.classList.remove('dash-shifted-widget');
+        el.style.transform = '';
+    });
 
     _dashDragGhost?.remove();
     _dashDragGhost = null;
@@ -286,6 +241,7 @@ function _dashOnUp() {
 
     _dashDragEl.classList.remove('dash-dragging');
     _dashDragEl = null;
+    _dashDragResolvedLayout = [];
 
     _dashMountLayout();
     if (typeof _dashCustomizeActive !== 'undefined' && _dashCustomizeActive) {
@@ -294,6 +250,75 @@ function _dashOnUp() {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
+
+function _dashResolveDragLayout(draggedId, targetCol, targetRow) {
+    if (!draggedId || targetCol < 0 || targetRow < 0) return [];
+
+    const cells = _dashCloneLayout(_dashDragLayout);
+    const dragged = cells.find(c => c.id === draggedId);
+    if (!dragged) return [];
+
+    targetCol = Math.max(0, Math.min(_DASH_COLS - dragged.w, targetCol));
+    targetRow = Math.max(0, Math.min(_DASH_ROWS - dragged.h, targetRow));
+
+    const others = cells
+        .filter(c => c.id !== draggedId)
+        .sort((a, b) => {
+            const ai = _dashCellIndex(a.col, a.row);
+            const bi = _dashCellIndex(b.col, b.row);
+            return ai !== bi ? ai - bi : String(a.id).localeCompare(String(b.id));
+        });
+
+    const originalIndex = _dashCellIndex(dragged.col, dragged.row);
+    const targetIndex = _dashCellIndex(targetCol, targetRow);
+    const occupantIndex = others.findIndex(c =>
+        targetCol >= c.col && targetCol < c.col + c.w &&
+        targetRow >= c.row && targetRow < c.row + c.h);
+    const linearIndex = others.findIndex(c => _dashCellIndex(c.col, c.row) >= targetIndex);
+    let insertAt = linearIndex >= 0 ? linearIndex : others.length;
+    if (occupantIndex >= 0) {
+        insertAt = occupantIndex + (targetIndex > originalIndex ? 1 : 0);
+    }
+
+    dragged.col = targetCol;
+    dragged.row = targetRow;
+    dragged._dashPreferredCol = targetCol;
+    dragged._dashPreferredRow = targetRow;
+
+    const ordered = [...others];
+    ordered.splice(insertAt, 0, dragged);
+    return _dashReflowCells(ordered, { keepOrder: true, flow: true });
+}
+
+function _dashApplyDragReflow(reflowed) {
+    const bento = document.getElementById('dashboard-bento');
+    if (!bento) return;
+
+    const targetById = new Map(reflowed.map(c => [c.id, c]));
+    bento.querySelectorAll('.dash-widget:not(.dash-dragging)').forEach(el => {
+        const targetCell = targetById.get(el.dataset.id);
+        if (!targetCell) {
+            el.classList.remove('dash-shifted-widget');
+            el.style.transform = '';
+            return;
+        }
+
+        const origCol = Number(el.dataset.col);
+        const origRow = Number(el.dataset.row);
+        const targetRect = _dashCellRect(targetCell.col, targetCell.row, targetCell.w, targetCell.h);
+        const currentRect = _dashCellRect(origCol, origRow, targetCell.w, targetCell.h);
+        const dx = targetRect.left - currentRect.left;
+        const dy = targetRect.top - currentRect.top;
+
+        if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+            el.classList.add('dash-shifted-widget');
+            el.style.transform = `translate(${dx}px, ${dy}px)`;
+        } else {
+            el.classList.remove('dash-shifted-widget');
+            el.style.transform = '';
+        }
+    });
+}
 
 function _dashSnapToCell(clientX, clientY) {
     const bento = document.getElementById('dashboard-bento');
