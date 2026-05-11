@@ -169,6 +169,23 @@ _dashRegisterWidget({
     id: 'structure',
     labelKey: 'dashStructureFileTypes',
     defaultSize: 'L',
-    render(container, size, stats) { _dashRenderStructure(container, stats); },
+
+    render(container, size, stats) {
+        if (size === 'M') {
+            container.innerHTML = `
+<div style="height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:var(--space-2);">
+  <div class="dash-card-title">
+    <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureFileTypes'))}
+    ${_dashChartToggleHTML(_DASH_TYPES_KEY, _DASH_TYPES_TYPES, _DASH_TYPES_DEFAULT)}
+  </div>
+  <div class="dash-chart-wrap" style="flex:1;min-height:0;"><canvas id="dash-chart-types"></canvas></div>
+</div>`;
+            _dashRegisterChartSwitch(_DASH_TYPES_KEY, () => _dashChartFileTypes(stats));
+            _dashChartFileTypes(stats);
+            return;
+        }
+        _dashRenderStructure(container, stats);
+    },
+
     renderDetail(container, stats) { _dashRenderStructure(container, stats); },
 });

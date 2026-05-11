@@ -233,3 +233,52 @@ function _dashHeatmapWeekStart(date) {
 function _dashHeatmapWeekEnd(date) {
     return _dashHeatmapAddDays(date, 6 - _dashHeatmapDayIndex(date));
 }
+
+function _dashHeatmapAppendStats(container, stats) {
+    const rows = stats.commit_activity_daily || [];
+    if (!rows.length) return;
+    const model = _dashBuildTemporalHeatmapModel(rows, stats);
+    if (!model) return;
+
+    const activeDays = Array.from(model.dayMap.values()).filter(d => d.commits > 0).length;
+
+    const weekMap = new Map();
+    model.dayMap.forEach((v, dateStr) => {
+        const d = _dashHeatmapParseISO(dateStr);
+        if (!d) return;
+        const ws = _dashHeatmapISOStr(_dashHeatmapWeekStart(d));
+        weekMap.set(ws, (weekMap.get(ws) || 0) + v.commits);
+    });
+    const maxWeek = weekMap.size ? Math.max(...weekMap.values()) : 0;
+
+    const statsEl = document.createElement('div');
+    statsEl.className = 'dash-temporal-heatmap-stats';
+    statsEl.innerHTML = `
+<div class="dash-temporal-heatmap-stat">
+  <div class="dash-temporal-heatmap-stat-val">${_dashFmtNum(model.totalCommits)}</div>
+  <div class="dash-temporal-heatmap-stat-label">Commits</div>
+</div>
+<div class="dash-temporal-heatmap-stat">
+  <div class="dash-temporal-heatmap-stat-val">${model.maxCommits}</div>
+  <div class="dash-temporal-heatmap-stat-label">Peak Day</div>
+</div>
+<div class="dash-temporal-heatmap-stat">
+  <div class="dash-temporal-heatmap-stat-val">${activeDays}</div>
+  <div class="dash-temporal-heatmap-stat-label">Active Days</div>
+</div>
+<div class="dash-temporal-heatmap-stat">
+  <div class="dash-temporal-heatmap-stat-val">${_dashFmtNum(maxWeek)}</div>
+  <div class="dash-temporal-heatmap-stat-label">Peak Week</div>
+</div>`;
+    container.appendChild(statsEl);
+}
+
+_dashRegisterWidget({
+    id: 'commit_heatmap',
+    labelKey: 'dashTemporalHeatmap',
+    defaultSize: 'M',
+    render(container, size, stats) {
+        _dashRenderTemporalHeatmap(container, stats);
+        if (size === 'L') _dashHeatmapAppendStats(container, stats);
+    },
+});

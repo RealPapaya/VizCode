@@ -73,6 +73,21 @@ _dashRegisterWidget({
     id: 'graph_intelligence',
     labelKey: 'dashGraphHotspots',
     defaultSize: 'L',
-    render(container, size, stats) { _dashRenderGraphIntelligence(container, stats); },
+
+    render(container, size, stats) {
+        if (size === 'M') {
+            container.innerHTML = `
+<div style="height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:var(--space-2);">
+  <div class="dash-card-title">
+    <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashGraphHotspots'))}
+  </div>
+  <div class="dash-list" id="dash-graph-hotspots" style="flex:1;overflow:hidden;"></div>
+</div>`;
+            _dashRenderHotspots((stats.hotspot_nodes || []).slice(0, 5));
+            return;
+        }
+        _dashRenderGraphIntelligence(container, stats);
+    },
+
     renderDetail(container, stats) { _dashRenderGraphIntelligence(container, stats); },
 });

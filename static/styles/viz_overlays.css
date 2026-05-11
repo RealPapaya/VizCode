@@ -2098,12 +2098,20 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     min-width: 0;
     padding: var(--space-4);
     gap: var(--space-3);
-    overflow-y: auto;
+    overflow: hidden;
+}
+
+/* Stage: takes all remaining vertical space, centers the preview box */
+.dash-awp-preview-stage {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
 }
 
 .dash-awp-preview-box {
-    flex: 1;
-    min-height: 200px;
     background: var(--surface-card);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
@@ -2120,6 +2128,14 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     font-size: 12px;
     overflow: hidden;
 }
+
+/* Preview box sizing — adapts to S / M / L tier */
+/* S: fixed square, always centered in stage */
+.dash-awp-preview-box[data-tier='S'] { width: 220px; height: 220px; }
+/* M: full width at 2:1 ratio, centered vertically */
+.dash-awp-preview-box[data-tier='M'] { width: 100%; aspect-ratio: 2 / 1; }
+/* L: stretches to fill the entire stage */
+.dash-awp-preview-box[data-tier='L'] { width: 100%; align-self: stretch; }
 
 /* Meta section below preview */
 .dash-awp-meta {
@@ -2858,6 +2874,7 @@ body.dash-customize .dash-widget-remove-btn {
     0%   { transform: scale(0.1); opacity: 0; }
     100% { transform: scale(1); opacity: 1; }
 }
+
 
 
 

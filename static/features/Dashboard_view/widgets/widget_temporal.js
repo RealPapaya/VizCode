@@ -8,13 +8,25 @@
 
 let _dashTemporalDays = 180; // currently-selected window (0 = show all)
 
-function _dashRenderTemporal(container, stats) {
+function _dashRenderTemporal(container, stats, size) {
     if (!container) return;
     container.innerHTML = '';
     if (!stats.has_git_history) return;
     if (!stats.commits_analyzed) return;
 
     _dashTemporalDays = Math.min(Number(stats.window_days || 180), 180);
+
+    if (size === 'M') {
+        container.innerHTML = `
+<div class="dash-grid dash-grid-2" style="height:100%;box-sizing:border-box;">
+  <div class="dash-card" id="dash-temporal-heatmap"></div>
+  <div class="dash-card" id="dash-temporal-authors"></div>
+</div>`;
+        const filtered = _dashTemporalFilteredStats(stats);
+        _dashRenderTemporalHeatmap(document.getElementById('dash-temporal-heatmap'), filtered);
+        _dashRenderTemporalAuthors(document.getElementById('dash-temporal-authors'), stats);
+        return;
+    }
 
     container.innerHTML = _dashTemporalShell(stats);
 
@@ -101,6 +113,6 @@ _dashRegisterWidget({
     id: 'temporal',
     labelKey: 'dashTemporalTitle',
     defaultSize: 'L',
-    render(container, size, stats) { _dashRenderTemporal(container, stats); },
-    renderDetail(container, stats) { _dashRenderTemporal(container, stats); },
+    render(container, size, stats) { _dashRenderTemporal(container, stats, size); },
+    renderDetail(container, stats) { _dashRenderTemporal(container, stats, 'L'); },
 });

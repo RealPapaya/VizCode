@@ -431,7 +431,8 @@ const _DASH_AWP_CATEGORIES = [
     {
         label: 'Git History',
         items: [
-            { id: 'temporal',           desc: 'Commit activity heatmap, velocity trends, and author ranking.' },
+            { id: 'commit_heatmap',     desc: 'GitHub-style commit calendar — daily activity coloured by intensity.' },
+            { id: 'temporal',           desc: 'Full git dashboard: heatmap, velocity, churn timeline, and author ranking.' },
             { id: 'graph_intelligence', desc: 'Dependency hotspots ranked by change frequency and coupling.' },
         ],
     },
@@ -498,8 +499,10 @@ function _dashOpenAddWidgetPicker() {
   <div class="dash-awp-body">
     <div class="dash-awp-sidebar">${sidebarHTML}</div>
     <div class="dash-awp-right" id="dash-awp-right">
-      <div class="dash-awp-preview-box" id="dash-awp-preview-box">
-        <div class="dash-awp-preview-inner" id="dash-awp-preview-inner"></div>
+      <div class="dash-awp-preview-stage">
+        <div class="dash-awp-preview-box" id="dash-awp-preview-box">
+          <div class="dash-awp-preview-inner" id="dash-awp-preview-inner"></div>
+        </div>
       </div>
       <div class="dash-awp-meta" id="dash-awp-meta"></div>
     </div>
@@ -518,10 +521,12 @@ function _dashOpenAddWidgetPicker() {
     function renderRight(id) {
         const widget = _dashWidgetRegistry[id];
         const previewInner = document.getElementById('dash-awp-preview-inner');
+        const previewBox   = document.getElementById('dash-awp-preview-box');
         const meta         = document.getElementById('dash-awp-meta');
         if (!widget || !previewInner || !meta) return;
 
         const tier    = selectedTier[id] || 'M';
+        if (previewBox) previewBox.dataset.tier = tier;
         const label   = _dashT(widget.labelKey || id) || id;
         const desc    = getCategoryDesc(id);
         const anyFits = Object.values(_DASH_SIZE_TIERS).some(({ w: gw, h: gh }) =>
@@ -559,6 +564,14 @@ ${desc ? `<div class="dash-awp-meta-desc">${_dashEscape(desc)}</div>` : ''}
             _dashAddOptionalWidgetWithSize(id, t);
             overlay.remove();
             if (_dashCustomizeActive) _dashBindDragHandles();
+        });
+
+        // Destroy any lingering Chart.js instances before clearing DOM
+        previewInner.querySelectorAll('canvas').forEach(canvas => {
+            if (canvas.id && _dashCharts && _dashCharts[canvas.id]) {
+                try { _dashCharts[canvas.id].destroy(); } catch (_) {}
+                delete _dashCharts[canvas.id];
+            }
         });
 
         // Render preview at selected tier

@@ -973,6 +973,36 @@
     white-space: nowrap;
 }
 
+/* L-size stats row below the heatmap */
+.dash-temporal-heatmap-stats {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border);
+}
+.dash-temporal-heatmap-stat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+.dash-temporal-heatmap-stat-val {
+    font-size: var(--text-lg, 18px);
+    font-weight: 700;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+.dash-temporal-heatmap-stat-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
 @media (max-width: 720px) {
     .dash-temporal-grid {
         grid-template-columns: 1fr;

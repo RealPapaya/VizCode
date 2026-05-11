@@ -87,6 +87,54 @@ _dashRegisterWidget({
     id: 'issues',
     labelKey: 'dashIssuesCircular',
     defaultSize: 'L',
-    render(container, size, stats) { _dashRenderIssues(container, stats); },
+
+    render(container, size, stats) {
+        if (size === 'S') {
+            const circular = stats.circular_dependencies || 0;
+            const color = circular > 0 ? 'var(--status-warn)' : 'var(--status-good)';
+            const barPct = Math.min(100, circular * 10);
+            container.innerHTML = `
+<div class="dash-kpi-s">
+  <div class="dash-kpi-s-body">
+    <div class="dash-widget-title">Issues</div>
+    <div class="dash-widget-stat" style="color:${color}">${circular}</div>
+    <div class="dash-widget-sub">circular deps</div>
+  </div>
+  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${barPct}%;background:${color}"></div></div>
+</div>`;
+            return;
+        }
+
+        if (size === 'M') {
+            container.innerHTML = `
+<div class="dash-grid dash-grid-3">
+  ${_dashIssueCard(
+        _dashT('dashIssuesCircular'),
+        'var(--status-warn)',
+        stats.circular_dependencies || 0,
+        _dashT('dashIssuesCirculaSub'),
+        _dashCircularList(stats.top_circular_deps || [])
+    )}
+  ${_dashIssueCard(
+        _dashT('dashIssuesDead'),
+        'var(--muted)',
+        stats.uncalled_functions || 0,
+        _dashT('dashIssuesDeadSub'),
+        `<div class="dash-issue-foot">${stats.unimported_files || 0} ${_dashEscape(_dashT('dashIssuesUnimported'))}</div>`
+    )}
+  ${_dashIssueCard(
+        _dashT('dashIssuesEntry'),
+        'var(--status-good)',
+        stats.entry_points || 0,
+        _dashT('dashIssuesEntrySub'),
+        `<div class="dash-issue-foot">${stats.isolated_files || 0} ${_dashEscape(_dashT('dashIssuesIsolated'))}</div>`
+    )}
+</div>`;
+            return;
+        }
+
+        _dashRenderIssues(container, stats);
+    },
+
     renderDetail(container, stats) { _dashRenderIssues(container, stats); },
 });
