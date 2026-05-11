@@ -1,4 +1,4 @@
-﻿---
+---
 name: vizcode
 description: Scan a codebase and optionally run semantic analysis + MCP server. Trigger on /vizcode, /vizcode --parse, /vizcode --ai.
 ---
@@ -46,7 +46,7 @@ Then launch the visualizer:
 python "<VIZCODE_ROOT>/vizcode.py" "<PROJECT_PATH>"
 ```
 
-Report: "分析完成，report.md 已生成，瀏覽器已開啟 http://localhost:7777"
+Report: "Analysis complete. report.md has been generated. Browser opened at http://localhost:7777"
 
 ---
 
@@ -73,28 +73,28 @@ If the output is `valid`, skip Phase 3–4 and go straight to Phase 5 (the exist
 
 ### Phase 3 — Semantic Analysis
 
-**原則：AST 能算出來的不要問 LLM。LLM 只補 AST 的盲點。**
+**Principle: If AST can compute it, don't ask the LLM. LLM only fills in what AST cannot see.**
 
-#### Step A — 用 AST 取得結構（不讀原始 JSON）
+#### Step A — Get structure via AST (do not read raw JSON)
 
-依序呼叫 MCP 工具取得結構化資料：
+Call MCP tools in sequence to obtain structured data:
 
-1. **`vizcode_l0()`** — 取得全局模組分群 + AST 解析出的跨模組依賴邊
-2. **`vizcode_l1(module)`** — 對每個模組呼叫，取得模組內檔案清單 + import 邊
+1. **`vizcode_l0()`** — Get global module clusters + cross-module dependency edges parsed by AST
+2. **`vizcode_l1(module)`** — Call for each module to get the file list within the module + import edges
 
-這兩步已能建立所有**靜態可知的關聯**（import、include、呼叫鏈），不需要 LLM 判斷。
+These two steps are sufficient to establish all **statically knowable relationships** (imports, includes, call chains) — no LLM inference needed.
 
-> 如需深入特定檔案的函式呼叫關係，呼叫 `vizcode_l2(file)`。但 Phase 3 通常 L0+L1 已足夠。
+> If you need to drill into function-level call relationships for a specific file, call `vizcode_l2(file)`. For Phase 3, L0+L1 is usually enough.
 
-#### Step B — LLM 只推斷 AST 看不到的語意邊
+#### Step B — LLM infers only semantic edges invisible to AST
 
-根據 Step A 取得的結構，**跳過**所有已有靜態邊的模組對。
+Based on the structure from Step A, **skip** all module pairs that already have static edges.
 
-只針對以下情況推斷新的 semantic edge：
-- **Subprocess / runtime spawn**（如 `vizcode.py` 用 subprocess 啟動 `server.py`）
-- **共享資料檔案**（A 寫 cache，B 讀 cache，但兩者沒有 import 關係）
-- **Protocol/interface 關係**（A 實作 B 定義的介面，但無直接 import）
-- **協作管線**（A 產生資料、B 消費資料，透過非 import 手段傳遞）
+Only infer new semantic edges for the following cases:
+- **Subprocess / runtime spawn** (e.g., `vizcode.py` launches `server.py` via subprocess)
+- **Shared data files** (A writes a cache, B reads it, but neither imports the other)
+- **Protocol/interface relationships** (A implements an interface defined by B, but no direct import)
+- **Collaborative pipelines** (A produces data, B consumes it, passed through non-import means)
 
 Produce a list of inferred edges. Each edge:
 ```json
@@ -111,7 +111,7 @@ Rules:
 - `confidence` range: 0.5–1.0 (below 0.5 is noise, omit it)
 - `reason` max 160 characters, in the same language as the user
 - Aim for 1–3 meaningful inferred edges per module pair, not exhaustive coverage
-- **不要**重複已被 L0/L1 捕捉到的靜態 import 邊
+- **Do not** duplicate static import edges already captured by L0/L1
 
 ### Phase 4 — Write Semantic Cache
 
@@ -134,7 +134,7 @@ Count:
 - Static edges: number of import/call edges in scan_cache
 - Inferred edges: number written to semantic_cache
 
-Report: "掃描完成 — 靜態邊 N 條，推斷邊 N 條。semantic_cache.json 已更新。"
+Report: "Scan complete — N static edges, N inferred edges. semantic_cache.json has been updated."
 
 ---
 
@@ -146,7 +146,7 @@ Run all phases of `--ai` mode, then additionally:
 python "<VIZCODE_ROOT>/vizcode.py" "<PROJECT_PATH>"
 ```
 
-Report: "分析完成，瀏覽器已開啟 http://localhost:7777。語意快取已更新。"
+Report: "Analysis complete. Browser opened at http://localhost:7777. Semantic cache updated."
 
 ---
 
@@ -155,7 +155,7 @@ Report: "分析完成，瀏覽器已開啟 http://localhost:7777。語意快取�
 ```
 semantic_cache.json exists AND cache is valid (check command outputs "valid")
   → skip Phase 3 & 4
-  → report: "語意快取有效，跳過語意分析"
+  → report: "Semantic cache is valid, skipping semantic analysis"
 ```
 
 ---
@@ -166,21 +166,21 @@ semantic_cache.json exists AND cache is valid (check command outputs "valid")
 - The MCP server is registered in `.claude/settings.json`; it starts automatically when Claude Code connects to it
 - If `mcp_server.py` is not yet registered, inform the user and point them to Step E in the setup guide
 
-## Context Shortcut（節省 token）
+## Context Shortcut (save tokens)
 
-**核心原則：AST 能算的不問 LLM。遵循 L0 → L1 → L2 由上而下策略。**
+**Core principle: If AST can compute it, don't ask the LLM. Follow the top-down L0 → L1 → L2 strategy.**
 
-| 層級 | 工具 | 何時用 | ~Token |
-|------|------|--------|--------|
-| L0 | `vizcode_l0()` | **第一步**：全局模組分群 + 跨模組依賴 | ~200 |
-| L1 | `vizcode_l1(module)` | 鎖定模組後展開檔案依賴圖 | ~150/模組 |
-| L2 | `vizcode_l2(file)` | 鎖定檔案後取得函式呼叫圖 | ~300-1200 |
+| Level | Tool | When to use | ~Tokens |
+|-------|------|-------------|---------|
+| L0 | `vizcode_l0()` | **First step**: global module clusters + cross-module dependencies | ~200 |
+| L1 | `vizcode_l1(module)` | After targeting a module, expand its file dependency graph | ~150/module |
+| L2 | `vizcode_l2(file)` | After targeting a file, get its function call graph | ~300–1200 |
 
-| 其他需求 | 建議做法 |
-|----------|---------|
-| 找哪個模組負責 X | `vizcode_query(question)` |
-| 追蹤 A→B 呼叫鏈 | `vizcode_path(source, target)` |
-| 快速摘要某模組 | `vizcode_explain(symbol)` |
-| 整體健康報告 | `vizcode_report()` |
+| Other needs | Recommended approach |
+|-------------|----------------------|
+| Find which module is responsible for X | `vizcode_query(question)` |
+| Trace A→B call chain | `vizcode_path(source, target)` |
+| Quick summary of a module | `vizcode_explain(symbol)` |
+| Overall health report | `vizcode_report()` |
 
-**禁止**直接讀取 `scan_cache.json` 或 `semantic_cache.json` 原始檔案。
+**Never** read `scan_cache.json` or `semantic_cache.json` raw files directly.
