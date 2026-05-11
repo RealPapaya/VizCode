@@ -525,7 +525,7 @@
     transition: stroke-dasharray 0.6s cubic-bezier(0.25, 1, 0.5, 1);
 }
 .dash-health-gauge-score {
-    font-size: 46px;
+    font-size: 38px;
     font-weight: 700;
     fill: var(--text);
     text-anchor: middle;

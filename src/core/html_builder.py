@@ -541,7 +541,6 @@ def build_html(data: dict, job_id: str = None) -> str:
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_kpi_files.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_kpi_functions.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_kpi_lines.js',
-        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_kpi_health.js',
         # ── Core widgets ─────────────────────────────────────────────────────
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_code_health.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_tech_debt.js',
