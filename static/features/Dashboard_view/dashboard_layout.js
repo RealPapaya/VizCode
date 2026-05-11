@@ -79,22 +79,25 @@ function _dashNormalizeTabsState(raw) {
     }
 
     const seen = new Set();
-    const customTabs = [];
+    const tabs = [];
     let defaultLayout = null;
 
     raw.tabs.forEach(tab => {
-        if (!tab || typeof tab.id !== 'string' || seen.has(tab.id)) return;
+        if (!tab || typeof tab.id !== 'string') return;
         const isDefault = tab.id === _DASH_DEFAULT_TAB_ID || tab.locked === true;
+        const normalizedId = isDefault ? _DASH_DEFAULT_TAB_ID : tab.id;
+        if (seen.has(normalizedId)) return;
         const name = isDefault ? 'Default' : String(tab.name || '').trim();
         if (!isDefault && !name) return;
 
-        seen.add(tab.id);
+        seen.add(normalizedId);
         if (isDefault) {
             defaultLayout = Array.isArray(tab.layout) ? _dashCloneLayout(tab.layout) : _dashDefaultLayout();
+            tabs.push(_dashDefaultTab(defaultLayout));
             return;
         }
 
-        customTabs.push({
+        tabs.push({
             id:     tab.id,
             name,
             locked: false,
@@ -102,7 +105,7 @@ function _dashNormalizeTabsState(raw) {
         });
     });
 
-    const tabs = [_dashDefaultTab(defaultLayout), ...customTabs];
+    if (!seen.has(_DASH_DEFAULT_TAB_ID)) tabs.unshift(_dashDefaultTab(defaultLayout));
     const validIds = new Set(tabs.map(tab => tab.id));
     return {
         activeTabId: validIds.has(raw.activeTabId) ? raw.activeTabId : _DASH_DEFAULT_TAB_ID,
@@ -200,6 +203,31 @@ function _dashDeleteTab(tabId) {
     if (typeof _dashExitCustomize === 'function' && typeof _dashCustomizeActive !== 'undefined' && _dashCustomizeActive) _dashExitCustomize();
     if (typeof _dashRenderTabBar === 'function') _dashRenderTabBar();
     _dashMountLayout();
+}
+
+function _dashReorderTabs(orderedIds) {
+    const state = _dashLoadTabsState();
+    if (!Array.isArray(orderedIds) || orderedIds.length === 0) return;
+
+    const tabMap = new Map(state.tabs.map(tab => [tab.id, tab]));
+    const used = new Set();
+    const nextTabs = [];
+
+    orderedIds.forEach(id => {
+        const tab = tabMap.get(id);
+        if (!tab || used.has(id)) return;
+        nextTabs.push(tab);
+        used.add(id);
+    });
+
+    state.tabs.forEach(tab => {
+        if (!used.has(tab.id)) nextTabs.push(tab);
+    });
+
+    if (nextTabs.length !== state.tabs.length) return;
+    state.tabs = nextTabs;
+    _dashSaveTabsState(state);
+    if (typeof _dashRenderTabBar === 'function') _dashRenderTabBar();
 }
 
 function _dashResetActiveTabLayout() {

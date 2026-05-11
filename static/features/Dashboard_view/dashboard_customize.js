@@ -28,11 +28,7 @@ function _dashInitCustomizeMode() {
         _dashCustomizeListenersBound = true;
     }
 
-    if (localStorage.getItem(_DASH_LS_CUSTOMIZE) === 'on') {
-        _dashEnterCustomize();
-    } else {
-        _dashExitCustomize();
-    }
+    _dashExitCustomize();
 }
 
 function _dashEnterCustomize() {

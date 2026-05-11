@@ -19,10 +19,12 @@ function closeDashboard() {
     // Close any open detail panel first
     if (_dashDetailOpen) _dashCloseDetailPanel(true);
 
-    // Exit customize mode silently
-    if (_dashCustomizeActive) {
+    if (_dashCustomizeActive && typeof _dashExitCustomize === 'function') {
+        _dashExitCustomize();
+    } else if (_dashCustomizeActive) {
         _dashCustomizeActive = false;
         document.body.classList.remove('dash-customize');
+        try { localStorage.setItem(_DASH_LS_CUSTOMIZE, 'off'); } catch (_) {}
     }
 
     const overlay = document.getElementById('dashboard-overlay');

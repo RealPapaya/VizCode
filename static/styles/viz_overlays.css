@@ -533,6 +533,29 @@
     transform: translateY(0);
 }
 
+.dash-tab.dragging {
+    opacity: 0.42;
+}
+
+.dash-tab.drop-before::before,
+.dash-tab.drop-after::after {
+    content: "";
+    position: absolute;
+    top: 7px;
+    bottom: 5px;
+    width: 2px;
+    border-radius: 2px;
+    background: #DFA745;
+}
+
+.dash-tab.drop-before::before {
+    left: -2px;
+}
+
+.dash-tab.drop-after::after {
+    right: -2px;
+}
+
 .dash-tab-label {
     min-width: 0;
     overflow: hidden;

@@ -53,6 +53,7 @@ function _dashRenderTabBar() {
         return `<div class="dash-tab${active ? ' active' : ''}${locked ? ' locked' : ''}"
             role="tab"
             tabindex="0"
+            draggable="true"
             aria-selected="${active ? 'true' : 'false'}"
             data-tab-id="${_dashEscape(tab.id)}">
   <span class="dash-tab-label" title="${_dashEscape(tab.name)}">${_dashEscape(tab.name)}</span>
@@ -100,9 +101,62 @@ function _dashRenderTabBar() {
         });
     });
 
+    _dashBindTabReorder(strip);
+
     strip.querySelector('#dash-add-tab-btn')?.addEventListener('click', () => {
         _dashCloseRemoveTabModal();
         _dashAddTab();
+    });
+}
+
+function _dashBindTabReorder(strip) {
+    let draggedId = null;
+
+    strip.querySelectorAll('.dash-tab').forEach(tabEl => {
+        tabEl.addEventListener('dragstart', e => {
+            const label = tabEl.querySelector('.dash-tab-label');
+            if (label && label.isContentEditable) {
+                e.preventDefault();
+                return;
+            }
+            draggedId = tabEl.dataset.tabId;
+            tabEl.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', draggedId);
+        });
+
+        tabEl.addEventListener('dragend', () => {
+            draggedId = null;
+            strip.querySelectorAll('.dash-tab').forEach(el => {
+                el.classList.remove('dragging', 'drop-before', 'drop-after');
+            });
+        });
+
+        tabEl.addEventListener('dragover', e => {
+            if (!draggedId || tabEl.dataset.tabId === draggedId) return;
+            e.preventDefault();
+            const before = e.clientX < tabEl.getBoundingClientRect().left + tabEl.offsetWidth / 2;
+            strip.querySelectorAll('.dash-tab').forEach(el => el.classList.remove('drop-before', 'drop-after'));
+            tabEl.classList.add(before ? 'drop-before' : 'drop-after');
+        });
+
+        tabEl.addEventListener('drop', e => {
+            e.preventDefault();
+            const sourceId = draggedId || e.dataTransfer.getData('text/plain');
+            const targetId = tabEl.dataset.tabId;
+            if (!sourceId || !targetId || sourceId === targetId) return;
+
+            const ids = [...strip.querySelectorAll('.dash-tab')].map(el => el.dataset.tabId);
+            const sourceIndex = ids.indexOf(sourceId);
+            const targetIndex = ids.indexOf(targetId);
+            if (sourceIndex < 0 || targetIndex < 0) return;
+
+            ids.splice(sourceIndex, 1);
+            const insertAtTarget = ids.indexOf(targetId);
+            const before = e.clientX < tabEl.getBoundingClientRect().left + tabEl.offsetWidth / 2;
+            ids.splice(insertAtTarget + (before ? 0 : 1), 0, sourceId);
+            _dashReorderTabs(ids);
+        });
     });
 }
 
