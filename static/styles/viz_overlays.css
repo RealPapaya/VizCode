@@ -1082,6 +1082,32 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     font-style: italic;
     align-self: center;
     margin: auto;
+}
+/* S body+bar: content block centred, thin accent stripe at bottom */
+.dash-kpi-s {
+    justify-content: flex-start;
+}
+
+.dash-kpi-s-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.dash-kpi-s-body .dash-widget-stat { font-size: 32px; }
+
+.dash-kpi-s-bar {
+    height: 3px;
+    border-radius: 2px;
+    background: var(--border);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.dash-kpi-s-bar-fill {
+    height: 100%;
+    border-radius: 2px;
 }
 
 /* ── Detail panel (zoom-to-center) ── */

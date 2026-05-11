@@ -6,11 +6,11 @@ _dashRegisterWidget({
     defaultSize: 'S',
 
     render(container, size, stats) {
-        const total   = stats.loc_total   || 0;
-        const code    = stats.loc_code    || 0;
-        const comment = stats.loc_comment || 0;
-        const blank   = stats.loc_blank   || 0;
-        const base    = total || 1;
+        const total      = stats.loc_total   || 0;
+        const code       = stats.loc_code    || 0;
+        const comment    = stats.loc_comment || 0;
+        const blank      = stats.loc_blank   || 0;
+        const base       = total || 1;
         const codePct    = Math.round((code    / base) * 100);
         const commentPct = Math.round((comment / base) * 100);
         const blankPct   = Math.round((blank   / base) * 100);
@@ -19,9 +19,12 @@ _dashRegisterWidget({
         if (size === 'S') {
             container.innerHTML = `
 <div class="dash-kpi-s">
-  <div class="dash-widget-title">Lines</div>
-  <div class="dash-widget-stat">${_dashFmtNum(total)}</div>
-  <div class="dash-widget-sub">${codePct}% code &middot; ${_dashFmtNum(comment)} comments</div>
+  <div class="dash-kpi-s-body">
+    <div class="dash-widget-title">Lines</div>
+    <div class="dash-widget-stat">${_dashFmtNum(total)}</div>
+    <div class="dash-widget-sub">${codePct}% code &middot; ${_dashFmtNum(comment)} comments</div>
+  </div>
+  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${codePct}%;background:var(--accent)"></div></div>
 </div>`;
             return;
         }
@@ -70,10 +73,10 @@ _dashRegisterWidget({
     },
 
     renderDetail(container, stats) {
-        const total   = stats.loc_total   || 1;
-        const code    = stats.loc_code    || 0;
-        const comment = stats.loc_comment || 0;
-        const blank   = stats.loc_blank   || 0;
+        const total      = stats.loc_total   || 1;
+        const code       = stats.loc_code    || 0;
+        const comment    = stats.loc_comment || 0;
+        const blank      = stats.loc_blank   || 0;
         const codePct    = Math.round((code    / total) * 100);
         const commentPct = Math.round((comment / total) * 100);
         const blankPct   = Math.round((blank   / total) * 100);

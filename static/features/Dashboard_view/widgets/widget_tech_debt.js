@@ -19,24 +19,56 @@ _dashRegisterWidget({
         const colors    = _dashAccentForSlices(_DASH_DEBT_ORDER.length);
         const totalMin  = Object.values(breakdown).reduce((a, n) => a + Number(n || 0), 0);
         const denom     = totalMin || 1;
+        const hoursStat = `${hours.toFixed(1)}<small style="font-size:var(--text-xs);color:var(--muted);margin-left:3px">h</small>`;
 
-        const bars = _DASH_DEBT_ORDER.map((d, i) => {
+        if (size === 'S') {
+            const barPct = Math.min(100, Math.round(hours / 8 * 100));
+            container.innerHTML = `
+<div class="dash-kpi-s">
+  <div class="dash-kpi-s-body">
+    <div class="dash-widget-title">${_dashEscape(_dashT('dashTechDebtTitle'))}</div>
+    <div class="dash-widget-stat">${hours.toFixed(1)}<small style="font-size:var(--text-xs);color:var(--muted);margin-left:3px">h</small></div>
+    <div class="dash-widget-sub">estimated debt</div>
+  </div>
+  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${barPct}%;background:var(--accent)"></div></div>
+</div>`;
+            return;
+        }
+
+        const makeRows = (limit) => _DASH_DEBT_ORDER.slice(0, limit).map((d, i) => {
             const minutes = Number(breakdown[d.key] || 0);
             const pct     = Math.round((minutes / denom) * 100);
             const col     = colors[Math.min(i, colors.length - 1)];
-            return `<div class="dash-debt-row">
-              <span class="dash-debt-row-label">${_dashEscape(_dashT(d.label))}</span>
-              <div class="dash-debt-row-track">
-                <div class="dash-debt-row-fill" style="width:${pct}%;background:${col}"></div>
-              </div>
-              <span class="dash-debt-row-value">${minutes}m</span>
-            </div>`;
+            return `<div class="dash-kpi-bar-row">
+  <span class="dash-kpi-bar-label">${_dashEscape(_dashT(d.label))}</span>
+  <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${pct}%;background:${col}"></div></div>
+  <span class="dash-kpi-bar-val">${minutes}m</span>
+</div>`;
         }).join('');
 
-        container.innerHTML = `
-<div class="dash-widget-title">${_dashEscape(_dashT('dashTechDebtTitle'))}</div>
-<div class="dash-widget-stat">${hours.toFixed(1)}<small style="font-size:var(--text-xs);color:var(--muted);margin-left:3px">h</small></div>
-<div class="dash-debt-rows" style="margin-top:6px;overflow:hidden;flex:1;">${bars}</div>`;
+        if (size === 'M') {
+            container.innerHTML = `
+<div class="dash-kpi-m">
+  <div class="dash-kpi-m-left">
+    <div class="dash-widget-title">${_dashEscape(_dashT('dashTechDebtTitle'))}</div>
+    <div class="dash-widget-stat-md">${hours.toFixed(1)}<small style="font-size:11px;color:var(--muted);margin-left:3px">h</small></div>
+    <div class="dash-widget-sub">estimated</div>
+  </div>
+  <div class="dash-kpi-m-sep"></div>
+  <div class="dash-kpi-m-right">${makeRows(4)}</div>
+</div>`;
+        } else {
+            container.innerHTML = `
+<div class="dash-kpi-l">
+  <div class="dash-kpi-l-head">
+    <div class="dash-widget-title">${_dashEscape(_dashT('dashTechDebtTitle'))}</div>
+    <div class="dash-widget-stat-lg">${hours.toFixed(1)}<small style="font-size:var(--text-base);color:var(--muted);margin-left:4px">h</small></div>
+    <div class="dash-widget-sub">estimated remediation</div>
+  </div>
+  <div class="dash-kpi-divider"></div>
+  <div class="dash-kpi-l-body">${makeRows(5)}</div>
+</div>`;
+        }
     },
 
     renderDetail(container, stats) {

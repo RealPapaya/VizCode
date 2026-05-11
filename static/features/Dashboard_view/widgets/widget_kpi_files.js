@@ -20,13 +20,17 @@ _dashRegisterWidget({
         const count = stats.files || 0;
         const other = stats.other_files || 0;
         const sub   = other ? `+${other} other` : 'all tracked';
+        const barPct = Math.round(count / (count + (other || 1)) * 100);
 
         if (size === 'S') {
             container.innerHTML = `
 <div class="dash-kpi-s">
-  <div class="dash-widget-title">Files</div>
-  <div class="dash-widget-stat">${_dashFmtNum(count)}</div>
-  <div class="dash-widget-sub">${sub}</div>
+  <div class="dash-kpi-s-body">
+    <div class="dash-widget-title">Files</div>
+    <div class="dash-widget-stat">${_dashFmtNum(count)}</div>
+    <div class="dash-widget-sub">${sub}</div>
+  </div>
+  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${barPct}%;background:var(--accent)"></div></div>
 </div>`;
             return;
         }
@@ -37,7 +41,7 @@ _dashRegisterWidget({
         const rows  = exts.slice(0, limit).map(([ext, cnt], i) => `
 <div class="dash-kpi-bar-row">
   <span class="dash-kpi-bar-label">.${_dashEscape(ext)}</span>
-  <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${Math.round((cnt / max) * 100)}%;background:${_dashAccentStop(i)}"></div></div>
+  <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${Math.round((cnt/max)*100)}%;background:${_dashAccentStop(i)}"></div></div>
   <span class="dash-kpi-bar-val">${cnt}</span>
 </div>`).join('');
 
@@ -76,7 +80,6 @@ _dashRegisterWidget({
         }
         const langs = [...langMap.entries()].sort((a, b) => b[1] - a[1]);
         const max   = langs.length ? langs[0][1] : 1;
-
         const canvasId = 'dash-detail-files-donut';
         const { labels, data, colors: sliceColors } = _dashGroupedSlices(
             langs.map(l => `.${l[0]}`),

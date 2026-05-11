@@ -6,38 +6,70 @@ _dashRegisterWidget({
     defaultSize: 'M',
 
     render(container, size, stats) {
-        const top = (stats.complexity_top_offenders || []).slice(0, 5);
+        const all    = stats.complexity_top_offenders || [];
+        const top    = all.slice(0, size === 'L' ? 8 : 5);
+
+        if (size === 'S') {
+            const item = all[0];
+            if (!item) {
+                container.innerHTML = `
+<div class="dash-kpi-s">
+  <div class="dash-kpi-s-body">
+    <div class="dash-widget-title">Most Complex</div>
+    <div class="dash-widget-sub" style="margin-top:auto">No data</div>
+  </div>
+  <div class="dash-kpi-s-bar"></div>
+</div>`;
+                return;
+            }
+            const val    = item.complexity || item.score || 0;
+            const name   = (item.name || item.file || '?').split('/').pop();
+            const barPct = Math.min(100, Math.round(val / 20 * 100));
+            container.innerHTML = `
+<div class="dash-kpi-s">
+  <div class="dash-kpi-s-body">
+    <div class="dash-widget-title">Most Complex</div>
+    <div class="dash-widget-stat">${val}</div>
+    <div class="dash-widget-sub" title="${_dashEscape(item.file || '')}">${_dashEscape(name)}</div>
+  </div>
+  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${barPct}%;background:var(--accent)"></div></div>
+</div>`;
+            return;
+        }
+
         if (!top.length) {
             container.innerHTML = `
 <div class="dash-widget-title">Most Complex</div>
 <div class="dash-empty">No complexity data</div>`;
             return;
         }
-        const max = top[0].complexity || top[0].score || 1;
-        const colors = _dashAccentForSlices(Math.min(top.length, 5));
 
-        container.innerHTML = `
-<div class="dash-widget-title">Most Complex</div>
-<div class="dash-list" style="margin-top:6px;">
-  ${top.map((item, i) => {
-      const val  = item.complexity || item.score || 0;
-      const pct  = Math.round((val / max) * 100);
-      const col  = colors[Math.min(i, colors.length - 1)];
-      const name = (item.name || item.function || item.file || '?').split('/').pop();
-      return `<div class="dash-list-row">
+        const maxVal = top[0].complexity || top[0].score || 1;
+        const colors = _dashAccentForSlices(Math.min(top.length, 5));
+        const rows = top.map((item, i) => {
+            const val  = item.complexity || item.score || 0;
+            const pct  = Math.round((val / maxVal) * 100);
+            const col  = colors[Math.min(i, colors.length - 1)];
+            const name = (item.name || item.function || item.file || '?').split('/').pop();
+            return `<div class="dash-list-row">
         <span class="dash-list-rank">${i + 1}</span>
         <span class="dash-list-name" title="${_dashEscape(item.file || '')}">${_dashEscape(name)}</span>
         <div class="dash-list-bar" style="width:${Math.round(pct * 0.55)}px;background:${col}"></div>
         <span class="dash-list-val">${val}</span>
       </div>`;
-  }).join('')}
+        }).join('');
+
+        container.innerHTML = `
+<div style="height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:var(--space-2);">
+  <div class="dash-widget-title">Most Complex</div>
+  <div class="dash-list" style="flex:1;overflow:hidden;">${rows}</div>
 </div>`;
     },
 
     renderDetail(container, stats) {
-        const all = stats.complexity_top_offenders || [];
-        const avg = Number(stats.avg_complexity || 0);
-        const dist = stats.complexity_distribution || [];
+        const all    = stats.complexity_top_offenders || [];
+        const avg    = Number(stats.avg_complexity || 0);
+        const dist   = stats.complexity_distribution || [];
         const canvasId = 'dash-detail-complex-chart';
         const colors = _dashAccentForSlices(Math.min(all.length, 5));
 

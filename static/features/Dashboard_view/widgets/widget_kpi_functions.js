@@ -16,16 +16,20 @@ _dashRegisterWidget({
     defaultSize: 'S',
 
     render(container, size, stats) {
-        const count = stats.functions || 0;
-        const calls = stats.calls || 0;
-        const sub   = calls ? `${_dashFmtNum(calls)} calls` : 'no calls tracked';
+        const count  = stats.functions || 0;
+        const calls  = stats.calls     || 0;
+        const sub    = calls ? `${_dashFmtNum(calls)} calls` : 'no calls tracked';
+        const barPct = Math.min(100, count > 0 ? Math.round(calls / count * 20) : 0);
 
         if (size === 'S') {
             container.innerHTML = `
 <div class="dash-kpi-s">
-  <div class="dash-widget-title">Functions</div>
-  <div class="dash-widget-stat">${_dashFmtNum(count)}</div>
-  <div class="dash-widget-sub">${sub}</div>
+  <div class="dash-kpi-s-body">
+    <div class="dash-widget-title">Functions</div>
+    <div class="dash-widget-stat">${_dashFmtNum(count)}</div>
+    <div class="dash-widget-sub">${sub}</div>
+  </div>
+  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${barPct}%;background:var(--accent)"></div></div>
 </div>`;
             return;
         }
@@ -36,7 +40,7 @@ _dashRegisterWidget({
         const rows  = mods.slice(0, limit).map(([mod, cnt], i) => `
 <div class="dash-kpi-bar-row">
   <span class="dash-kpi-bar-label">${_dashEscape(mod)}</span>
-  <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${Math.round((cnt / max) * 100)}%;background:${_dashAccentStop(i)}"></div></div>
+  <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${Math.round((cnt/max)*100)}%;background:${_dashAccentStop(i)}"></div></div>
   <span class="dash-kpi-bar-val">${cnt}</span>
 </div>`).join('');
 
@@ -75,8 +79,8 @@ _dashRegisterWidget({
             });
         }
         allFuncs.sort((a, b) => b.lines - a.lines);
-        const top = allFuncs.slice(0, 15);
-        const max = top.length ? top[0].lines : 1;
+        const top    = allFuncs.slice(0, 15);
+        const max    = top.length ? top[0].lines : 1;
         const colors = _dashAccentForSlices(Math.min(top.length, 5));
 
         const modEntries = Object.entries(DATA.files_by_module || {}).map(([mod, files]) => {

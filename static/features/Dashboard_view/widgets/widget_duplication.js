@@ -6,14 +6,81 @@ _dashRegisterWidget({
     defaultSize: 'S',
 
     render(container, size, stats) {
-        const pct   = Number(stats.duplication_percent || 0);
-        const color = pct < 5  ? 'var(--status-good)'
-                    : pct < 15 ? 'var(--status-warn)'
-                    : 'var(--status-bad)';
+        const pct    = Number(stats.duplication_percent || 0);
+        const blocks = stats.duplication_blocks || [];
+        const color  = pct < 5  ? 'var(--status-good)'
+                     : pct < 15 ? 'var(--status-warn)'
+                     : 'var(--status-bad)';
+        const label  = pct < 5 ? 'clean' : pct < 15 ? 'moderate' : 'high';
+
+        if (size === 'S') {
+            const barPct = Math.min(100, Math.round(pct * 5));
+            container.innerHTML = `
+<div class="dash-kpi-s">
+  <div class="dash-kpi-s-body">
+    <div class="dash-widget-title">Duplication</div>
+    <div class="dash-widget-stat" style="color:${color}">${pct.toFixed(1)}%</div>
+    <div class="dash-widget-sub" style="color:${color}">${label}</div>
+  </div>
+  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${barPct}%;background:${color}"></div></div>
+</div>`;
+            return;
+        }
+
+        if (size === 'M') {
+            const fillPct = Math.max(0, Math.min(100, pct));
+            const blockCount = blocks.length;
+            container.innerHTML = `
+<div class="dash-kpi-m">
+  <div class="dash-kpi-m-left">
+    <div class="dash-widget-title">Duplication</div>
+    <div class="dash-widget-stat-md" style="color:${color}">${pct.toFixed(1)}%</div>
+    <div class="dash-widget-sub" style="color:${color}">${label}</div>
+  </div>
+  <div class="dash-kpi-m-sep"></div>
+  <div class="dash-kpi-m-right">
+    <div style="font-size:var(--text-xs);color:var(--muted);margin-bottom:6px">Duplicated blocks</div>
+    <div class="dash-widget-stat-md" style="font-size:28px;color:${color}">${blockCount}</div>
+    <div class="dash-kpi-bar-row" style="margin-top:8px;">
+      <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${fillPct}%;background:${color}"></div></div>
+      <span class="dash-kpi-bar-val">${pct.toFixed(1)}%</span>
+    </div>
+  </div>
+</div>`;
+            return;
+        }
+
+        // L: stat + top duplicate blocks list
+        const fillPct = Math.max(0, Math.min(100, pct));
+        const blockRows = blocks.slice(0, 5).map((blk, i) => {
+            const occ = blk.occurrences || [];
+            const first = occ[0] || {};
+            const fname = String(first.file || '').split('/').pop();
+            const fileJSON = JSON.stringify(first.file || '').replace(/"/g, '&quot;');
+            return `<div class="dash-kpi-bar-row" style="cursor:pointer" onclick="_dashDrill(${fileJSON}, null)">
+  <span class="dash-kpi-bar-label" title="${_dashEscape(first.file || '')}">${_dashEscape(fname)}</span>
+  <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${Math.round(occ.length / (blocks[0]?.occurrences?.length || 1) * 100)}%;background:${color}"></div></div>
+  <span class="dash-kpi-bar-val">${occ.length}×</span>
+</div>`;
+        }).join('');
+
         container.innerHTML = `
-<div class="dash-widget-title">Duplication</div>
-<div class="dash-widget-stat" style="color:${color}">${pct.toFixed(1)}%</div>
-<div class="dash-widget-sub" style="color:${color}">${pct < 5 ? 'clean' : pct < 15 ? 'moderate' : 'high'}</div>`;
+<div class="dash-kpi-l">
+  <div class="dash-kpi-l-head">
+    <div class="dash-widget-title">Duplication</div>
+    <div class="dash-widget-stat-lg" style="color:${color}">${pct.toFixed(1)}%</div>
+    <div class="dash-widget-sub" style="color:${color}">${label} &middot; ${blocks.length} blocks</div>
+  </div>
+  <div class="dash-kpi-divider"></div>
+  <div class="dash-kpi-l-body">
+    <div class="dash-kpi-bar-row" style="flex:0 0 auto;margin-bottom:4px;">
+      <div class="dash-kpi-bar-track" style="height:6px;border-radius:3px;">
+        <div class="dash-kpi-bar-fill" style="width:${fillPct}%;background:${color};border-radius:3px;"></div>
+      </div>
+    </div>
+    ${blockRows || '<span class="dash-kpi-empty">No duplicate blocks</span>'}
+  </div>
+</div>`;
     },
 
     renderDetail(container, stats) {

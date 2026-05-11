@@ -6,33 +6,49 @@ _dashRegisterWidget({
     defaultSize: 'M',
 
     render(container, size, stats) {
-        const top = stats.complexity_top_offenders || [];
-        const avg = Number(stats.avg_complexity || 0);
-        const max = top[0]?.complexity || 1;
+        const top    = stats.complexity_top_offenders || [];
+        const avg    = Number(stats.avg_complexity || 0);
         const colors = _dashAccentForSlices(Math.min(top.length, 5));
 
-        container.innerHTML = `
-<div style="height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:var(--space-3);">
-  <div class="dash-card-title">
-    <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashComplexityTitle'))}
-    <span class="dash-card-sub">avg ${avg.toFixed(1)}</span>
+        if (size === 'S') {
+            const barPct = Math.min(100, Math.round(avg * 5));
+            const topName = top[0] ? (top[0].name || top[0].file || '?').split('/').pop() : '—';
+            container.innerHTML = `
+<div class="dash-kpi-s">
+  <div class="dash-kpi-s-body">
+    <div class="dash-widget-title">${_dashEscape(_dashT('dashComplexityTitle'))}</div>
+    <div class="dash-widget-stat">${avg.toFixed(1)}</div>
+    <div class="dash-widget-sub">avg &middot; top: ${_dashEscape(topName)}</div>
   </div>
-  <div class="dash-list" id="dash-cyclo-top">
-    ${top.slice(0, 5).map((sym, i) => {
-        const pct = Math.round((sym.complexity / max) * 60);
-        const col = colors[Math.min(i, colors.length - 1)];
-        const fileShort = String(sym.file || '').split('/').pop();
-        const fileJSON  = JSON.stringify(sym.file).replace(/"/g, '&quot;');
-        const nameJSON  = JSON.stringify(sym.name).replace(/"/g, '&quot;');
-        return `<div class="dash-list-row" data-clickable="true" data-tip="${_dashEscape(sym.file)}"
+  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${barPct}%;background:var(--accent)"></div></div>
+</div>`;
+            return;
+        }
+
+        const limit = size === 'L' ? 8 : 5;
+        const maxVal = top[0]?.complexity || 1;
+        const rows = top.slice(0, limit).map((sym, i) => {
+            const pct      = Math.round((sym.complexity / maxVal) * 60);
+            const col      = colors[Math.min(i, colors.length - 1)];
+            const fileShort = String(sym.file || '').split('/').pop();
+            const fileJSON  = JSON.stringify(sym.file).replace(/"/g, '&quot;');
+            const nameJSON  = JSON.stringify(sym.name).replace(/"/g, '&quot;');
+            return `<div class="dash-list-row" data-clickable="true" data-tip="${_dashEscape(sym.file)}"
              onclick="_dashDrill(${fileJSON}, ${nameJSON})">
           <span class="dash-list-rank">${i + 1}</span>
           <span class="dash-list-name">${_dashEscape(sym.name)}<span class="dash-list-meta">${_dashEscape(fileShort)}</span></span>
           <div class="dash-list-bar" style="width:${pct}px;background:${col}"></div>
           <span class="dash-list-val">${sym.complexity}</span>
         </div>`;
-    }).join('') || `<div class="dash-empty">${_dashEscape(_dashT('dashNoData'))}</div>`}
+        }).join('') || `<div class="dash-empty">${_dashEscape(_dashT('dashNoData'))}</div>`;
+
+        container.innerHTML = `
+<div style="height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:var(--space-2);">
+  <div class="dash-card-title">
+    <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashComplexityTitle'))}
+    <span class="dash-card-sub">avg ${avg.toFixed(1)}</span>
   </div>
+  <div class="dash-list" style="flex:1;overflow:hidden;" id="dash-cyclo-top">${rows}</div>
 </div>`;
     },
 

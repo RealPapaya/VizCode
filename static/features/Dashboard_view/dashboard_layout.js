@@ -12,10 +12,9 @@ const _DASH_DEFAULT_TAB_ID = 'default';
 
 // Default 6x3 arrangement (col/row are 0-indexed)
 const _DASH_DEFAULT_LAYOUT = [
-    { id: 'kpi_files',      col: 0, row: 0, w: 1, h: 1 },
-    { id: 'kpi_functions',  col: 1, row: 0, w: 1, h: 1 },
-    { id: 'kpi_lines',      col: 2, row: 0, w: 1, h: 1 },
-    { id: 'kpi_health',     col: 3, row: 0, w: 3, h: 1 },
+    { id: 'kpi_files',     col: 0, row: 0, w: 2, h: 1 },
+    { id: 'kpi_functions', col: 2, row: 0, w: 2, h: 1 },
+    { id: 'kpi_lines',     col: 4, row: 0, w: 2, h: 1 },
     { id: 'code_health',    col: 0, row: 1, w: 2, h: 2 },
     { id: 'tech_debt',      col: 2, row: 1, w: 2, h: 1 },
     { id: 'complexity',     col: 4, row: 1, w: 2, h: 1 },
@@ -24,7 +23,7 @@ const _DASH_DEFAULT_LAYOUT = [
 ];
 
 // Optional widgets (not in default layout; available via + Add Widget)
-const _DASH_OPTIONAL_IDS = ['dead_code', 'coupling', 'issues', 'structure', 'graph_intelligence', 'temporal'];
+const _DASH_OPTIONAL_IDS = ['dead_code', 'coupling', 'issues', 'structure', 'graph_intelligence', 'temporal', 'kpi_health'];
 
 // Size tier definitions: S = small, M = medium, L = large
 const _DASH_SIZE_TIERS = {
