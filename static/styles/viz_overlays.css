@@ -934,6 +934,154 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 .dash-widget-chart canvas {
     width: 100% !important;
     height: 100% !important;
+}
+/* -- KPI widget size variants (S / M / L) ---------------------------------- */
+
+.dash-widget-stat-md {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: var(--space-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* S -- single column, vertically centred */
+.dash-kpi-s {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 100%;
+}
+
+/* M -- stat left | separator | breakdown right */
+.dash-kpi-m {
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+.dash-kpi-m-left {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-right: var(--space-3);
+    min-width: 80px;
+}
+
+.dash-kpi-m-sep {
+    width: 1px;
+    align-self: stretch;
+    background: var(--border);
+    flex-shrink: 0;
+    margin: 4px var(--space-3) 4px 0;
+}
+
+.dash-kpi-m-right {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+}
+
+/* L -- header stat above expandable body */
+.dash-kpi-l {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.dash-kpi-l-head { flex: 0 0 auto; }
+
+.dash-kpi-divider {
+    height: 1px;
+    background: var(--border);
+    flex-shrink: 0;
+    margin: var(--space-2) 0;
+}
+
+.dash-kpi-l-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Shared mini-bar row */
+.dash-kpi-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 14px;
+}
+
+.dash-kpi-l-body .dash-kpi-bar-row { flex: 1; }
+
+.dash-kpi-bar-label {
+    flex: 0 0 52px;
+    font-size: var(--text-xs, 11px);
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-kpi-l-body .dash-kpi-bar-label {
+    flex: 0 0 62px;
+    font-size: var(--text-sm, 12px);
+}
+
+.dash-kpi-bar-track {
+    flex: 1;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.dash-kpi-l-body .dash-kpi-bar-track {
+    height: 6px;
+    border-radius: 3px;
+}
+
+.dash-kpi-bar-fill {
+    height: 100%;
+    transition: width 0.4s ease;
+}
+
+.dash-kpi-bar-val {
+    flex: 0 0 auto;
+    font-size: var(--text-xs, 11px);
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    min-width: 28px;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.dash-kpi-l-body .dash-kpi-bar-val {
+    font-size: var(--text-sm, 12px);
+    min-width: auto;
+}
+
+.dash-kpi-bar-pct {
+    font-size: 9px;
+    color: var(--muted);
+    margin-left: 2px;
+}
+
+.dash-kpi-empty {
+    font-size: var(--text-xs, 11px);
+    color: var(--muted);
+    font-style: italic;
+    align-self: center;
+    margin: auto;
 }
 
 /* ── Detail panel (zoom-to-center) ── */

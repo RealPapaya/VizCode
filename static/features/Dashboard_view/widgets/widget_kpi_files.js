@@ -1,5 +1,16 @@
 // @module Dashboard_view/widgets/widget_kpi_files
 
+function _kpiFileExts() {
+    const map = new Map();
+    for (const files of Object.values((window.DATA || {}).files_by_module || {})) {
+        for (const f of (files || [])) {
+            const ext = (f.path || '').split('.').pop() || 'unknown';
+            map.set(ext, (map.get(ext) || 0) + 1);
+        }
+    }
+    return [...map.entries()].sort((a, b) => b[1] - a[1]);
+}
+
 _dashRegisterWidget({
     id: 'kpi_files',
     labelKey: 'dashKpiFiles',
@@ -8,10 +19,51 @@ _dashRegisterWidget({
     render(container, size, stats) {
         const count = stats.files || 0;
         const other = stats.other_files || 0;
-        container.innerHTML = `
-<div class="dash-widget-title">Files</div>
-<div class="dash-widget-stat">${_dashFmtNum(count)}</div>
-<div class="dash-widget-sub">${other ? `+${other} other` : 'all tracked'}</div>`;
+        const sub   = other ? `+${other} other` : 'all tracked';
+
+        if (size === 'S') {
+            container.innerHTML = `
+<div class="dash-kpi-s">
+  <div class="dash-widget-title">Files</div>
+  <div class="dash-widget-stat">${_dashFmtNum(count)}</div>
+  <div class="dash-widget-sub">${sub}</div>
+</div>`;
+            return;
+        }
+
+        const exts  = _kpiFileExts();
+        const max   = exts.length ? exts[0][1] : 1;
+        const limit = size === 'L' ? 7 : 4;
+        const rows  = exts.slice(0, limit).map(([ext, cnt], i) => `
+<div class="dash-kpi-bar-row">
+  <span class="dash-kpi-bar-label">.${_dashEscape(ext)}</span>
+  <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${Math.round((cnt / max) * 100)}%;background:${_dashAccentStop(i)}"></div></div>
+  <span class="dash-kpi-bar-val">${cnt}</span>
+</div>`).join('');
+
+        if (size === 'M') {
+            container.innerHTML = `
+<div class="dash-kpi-m">
+  <div class="dash-kpi-m-left">
+    <div class="dash-widget-title">Files</div>
+    <div class="dash-widget-stat-md">${_dashFmtNum(count)}</div>
+    <div class="dash-widget-sub">${sub}</div>
+  </div>
+  <div class="dash-kpi-m-sep"></div>
+  <div class="dash-kpi-m-right">${rows || '<span class="dash-kpi-empty">No data</span>'}</div>
+</div>`;
+        } else {
+            container.innerHTML = `
+<div class="dash-kpi-l">
+  <div class="dash-kpi-l-head">
+    <div class="dash-widget-title">Files</div>
+    <div class="dash-widget-stat-lg">${_dashFmtNum(count)}</div>
+    <div class="dash-widget-sub">${sub}</div>
+  </div>
+  <div class="dash-kpi-divider"></div>
+  <div class="dash-kpi-l-body">${rows || '<span class="dash-kpi-empty">No file data</span>'}</div>
+</div>`;
+        }
     },
 
     renderDetail(container, stats) {
@@ -24,11 +76,8 @@ _dashRegisterWidget({
         }
         const langs = [...langMap.entries()].sort((a, b) => b[1] - a[1]);
         const max   = langs.length ? langs[0][1] : 1;
-        const colors = _dashAccentForSlices(Math.min(langs.length, 5));
 
-        // Donut chart
         const canvasId = 'dash-detail-files-donut';
-        const hasMany  = langs.length > 5;
         const { labels, data, colors: sliceColors } = _dashGroupedSlices(
             langs.map(l => `.${l[0]}`),
             langs.map(l => l[1])

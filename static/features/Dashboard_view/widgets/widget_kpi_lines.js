@@ -6,14 +6,67 @@ _dashRegisterWidget({
     defaultSize: 'S',
 
     render(container, size, stats) {
-        const total   = stats.loc_total || 0;
-        const code    = stats.loc_code || 0;
+        const total   = stats.loc_total   || 0;
+        const code    = stats.loc_code    || 0;
         const comment = stats.loc_comment || 0;
-        const codePct = total ? Math.round((code / total) * 100) : 0;
-        container.innerHTML = `
-<div class="dash-widget-title">Lines</div>
-<div class="dash-widget-stat">${_dashFmtNum(total)}</div>
-<div class="dash-widget-sub">${codePct}% code · ${_dashFmtNum(comment)} comments</div>`;
+        const blank   = stats.loc_blank   || 0;
+        const base    = total || 1;
+        const codePct    = Math.round((code    / base) * 100);
+        const commentPct = Math.round((comment / base) * 100);
+        const blankPct   = Math.round((blank   / base) * 100);
+        const colors     = _dashAccentForSlices(3);
+
+        if (size === 'S') {
+            container.innerHTML = `
+<div class="dash-kpi-s">
+  <div class="dash-widget-title">Lines</div>
+  <div class="dash-widget-stat">${_dashFmtNum(total)}</div>
+  <div class="dash-widget-sub">${codePct}% code &middot; ${_dashFmtNum(comment)} comments</div>
+</div>`;
+            return;
+        }
+
+        const segments = [
+            ['Code',     code,    codePct,    colors[0]],
+            ['Comments', comment, commentPct, colors[1] || colors[0]],
+            ['Blank',    blank,   blankPct,   'var(--border)'],
+        ];
+
+        if (size === 'M') {
+            const rows = segments.map(([label, cnt, pct, col]) => `
+<div class="dash-kpi-bar-row">
+  <span class="dash-kpi-bar-label">${label}</span>
+  <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${pct}%;background:${col}"></div></div>
+  <span class="dash-kpi-bar-val">${_dashFmtNum(cnt)}</span>
+</div>`).join('');
+            container.innerHTML = `
+<div class="dash-kpi-m">
+  <div class="dash-kpi-m-left">
+    <div class="dash-widget-title">Lines</div>
+    <div class="dash-widget-stat-md">${_dashFmtNum(total)}</div>
+    <div class="dash-widget-sub">${codePct}% code</div>
+  </div>
+  <div class="dash-kpi-m-sep"></div>
+  <div class="dash-kpi-m-right">${rows}</div>
+</div>`;
+        } else {
+            const rows = segments.map(([label, cnt, pct, col]) => `
+<div class="dash-kpi-bar-row">
+  <span class="dash-kpi-bar-label">${label}</span>
+  <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${pct}%;background:${col}"></div></div>
+  <span class="dash-kpi-bar-val">${_dashFmtNum(cnt)}<small class="dash-kpi-bar-pct">${pct}%</small></span>
+</div>`).join('');
+            container.innerHTML = `
+<div class="dash-kpi-l">
+  <div class="dash-kpi-l-head">
+    <div class="dash-widget-title">Lines</div>
+    <div class="dash-widget-stat-lg">${_dashFmtNum(total)}</div>
+    <div class="dash-widget-sub">${codePct}% code &middot; ${_dashFmtNum(comment)} comments</div>
+  </div>
+  <div class="dash-kpi-divider"></div>
+  <div class="dash-kpi-l-body">${rows}</div>
+</div>`;
+        }
     },
 
     renderDetail(container, stats) {

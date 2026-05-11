@@ -1,5 +1,15 @@
 // @module Dashboard_view/widgets/widget_kpi_functions
 
+function _kpiFuncModules() {
+    return Object.entries((window.DATA || {}).files_by_module || {})
+        .map(([mod, files]) => {
+            const cnt = (files || []).reduce((s, f) => s + (f.functions || []).length, 0);
+            return [mod.split('/').pop() || mod, cnt];
+        })
+        .filter(([, n]) => n > 0)
+        .sort((a, b) => b[1] - a[1]);
+}
+
 _dashRegisterWidget({
     id: 'kpi_functions',
     labelKey: 'dashKpiFunctions',
@@ -8,10 +18,51 @@ _dashRegisterWidget({
     render(container, size, stats) {
         const count = stats.functions || 0;
         const calls = stats.calls || 0;
-        container.innerHTML = `
-<div class="dash-widget-title">Functions</div>
-<div class="dash-widget-stat">${_dashFmtNum(count)}</div>
-<div class="dash-widget-sub">${calls ? `${_dashFmtNum(calls)} calls` : 'no calls tracked'}</div>`;
+        const sub   = calls ? `${_dashFmtNum(calls)} calls` : 'no calls tracked';
+
+        if (size === 'S') {
+            container.innerHTML = `
+<div class="dash-kpi-s">
+  <div class="dash-widget-title">Functions</div>
+  <div class="dash-widget-stat">${_dashFmtNum(count)}</div>
+  <div class="dash-widget-sub">${sub}</div>
+</div>`;
+            return;
+        }
+
+        const mods  = _kpiFuncModules();
+        const max   = mods.length ? mods[0][1] : 1;
+        const limit = size === 'L' ? 7 : 4;
+        const rows  = mods.slice(0, limit).map(([mod, cnt], i) => `
+<div class="dash-kpi-bar-row">
+  <span class="dash-kpi-bar-label">${_dashEscape(mod)}</span>
+  <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${Math.round((cnt / max) * 100)}%;background:${_dashAccentStop(i)}"></div></div>
+  <span class="dash-kpi-bar-val">${cnt}</span>
+</div>`).join('');
+
+        if (size === 'M') {
+            container.innerHTML = `
+<div class="dash-kpi-m">
+  <div class="dash-kpi-m-left">
+    <div class="dash-widget-title">Functions</div>
+    <div class="dash-widget-stat-md">${_dashFmtNum(count)}</div>
+    <div class="dash-widget-sub">${sub}</div>
+  </div>
+  <div class="dash-kpi-m-sep"></div>
+  <div class="dash-kpi-m-right">${rows || '<span class="dash-kpi-empty">No data</span>'}</div>
+</div>`;
+        } else {
+            container.innerHTML = `
+<div class="dash-kpi-l">
+  <div class="dash-kpi-l-head">
+    <div class="dash-widget-title">Functions</div>
+    <div class="dash-widget-stat-lg">${_dashFmtNum(count)}</div>
+    <div class="dash-widget-sub">${sub}</div>
+  </div>
+  <div class="dash-kpi-divider"></div>
+  <div class="dash-kpi-l-body">${rows || '<span class="dash-kpi-empty">No module data</span>'}</div>
+</div>`;
+        }
     },
 
     renderDetail(container, stats) {
