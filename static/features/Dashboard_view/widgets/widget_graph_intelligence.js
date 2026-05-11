@@ -5,18 +5,18 @@ function _dashRenderGraphIntelligence(container, stats) {
     if (!container) return;
 
     container.innerHTML = `
-<div class="dash-grid dash-grid-2">
-  <div class="dash-card">
+<div style="height:100%;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);overflow:hidden;">
+  <div class="dash-card" style="display:flex;flex-direction:column;overflow:hidden;min-height:0;">
     <div class="dash-card-title">
       <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashGraphHotspots'))}
     </div>
-    <div class="dash-list" id="dash-graph-hotspots"></div>
+    <div class="dash-list" id="dash-graph-hotspots" style="flex:1;overflow:hidden;"></div>
   </div>
-  <div class="dash-card">
+  <div class="dash-card" style="display:flex;flex-direction:column;overflow:hidden;min-height:0;">
     <div class="dash-card-title">
       <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashGraphSurprising'))}
     </div>
-    <div class="dash-list" id="dash-graph-surprising"></div>
+    <div class="dash-list" id="dash-graph-surprising" style="flex:1;overflow:hidden;"></div>
   </div>
 </div>`;
 
@@ -75,9 +75,25 @@ _dashRegisterWidget({
     defaultSize: 'L',
 
     render(container, size, stats) {
+        if (size === 'S') {
+            const items = stats.hotspot_nodes || [];
+            const top   = items[0];
+            const barPct = top ? Math.min(100, Math.round(top.degree / 20 * 100)) : 0;
+            container.innerHTML = `
+<div class="dash-kpi-s">
+  <div class="dash-kpi-s-body">
+    <div class="dash-widget-title">Hotspots</div>
+    <div class="dash-widget-stat">${items.length}</div>
+    <div class="dash-widget-sub">hotspot nodes</div>
+  </div>
+  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${barPct}%;background:var(--accent)"></div></div>
+</div>`;
+            return;
+        }
+
         if (size === 'M') {
             container.innerHTML = `
-<div style="height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:var(--space-2);">
+<div style="height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:var(--space-2);overflow:hidden;">
   <div class="dash-card-title">
     <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashGraphHotspots'))}
   </div>
@@ -86,6 +102,7 @@ _dashRegisterWidget({
             _dashRenderHotspots((stats.hotspot_nodes || []).slice(0, 5));
             return;
         }
+
         _dashRenderGraphIntelligence(container, stats);
     },
 

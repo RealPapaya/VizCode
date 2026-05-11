@@ -2101,7 +2101,7 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     overflow: hidden;
 }
 
-/* Stage: takes all remaining vertical space, centers the preview box */
+/* Stage: dark canvas that surrounds the widget preview */
 .dash-awp-preview-stage {
     flex: 1;
     min-height: 0;
@@ -2109,12 +2109,15 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    background: var(--bg);
+    border-radius: var(--radius-md);
 }
 
+/* Preview box: widget's actual colours, visible border, no extra tinting */
 .dash-awp-preview-box {
     background: var(--surface-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    border: 1px solid color-mix(in srgb, var(--border) 80%, var(--accent) 40%);
+    border-radius: var(--radius-sm);
     overflow: hidden;
     position: relative;
 }
@@ -2130,12 +2133,19 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 }
 
 /* Preview box sizing — adapts to S / M / L tier */
-/* S: fixed square, always centered in stage */
+/* S: compact square, centered in stage */
 .dash-awp-preview-box[data-tier='S'] { width: 220px; height: 220px; }
-/* M: full width at 2:1 ratio, centered vertically */
-.dash-awp-preview-box[data-tier='M'] { width: 100%; aspect-ratio: 2 / 1; }
-/* L: stretches to fill the entire stage */
-.dash-awp-preview-box[data-tier='L'] { width: 100%; align-self: stretch; }
+/* M: fixed height — clearly shorter than L */
+.dash-awp-preview-box[data-tier='M'] { width: 100%; height: 200px; }
+/* L: stretches to fill the entire stage — radius must match stage to avoid corner gaps */
+.dash-awp-preview-box[data-tier='L'] { width: 100%; align-self: stretch; min-height: 0; border-radius: var(--radius-md); }
+
+/* ── Preview-specific overrides to prevent content clipping ── */
+/* Unset tall chart min-heights so charts scale to fit the preview box */
+.dash-awp-preview-inner .dash-chart-wrap,
+.dash-awp-preview-inner .dash-chart-wrap--tall { min-height: 0; }
+/* Suppress horizontal scrollbar reservation that pushes legend out of view */
+.dash-awp-preview-inner .dash-temporal-heatmap-body { overflow: hidden; }
 
 /* Meta section below preview */
 .dash-awp-meta {

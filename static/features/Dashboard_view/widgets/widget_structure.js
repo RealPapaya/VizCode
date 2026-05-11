@@ -13,27 +13,29 @@ function _dashRenderStructure(container, stats) {
     if (!container) return;
 
     container.innerHTML = `
-<div class="dash-grid dash-grid-2" style="margin-bottom:var(--space-3)">
-  <div class="dash-card">
-    <div class="dash-card-title">
-      <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureFileTypes'))}
-      ${_dashChartToggleHTML(_DASH_TYPES_KEY, _DASH_TYPES_TYPES, _DASH_TYPES_DEFAULT)}
+<div style="height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:var(--space-3);overflow:hidden;">
+  <div class="dash-grid dash-grid-2" style="flex:1;min-height:0;overflow:hidden;">
+    <div class="dash-card" style="display:flex;flex-direction:column;overflow:hidden;min-height:0;">
+      <div class="dash-card-title">
+        <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureFileTypes'))}
+        ${_dashChartToggleHTML(_DASH_TYPES_KEY, _DASH_TYPES_TYPES, _DASH_TYPES_DEFAULT)}
+      </div>
+      <div class="dash-chart-wrap" style="flex:1;min-height:0;"><canvas id="dash-chart-types"></canvas></div>
     </div>
-    <div class="dash-chart-wrap dash-chart-wrap--tall"><canvas id="dash-chart-types"></canvas></div>
-  </div>
-  <div class="dash-card">
-    <div class="dash-card-title">
-      <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureLangDist'))}
-      ${_dashChartToggleHTML(_DASH_LANG_KEY, _DASH_LANG_TYPES, _DASH_LANG_DEFAULT)}
+    <div class="dash-card" style="display:flex;flex-direction:column;overflow:hidden;min-height:0;">
+      <div class="dash-card-title">
+        <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureLangDist'))}
+        ${_dashChartToggleHTML(_DASH_LANG_KEY, _DASH_LANG_TYPES, _DASH_LANG_DEFAULT)}
+      </div>
+      <div class="dash-chart-wrap" style="flex:1;min-height:0;"><canvas id="dash-chart-lang"></canvas></div>
     </div>
-    <div class="dash-chart-wrap dash-chart-wrap--tall"><canvas id="dash-chart-lang"></canvas></div>
   </div>
-</div>
-<div class="dash-card">
-  <div class="dash-card-title">
-    <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureTreemap'))}
+  <div class="dash-card" style="flex:0 0 auto;max-height:35%;overflow:hidden;">
+    <div class="dash-card-title">
+      <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureTreemap'))}
+    </div>
+    <div class="dash-treemap" id="dash-treemap-target"></div>
   </div>
-  <div class="dash-treemap" id="dash-treemap-target"></div>
 </div>`;
 
     _dashRegisterChartSwitch(_DASH_TYPES_KEY, () => _dashChartFileTypes(stats));
