@@ -407,102 +407,182 @@ function _dashResetLayout() {
 
 // -- Add Widget picker ---------------------------------------------------------
 
+const _DASH_AWP_CATEGORIES = [
+    {
+        label: 'Overall Health',
+        items: [
+            { id: 'kpi_health',  desc: 'Quick health score KPI badge — at a glance code quality.' },
+            { id: 'issues',      desc: 'Circular dependencies, orphan modules, and architecture issues.' },
+        ],
+    },
+    {
+        label: 'Code Quality',
+        items: [
+            { id: 'dead_code',  desc: 'Unreferenced symbols and files that are safe to remove.' },
+            { id: 'coupling',   desc: 'Most-imported modules and dependency concentration heat.' },
+        ],
+    },
+    {
+        label: 'Structure',
+        items: [
+            { id: 'structure', desc: 'File-type breakdown and overall project composition.' },
+        ],
+    },
+    {
+        label: 'Git History',
+        items: [
+            { id: 'temporal',           desc: 'Commit activity heatmap, velocity trends, and author ranking.' },
+            { id: 'graph_intelligence', desc: 'Dependency hotspots ranked by change frequency and coupling.' },
+        ],
+    },
+];
+
 function _dashOpenAddWidgetPicker() {
     if (typeof _dashActiveTabEditable === 'function' && !_dashActiveTabEditable()) return;
     if (document.getElementById('dash-add-widget-overlay')) return;
 
     const hidden = _dashHiddenWidgetIds();
-    const overlay = document.createElement('div');
-    overlay.className = 'dash-add-widget-overlay';
-    overlay.id = 'dash-add-widget-overlay';
 
-    const cards = hidden.map(id => {
-        const widget = _dashWidgetRegistry[id];
-        if (!widget) return '';
-        const label = _dashT(widget.labelKey || id) || id;
-        const defaultTier = widget.defaultSize || 'M';
+    const categories = _DASH_AWP_CATEGORIES.map(cat => ({
+        ...cat,
+        items: cat.items.filter(item => hidden.includes(item.id)),
+    })).filter(cat => cat.items.length > 0);
 
-        const tierButtons = Object.entries(_DASH_SIZE_TIERS).map(([tier, { w: gw, h: gh }]) => {
-            const fits = _dashGridHasRoom(null, gw, gh);
-            const isDefault = tier === defaultTier;
-            return `<button class="dash-size-btn${isDefault && fits ? ' active' : ''}"
-                data-tier="${tier}"${!fits ? ' disabled' : ''} type="button">${tier}</button>`;
-        }).join('');
-
-        const anyFits = Object.values(_DASH_SIZE_TIERS).some(({ w: gw, h: gh }) =>
-            _dashGridHasRoom(null, gw, gh));
-
-        return `<div class="dash-add-widget-card" data-widget-id="${_dashEscape(id)}">
-  <div class="dash-add-widget-preview" id="dash-preview-${_dashEscape(id)}"></div>
-  <div class="dash-add-widget-card-footer">
-    <span class="dash-add-widget-card-name">${_dashEscape(label)}</span>
-    <div class="dash-add-widget-size-row">${tierButtons}</div>
-    <button class="dash-add-widget-add-btn" data-widget-id="${_dashEscape(id)}"
-      type="button"${!anyFits ? ' disabled' : ''}>${anyFits ? 'Add' : 'Grid Full'}</button>
-  </div>
-</div>`;
-    }).join('') || '<div class="dash-empty" style="padding:var(--space-4)">All widgets are already on this tab.</div>';
-
-    overlay.innerHTML = `<div class="dash-add-widget-panel">
-  <div class="dash-add-widget-head">
-    <span class="dash-add-widget-title">Add Widget</span>
-    <button class="dash-detail-close" id="dash-add-widget-close" type="button" aria-label="Close">x</button>
-  </div>
-  <div class="dash-add-widget-grid">${cards}</div>
-</div>`;
-
-    document.body.appendChild(overlay);
-
-    hidden.forEach(id => {
-        const widget = _dashWidgetRegistry[id];
-        const previewEl = document.getElementById(`dash-preview-${id}`);
-        if (!widget || !previewEl || !window.DATA || !DATA.stats) return;
-        try {
-            widget.render(previewEl, 'S', DATA.stats);
-        } catch (_) {
-            previewEl.innerHTML = `<div class="dash-empty" style="font-size:11px;padding:8px;">${_dashEscape(id)}</div>`;
-        }
-    });
+    // Also catch any hidden widget not listed in categories
+    const categorised = new Set(_DASH_AWP_CATEGORIES.flatMap(c => c.items.map(i => i.id)));
+    const uncategorised = hidden.filter(id => !categorised.has(id));
+    if (uncategorised.length > 0) {
+        categories.push({
+            label: 'Other',
+            items: uncategorised.map(id => ({ id, desc: '' })),
+        });
+    }
 
     const selectedTier = {};
-    overlay.querySelectorAll('.dash-add-widget-card').forEach(card => {
-        const widgetId = card.dataset.widgetId;
-        const widget = _dashWidgetRegistry[widgetId];
-        const defTier = (widget && widget.defaultSize) || 'M';
-        const { w: dw, h: dh } = _DASH_SIZE_TIERS[defTier] || _DASH_SIZE_TIERS.M;
-
+    hidden.forEach(id => {
+        const widget = _dashWidgetRegistry[id];
+        const def = (widget && widget.defaultSize) || 'M';
+        const { w: dw, h: dh } = _DASH_SIZE_TIERS[def] || _DASH_SIZE_TIERS.M;
         if (_dashGridHasRoom(null, dw, dh)) {
-            selectedTier[widgetId] = defTier;
+            selectedTier[id] = def;
         } else {
             const fit = Object.entries(_DASH_SIZE_TIERS).find(([, { w: gw, h: gh }]) =>
                 _dashGridHasRoom(null, gw, gh));
-            selectedTier[widgetId] = fit ? fit[0] : null;
+            selectedTier[id] = fit ? fit[0] : null;
         }
-
-        card.querySelectorAll('.dash-size-btn:not([disabled])').forEach(btn => {
-            btn.addEventListener('click', e => {
-                e.stopPropagation();
-                card.querySelectorAll('.dash-size-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                selectedTier[widgetId] = btn.dataset.tier;
-            });
-        });
     });
 
-    overlay.querySelectorAll('.dash-add-widget-add-btn:not([disabled])').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const widgetId = btn.dataset.widgetId;
-            const tier = selectedTier[widgetId];
-            if (!tier) return;
-            _dashAddOptionalWidgetWithSize(widgetId, tier);
+    const firstId = categories[0]?.items[0]?.id || null;
+
+    // Build sidebar
+    const sidebarHTML = categories.length === 0
+        ? '<div class="dash-awp-empty">All widgets are already on this tab.</div>'
+        : categories.map(cat => `
+<div class="dash-awp-cat">
+  <div class="dash-awp-cat-label">${_dashEscape(cat.label)}</div>
+  ${cat.items.map(item => {
+      const widget = _dashWidgetRegistry[item.id];
+      const label  = _dashT(widget?.labelKey || item.id) || item.id;
+      return `<div class="dash-awp-item" data-widget-id="${_dashEscape(item.id)}">${_dashEscape(label)}</div>`;
+  }).join('')}
+</div>`).join('');
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dash-add-widget-overlay';
+    overlay.id = 'dash-add-widget-overlay';
+    overlay.innerHTML = `<div class="dash-add-widget-panel dash-add-widget-panel--split">
+  <div class="dash-add-widget-head">
+    <span class="dash-add-widget-title">Add Widget</span>
+    <button class="dash-detail-close" id="dash-add-widget-close" type="button" aria-label="Close">×</button>
+  </div>
+  <div class="dash-awp-body">
+    <div class="dash-awp-sidebar">${sidebarHTML}</div>
+    <div class="dash-awp-right" id="dash-awp-right">
+      <div class="dash-awp-preview-box" id="dash-awp-preview-box">
+        <div class="dash-awp-preview-inner" id="dash-awp-preview-inner"></div>
+      </div>
+      <div class="dash-awp-meta" id="dash-awp-meta"></div>
+    </div>
+  </div>
+</div>`;
+    document.body.appendChild(overlay);
+
+    function getCategoryDesc(id) {
+        for (const cat of _DASH_AWP_CATEGORIES) {
+            const found = cat.items.find(i => i.id === id);
+            if (found) return found.desc;
+        }
+        return '';
+    }
+
+    function renderRight(id) {
+        const widget = _dashWidgetRegistry[id];
+        const previewInner = document.getElementById('dash-awp-preview-inner');
+        const meta         = document.getElementById('dash-awp-meta');
+        if (!widget || !previewInner || !meta) return;
+
+        const tier    = selectedTier[id] || 'M';
+        const label   = _dashT(widget.labelKey || id) || id;
+        const desc    = getCategoryDesc(id);
+        const anyFits = Object.values(_DASH_SIZE_TIERS).some(({ w: gw, h: gh }) =>
+            _dashGridHasRoom(null, gw, gh));
+
+        const tierBtns = Object.entries(_DASH_SIZE_TIERS).map(([t, { w: gw, h: gh }]) => {
+            const fits     = _dashGridHasRoom(null, gw, gh);
+            const isActive = t === tier;
+            return `<button class="dash-size-btn${isActive ? ' active' : ''}"
+                data-tier="${t}"${!fits ? ' disabled' : ''} type="button">${t}</button>`;
+        }).join('');
+
+        meta.innerHTML = `
+<div class="dash-awp-meta-name">${_dashEscape(label)}</div>
+${desc ? `<div class="dash-awp-meta-desc">${_dashEscape(desc)}</div>` : ''}
+<div class="dash-awp-meta-sizes">
+  <span class="dash-awp-size-label">Size</span>
+  <div class="dash-add-widget-size-row">${tierBtns}</div>
+</div>
+<button class="dash-awp-add-btn" type="button"${!anyFits ? ' disabled' : ''}>
+  ${anyFits ? 'Add to Dashboard' : 'Grid Full'}
+</button>`;
+
+        meta.querySelectorAll('.dash-size-btn:not([disabled])').forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                selectedTier[id] = btn.dataset.tier;
+                renderRight(id);
+            });
+        });
+
+        meta.querySelector('.dash-awp-add-btn:not([disabled])')?.addEventListener('click', () => {
+            const t = selectedTier[id];
+            if (!t) return;
+            _dashAddOptionalWidgetWithSize(id, t);
             overlay.remove();
             if (_dashCustomizeActive) _dashBindDragHandles();
         });
-    });
 
-    overlay.addEventListener('click', e => {
-        if (e.target === overlay) overlay.remove();
-    });
-    overlay.querySelector('#dash-add-widget-close')
-        ?.addEventListener('click', () => overlay.remove());
+        // Render preview at selected tier
+        previewInner.innerHTML = '';
+        if (window.DATA && DATA.stats) {
+            try {
+                widget.render(previewInner, tier, DATA.stats);
+            } catch (_) {
+                previewInner.innerHTML = `<div class="dash-empty" style="font-size:11px;padding:8px;">${_dashEscape(id)}</div>`;
+            }
+        }
+    }
+
+    function selectItem(id) {
+        overlay.querySelectorAll('.dash-awp-item').forEach(el =>
+            el.classList.toggle('active', el.dataset.widgetId === id));
+        renderRight(id);
+    }
+
+    overlay.querySelectorAll('.dash-awp-item').forEach(el =>
+        el.addEventListener('click', () => selectItem(el.dataset.widgetId)));
+
+    if (firstId) selectItem(firstId);
+
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    overlay.querySelector('#dash-add-widget-close')?.addEventListener('click', () => overlay.remove());
 }

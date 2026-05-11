@@ -10,7 +10,7 @@ function _dashOpenDetailPanel(widgetId, originRect) {
     if (_dashDetailOpen) _dashCloseDetailPanel(true);  // replace if already open
 
     const widget = _dashWidgetRegistry[widgetId];
-    if (!widget) return;
+    if (!widget || typeof widget.renderDetail !== 'function') return;
 
     // Compute transform-origin so the panel appears to expand from the widget
     const panelW    = window.innerWidth  * 0.60;
