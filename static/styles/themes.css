@@ -320,7 +320,7 @@
 }
 
 [data-theme="claude"] #dashboard-overlay {
-    background: rgba(244, 245, 247, 0.96);
+    background: var(--bg);
 }
 
 /* Light: Galaxy view */
@@ -623,7 +623,7 @@
 }
 
 [data-theme="parchment"] #dashboard-overlay {
-    background: rgba(245, 239, 232, 0.92);
+    background: var(--bg);
 }
 
 /* Hide toolbars in Galaxy View globally */

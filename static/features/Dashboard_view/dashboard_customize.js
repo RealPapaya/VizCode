@@ -409,33 +409,28 @@ function _dashResetLayout() {
 
 const _DASH_AWP_CATEGORIES = [
     {
-        label: 'Overall Health',
-        items: [
-            { id: 'code_health', desc: 'Comprehensive health score with gauge, breakdown metrics, and trend tracking.' },
-            { id: 'issues',      desc: 'Circular dependencies, orphan modules, and architecture issues.' },
-        ],
-    },
-    {
         label: 'Codebase',
         items: [
             { id: 'kpi_files',     desc: 'Total number of files in the project.' },
             { id: 'kpi_functions', desc: 'Total number of functions and methods.' },
             { id: 'kpi_lines',     desc: 'Total lines of code (real LOC).' },
+            { id: 'structure',     desc: 'File-type breakdown and overall project composition.' },
+        ],
+    },
+    {
+        label: 'Quality & Health',
+        items: [
+            { id: 'code_health',   desc: 'Comprehensive health score with gauge, breakdown metrics, and trend tracking.' },
             { id: 'complexity',    desc: 'Average and peak cyclomatic complexity.' },
             { id: 'duplication',   desc: 'Code duplication percentage and clones.' },
+            { id: 'dead_code',     desc: 'Unreferenced symbols and files that are safe to remove.' },
         ],
     },
     {
-        label: 'Code Quality',
+        label: 'Architecture',
         items: [
-            { id: 'dead_code',  desc: 'Unreferenced symbols and files that are safe to remove.' },
-            { id: 'coupling',   desc: 'Most-imported modules and dependency concentration heat.' },
-        ],
-    },
-    {
-        label: 'Structure',
-        items: [
-            { id: 'structure', desc: 'File-type breakdown and overall project composition.' },
+            { id: 'issues',        desc: 'Circular dependencies, orphan modules, and architecture issues.' },
+            { id: 'coupling',      desc: 'Most-imported modules and dependency concentration heat.' },
         ],
     },
     {
