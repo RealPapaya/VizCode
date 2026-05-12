@@ -346,7 +346,13 @@ function _dashGreedyPackCells(cells, flow) {
             _dashOccupy(grid, cell.col, cell.row, cell.w, cell.h, cell.id);
             out.push({ ...cell });
         } else {
-            const slot = _dashFindFreeSlot(grid, cell.w, cell.h);
+            // In flow mode, honour _dashPreferredCol/Row (drag target) or the widget's
+            // current position before falling back to the top-left sequential scan.
+            const prefCol = Number.isFinite(cell._dashPreferredCol) ? cell._dashPreferredCol : cell.col;
+            const prefRow = Number.isFinite(cell._dashPreferredRow) ? cell._dashPreferredRow : cell.row;
+            const slot = (flow && _dashFits(grid, prefCol, prefRow, cell.w, cell.h))
+                ? { col: prefCol, row: prefRow }
+                : _dashFindFreeSlot(grid, cell.w, cell.h);
             if (slot) {
                 _dashOccupy(grid, slot.col, slot.row, cell.w, cell.h, cell.id);
                 out.push({ ...cell, col: slot.col, row: slot.row });
@@ -369,7 +375,8 @@ function _dashCandidateSlots(cell, flow) {
         slots.push({ col, row });
     };
 
-    if (!flow) add(preferredCol, preferredRow);
+    // Always try preferred position first, regardless of flow mode.
+    add(preferredCol, preferredRow);
     const all = [];
     for (let row = 0; row <= _DASH_ROWS - cell.h; row++) {
         for (let col = 0; col <= _DASH_COLS - cell.w; col++) {

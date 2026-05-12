@@ -277,7 +277,9 @@ function _dashResolveDragLayout(draggedId, targetCol, targetRow) {
     const linearIndex = others.findIndex(c => _dashCellIndex(c.col, c.row) >= targetIndex);
     let insertAt = linearIndex >= 0 ? linearIndex : others.length;
     if (occupantIndex >= 0) {
-        insertAt = occupantIndex + (targetIndex > originalIndex ? 1 : 0);
+        // Always insert the dragged widget before the occupant so it claims
+        // the target cell first; the occupant then falls back to a free slot.
+        insertAt = occupantIndex;
     }
 
     dragged.col = targetCol;
