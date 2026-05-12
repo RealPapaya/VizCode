@@ -495,6 +495,17 @@ function _dashMountLayout() {
         el.appendChild(content);
 
         el.addEventListener('click', e => {
+            if (document.body.classList.contains('dash-customize')) return;
+            if (e.target.closest('.dash-widget-size-picker,.dash-size-btn,.dash-widget-remove-btn,.dash-chart-toggle,.dash-chart-toggle-btn')) return;
+            const actionable = e.target.closest('[data-clickable="true"], [onclick], a[href]');
+            if (!actionable || !el.contains(actionable)) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+            _dashOpenDetailPanel(cell.id, el.getBoundingClientRect());
+        }, true);
+
+        el.addEventListener('click', e => {
             if (document.body.classList.contains('dash-customize')) {
                 if (e.target.closest('.dash-widget-remove-btn')) {
                     e.stopPropagation();
@@ -502,7 +513,7 @@ function _dashMountLayout() {
                 }
                 return;
             }
-            if (e.target.closest('.dash-widget-size-picker,.dash-size-btn')) return;
+            if (e.target.closest('.dash-widget-size-picker,.dash-size-btn,.dash-chart-toggle,.dash-chart-toggle-btn')) return;
             _dashOpenDetailPanel(cell.id, el.getBoundingClientRect());
         });
 
