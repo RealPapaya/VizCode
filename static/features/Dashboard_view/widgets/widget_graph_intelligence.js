@@ -57,7 +57,8 @@ function _dashRenderSurprising(items) {
         const srcShort = String(item.source || '').split('/').pop();
         const tgtShort = String(item.target || '').split('/').pop();
         return `
-<div class="dash-list-row dash-list-row--stacked">
+<div class="dash-list-row dash-list-row--stacked" data-clickable="true"
+     onclick="_dashOpenFileGroupDrilldown('Surprising connection', [${_dashJson(item.source)}, ${_dashJson(item.target)}])">
   <div class="dash-graph-pair">
     <span class="dash-graph-node">${_dashEscape(srcShort)}</span>
     <span class="dash-graph-arrow">&rarr;</span>
@@ -78,15 +79,20 @@ _dashRegisterWidget({
         if (size === 'S') {
             const items = stats.hotspot_nodes || [];
             const top   = items[0];
-            const barPct = top ? Math.min(100, Math.round(top.degree / 20 * 100)) : 0;
+            const pills = items.slice(0, 3).map(item => ({
+                label: String(item.label || item.file || '').split('/').pop(),
+                value: item.degree,
+                title: item.file || '',
+                onclick: `_dashGoToGraphFile(${_dashJson(item.file || '')}, null)`,
+            }));
             container.innerHTML = `
 <div class="dash-kpi-s">
   <div class="dash-kpi-s-body">
     <div class="dash-widget-title">Hotspots</div>
     <div class="dash-widget-stat">${items.length}</div>
     <div class="dash-widget-sub">hotspot nodes</div>
+    ${_dashMiniPills(pills)}
   </div>
-  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${barPct}%;background:var(--accent)"></div></div>
 </div>`;
             return;
         }

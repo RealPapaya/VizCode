@@ -53,15 +53,19 @@ _dashRegisterWidget({
         if (size === 'S') {
             const topImp  = imported[0];
             const topCall = callers[0];
-            const barPct  = topImp ? Math.min(100, Math.round(topImp.count / 20 * 100)) : 0;
+            const pills = [
+                topImp && { label: String(topImp.file || '').split('/').pop(), value: topImp.count, title: topImp.file, onclick: `_dashGoToGraphFile(${_dashJson(topImp.file)}, null)` },
+                topCall && { label: String(topCall.file || '').split('/').pop(), value: topCall.count, title: topCall.file, onclick: `_dashGoToGraphFile(${_dashJson(topCall.file)}, null)` },
+                { label: 'Files', value: imported.length + callers.length },
+            ].filter(Boolean);
             container.innerHTML = `
 <div class="dash-kpi-s">
   <div class="dash-kpi-s-body">
     <div class="dash-widget-title">Coupling</div>
     <div class="dash-widget-stat">${imported.length}</div>
     <div class="dash-widget-sub">hotspot files</div>
+    ${_dashMiniPills(pills)}
   </div>
-  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${barPct}%;background:var(--accent)"></div></div>
 </div>`;
             return;
         }

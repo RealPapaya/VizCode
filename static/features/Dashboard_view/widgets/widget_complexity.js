@@ -1,5 +1,15 @@
 // @module Dashboard_view/widgets/widget_complexity
 
+function _dashComplexityBucketFunctions(range) {
+    const m = /^(\d+)(?:-(\d+)|\+)$/.exec(String(range || ''));
+    if (!m) return [];
+    const lo = Number(m[1]);
+    const hi = range.includes('+') ? Infinity : Number(m[2] || m[1]);
+    return (DATA.stats.complexity_top_offenders || [])
+        .filter(sym => Number(sym.complexity || 0) >= lo && Number(sym.complexity || 0) <= hi)
+        .map(sym => ({ file: sym.file, name: sym.name, value: `cx ${sym.complexity}` }));
+}
+
 _dashRegisterWidget({
     id: 'complexity',
     labelKey: 'dashComplexityTitle',
@@ -11,16 +21,21 @@ _dashRegisterWidget({
         const colors = _dashAccentForSlices(Math.min(top.length, 5));
 
         if (size === 'S') {
-            const barPct = Math.min(100, Math.round(avg * 5));
-            const topName = top[0] ? (top[0].name || top[0].file || '?').split('/').pop() : '—';
+            const topName = top[0] ? (top[0].name || top[0].file || '?').split('/').pop() : 'n/a';
+            const pills = top.slice(0, 3).map(sym => ({
+                label: sym.name || '?',
+                value: sym.complexity,
+                title: sym.file || '',
+                onclick: `_dashGoToGraphFile(${_dashJson(sym.file || '')}, ${_dashJson(sym.name || '')})`,
+            }));
             container.innerHTML = `
 <div class="dash-kpi-s">
   <div class="dash-kpi-s-body">
     <div class="dash-widget-title">${_dashEscape(_dashT('dashComplexityTitle'))}</div>
     <div class="dash-widget-stat">${avg.toFixed(1)}</div>
     <div class="dash-widget-sub">avg &middot; top: ${_dashEscape(topName)}</div>
+    ${_dashMiniPills(pills)}
   </div>
-  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${barPct}%;background:var(--accent)"></div></div>
 </div>`;
             return;
         }
@@ -102,6 +117,11 @@ _dashRegisterWidget({
                 }],
             }, {
                 responsive: true, maintainAspectRatio: false,
+                onClick: (_evt, elements) => {
+                    if (!elements || !elements.length) return;
+                    const bucket = dist[elements[0].index];
+                    if (bucket) _dashOpenFunctionGroupDrilldown(`Complexity ${bucket.range}`, _dashComplexityBucketFunctions(bucket.range));
+                },
                 plugins: { legend: { display: false } },
                 scales: {
                     x: { grid: { display: false } },

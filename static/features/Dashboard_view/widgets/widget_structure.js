@@ -76,6 +76,11 @@ function _dashChartFileTypes(stats) {
     }, {
         responsive: true,
         maintainAspectRatio: false,
+        onClick: (_evt, elements) => {
+            if (!elements || !elements.length) return;
+            const item = sorted[elements[0].index];
+            if (item) _dashOpenFileGroupDrilldown(`Files: ${item[0]}`, _dashFilesByType(item[0]));
+        },
         cutout: type === 'doughnut' ? '60%' : 0,
         indexAxis: type === 'bar' ? 'y' : undefined,
         plugins: {
@@ -118,6 +123,11 @@ function _dashChartLanguageDist(stats) {
         indexAxis: type === 'bar' ? 'y' : undefined,
         responsive: true,
         maintainAspectRatio: false,
+        onClick: (_evt, elements) => {
+            if (!elements || !elements.length) return;
+            const item = sorted[elements[0].index];
+            if (item) _dashOpenFileGroupDrilldown(`Files ${item[0]}`, _dashFilesByExt(item[0]));
+        },
         plugins: {
             legend: isPie
                 ? { position: 'right', labels: { boxWidth: 10, padding: 10 } }
@@ -156,7 +166,7 @@ function _dashBuildTreemap() {
         const height = Math.max(40, rows * 22);
         const label  = `${m.label} • ${_dashFmtBytes(m.size)}`;
         const click  = m.firstFile
-            ? ` data-clickable="true" onclick="_dashDrill(${JSON.stringify(m.firstFile).replace(/"/g, '&quot;')}, null)"`
+            ? ` data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Module ${_dashEscape(m.label)}', _dashFilesByModule(${_dashJson(m.id)}))"`
             : '';
         return `
 <div class="dash-tm-cell"${click} data-tip="${_dashEscape(label)}"
@@ -173,6 +183,26 @@ _dashRegisterWidget({
     defaultSize: 'L',
 
     render(container, size, stats) {
+        if (size === 'S') {
+            const langs = Object.entries(stats.language_distribution || {})
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3)
+                .map(([ext, cnt]) => ({
+                    label: ext || 'unknown',
+                    value: cnt,
+                    onclick: `_dashOpenFileGroupDrilldown('Files ${_dashEscape(ext || 'unknown')}', _dashFilesByExt(${_dashJson(ext)}))`,
+                }));
+            container.innerHTML = `
+<div class="dash-kpi-s">
+  <div class="dash-kpi-s-body">
+    <div class="dash-widget-title">${_dashEscape(_dashT('dashStructureFileTypes'))}</div>
+    <div class="dash-widget-stat">${_dashFmtNum(stats.files || 0)}</div>
+    <div class="dash-widget-sub">${_dashFmtNum(stats.modules || 0)} modules</div>
+    ${_dashMiniPills(langs)}
+  </div>
+</div>`;
+            return;
+        }
         if (size === 'M') {
             container.innerHTML = `
 <div style="height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:var(--space-2);">

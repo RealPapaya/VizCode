@@ -1719,7 +1719,7 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     align-self: center;
     margin: auto;
 }
-/* S body+bar: content block centred, thin accent stripe at bottom */
+/* S body: content block centred with compact contextual pills */
 .dash-kpi-s {
     justify-content: flex-start;
 }
@@ -1733,17 +1733,84 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 
 .dash-kpi-s-body .dash-widget-stat { font-size: 32px; }
 
-.dash-kpi-s-bar {
-    height: 3px;
-    border-radius: 2px;
-    background: var(--border);
+.dash-s-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 8px;
+    max-height: 40px;
     overflow: hidden;
-    flex-shrink: 0;
 }
 
-.dash-kpi-s-bar-fill {
-    height: 100%;
-    border-radius: 2px;
+.dash-s-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    min-width: 0;
+    padding: 2px 6px;
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    color: var(--text);
+    font-size: 10px;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dash-s-pill b {
+    color: var(--accent);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-s-pill.muted {
+    border-color: var(--border);
+    background: var(--surface-elevated);
+    color: var(--muted);
+}
+
+.dash-group-drilldown-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 125;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    backdrop-filter: blur(3px);
+}
+
+.dash-group-drilldown-panel {
+    width: min(760px, calc(100vw - 80px));
+    max-height: min(720px, calc(100vh - 80px));
+    background: var(--surface-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.dash-group-drilldown-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-5);
+    border-bottom: 1px solid var(--border);
+}
+
+.dash-group-drilldown-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--space-4) var(--space-5);
 }
 
 

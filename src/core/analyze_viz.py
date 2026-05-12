@@ -1228,6 +1228,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             'path':       rel,
             'ext':        meta['ext'],
             'size':       meta['size'],
+            'loc':        meta.get('loc') or {'code': 0, 'comment': 0, 'blank': 0},
             'func_count': len(file_defs.get(rel, [])),
             'file_type':  meta['file_type'],
             'bios_meta':  meta['bios_meta'],
@@ -1779,6 +1780,10 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
 
     uncalled_funcs = all_defined_funcs - all_called_funcs
     uncalled_func_count = len(uncalled_funcs)
+    dead_code_symbols = [
+        {'file': f, 'name': n}
+        for f, n in sorted(uncalled_funcs, key=lambda item: (item[0], item[1]))
+    ]
     
     # Files never imported
     all_file_paths = set(file_meta.keys())
@@ -1952,11 +1957,15 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                 {'file': f, 'count': c} for f, c in top_caller_files
             ],
             'uncalled_functions': uncalled_func_count,
+            'dead_code_symbols': dead_code_symbols,
             'unimported_files': unimported_file_count,
+            'unimported_file_paths': sorted(unimported_files),
             'circular_dependencies': circular_dep_count,
             'top_circular_deps': [[f for f in cycle] for cycle in top_circular_deps],
             'entry_points': entry_point_count,
+            'entry_point_files': sorted(entry_points),
             'isolated_files': isolated_file_count,
+            'isolated_file_paths': sorted(isolated_files),
             'avg_func_length': round(avg_func_length, 1),
             'longest_functions': [
                 {'file': f, 'name': n, 'lines': l} for f, n, l in longest_funcs
@@ -2053,6 +2062,12 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                     p for p in gh.get('change_coupling', [])
                     if p['file_a'] in live_files and p['file_b'] in live_files
                 ]
+                for _key in ('files_by_author', 'files_by_week', 'files_by_day'):
+                    _groups = gh.get(_key, {}) or {}
+                    gh[_key] = {
+                        group: [r for r in rows if r.get('file') in live_files]
+                        for group, rows in _groups.items()
+                    }
                 gh['hotspot_files'] = _compute_hotspot(
                     full_churn, symbol_index, file_meta,
                 )

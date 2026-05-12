@@ -8,6 +8,15 @@ const _DASH_DEBT_ORDER = [
     { key: 'dead',        label: 'dashDebtDead'        },
 ];
 
+function _dashDebtCategoryFiles(key, stats) {
+    if (key === 'circular') return (stats.top_circular_deps || []).flat();
+    if (key === 'god') return (stats.top_caller_files || []).map(x => x.file);
+    if (key === 'complexity') return (stats.complexity_top_offenders || []).map(x => x.file);
+    if (key === 'duplication') return (stats.duplication_blocks || []).flatMap(b => (b.occurrences || []).map(o => o.file));
+    if (key === 'dead') return (stats.dead_code_symbols || []).map(x => x.file);
+    return [];
+}
+
 _dashRegisterWidget({
     id: 'tech_debt',
     labelKey: 'dashTechDebtTitle',
@@ -22,15 +31,23 @@ _dashRegisterWidget({
         const hoursStat = `${hours.toFixed(1)}<small style="font-size:var(--text-xs);color:var(--muted);margin-left:3px">h</small>`;
 
         if (size === 'S') {
-            const barPct = Math.min(100, Math.round(hours / 8 * 100));
+            const pills = _DASH_DEBT_ORDER
+                .map(d => ({ label: _dashT(d.label), value: Number(breakdown[d.key] || 0), key: d.key }))
+                .sort((a, b) => b.value - a.value)
+                .slice(0, 3)
+                .map(d => ({
+                    label: d.label,
+                    value: `${d.value}m`,
+                    onclick: `_dashOpenFileGroupDrilldown('Tech Debt: ${_dashEscape(d.label)}', _dashDebtCategoryFiles(${_dashJson(d.key)}, DATA.stats))`,
+                }));
             container.innerHTML = `
 <div class="dash-kpi-s">
   <div class="dash-kpi-s-body">
     <div class="dash-widget-title">${_dashEscape(_dashT('dashTechDebtTitle'))}</div>
     <div class="dash-widget-stat">${hours.toFixed(1)}<small style="font-size:var(--text-xs);color:var(--muted);margin-left:3px">h</small></div>
     <div class="dash-widget-sub">estimated debt</div>
+    ${_dashMiniPills(pills)}
   </div>
-  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${barPct}%;background:var(--accent)"></div></div>
 </div>`;
             return;
         }
@@ -39,7 +56,8 @@ _dashRegisterWidget({
             const minutes = Number(breakdown[d.key] || 0);
             const pct     = Math.round((minutes / denom) * 100);
             const col     = colors[Math.min(i, colors.length - 1)];
-            return `<div class="dash-kpi-bar-row">
+            return `<div class="dash-kpi-bar-row" style="cursor:pointer"
+     onclick="_dashOpenFileGroupDrilldown('Tech Debt: ${_dashEscape(_dashT(d.label))}', _dashDebtCategoryFiles(${_dashJson(d.key)}, DATA.stats))">
   <span class="dash-kpi-bar-label">${_dashEscape(_dashT(d.label))}</span>
   <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${pct}%;background:${col}"></div></div>
   <span class="dash-kpi-bar-val">${minutes}m</span>
@@ -88,7 +106,8 @@ _dashRegisterWidget({
             const minutes = Number(breakdown[d.key] || 0);
             const pct     = Math.round((minutes / denom) * 100);
             const col     = colors[Math.min(i, colors.length - 1)];
-            return `<div class="dash-debt-row">
+            return `<div class="dash-debt-row" data-clickable="true"
+              onclick="_dashOpenFileGroupDrilldown('Tech Debt: ${_dashEscape(_dashT(d.label))}', _dashDebtCategoryFiles(${_dashJson(d.key)}, DATA.stats))">
               <span class="dash-debt-row-label">${_dashEscape(_dashT(d.label))}</span>
               <div class="dash-debt-row-track">
                 <div class="dash-debt-row-fill" style="width:${pct}%;background:${col}"></div>
@@ -121,6 +140,11 @@ _dashRegisterWidget({
                 datasets: [{ data, backgroundColor: sliceColors, borderWidth: 0, hoverOffset: 8 }],
             }, {
                 responsive: true, maintainAspectRatio: false,
+                onClick: (_evt, elements) => {
+                    if (!elements || !elements.length) return;
+                    const d = _DASH_DEBT_ORDER[elements[0].index];
+                    if (d) _dashOpenFileGroupDrilldown(`Tech Debt: ${_dashT(d.label)}`, _dashDebtCategoryFiles(d.key, DATA.stats));
+                },
                 plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8 } } },
                 cutout: '65%',
             });

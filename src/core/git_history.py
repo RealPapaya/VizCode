@@ -41,7 +41,7 @@ DEFAULT_WINDOW_DAYS = 180
 COMMIT_FILE_LIMIT   = 20      # skip commits touching > N files (refactor noise)
 COUPLING_MIN        = 3       # filter pairs below this co-change count
 GIT_TIMEOUT_SEC     = 60
-SCHEMA_REV          = 4   # bump invalidates caches that lack per_file_churn_timeline
+SCHEMA_REV          = 5   # bump invalidates caches that lack temporal file groups
 
 # Hotspot scoring tuning. Files without computed complexity get a neutral
 # 0.5 multiplier so they're neither boosted nor punished by the score.
@@ -343,6 +343,37 @@ def _aggregate_daily_activity(commits: list) -> list:
     } for day in days]
 
 
+def _aggregate_temporal_file_groups(commits: list) -> dict:
+    """Return author/week/day groupings of changed files for dashboard drilldown."""
+    authors = defaultdict(Counter)
+    weeks   = defaultdict(Counter)
+    days    = defaultdict(Counter)
+    for c in commits:
+        author = (c.get('author') or '').strip() or 'Unknown'
+        day = c['date']
+        week = _iso_week_start(day)
+        for f in c['files']:
+            path = f['path']
+            authors[author][path] += 1
+            weeks[week][path] += 1
+            days[day][path] += 1
+
+    def pack(counter_map):
+        out = {}
+        for key, counts in counter_map.items():
+            out[key] = [
+                {'file': path, 'count': count}
+                for path, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+            ]
+        return out
+
+    return {
+        'files_by_author': pack(authors),
+        'files_by_week':   pack(weeks),
+        'files_by_day':    pack(days),
+    }
+
+
 # ─── Hotspot scoring (consumes file_churn + symbol_index) ────────────────────
 
 _FUNC_KINDS = {'function', 'method'}
@@ -423,6 +454,7 @@ def compute_git_history(root: str,
     churn_timeline  = _aggregate_timeline(commits)
     daily_activity  = _aggregate_daily_activity(commits)
     author_activity = _aggregate_authors(commits)
+    temporal_file_groups = _aggregate_temporal_file_groups(commits)
     # Per-file weekly timeline for the top churn files. Hotspots are a
     # strict subset of churn, so this is enough for the drilldown panel.
     top_churn_paths = {r['file'] for r in file_churn[:TOP_FILE_CHURN]}
@@ -444,6 +476,9 @@ def compute_git_history(root: str,
         'churn_timeline':   churn_timeline,
         'commit_activity_daily': daily_activity,
         'author_activity':  author_activity,
+        'files_by_author':  temporal_file_groups['files_by_author'],
+        'files_by_week':    temporal_file_groups['files_by_week'],
+        'files_by_day':     temporal_file_groups['files_by_day'],
         'per_file_churn_timeline': per_file_timeline,
         # Carry the full file_churn (capped) so the caller can recompute
         # hotspot_files without re-running git when only complexity changed.
@@ -471,6 +506,9 @@ def _empty_payload(window_days: int) -> dict:
         'churn_timeline':   [],
         'commit_activity_daily': [],
         'author_activity':  [],
+        'files_by_author':  {},
+        'files_by_week':    {},
+        'files_by_day':     {},
         'per_file_churn_timeline': {},
         '_full_file_churn': [],
     }

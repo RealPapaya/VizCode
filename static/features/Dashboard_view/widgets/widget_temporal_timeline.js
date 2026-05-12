@@ -84,6 +84,14 @@ function _dashDrawTimelineChart(buckets) {
     }, {
         responsive: true,
         maintainAspectRatio: false,
+        onClick: (_evt, elements) => {
+            if (!elements || !elements.length) return;
+            const idx = elements[0].index;
+            const week = labels[idx];
+            _dashOpenFileGroupDrilldown(`Files changed week ${week}`, (DATA.stats.files_by_week || {})[week] || [], {
+                meta: f => `${f.count || 0} commits`,
+            });
+        },
         interaction: { mode: 'index', intersect: false },
         plugins: {
             legend: { position: 'top', labels: { boxWidth: 10, padding: 10 } },

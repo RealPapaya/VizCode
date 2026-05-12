@@ -16,6 +16,25 @@ function _dashRenderTemporal(container, stats, size) {
 
     _dashTemporalDays = Math.min(Number(stats.window_days || 180), 180);
 
+    if (size === 'S') {
+        const topFiles = (stats.file_churn || []).slice(0, 3).map(f => ({
+            label: String(f.file || '').split('/').pop(),
+            value: f.commits,
+            title: f.file,
+            onclick: `_dashGoToGraphFile(${_dashJson(f.file)}, null)`,
+        }));
+        container.innerHTML = `
+<div class="dash-kpi-s">
+  <div class="dash-kpi-s-body">
+    <div class="dash-widget-title">${_dashEscape(_dashT('dashTemporalTitle'))}</div>
+    <div class="dash-widget-stat">${_dashFmtNum(stats.commits_analyzed || 0)}</div>
+    <div class="dash-widget-sub">${_dashEscape(stats.period_start || '')} &rarr; ${_dashEscape(stats.period_end || '')}</div>
+    ${_dashMiniPills(topFiles, { empty: _dashT('dashTemporalEmpty') })}
+  </div>
+</div>`;
+        return;
+    }
+
     if (size === 'M') {
         container.innerHTML = `
 <div class="dash-grid dash-grid-2" style="height:100%;box-sizing:border-box;">

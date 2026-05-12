@@ -22,14 +22,14 @@ function _dashRenderIssues(container, stats) {
         'var(--muted)',
         stats.uncalled_functions || 0,
         _dashT('dashIssuesDeadSub'),
-        `<div class="dash-issue-foot">${stats.unimported_files || 0} ${_dashEscape(_dashT('dashIssuesUnimported'))}</div>`
+        `<div class="dash-issue-foot" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Unimported files', DATA.stats.unimported_file_paths || [])">${stats.unimported_files || 0} ${_dashEscape(_dashT('dashIssuesUnimported'))}</div>`
     )}
   ${_dashIssueCard(
         _dashT('dashIssuesEntry'),
         'var(--status-good)',
         stats.entry_points || 0,
         _dashT('dashIssuesEntrySub'),
-        `<div class="dash-issue-foot">${stats.isolated_files || 0} ${_dashEscape(_dashT('dashIssuesIsolated'))}</div>`
+        `<div class="dash-issue-foot" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Isolated files', DATA.stats.isolated_file_paths || [])">${stats.isolated_files || 0} ${_dashEscape(_dashT('dashIssuesIsolated'))}</div>`
     )}
 </div>
 <div class="dash-card">
@@ -55,7 +55,8 @@ function _dashIssueCard(title, color, value, sub, extra) {
 function _dashCircularList(cycles) {
     if (!cycles.length) return `<div class="dash-issue-foot">✅ ${_dashEscape(_dashT('dashIssuesNoCycles'))}</div>`;
     return `<div class="dash-list" style="margin-top:var(--space-2)">${cycles.slice(0, 3).map((cycle, i) => `
-<div class="dash-list-row dash-list-row--stacked">
+<div class="dash-list-row dash-list-row--stacked" data-clickable="true"
+     onclick="_dashOpenFileGroupDrilldown('Circular dependency ${i + 1}', ${_dashJson(cycle)})">
   <div class="dash-cycle-head">
     <span class="dash-list-rank">${i + 1}</span>
     <span class="dash-cycle-count">${cycle.length} files</span>
@@ -92,15 +93,19 @@ _dashRegisterWidget({
         if (size === 'S') {
             const circular = stats.circular_dependencies || 0;
             const color = circular > 0 ? 'var(--status-warn)' : 'var(--status-good)';
-            const barPct = Math.min(100, circular * 10);
+            const pills = [
+                { label: 'Circular', value: circular, onclick: `_dashOpenFileGroupDrilldown('Circular dependencies', (DATA.stats.top_circular_deps || []).flat())` },
+                { label: 'Dead', value: stats.uncalled_functions || 0, onclick: `_dashOpenFunctionGroupDrilldown('Dead functions', (DATA.stats.dead_code_symbols || []).map(s => ({ file: s.file, name: s.name, value: 'unused' })))` },
+                { label: 'Entry', value: stats.entry_points || 0, onclick: `_dashOpenFileGroupDrilldown('Entry point files', DATA.stats.entry_point_files || [])` },
+            ];
             container.innerHTML = `
 <div class="dash-kpi-s">
   <div class="dash-kpi-s-body">
     <div class="dash-widget-title">Issues</div>
     <div class="dash-widget-stat" style="color:${color}">${circular}</div>
     <div class="dash-widget-sub">circular deps</div>
+    ${_dashMiniPills(pills)}
   </div>
-  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${barPct}%;background:${color}"></div></div>
 </div>`;
             return;
         }
@@ -120,14 +125,14 @@ _dashRegisterWidget({
         'var(--muted)',
         stats.uncalled_functions || 0,
         _dashT('dashIssuesDeadSub'),
-        `<div class="dash-issue-foot">${stats.unimported_files || 0} ${_dashEscape(_dashT('dashIssuesUnimported'))}</div>`
+        `<div class="dash-issue-foot" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Unimported files', DATA.stats.unimported_file_paths || [])">${stats.unimported_files || 0} ${_dashEscape(_dashT('dashIssuesUnimported'))}</div>`
     )}
   ${_dashIssueCard(
         _dashT('dashIssuesEntry'),
         'var(--status-good)',
         stats.entry_points || 0,
         _dashT('dashIssuesEntrySub'),
-        `<div class="dash-issue-foot">${stats.isolated_files || 0} ${_dashEscape(_dashT('dashIssuesIsolated'))}</div>`
+        `<div class="dash-issue-foot" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Isolated files', DATA.stats.isolated_file_paths || [])">${stats.isolated_files || 0} ${_dashEscape(_dashT('dashIssuesIsolated'))}</div>`
     )}
 </div>`;
             return;

@@ -16,6 +16,8 @@ async function openDashboard() {
 }
 
 function closeDashboard() {
+    if (typeof _dashCloseGroupDrilldown === 'function') _dashCloseGroupDrilldown();
+    if (typeof _dashCloseDrilldown === 'function') _dashCloseDrilldown();
     // Close any open detail panel first
     if (_dashDetailOpen) _dashCloseDetailPanel(true);
 

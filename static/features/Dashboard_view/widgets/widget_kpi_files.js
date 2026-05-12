@@ -20,17 +20,21 @@ _dashRegisterWidget({
         const count = stats.files || 0;
         const other = stats.other_files || 0;
         const sub   = other ? `+${other} other` : 'all tracked';
-        const barPct = Math.round(count / (count + (other || 1)) * 100);
 
         if (size === 'S') {
+            const pills = _kpiFileExts().slice(0, 3).map(([ext, cnt]) => ({
+                label: `.${ext}`,
+                value: cnt,
+                onclick: `_dashOpenFileGroupDrilldown('Files .${_dashEscape(ext)}', _dashFilesByExt(${_dashJson(ext)}))`,
+            }));
             container.innerHTML = `
 <div class="dash-kpi-s">
   <div class="dash-kpi-s-body">
     <div class="dash-widget-title">Files</div>
     <div class="dash-widget-stat">${_dashFmtNum(count)}</div>
     <div class="dash-widget-sub">${sub}</div>
+    ${_dashMiniPills(pills)}
   </div>
-  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${barPct}%;background:var(--accent)"></div></div>
 </div>`;
             return;
         }
@@ -39,7 +43,7 @@ _dashRegisterWidget({
         const max   = exts.length ? exts[0][1] : 1;
         const limit = size === 'L' ? 7 : 4;
         const rows  = exts.slice(0, limit).map(([ext, cnt], i) => `
-<div class="dash-kpi-bar-row">
+<div class="dash-kpi-bar-row" style="cursor:pointer" onclick="_dashOpenFileGroupDrilldown('Files .${_dashEscape(ext)}', _dashFilesByExt(${_dashJson(ext)}))">
   <span class="dash-kpi-bar-label">.${_dashEscape(ext)}</span>
   <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${Math.round((cnt/max)*100)}%;background:${_dashAccentStop(i)}"></div></div>
   <span class="dash-kpi-bar-val">${cnt}</span>
@@ -99,11 +103,13 @@ _dashRegisterWidget({
     ${langs.slice(0, 12).map(([ext, cnt], i) => {
         const pct = Math.round((cnt / max) * 100);
         const col = sliceColors[Math.min(i, sliceColors.length - 1)];
-        return `<div class="dash-list-row">
+        const files = _dashFilesByExt(ext);
+        return `<div class="dash-list-row" data-clickable="true"
+          onclick="_dashOpenFileGroupDrilldown('Files .${_dashEscape(ext)}', _dashFilesByExt(${_dashJson(ext)}))">
           <span class="dash-list-rank">${i + 1}</span>
           <span class="dash-list-name">.${_dashEscape(ext)}</span>
           <div class="dash-list-bar" style="width:${Math.round(pct * 0.6)}px;background:${col}"></div>
-          <span class="dash-list-val">${cnt}</span>
+          <span class="dash-list-val">${files.length || cnt}</span>
         </div>`;
     }).join('')}
   </div>
@@ -116,6 +122,13 @@ _dashRegisterWidget({
                 datasets: [{ data, backgroundColor: sliceColors, borderWidth: 0, hoverOffset: 8 }],
             }, {
                 responsive: true, maintainAspectRatio: false,
+                onClick: (_evt, elements) => {
+                    if (!elements || !elements.length) return;
+                    const idx = elements[0].index;
+                    const label = labels[idx] || '';
+                    const ext = String(label).replace(/^\./, '');
+                    if (ext && ext !== 'Others') _dashOpenFileGroupDrilldown(`Files ${label}`, _dashFilesByExt(ext));
+                },
                 plugins: { legend: { position: 'right', labels: { boxWidth: 10, padding: 10 } } },
                 cutout: '70%',
             });

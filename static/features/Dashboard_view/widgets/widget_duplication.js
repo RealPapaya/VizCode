@@ -14,15 +14,20 @@ _dashRegisterWidget({
         const label  = pct < 5 ? 'clean' : pct < 15 ? 'moderate' : 'high';
 
         if (size === 'S') {
-            const barPct = Math.min(100, Math.round(pct * 5));
+            const dupFiles = [...new Set(blocks.flatMap(b => (b.occurrences || []).map(o => o.file)).filter(Boolean))];
+            const pills = [
+                { label: 'Blocks', value: blocks.length, onclick: `_dashOpenFileGroupDrilldown('Duplicated files', ${_dashJson(dupFiles)})` },
+                { label: 'Files', value: dupFiles.length, onclick: `_dashOpenFileGroupDrilldown('Duplicated files', ${_dashJson(dupFiles)})` },
+                { label, value: `${pct.toFixed(1)}%`, muted: pct < 5 },
+            ];
             container.innerHTML = `
 <div class="dash-kpi-s">
   <div class="dash-kpi-s-body">
     <div class="dash-widget-title">Duplication</div>
     <div class="dash-widget-stat" style="color:${color}">${pct.toFixed(1)}%</div>
     <div class="dash-widget-sub" style="color:${color}">${label}</div>
+    ${_dashMiniPills(pills)}
   </div>
-  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${barPct}%;background:${color}"></div></div>
 </div>`;
             return;
         }
@@ -56,8 +61,8 @@ _dashRegisterWidget({
             const occ = blk.occurrences || [];
             const first = occ[0] || {};
             const fname = String(first.file || '').split('/').pop();
-            const fileJSON = JSON.stringify(first.file || '').replace(/"/g, '&quot;');
-            return `<div class="dash-kpi-bar-row" style="cursor:pointer" onclick="_dashDrill(${fileJSON}, null)">
+            const filesJSON = _dashJson(occ.map(o => ({ file: o.file, line: o.line })));
+            return `<div class="dash-kpi-bar-row" style="cursor:pointer" onclick="_dashOpenFileGroupDrilldown('Duplicate block ${i + 1}', ${filesJSON}, { meta: f => f.line ? ':' + f.line : '' })">
   <span class="dash-kpi-bar-label" title="${_dashEscape(first.file || '')}">${_dashEscape(fname)}</span>
   <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${Math.round(occ.length / (blocks[0]?.occurrences?.length || 1) * 100)}%;background:${color}"></div></div>
   <span class="dash-kpi-bar-val">${occ.length}×</span>
@@ -96,7 +101,8 @@ _dashRegisterWidget({
             const first = occurrences[0] || {};
             const firstFile = String(first.file || '').split('/').pop();
             const fileJSON  = JSON.stringify(first.file || '').replace(/"/g, '&quot;');
-            return `<div class="dash-dup-row" data-clickable="true" onclick="_dashDrill(${fileJSON}, null)">
+            const filesJSON = _dashJson(occurrences.map(o => ({ file: o.file, line: o.line })));
+            return `<div class="dash-dup-row" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Duplicate block ${i + 1}', ${filesJSON}, { meta: f => f.line ? ':' + f.line : '' })">
               <div class="dash-dup-row-head">
                 <span class="dash-list-rank">${i + 1}</span>
                 <span class="dash-dup-row-name">${_dashEscape(firstFile)}<span class="dash-dup-row-line">:${first.line || '?'}</span></span>

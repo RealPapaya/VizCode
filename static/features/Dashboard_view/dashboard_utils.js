@@ -33,6 +33,70 @@ function _dashFlatFiles() {
     return out;
 }
 
+function _dashAllFiles() {
+    return _dashFlatFiles();
+}
+
+function _dashFileForPath(path) {
+    const norm = String(path || '').replace(/\\/g, '/');
+    return _dashAllFiles().find(f => String(f.path || '').replace(/\\/g, '/') === norm) || null;
+}
+
+function _dashFilesByExt(ext) {
+    const target = String(ext || '').replace(/^\./, '').toLowerCase();
+    return _dashAllFiles().filter(f => {
+        const fExt = String(f.ext || '').replace(/^\./, '').toLowerCase()
+            || String(f.path || '').split('.').pop().toLowerCase();
+        return fExt === target;
+    });
+}
+
+function _dashFilesByType(type) {
+    const target = String(type || '').toLowerCase();
+    return _dashAllFiles().filter(f => String(f.file_type || '').toLowerCase() === target);
+}
+
+function _dashFilesByModule(modId) {
+    return ((window.DATA && DATA.files_by_module && DATA.files_by_module[modId]) || []).slice();
+}
+
+function _dashFunctionsByFile(filePath) {
+    if (!window.DATA || !filePath) return [];
+    const rel = String(filePath).replace(/\\/g, '/');
+    const syms = Object.values(DATA.symbol_index || {})
+        .filter(s => s && s.file === rel && (s.kind === 'function' || s.kind === 'method'))
+        .map(s => ({
+            file: rel,
+            name: s.name || '?',
+            lines: (s.end_line && s.line) ? Math.max(0, s.end_line - s.line + 1) : 0,
+            complexity: s.complexity,
+            value: s.complexity != null ? `cx ${s.complexity}` : '',
+        }));
+    if (syms.length) return syms;
+    const funcs = DATA.funcs_by_file?.[rel] || [];
+    return funcs.map(fn => ({
+        file: rel,
+        name: fn.name || fn.label || '?',
+        lines: fn.lines || 0,
+        complexity: fn.complexity,
+    }));
+}
+
+function _dashAllFunctions() {
+    const out = [];
+    for (const f of _dashAllFiles()) {
+        const rel = f.path || '';
+        const defs = DATA.funcs_by_file?.[rel] || f.functions || [];
+        defs.forEach(fn => out.push({
+            file: rel,
+            name: fn.name || fn.label || '?',
+            lines: fn.lines || 0,
+            complexity: fn.complexity,
+        }));
+    }
+    return out;
+}
+
 function _dashAllEdges() {
     if (!window.DATA) return [];
     const out = [];
@@ -62,36 +126,129 @@ function _dashT(key) {
 //   2. drillToModule(modId)   — puts the graph into L1 context
 //   3. drillToFile(rel)       — opens L2 function view
 //   4. (optional) openCodePanel + jump to funcName
-function _dashDrill(filePath, funcName) {
+function _dashJson(value) {
+    return JSON.stringify(value).replace(/"/g, '&quot;');
+}
+
+function _dashMiniPills(items, options) {
+    const opts = options || {};
+    const rows = (items || []).filter(Boolean).slice(0, opts.limit || 3);
+    if (!rows.length) {
+        return `<div class="dash-s-pills"><span class="dash-s-pill muted">${_dashEscape(opts.empty || 'No data')}</span></div>`;
+    }
+    return `<div class="dash-s-pills">${rows.map(item => {
+        const label = Array.isArray(item) ? item[0] : item.label;
+        const value = Array.isArray(item) ? item[1] : item.value;
+        const title = item.title || label;
+        const click = item.onclick ? ` onclick="${item.onclick}"` : '';
+        const cls = item.muted ? ' muted' : '';
+        return `<span class="dash-s-pill${cls}" title="${_dashEscape(title)}"${click}>${_dashEscape(label)}${value != null ? ` <b>${_dashEscape(value)}</b>` : ''}</span>`;
+    }).join('')}</div>`;
+}
+
+function _dashGoToGraphFile(filePath, funcName) {
     if (!filePath) return;
+    if (typeof _dashCloseGroupDrilldown === 'function') _dashCloseGroupDrilldown();
+    if (typeof _dashCloseDrilldown === 'function') _dashCloseDrilldown();
     if (typeof closeDashboard === 'function') closeDashboard();
 
     const rel = String(filePath).replace(/\\/g, '/');
-
-    if (typeof drillToFile !== 'function') return;
-
     const modId = _dashFindModule(rel);
 
     if (modId && typeof drillToModule === 'function') {
-        // drillToModule re-renders L1; wait a tick before drilling to L2
-        drillToModule(modId);
-        setTimeout(() => {
-            drillToFile(rel);
-            if (funcName) {
-                setTimeout(() => {
-                    if (typeof openCodePanel === 'function') openCodePanel();
-                }, 400);
-            }
-        }, 150);
-    } else {
-        // Fallback: attempt direct L2 drill (works if already in correct module)
-        drillToFile(rel);
-        if (funcName) {
-            setTimeout(() => {
-                if (typeof openCodePanel === 'function') openCodePanel();
-            }, 400);
+        drillToModule(modId, { focusFile: rel });
+        if (funcName && typeof drillToFile === 'function') {
+            setTimeout(() => drillToFile(rel), 220);
         }
+    } else if (funcName && typeof drillToFile === 'function') {
+        drillToFile(rel);
     }
+}
+
+function _dashDrill(filePath, funcName) {
+    _dashGoToGraphFile(filePath, funcName);
+}
+
+function _dashNormalizeFileList(files) {
+    const seen = new Set();
+    const out = [];
+    for (const item of files || []) {
+        const path = typeof item === 'string' ? item : (item && (item.path || item.file));
+        if (!path) continue;
+        const rel = String(path).replace(/\\/g, '/');
+        if (seen.has(rel)) continue;
+        seen.add(rel);
+        const meta = _dashFileForPath(rel) || {};
+        out.push(Object.assign({}, meta, typeof item === 'object' ? item : {}, { path: rel }));
+    }
+    return out;
+}
+
+function _dashOpenFileGroupDrilldown(title, files, options) {
+    _dashOpenGroupDrilldown(title, _dashNormalizeFileList(files), 'file', options || {});
+}
+
+function _dashOpenFunctionGroupDrilldown(title, functions, options) {
+    const rows = (functions || []).filter(fn => fn && fn.file).map(fn => ({
+        file: String(fn.file).replace(/\\/g, '/'),
+        name: fn.name || fn.label || '?',
+        value: fn.value ?? fn.lines ?? fn.complexity ?? '',
+        meta: fn.meta || '',
+    }));
+    _dashOpenGroupDrilldown(title, rows, 'function', options || {});
+}
+
+const _DASH_GROUP_DRILL_ID = 'dash-group-drilldown-overlay';
+
+function _dashOpenGroupDrilldown(title, rows, kind, options) {
+    _dashCloseGroupDrilldown();
+    const overlay = document.createElement('div');
+    overlay.id = _DASH_GROUP_DRILL_ID;
+    overlay.className = 'dash-group-drilldown-overlay';
+    const safeTitle = _dashEscape(title || 'Files');
+    const count = rows.length;
+    const body = count ? rows.map((row, i) => {
+        const file = row.path || row.file || '';
+        const short = String(file).split('/').pop();
+        if (kind === 'function') {
+            return `<div class="dash-list-row" data-clickable="true" data-tip="${_dashEscape(file)}"
+     onclick="_dashGoToGraphFile(${_dashJson(file)}, ${_dashJson(row.name || '')})">
+  <span class="dash-list-rank">${i + 1}</span>
+  <span class="dash-list-name">${_dashEscape(row.name || '?')}<span class="dash-list-meta">${_dashEscape(short)}${row.meta ? ' · ' + _dashEscape(row.meta) : ''}</span></span>
+  <span class="dash-list-val">${_dashEscape(row.value)}</span>
+</div>`;
+        }
+        const loc = row.loc || {};
+        const meta = options && typeof options.meta === 'function'
+            ? options.meta(row)
+            : (row.count != null ? `${row.count}` : (loc.code ? `${_dashFmtNum(loc.code)} LOC` : _dashFmtBytes(row.size || 0)));
+        return `<div class="dash-list-row" data-clickable="true" data-tip="${_dashEscape(file)}"
+     onclick="_dashGoToGraphFile(${_dashJson(file)}, null)">
+  <span class="dash-list-rank">${i + 1}</span>
+  <span class="dash-list-name">${_dashEscape(short)}<span class="dash-list-meta">${_dashEscape(file)}</span></span>
+  <span class="dash-list-val">${_dashEscape(meta)}</span>
+</div>`;
+    }).join('') : `<div class="dash-empty">${_dashEscape(options.empty || 'No files')}</div>`;
+
+    overlay.innerHTML = `
+<div class="dash-group-drilldown-panel" role="dialog" aria-modal="true">
+  <div class="dash-group-drilldown-head">
+    <div>
+      <div class="dash-detail-head-label">Drilldown</div>
+      <div class="dash-detail-head-name">${safeTitle}<span class="dash-list-meta dash-list-meta--inline"> ${count} ${kind === 'function' ? 'functions' : 'files'}</span></div>
+    </div>
+    <button class="dash-detail-close" type="button" data-close-group aria-label="Close">x</button>
+  </div>
+  <div class="dash-group-drilldown-body"><div class="dash-list">${body}</div></div>
+</div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => {
+        if (e.target === overlay || e.target.closest('[data-close-group]')) _dashCloseGroupDrilldown();
+    });
+}
+
+function _dashCloseGroupDrilldown() {
+    document.getElementById(_DASH_GROUP_DRILL_ID)?.remove();
 }
 
 // ── Widget label keys (shared by settings and tab editor) ─────────────────

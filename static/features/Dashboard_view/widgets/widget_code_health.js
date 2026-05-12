@@ -2,6 +2,21 @@
 
 const _DASH_HEALTH_TRACK_LEN = Math.PI * 88;
 
+function _dashHealthCategoryFiles(key, stats) {
+    if (key === 'complexity') return (stats.complexity_top_offenders || []).map(x => x.file);
+    if (key === 'coupling') {
+        const files = [
+            ...(stats.top_imported_files || []).map(x => x.file),
+            ...(stats.top_caller_files || []).map(x => x.file),
+            ...(stats.top_circular_deps || []).flat(),
+        ];
+        return files;
+    }
+    if (key === 'dead_code') return (stats.dead_code_symbols || []).map(x => x.file);
+    if (key === 'duplication') return (stats.duplication_blocks || []).flatMap(b => (b.occurrences || []).map(o => o.file));
+    if (key === 'cohesion') return _dashAllFiles();
+    return [];
+}
 
 _dashRegisterWidget({
     id: 'code_health',
@@ -21,15 +36,23 @@ _dashRegisterWidget({
         const gapLen  = _DASH_HEALTH_TRACK_LEN.toFixed(2);
 
         if (size === 'S') {
-            const barPct = Math.round(pct * 100);
+            const worst = _DASH_HEALTH_SUBSCORES
+                .map(s => ({ label: _dashT(s.label).split(' ').pop(), value: Number(breakdown[s.key] || 0).toFixed(1), key: s.key }))
+                .sort((a, b) => Number(a.value) - Number(b.value))
+                .slice(0, 3)
+                .map(s => ({
+                    label: s.label,
+                    value: s.value,
+                    onclick: `_dashOpenFileGroupDrilldown('Code Health: ${_dashEscape(s.label)}', _dashHealthCategoryFiles(${_dashJson(s.key)}, DATA.stats))`,
+                }));
             container.innerHTML = `
 <div class="dash-kpi-s">
   <div class="dash-kpi-s-body">
     <div class="dash-widget-title">Code Health</div>
     <div class="dash-widget-stat" style="color:${color}">${score.toFixed(1)}</div>
     <div class="dash-widget-sub" style="color:${color}">${_dashEscape(_dashT(statusKey))} / 10</div>
+    ${_dashMiniPills(worst)}
   </div>
-  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${barPct}%;background:${color}"></div></div>
 </div>`;
             return;
         }
@@ -41,7 +64,8 @@ _dashRegisterWidget({
                 const bPct = Math.round((v / 10) * 100);
                 const col  = fills[Math.min(i, fills.length - 1)];
                 const name = _dashT(s.label).split(' ').pop();
-                return `<div class="dash-kpi-bar-row">
+                return `<div class="dash-kpi-bar-row" style="cursor:pointer"
+     onclick="_dashOpenFileGroupDrilldown('Code Health: ${_dashEscape(name)}', _dashHealthCategoryFiles(${_dashJson(s.key)}, DATA.stats))">
   <span class="dash-kpi-bar-label">${_dashEscape(name)}</span>
   <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${bPct}%;background:${col}"></div></div>
   <span class="dash-kpi-bar-val">${v.toFixed(1)}</span>
@@ -76,6 +100,28 @@ _dashRegisterWidget({
     </svg>
     <span class="dash-health-status-badge" style="color:${color}">${_dashEscape(_dashT(statusKey))}</span>
   </div>
+</div>`;
+    },
+
+    renderDetail(container, stats) {
+        const breakdown = stats.code_health_breakdown || {};
+        const weights = stats.code_health_weights || {};
+        const rows = _DASH_HEALTH_SUBSCORES.map(s => {
+            const value = Number(breakdown[s.key] || 0);
+            const files = _dashHealthCategoryFiles(s.key, stats);
+            return `<div class="dash-health-row" data-clickable="true"
+     onclick="_dashOpenFileGroupDrilldown('Code Health: ${_dashEscape(_dashT(s.label))}', _dashHealthCategoryFiles(${_dashJson(s.key)}, DATA.stats))">
+  <span class="dash-health-row-label">${_dashEscape(_dashT(s.label))}</span>
+  <div class="dash-health-row-track">
+    <div class="dash-health-row-fill" style="width:${Math.round(value * 10)}%;background:${_dashHealthColor(value)}"></div>
+  </div>
+  <span class="dash-health-row-value">${value.toFixed(1)} <small style="color:var(--muted)">w ${Math.round((weights[s.key] || 0) * 100)}% · ${files.length} files</small></span>
+</div>`;
+        }).join('');
+        container.innerHTML = `
+<div class="dash-card">
+  <div class="dash-card-title"><span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashCodeHealthTitle'))}</div>
+  <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">${rows}</div>
 </div>`;
     },
 

@@ -25,15 +25,22 @@ _dashRegisterWidget({
         const color = pct > 20 ? '#c57429' : pct > 5 ? '#DFA745' : '#A4B55B';
 
         if (size === 'S') {
-            const barPct = Math.min(100, pct * 5);
+            const byFile = new Map();
+            (stats.dead_code_symbols || []).forEach(sym => byFile.set(sym.file, (byFile.get(sym.file) || 0) + 1));
+            const pills = [...byFile.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([file, cnt]) => ({
+                label: String(file).split('/').pop(),
+                value: cnt,
+                title: file,
+                onclick: `_dashOpenFunctionGroupDrilldown('Dead symbols in ${_dashEscape(String(file).split('/').pop())}', (DATA.stats.dead_code_symbols || []).filter(s => s.file === ${_dashJson(file)}).map(s => ({ file: s.file, name: s.name, value: 'unused' })))`,
+            }));
             container.innerHTML = `
 <div class="dash-kpi-s">
   <div class="dash-kpi-s-body">
     <div class="dash-widget-title">Dead Code</div>
     <div class="dash-widget-stat" style="color:${color}">${_dashFmtNum(count)}</div>
     <div class="dash-widget-sub">${pct}% of funcs</div>
+    ${_dashMiniPills(pills)}
   </div>
-  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${barPct}%;background:${color}"></div></div>
 </div>`;
             return;
         }
@@ -66,7 +73,8 @@ _dashRegisterWidget({
         const topFiles = [...byFile.entries()].sort((a, b) => b[1] - a[1]);
         const maxF     = topFiles.length ? topFiles[0][1] : 1;
         const fileRows = topFiles.slice(0, 6).map(([file, cnt], i) => `
-<div class="dash-kpi-bar-row">
+<div class="dash-kpi-bar-row" style="cursor:pointer"
+     onclick="_dashOpenFunctionGroupDrilldown('Dead symbols in ${_dashEscape(file.split('/').pop())}', (DATA.stats.dead_code_symbols || []).filter(s => s.file === ${_dashJson(file)}).map(s => ({ file: s.file, name: s.name, value: 'unused' })))">
   <span class="dash-kpi-bar-label">${_dashEscape(file.split('/').pop())}</span>
   <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${Math.round(cnt/maxF*100)}%;background:${color}"></div></div>
   <span class="dash-kpi-bar-val">${cnt}</span>
@@ -98,7 +106,7 @@ _dashRegisterWidget({
         deadList.forEach(sym => {
             const key = sym.file || 'unknown';
             if (!byFile.has(key)) byFile.set(key, []);
-            byFile.get(key).push(sym.name || sym);
+            byFile.get(key).push(sym);
         });
         const fileEntries = [...byFile.entries()].sort((a, b) => b[1].length - a[1].length);
 
@@ -122,9 +130,10 @@ _dashRegisterWidget({
     ${fileEntries.map(([file, syms]) => {
         const shortFile = file.split('/').pop();
         return `<div style="margin-bottom:8px;">
-          <div style="font-size:var(--text-xs);color:var(--muted);margin-bottom:3px;" title="${_dashEscape(file)}">${_dashEscape(shortFile)} <span style="color:var(--border)">(${syms.length})</span></div>
+          <div style="font-size:var(--text-xs);color:var(--muted);margin-bottom:3px;cursor:pointer;" title="${_dashEscape(file)}"
+               onclick="_dashOpenFunctionGroupDrilldown('Dead symbols in ${_dashEscape(shortFile)}', (DATA.stats.dead_code_symbols || []).filter(s => s.file === ${_dashJson(file)}).map(s => ({ file: s.file, name: s.name, value: 'unused' })))">${_dashEscape(shortFile)} <span style="color:var(--border)">(${syms.length})</span></div>
           <div style="display:flex;flex-wrap:wrap;gap:4px;">
-            ${syms.map(n => `<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--surface-elevated);color:${color}">${_dashEscape(n)}</span>`).join('')}
+            ${syms.map(s => `<span data-clickable="true" onclick="_dashGoToGraphFile(${_dashJson(s.file)}, ${_dashJson(s.name || '')})" style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--surface-elevated);color:${color};cursor:pointer">${_dashEscape(s.name || s)}</span>`).join('')}
           </div>
         </div>`;
     }).join('') || '<div class="dash-empty">No dead code detected</div>'}

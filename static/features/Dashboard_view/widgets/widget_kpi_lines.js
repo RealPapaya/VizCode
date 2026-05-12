@@ -17,14 +17,19 @@ _dashRegisterWidget({
         const colors     = _dashAccentForSlices(3);
 
         if (size === 'S') {
+            const linePills = [
+                { label: 'Code', value: `${codePct}%`, onclick: `_dashOpenFileGroupDrilldown('Files with code LOC', _dashAllFiles().filter(f => (f.loc || {}).code > 0), { meta: f => _dashFmtNum((f.loc || {}).code || 0) + ' LOC' })` },
+                { label: 'Comments', value: `${commentPct}%`, onclick: `_dashOpenFileGroupDrilldown('Files with comment LOC', _dashAllFiles().filter(f => (f.loc || {}).comment > 0), { meta: f => _dashFmtNum((f.loc || {}).comment || 0) + ' lines' })` },
+                { label: 'Blank', value: `${blankPct}%`, onclick: `_dashOpenFileGroupDrilldown('Files with blank LOC', _dashAllFiles().filter(f => (f.loc || {}).blank > 0), { meta: f => _dashFmtNum((f.loc || {}).blank || 0) + ' lines' })` },
+            ];
             container.innerHTML = `
 <div class="dash-kpi-s">
   <div class="dash-kpi-s-body">
     <div class="dash-widget-title">Lines</div>
     <div class="dash-widget-stat">${_dashFmtNum(total)}</div>
     <div class="dash-widget-sub">${codePct}% code &middot; ${_dashFmtNum(comment)} comments</div>
+    ${_dashMiniPills(linePills)}
   </div>
-  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${codePct}%;background:var(--accent)"></div></div>
 </div>`;
             return;
         }
@@ -37,7 +42,7 @@ _dashRegisterWidget({
 
         if (size === 'M') {
             const rows = segments.map(([label, cnt, pct, col]) => `
-<div class="dash-kpi-bar-row">
+<div class="dash-kpi-bar-row" style="cursor:pointer" onclick="_dashOpenFileGroupDrilldown('Files with ${label} LOC', _dashAllFiles().filter(f => ((f.loc || {})[${_dashJson(label === 'Comments' ? 'comment' : label.toLowerCase())}] || 0) > 0), { meta: f => _dashFmtNum(((f.loc || {})[${_dashJson(label === 'Comments' ? 'comment' : label.toLowerCase())}] || 0)) + ' lines' })">
   <span class="dash-kpi-bar-label">${label}</span>
   <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${pct}%;background:${col}"></div></div>
   <span class="dash-kpi-bar-val">${_dashFmtNum(cnt)}</span>
@@ -54,7 +59,7 @@ _dashRegisterWidget({
 </div>`;
         } else {
             const rows = segments.map(([label, cnt, pct, col]) => `
-<div class="dash-kpi-bar-row">
+<div class="dash-kpi-bar-row" style="cursor:pointer" onclick="_dashOpenFileGroupDrilldown('Files with ${label} LOC', _dashAllFiles().filter(f => ((f.loc || {})[${_dashJson(label === 'Comments' ? 'comment' : label.toLowerCase())}] || 0) > 0), { meta: f => _dashFmtNum(((f.loc || {})[${_dashJson(label === 'Comments' ? 'comment' : label.toLowerCase())}] || 0)) + ' lines' })">
   <span class="dash-kpi-bar-label">${label}</span>
   <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${pct}%;background:${col}"></div></div>
   <span class="dash-kpi-bar-val">${_dashFmtNum(cnt)}<small class="dash-kpi-bar-pct">${pct}%</small></span>
@@ -97,21 +102,21 @@ _dashRegisterWidget({
 <div class="dash-card">
   <div class="dash-card-title"><span class="dash-card-title-dot"></span>Breakdown</div>
   <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
-    <div class="dash-health-row">
+    <div class="dash-health-row" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with code LOC', _dashAllFiles().filter(f => (f.loc || {}).code > 0), { meta: f => _dashFmtNum((f.loc || {}).code || 0) + ' LOC' })">
       <span class="dash-health-row-label">Code</span>
       <div class="dash-health-row-track">
         <div class="dash-health-row-fill" style="width:${codePct}%;background:${sliceColors[0]}"></div>
       </div>
       <span class="dash-health-row-value">${_dashFmtNum(code)} <small style="color:var(--muted)">(${codePct}%)</small></span>
     </div>
-    <div class="dash-health-row">
+    <div class="dash-health-row" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with comment LOC', _dashAllFiles().filter(f => (f.loc || {}).comment > 0), { meta: f => _dashFmtNum((f.loc || {}).comment || 0) + ' lines' })">
       <span class="dash-health-row-label">Comments</span>
       <div class="dash-health-row-track">
         <div class="dash-health-row-fill" style="width:${commentPct}%;background:${sliceColors[1] || sliceColors[0]}"></div>
       </div>
       <span class="dash-health-row-value">${_dashFmtNum(comment)} <small style="color:var(--muted)">(${commentPct}%)</small></span>
     </div>
-    <div class="dash-health-row">
+    <div class="dash-health-row" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with blank LOC', _dashAllFiles().filter(f => (f.loc || {}).blank > 0), { meta: f => _dashFmtNum((f.loc || {}).blank || 0) + ' lines' })">
       <span class="dash-health-row-label">Blank</span>
       <div class="dash-health-row-track">
         <div class="dash-health-row-fill" style="width:${blankPct}%;background:var(--border)"></div>
@@ -128,6 +133,14 @@ _dashRegisterWidget({
                 datasets: [{ data, backgroundColor: sliceColors, borderWidth: 0, hoverOffset: 8 }],
             }, {
                 responsive: true, maintainAspectRatio: false,
+                onClick: (_evt, elements) => {
+                    if (!elements || !elements.length) return;
+                    const label = labels[elements[0].index];
+                    const key = label === 'Comments' ? 'comment' : String(label || '').toLowerCase();
+                    _dashOpenFileGroupDrilldown(`Files with ${label} LOC`, _dashAllFiles().filter(f => ((f.loc || {})[key] || 0) > 0), {
+                        meta: f => `${_dashFmtNum(((f.loc || {})[key] || 0))} lines`,
+                    });
+                },
                 plugins: { legend: { position: 'right', labels: { boxWidth: 10, padding: 10 } } },
                 cutout: '70%',
             });

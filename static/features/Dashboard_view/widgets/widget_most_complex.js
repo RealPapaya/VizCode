@@ -18,21 +18,25 @@ _dashRegisterWidget({
     <div class="dash-widget-title">Most Complex</div>
     <div class="dash-widget-sub" style="margin-top:auto">No data</div>
   </div>
-  <div class="dash-kpi-s-bar"></div>
 </div>`;
                 return;
             }
             const val    = item.complexity || item.score || 0;
             const name   = (item.name || item.file || '?').split('/').pop();
-            const barPct = Math.min(100, Math.round(val / 20 * 100));
+            const pills = all.slice(0, 3).map(sym => ({
+                label: sym.name || sym.function || '?',
+                value: sym.complexity || sym.score || 0,
+                title: sym.file || '',
+                onclick: `_dashGoToGraphFile(${_dashJson(sym.file || '')}, ${_dashJson(sym.name || sym.function || '')})`,
+            }));
             container.innerHTML = `
 <div class="dash-kpi-s">
   <div class="dash-kpi-s-body">
     <div class="dash-widget-title">Most Complex</div>
     <div class="dash-widget-stat">${val}</div>
     <div class="dash-widget-sub" title="${_dashEscape(item.file || '')}">${_dashEscape(name)}</div>
+    ${_dashMiniPills(pills)}
   </div>
-  <div class="dash-kpi-s-bar"><div class="dash-kpi-s-bar-fill" style="width:${barPct}%;background:var(--accent)"></div></div>
 </div>`;
             return;
         }
@@ -51,7 +55,7 @@ _dashRegisterWidget({
             const pct  = Math.round((val / maxVal) * 100);
             const col  = colors[Math.min(i, colors.length - 1)];
             const name = (item.name || item.function || item.file || '?').split('/').pop();
-            return `<div class="dash-list-row">
+            return `<div class="dash-list-row" data-clickable="true" onclick="_dashGoToGraphFile(${_dashJson(item.file || '')}, ${_dashJson(item.name || item.function || '')})">
         <span class="dash-list-rank">${i + 1}</span>
         <span class="dash-list-name" title="${_dashEscape(item.file || '')}">${_dashEscape(name)}</span>
         <div class="dash-list-bar" style="width:${Math.round(pct * 0.55)}px;background:${col}"></div>
@@ -90,7 +94,7 @@ _dashRegisterWidget({
         const col  = colors[Math.min(i, colors.length - 1)];
         const name = (item.name || item.function || '?');
         const file = (item.file || '').split('/').pop();
-        return `<div class="dash-list-row">
+        return `<div class="dash-list-row" data-clickable="true" onclick="_dashGoToGraphFile(${_dashJson(item.file || '')}, ${_dashJson(item.name || item.function || '')})">
           <span class="dash-list-rank">${i + 1}</span>
           <span class="dash-list-name" title="${_dashEscape(item.file || '')}">${_dashEscape(name)}<span style="color:var(--muted);font-size:10px;margin-left:6px;">${_dashEscape(file)}</span></span>
           <div class="dash-list-bar" style="width:${Math.round(pct * 0.5)}px;background:${col}"></div>
@@ -112,6 +116,11 @@ _dashRegisterWidget({
                 }],
             }, {
                 responsive: true, maintainAspectRatio: false,
+                onClick: (_evt, elements) => {
+                    if (!elements || !elements.length) return;
+                    const bucket = dist[elements[0].index];
+                    if (bucket) _dashOpenFunctionGroupDrilldown(`Complexity ${bucket.range}`, _dashComplexityBucketFunctions(bucket.range));
+                },
                 plugins: { legend: { display: false } },
                 scales: {
                     y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.06)' } },

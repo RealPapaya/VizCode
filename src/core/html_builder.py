@@ -564,6 +564,7 @@ def build_html(data: dict, job_id: str = None) -> str:
         base / 'features' / 'Dashboard_view' / 'dashboard_lifecycle.js',
         base / 'features' / 'Dashboard_view' / 'dashboard_dom.js',
         base / 'features' / 'Dashboard_view' / 'dashboard_detail_panel.js',
+        base / 'features' / 'Dashboard_view' / 'dashboard_drilldown.js',
         base / 'features' / 'Dashboard_view' / 'dashboard_customize.js',
         base / 'features' / 'Dashboard_view' / 'dashboard_render.js',
         base / 'features' / 'Dashboard_view' / 'dashboard_index.js',

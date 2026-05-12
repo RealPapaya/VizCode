@@ -163,7 +163,7 @@ function _dashTemporalHeatmapSVG(model) {
         cells.push(`
 <rect class="dash-temporal-heatmap-cell${info.commits ? ' active' : ''}"
       x="${x}" y="${y}" width="${cell}" height="${cell}" rx="2"
-      fill="${fill}">
+      fill="${fill}" ${info.commits ? `onclick="_dashOpenFileGroupDrilldown('Files changed on ${iso}', (DATA.stats.files_by_day || {})[${_dashJson(iso)}] || [], { meta: f => (f.count || 0) + ' commits' })"` : ''}>
   <title>${_dashEscape(title)}</title>
 </rect>`);
     }
@@ -278,6 +278,32 @@ _dashRegisterWidget({
     labelKey: 'dashTemporalHeatmap',
     defaultSize: 'M',
     render(container, size, stats) {
+        if (size === 'S') {
+            const rows = stats.commit_activity_daily || [];
+            const activeDays = rows.filter(r => (r.commits || 0) > 0).length;
+            const peak = rows.reduce((best, r) => ((r.commits || 0) > (best.commits || 0) ? r : best), {});
+            const topFiles = (stats.file_churn || []).slice(0, 2).map(f => ({
+                label: String(f.file || '').split('/').pop(),
+                value: f.commits,
+                title: f.file,
+                onclick: `_dashGoToGraphFile(${_dashJson(f.file)}, null)`,
+            }));
+            const pills = [
+                { label: 'Days', value: activeDays },
+                peak.date && { label: 'Peak', value: peak.commits, onclick: `_dashOpenFileGroupDrilldown('Files changed on ${_dashEscape(peak.date)}', (DATA.stats.files_by_day || {})[${_dashJson(peak.date)}] || [], { meta: f => (f.count || 0) + ' commits' })` },
+                ...topFiles,
+            ].filter(Boolean);
+            container.innerHTML = `
+<div class="dash-kpi-s">
+  <div class="dash-kpi-s-body">
+    <div class="dash-widget-title">${_dashEscape(_dashT('dashTemporalHeatmap'))}</div>
+    <div class="dash-widget-stat">${_dashFmtNum(stats.commits_analyzed || 0)}</div>
+    <div class="dash-widget-sub">${activeDays} active days</div>
+    ${_dashMiniPills(pills)}
+  </div>
+</div>`;
+            return;
+        }
         _dashRenderTemporalHeatmap(container, stats);
         if (size === 'L') _dashHeatmapAppendStats(container, stats);
     },
