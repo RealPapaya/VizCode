@@ -35,8 +35,8 @@ function _dashDrawTimelineChart(buckets) {
     const canvas = document.getElementById('dash-chart-timeline');
     if (!canvas || typeof Chart === 'undefined') return;
 
-    const labels    = buckets.map(b => b.week_start);
-    const commits   = buckets.map(b => b.commits);
+    const labels = buckets.map(b => b.week_start);
+    const commits = buckets.map(b => b.commits);
     const additions = buckets.map(b => b.additions);
     const deletions = buckets.map(b => -Math.abs(b.deletions));   // negative for visual diff
 
@@ -47,9 +47,9 @@ function _dashDrawTimelineChart(buckets) {
         datasets: [
             {
                 label: _dashT('dashTemporalCommits'),
-                data:  commits,
+                data: commits,
                 yAxisID: 'yCommits',
-                borderColor:     _dashAccentTint(1.0),
+                borderColor: _dashAccentTint(1.0),
                 backgroundColor: _dashAccentTint(0.25),
                 borderWidth: 2,
                 tension: 0.25,
@@ -58,9 +58,9 @@ function _dashDrawTimelineChart(buckets) {
             },
             {
                 label: _dashT('dashTemporalAdditions'),
-                data:  additions,
+                data: additions,
                 yAxisID: 'yLines',
-                borderColor:     _dashAccentTint(0.55),
+                borderColor: _dashAccentTint(0.55),
                 backgroundColor: _dashAccentTint(0.12),
                 borderWidth: 1.5,
                 tension: 0.25,
@@ -70,9 +70,9 @@ function _dashDrawTimelineChart(buckets) {
             },
             {
                 label: _dashT('dashTemporalDeletions'),
-                data:  deletions,
+                data: deletions,
                 yAxisID: 'yLines',
-                borderColor:     _dashMutedTint(0.7),
+                borderColor: _dashMutedTint(0.7),
                 backgroundColor: _dashMutedTint(0.15),
                 borderWidth: 1.5,
                 tension: 0.25,
@@ -84,33 +84,25 @@ function _dashDrawTimelineChart(buckets) {
     }, {
         responsive: true,
         maintainAspectRatio: false,
-        onClick: (_evt, elements) => {
-            if (!elements || !elements.length) return;
-            const idx = elements[0].index;
-            const week = labels[idx];
-            _dashOpenFileGroupDrilldown(`Files changed week ${week}`, (DATA.stats.files_by_week || {})[week] || [], {
-                meta: f => `${f.count || 0} commits`,
-            });
-        },
         interaction: { mode: 'index', intersect: false },
         plugins: {
             legend: { position: 'top', labels: { boxWidth: 10, padding: 10 } },
         },
         scales: {
             x: {
-                grid:  { color: _dashBorderTint(0.6) },
+                grid: { color: _dashBorderTint(0.6) },
                 ticks: { maxRotation: 45, minRotation: 0, autoSkip: true, maxTicksLimit: 12 },
             },
             yCommits: {
                 position: 'left',
-                grid:  { color: _dashBorderTint(0.6) },
+                grid: { color: _dashBorderTint(0.6) },
                 ticks: { color: _dashAccentTint(1.0) },
                 title: { display: true, text: _dashT('dashTemporalCommits'), color: _dashAccentTint(1.0) },
                 beginAtZero: true,
             },
             yLines: {
                 position: 'right',
-                grid:  { display: false },
+                grid: { display: false },
                 title: { display: true, text: '+/-' },
             },
         },
