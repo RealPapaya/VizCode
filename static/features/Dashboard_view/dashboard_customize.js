@@ -456,11 +456,10 @@ function _dashOpenAddWidgetPicker() {
     if (document.getElementById('dash-add-widget-overlay')) return;
 
     const hidden = _dashHiddenWidgetIds();
+    const hiddenSet = new Set(hidden);
 
-    const categories = _DASH_AWP_CATEGORIES.map(cat => ({
-        ...cat,
-        items: cat.items.filter(item => hidden.includes(item.id)),
-    })).filter(cat => cat.items.length > 0);
+    // Show ALL categories/widgets — added ones will be dimmed
+    const categories = _DASH_AWP_CATEGORIES.map(cat => ({ ...cat }));
 
     // Also catch any hidden widget not listed in categories
     const categorised = new Set(_DASH_AWP_CATEGORIES.flatMap(c => c.items.map(i => i.id)));
@@ -473,7 +472,9 @@ function _dashOpenAddWidgetPicker() {
     }
 
     const selectedTier = {};
-    hidden.forEach(id => {
+    // Pre-compute size tier for all widgets (only matters for hidden/addable ones)
+    categories.forEach(cat => cat.items.forEach(({ id }) => {
+        if (!hiddenSet.has(id)) return; // already on dashboard — no tier needed
         const widget = _dashWidgetRegistry[id];
         const def = (widget && widget.defaultSize) || 'M';
         const { w: dw, h: dh } = _DASH_SIZE_TIERS[def] || _DASH_SIZE_TIERS.M;
@@ -484,20 +485,25 @@ function _dashOpenAddWidgetPicker() {
                 _dashGridHasRoom(null, gw, gh));
             selectedTier[id] = fit ? fit[0] : null;
         }
-    });
+    }));
 
-    const firstId = categories[0]?.items[0]?.id || null;
+    // Pick the first *addable* widget as the initial selection, fall back to first overall
+    const firstAddable = categories.flatMap(c => c.items).find(i => hiddenSet.has(i.id));
+    const firstId = firstAddable?.id || categories[0]?.items[0]?.id || null;
 
-    // Build sidebar
+    // Build sidebar — show all; dim already-added ones
     const sidebarHTML = categories.length === 0
-        ? '<div class="dash-awp-empty">All widgets are already on this tab.</div>'
+        ? '<div class="dash-awp-empty">No widgets available.</div>'
         : categories.map(cat => `
 <div class="dash-awp-cat">
   <div class="dash-awp-cat-label">${_dashEscape(cat.label)}</div>
   ${cat.items.map(item => {
-      const widget = _dashWidgetRegistry[item.id];
-      const label  = _dashT(widget?.labelKey || item.id) || item.id;
-      return `<div class="dash-awp-item" data-widget-id="${_dashEscape(item.id)}">${_dashEscape(label)}</div>`;
+      const widget  = _dashWidgetRegistry[item.id];
+      const label   = _dashT(widget?.labelKey || item.id) || item.id;
+      const isAdded = !hiddenSet.has(item.id);
+      return `<div class="dash-awp-item${isAdded ? ' dash-awp-item--added' : ''}" data-widget-id="${_dashEscape(item.id)}">${
+          isAdded ? '<span class="dash-awp-item-check">✓</span>' : ''
+      }${_dashEscape(label)}</div>`;
   }).join('')}
 </div>`).join('');
 
@@ -538,18 +544,19 @@ function _dashOpenAddWidgetPicker() {
         const meta         = document.getElementById('dash-awp-meta');
         if (!widget || !previewInner || !meta) return;
 
-        const tier    = selectedTier[id] || 'M';
+        const isAdded  = !hiddenSet.has(id);
+        const tier     = selectedTier[id] || 'M';
         if (previewBox) previewBox.dataset.tier = tier;
-        const label   = _dashT(widget.labelKey || id) || id;
-        const desc    = getCategoryDesc(id);
-        const anyFits = Object.values(_DASH_SIZE_TIERS).some(({ w: gw, h: gh }) =>
+        const label    = _dashT(widget.labelKey || id) || id;
+        const desc     = getCategoryDesc(id);
+        const anyFits  = !isAdded && Object.values(_DASH_SIZE_TIERS).some(({ w: gw, h: gh }) =>
             _dashGridHasRoom(null, gw, gh));
 
         const tierBtns = Object.entries(_DASH_SIZE_TIERS).map(([t, { w: gw, h: gh }]) => {
-            const fits     = _dashGridHasRoom(null, gw, gh);
+            const fits     = !isAdded && _dashGridHasRoom(null, gw, gh);
             const isActive = t === tier;
             return `<button class="dash-size-btn${isActive ? ' active' : ''}"
-                data-tier="${t}"${!fits ? ' disabled' : ''} type="button">${t}</button>`;
+                data-tier="${t}"${(!fits || isAdded) ? ' disabled' : ''} type="button">${t}</button>`;
         }).join('');
 
         meta.innerHTML = `
@@ -559,8 +566,8 @@ ${desc ? `<div class="dash-awp-meta-desc">${_dashEscape(desc)}</div>` : ''}
   <span class="dash-awp-size-label">Size</span>
   <div class="dash-add-widget-size-row">${tierBtns}</div>
 </div>
-<button class="dash-awp-add-btn" type="button"${!anyFits ? ' disabled' : ''}>
-  ${anyFits ? 'Add to Dashboard' : 'Grid Full'}
+<button class="dash-awp-add-btn${isAdded ? ' dash-awp-add-btn--added' : ''}" type="button"${(isAdded || !anyFits) ? ' disabled' : ''}>
+  ${isAdded ? '✓ Already on Dashboard' : anyFits ? 'Add to Dashboard' : 'Grid Full'}
 </button>`;
 
         meta.querySelectorAll('.dash-size-btn:not([disabled])').forEach(btn => {

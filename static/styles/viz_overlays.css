@@ -2154,6 +2154,25 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     font-weight: 600;
 }
 
+/* Already-added state: visible but dimmed — user can see what's on the board */
+.dash-awp-item--added {
+    opacity: 0.4;
+    cursor: default;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.dash-awp-item--added:hover { background: transparent; }
+
+.dash-awp-item-check {
+    flex-shrink: 0;
+    font-size: 10px;
+    color: var(--accent);
+    font-weight: 700;
+    opacity: 0.8;
+}
+
 .dash-awp-empty {
     padding: var(--space-4);
     font-size: 11px;
@@ -2277,6 +2296,14 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     background: var(--surface-elevated);
     color: var(--muted);
     cursor: default;
+    opacity: 1;
+}
+
+/* Already-on-dashboard state: subtle green tint instead of grey */
+.dash-awp-add-btn--added:disabled {
+    background: color-mix(in srgb, #4ade80 12%, var(--surface-elevated));
+    color: color-mix(in srgb, #4ade80 70%, var(--muted));
+    border: 1px solid color-mix(in srgb, #4ade80 25%, var(--border));
     opacity: 1;
 }
 
