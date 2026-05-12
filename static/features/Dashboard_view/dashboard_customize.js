@@ -325,13 +325,17 @@ function _dashSnapToCell(clientX, clientY) {
     if (!bento) return null;
     const bentoRect = bento.getBoundingClientRect();
     const style = getComputedStyle(bento);
+    const padL = parseFloat(style.paddingLeft) || 0;
+    const padT = parseFloat(style.paddingTop) || 0;
+    const padX = padL + (parseFloat(style.paddingRight) || 0);
+    const padY = padT + (parseFloat(style.paddingBottom) || 0);
     const gapX = parseFloat(style.columnGap) || 12;
     const gapY = parseFloat(style.rowGap) || 12;
-    const colW = (bentoRect.width - gapX * (_DASH_COLS - 1)) / _DASH_COLS;
-    const rowH = (bentoRect.height - gapY * (_DASH_ROWS - 1)) / _DASH_ROWS;
+    const colW = (bentoRect.width - padX - gapX * (_DASH_COLS - 1)) / _DASH_COLS;
+    const rowH = (bentoRect.height - padY - gapY * (_DASH_ROWS - 1)) / _DASH_ROWS;
 
-    const relX = clientX - bentoRect.left;
-    const relY = clientY - bentoRect.top;
+    const relX = clientX - bentoRect.left - padL;
+    const relY = clientY - bentoRect.top - padT;
     const col = Math.floor(relX / (colW + gapX));
     const row = Math.floor(relY / (rowH + gapY));
 
@@ -344,13 +348,17 @@ function _dashCellRect(col, row, w, h) {
     if (!bento) return { left: 0, top: 0, width: 0, height: 0 };
     const bentoRect = bento.getBoundingClientRect();
     const style = getComputedStyle(bento);
+    const padL = parseFloat(style.paddingLeft) || 0;
+    const padT = parseFloat(style.paddingTop) || 0;
+    const padX = padL + (parseFloat(style.paddingRight) || 0);
+    const padY = padT + (parseFloat(style.paddingBottom) || 0);
     const gapX = parseFloat(style.columnGap) || 12;
     const gapY = parseFloat(style.rowGap) || 12;
-    const colW = (bentoRect.width - gapX * (_DASH_COLS - 1)) / _DASH_COLS;
-    const rowH = (bentoRect.height - gapY * (_DASH_ROWS - 1)) / _DASH_ROWS;
+    const colW = (bentoRect.width - padX - gapX * (_DASH_COLS - 1)) / _DASH_COLS;
+    const rowH = (bentoRect.height - padY - gapY * (_DASH_ROWS - 1)) / _DASH_ROWS;
     return {
-        left: bentoRect.left + col * (colW + gapX),
-        top: bentoRect.top + row * (rowH + gapY),
+        left: bentoRect.left + padL + col * (colW + gapX),
+        top: bentoRect.top + padT + row * (rowH + gapY),
         width: w * colW + Math.max(0, w - 1) * gapX,
         height: h * rowH + Math.max(0, h - 1) * gapY,
     };
