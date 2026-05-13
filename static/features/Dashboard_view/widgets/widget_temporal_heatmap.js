@@ -31,7 +31,7 @@ function _dashRenderTemporalHeatmap(container, stats) {
 </div>
 <div class="dash-temporal-heatmap-body" id="dash-temporal-heatmap-body"></div>`;
 
-    const host = document.getElementById('dash-temporal-heatmap-body');
+    const host = container.querySelector('#dash-temporal-heatmap-body');
     if (!host) return;
     if (!rows.length) {
         host.innerHTML = `<div class="dash-empty">${_dashEscape(_dashT('dashTemporalEmpty'))}</div>`;

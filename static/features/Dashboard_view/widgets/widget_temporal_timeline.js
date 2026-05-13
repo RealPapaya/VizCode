@@ -6,17 +6,26 @@ const _DASH_TIMELINE_KEY = 'temporal_timeline';
 const _DASH_TIMELINE_TYPES = ['line', 'bar'];
 const _DASH_TIMELINE_DEFAULT = 'line';
 
-function _dashRenderTemporalTimeline(container, stats) {
+function _dashTimelineId(scope) {
+    return scope ? `dash-chart-timeline-${scope}` : 'dash-chart-timeline';
+}
+
+function _dashTimelineKey(scope) {
+    return scope ? `${_DASH_TIMELINE_KEY}_${scope}` : _DASH_TIMELINE_KEY;
+}
+
+function _dashRenderTemporalTimeline(container, stats, scope) {
     if (!container) return;
 
     const buckets = stats.churn_timeline || [];
+    const key = _dashTimelineKey(scope);
 
     container.innerHTML = `
 <div class="dash-card-title">
   <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashTemporalChurn'))}
-  ${_dashChartToggleHTML(_DASH_TIMELINE_KEY, _DASH_TIMELINE_TYPES, _DASH_TIMELINE_DEFAULT)}
+  ${_dashChartToggleHTML(key, _DASH_TIMELINE_TYPES, _DASH_TIMELINE_DEFAULT)}
 </div>
-<div class="dash-chart-wrap"><canvas id="dash-chart-timeline"></canvas></div>`;
+<div class="dash-chart-wrap"><canvas id="${_dashTimelineId(scope)}"></canvas></div>`;
 
     if (!buckets.length) {
         const wrap = container.querySelector('.dash-chart-wrap');
@@ -24,15 +33,15 @@ function _dashRenderTemporalTimeline(container, stats) {
         return;
     }
 
-    _dashRegisterChartSwitch(_DASH_TIMELINE_KEY, () =>
-        _dashRenderTemporalTimeline(container, stats)
+    _dashRegisterChartSwitch(key, () =>
+        _dashRenderTemporalTimeline(container, stats, scope)
     );
 
-    _dashDrawTimelineChart(buckets);
+    _dashDrawTimelineChart(buckets, scope);
 }
 
-function _dashDrawTimelineChart(buckets) {
-    const canvas = document.getElementById('dash-chart-timeline');
+function _dashDrawTimelineChart(buckets, scope) {
+    const canvas = document.getElementById(_dashTimelineId(scope));
     if (!canvas || typeof Chart === 'undefined') return;
 
     const labels = buckets.map(b => b.week_start);
@@ -40,7 +49,7 @@ function _dashDrawTimelineChart(buckets) {
     const additions = buckets.map(b => b.additions);
     const deletions = buckets.map(b => -Math.abs(b.deletions));   // negative for visual diff
 
-    const type = _dashChartCurrentType(_DASH_TIMELINE_KEY, _DASH_TIMELINE_DEFAULT);
+    const type = _dashChartCurrentType(_dashTimelineKey(scope), _DASH_TIMELINE_DEFAULT);
 
     _dashMkChart(canvas, type, {
         labels,

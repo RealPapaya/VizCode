@@ -12,7 +12,7 @@ function _dashRenderTemporalAuthors(container, stats) {
 </div>
 <div class="dash-list" id="dash-temporal-authors-list"></div>`;
 
-    const list = document.getElementById('dash-temporal-authors-list');
+    const list = container.querySelector('#dash-temporal-authors-list');
     if (!list) return;
     if (!items.length) {
         list.innerHTML = `<div class="dash-empty">${_dashEscape(_dashT('dashTemporalEmpty'))}</div>`;

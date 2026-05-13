@@ -1860,9 +1860,9 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 
     position: fixed;
 
-    width: 60vw;
+    width: min(980px, calc(100vw - 96px));
 
-    height: 72vh;
+    height: min(680px, calc(100vh - 96px));
 
     top: 50%;
 
@@ -1896,6 +1896,13 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 
     pointer-events: none;
 
+}
+
+@media (max-width: 720px) {
+    .dash-detail-panel {
+        width: calc(100vw - 28px);
+        height: calc(100vh - 28px);
+    }
 }
 
 
@@ -2460,6 +2467,33 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 
     height: 100% !important;
 
+}
+
+.dash-chart-wrap canvas:hover {
+    filter: brightness(1.04);
+}
+
+.dash-detail-body .dash-structure-layout--detail {
+    min-height: 0;
+}
+
+.dash-detail-body .dash-structure-layout--detail .dash-structure-chart-grid {
+    flex: 0 0 min(360px, 58%);
+}
+
+.dash-detail-body .dash-structure-layout--detail .dash-structure-chart-wrap {
+    min-height: 180px !important;
+}
+
+.dash-detail-body .dash-structure-layout--detail .dash-structure-treemap-card {
+    max-height: 220px !important;
+}
+
+@media (max-width: 860px) {
+    .dash-detail-body .dash-structure-layout--detail .dash-structure-chart-grid {
+        grid-template-columns: 1fr;
+        flex: 0 0 auto;
+    }
 }
 
 

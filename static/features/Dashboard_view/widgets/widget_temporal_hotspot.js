@@ -11,7 +11,7 @@ function _dashRenderTemporalHotspot(container, stats) {
 </div>
 <div class="dash-list" id="dash-temporal-hotspot-list"></div>`;
 
-    const list = document.getElementById('dash-temporal-hotspot-list');
+    const list = container.querySelector('#dash-temporal-hotspot-list');
     if (!list) return;
     if (!items.length) {
         list.innerHTML = `<div class="dash-empty">${_dashEscape(_dashT('dashTemporalEmpty'))}</div>`;

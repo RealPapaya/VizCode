@@ -85,10 +85,17 @@ _dashRegisterWidget({
         const langs = [...langMap.entries()].sort((a, b) => b[1] - a[1]);
         const max   = langs.length ? langs[0][1] : 1;
         const canvasId = 'dash-detail-files-donut';
-        const { labels, data, colors: sliceColors } = _dashGroupedSlices(
-            langs.map(l => `.${l[0]}`),
-            langs.map(l => l[1])
-        );
+        const sliceRows = langs.length > 5
+            ? langs.slice(0, 4).map(([ext, cnt]) => ({ label: `.${ext}`, exts: [ext], count: cnt }))
+                .concat([{
+                    label: _dashT('dashOthers') || 'Others',
+                    exts: langs.slice(4).map(([ext]) => ext),
+                    count: langs.slice(4).reduce((sum, [, cnt]) => sum + cnt, 0),
+                }])
+            : langs.map(([ext, cnt]) => ({ label: `.${ext}`, exts: [ext], count: cnt }));
+        const labels = sliceRows.map(row => row.label);
+        const data = sliceRows.map(row => row.count);
+        const sliceColors = _dashAccentForSlices(sliceRows.length);
 
         container.innerHTML = `
 <div class="dash-card">
@@ -125,9 +132,13 @@ _dashRegisterWidget({
                 onClick: (_evt, elements) => {
                     if (!elements || !elements.length) return;
                     const idx = elements[0].index;
-                    const label = labels[idx] || '';
-                    const ext = String(label).replace(/^\./, '');
-                    if (ext && ext !== 'Others') _dashOpenFileGroupDrilldown(`Files ${label}`, _dashFilesByExt(ext));
+                    const row = sliceRows[idx];
+                    if (row) {
+                        _dashOpenFileGroupDrilldown(
+                            `Files ${row.label}`,
+                            row.exts.flatMap(ext => _dashFilesByExt(ext))
+                        );
+                    }
                 },
                 plugins: { legend: { position: 'right', labels: { boxWidth: 10, padding: 10 } } },
                 cutout: '70%',

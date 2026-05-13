@@ -11,7 +11,7 @@ function _dashRenderTemporalCoupling(container, stats) {
 </div>
 <div class="dash-list" id="dash-temporal-coupling-list"></div>`;
 
-    const list = document.getElementById('dash-temporal-coupling-list');
+    const list = container.querySelector('#dash-temporal-coupling-list');
     if (!list) return;
     if (!items.length) {
         list.innerHTML = `<div class="dash-empty">${_dashEscape(_dashT('dashTemporalEmpty'))}</div>`;

@@ -7,14 +7,21 @@ let _dashDetailEscBound = false;
 let _dashDetailOpen     = false;
 
 function _dashOpenDetailPanel(widgetId, originRect) {
-    if (_dashDetailOpen) _dashCloseDetailPanel(true);  // replace if already open
+    if (_dashDetailOpen) {
+        // Destroy charts and remove old DOM, then open the new panel next frame
+        // so Chart.js ResizeObserver callbacks fire before the canvas nodes vanish.
+        _dashCloseDetailPanel(true);
+        requestAnimationFrame(() => _dashOpenDetailPanel(widgetId, originRect));
+        return;
+    }
 
     const widget = _dashWidgetRegistry[widgetId];
     if (!widget || typeof widget.renderDetail !== 'function') return;
 
     // Compute transform-origin so the panel appears to expand from the widget
-    const panelW    = window.innerWidth  * 0.60;
-    const panelH    = window.innerHeight * 0.72;
+    const narrow    = window.innerWidth <= 720;
+    const panelW    = narrow ? Math.max(280, window.innerWidth - 28) : Math.min(980, Math.max(520, window.innerWidth - 96));
+    const panelH    = narrow ? Math.max(360, window.innerHeight - 28) : Math.min(680, Math.max(420, window.innerHeight - 96));
     const panelLeft = (window.innerWidth  - panelW) / 2;
     const panelTop  = (window.innerHeight - panelH) / 2;
     const originX   = (originRect.left + originRect.width  / 2) - panelLeft;
@@ -49,16 +56,22 @@ function _dashOpenDetailPanel(widgetId, originRect) {
     document.body.appendChild(backdrop);
     document.body.appendChild(panel);
 
-    // Render detail content
     const body = document.getElementById('dash-detail-body');
-    if (body && typeof widget.renderDetail === 'function') {
-        try {
-            widget.renderDetail(body, DATA.stats);
-        } catch (err) {
-            console.error(`[dashboard] detail for ${widgetId} failed:`, err);
-            body.innerHTML = `<div class="dash-empty">⚠ detail unavailable</div>`;
+
+    // Defer renderDetail one frame so the panel's layout (and the canvas's
+    // offsetWidth/offsetHeight) is fully resolved before Chart.js captures
+    // size. Without this, charts can be created at 0x0 right after navigation
+    // (e.g. graph→dashboard) and never recover when no follow-up resize fires.
+    requestAnimationFrame(() => {
+        if (body && typeof widget.renderDetail === 'function') {
+            try {
+                widget.renderDetail(body, DATA.stats);
+            } catch (err) {
+                console.error(`[dashboard] detail for ${widgetId} failed:`, err);
+                body.innerHTML = `<div class="dash-empty">⚠ detail unavailable</div>`;
+            }
         }
-    }
+    });
 
     // Animate open (next frame so initial state is applied first)
     requestAnimationFrame(() => {
@@ -88,32 +101,34 @@ function _dashCloseDetailPanel(immediate) {
 
     _dashDetailOpen = false;
 
-    const cleanup = () => {
-        // Destroy any charts rendered inside the detail body
-        const body = document.getElementById('dash-detail-body');
-        if (body) {
-            body.querySelectorAll('canvas').forEach(canvas => {
-                if (canvas.id && _dashCharts && _dashCharts[canvas.id]) {
-                    try { _dashCharts[canvas.id].destroy(); } catch (_) {}
-                    delete _dashCharts[canvas.id];
-                }
-            });
-        }
+    // Destroy Chart.js instances while the canvas nodes are still in the DOM.
+    // This lets any pending ResizeObserver callbacks fire against an already-
+    // destroyed chart rather than a live one attached to a detached node.
+    const body = document.getElementById('dash-detail-body');
+    if (body) {
+        body.querySelectorAll('canvas').forEach(canvas => {
+            if (canvas.id && _dashCharts && _dashCharts[canvas.id]) {
+                try { _dashCharts[canvas.id].destroy(); } catch (_) {}
+                delete _dashCharts[canvas.id];
+            }
+        });
+    }
+
+    const removeDom = () => {
         backdrop?.remove();
         panel?.remove();
     };
 
     if (immediate) {
-        cleanup();
+        // One rAF so ResizeObserver callbacks flush before the nodes are detached.
+        requestAnimationFrame(removeDom);
         return;
     }
 
-    // Animate close
+    // Animate close, then remove after transition.
     backdrop?.classList.remove('open');
     panel?.classList.remove('open');
-
-    const duration = 270;
-    setTimeout(cleanup, duration);
+    setTimeout(removeDom, 270);
 }
 
 function _dashDetailKeyHandler(e) {

@@ -2,13 +2,18 @@
 // Phase 2 orchestrator. Lays out the temporal sub-cards and delegates
 // rendering to the per-card sub-widgets. Returns early when there is no git
 // history or no commits in the analysed window.
-//
-// The day-range pills (30 / 90 / 180 / All) filter commit_activity_daily and
-// churn_timeline client-side — no server round-trip needed.
 
 let _dashTemporalDays = 180; // currently-selected window (0 = show all)
 
-function _dashRenderTemporal(container, stats, size) {
+function _dashTemporalId(base, scope) {
+    return scope ? `${base}-${scope}` : base;
+}
+
+function _dashTemporalFind(container, base, scope) {
+    return container?.querySelector(`#${_dashTemporalId(base, scope)}`) || null;
+}
+
+function _dashRenderTemporal(container, stats, size, scope) {
     if (!container) return;
     container.innerHTML = '';
     if (!stats.has_git_history) return;
@@ -38,18 +43,17 @@ function _dashRenderTemporal(container, stats, size) {
     if (size === 'M') {
         container.innerHTML = `
 <div class="dash-grid dash-grid-2" style="height:100%;box-sizing:border-box;">
-  <div class="dash-card" id="dash-temporal-heatmap"></div>
-  <div class="dash-card" id="dash-temporal-authors"></div>
+  <div class="dash-card" id="${_dashTemporalId('dash-temporal-heatmap', scope)}"></div>
+  <div class="dash-card" id="${_dashTemporalId('dash-temporal-authors', scope)}"></div>
 </div>`;
         const filtered = _dashTemporalFilteredStats(stats);
-        _dashRenderTemporalHeatmap(document.getElementById('dash-temporal-heatmap'), filtered);
-        _dashRenderTemporalAuthors(document.getElementById('dash-temporal-authors'), stats);
+        _dashRenderTemporalHeatmap(_dashTemporalFind(container, 'dash-temporal-heatmap', scope), filtered);
+        _dashRenderTemporalAuthors(_dashTemporalFind(container, 'dash-temporal-authors', scope), stats);
         return;
     }
 
-    container.innerHTML = _dashTemporalShell(stats);
+    container.innerHTML = _dashTemporalShell(stats, scope);
 
-    // Attach pill click handlers
     container.querySelectorAll('.dash-temporal-pill').forEach(btn => {
         btn.addEventListener('click', () => {
             const days = Number(btn.dataset.days);
@@ -57,21 +61,20 @@ function _dashRenderTemporal(container, stats, size) {
             container.querySelectorAll('.dash-temporal-pill').forEach(b =>
                 b.classList.toggle('active', b === btn)
             );
-            _dashTemporalRefreshSubs(container, stats);
+            _dashTemporalRefreshSubs(container, stats, scope);
         });
     });
 
-    _dashTemporalRefreshSubs(container, stats);
+    _dashTemporalRefreshSubs(container, stats, scope);
 }
 
-// Build filtered copies of the daily / weekly arrays based on _dashTemporalDays.
 function _dashTemporalFilteredStats(stats) {
-    if (!_dashTemporalDays) return stats; // 0 = All
+    if (!_dashTemporalDays) return stats;
 
     const cutoffDate = (() => {
         const d = new Date();
         d.setUTCDate(d.getUTCDate() - _dashTemporalDays);
-        return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
     })();
 
     const daily  = (stats.commit_activity_daily || []).filter(r => (r.date || '') >= cutoffDate);
@@ -79,29 +82,27 @@ function _dashTemporalFilteredStats(stats) {
 
     return Object.assign({}, stats, {
         commit_activity_daily: daily,
-        churn_timeline:        weekly,
-        // Pass overridden window bounds for the heatmap model
-        window_start:  cutoffDate,
-        window_end:    stats.window_end || stats.period_end,
-        window_days:   _dashTemporalDays,
+        churn_timeline: weekly,
+        window_start: cutoffDate,
+        window_end: stats.window_end || stats.period_end,
+        window_days: _dashTemporalDays,
     });
 }
 
-function _dashTemporalRefreshSubs(container, stats) {
+function _dashTemporalRefreshSubs(container, stats, scope) {
     const filtered = _dashTemporalFilteredStats(stats);
-    _dashRenderTemporalHotspot(document.getElementById('dash-temporal-hotspot'), stats);
-    _dashRenderTemporalCoupling(document.getElementById('dash-temporal-coupling'), stats);
-    _dashRenderTemporalHeatmap(document.getElementById('dash-temporal-heatmap'), filtered);
-    _dashRenderTemporalTimeline(document.getElementById('dash-temporal-timeline'), filtered);
-    // Authors use unfiltered stats — counts must match commits_analyzed.
-    _dashRenderTemporalAuthors(document.getElementById('dash-temporal-authors'), stats);
+    _dashRenderTemporalHotspot(_dashTemporalFind(container, 'dash-temporal-hotspot', scope), stats);
+    _dashRenderTemporalCoupling(_dashTemporalFind(container, 'dash-temporal-coupling', scope), stats);
+    _dashRenderTemporalHeatmap(_dashTemporalFind(container, 'dash-temporal-heatmap', scope), filtered);
+    _dashRenderTemporalTimeline(_dashTemporalFind(container, 'dash-temporal-timeline', scope), filtered, scope);
+    _dashRenderTemporalAuthors(_dashTemporalFind(container, 'dash-temporal-authors', scope), stats);
 }
 
-function _dashTemporalShell(stats) {
+function _dashTemporalShell(stats, scope) {
     const maxDays = Number(stats.window_days || 180);
     const pills = [30, 90, 180]
         .filter(d => d <= maxDays)
-        .concat(0)  // 0 = All
+        .concat(0)
         .map(d => {
             const label = d ? `${d}d` : _dashEscape(_dashT('dashTemporalAll') || 'All');
             const active = (d === _dashTemporalDays) ? ' active' : '';
@@ -120,11 +121,11 @@ function _dashTemporalShell(stats) {
   <span class="dash-temporal-pills">${pills}</span>
 </div>
 <div class="dash-grid dash-grid-2 dash-temporal-grid">
-  <div class="dash-card" id="dash-temporal-hotspot"></div>
-  <div class="dash-card" id="dash-temporal-coupling"></div>
-  <div class="dash-card" id="dash-temporal-heatmap"></div>
-  <div class="dash-card" id="dash-temporal-timeline"></div>
-  <div class="dash-card" id="dash-temporal-authors"></div>
+  <div class="dash-card" id="${_dashTemporalId('dash-temporal-hotspot', scope)}"></div>
+  <div class="dash-card" id="${_dashTemporalId('dash-temporal-coupling', scope)}"></div>
+  <div class="dash-card" id="${_dashTemporalId('dash-temporal-heatmap', scope)}"></div>
+  <div class="dash-card" id="${_dashTemporalId('dash-temporal-timeline', scope)}"></div>
+  <div class="dash-card" id="${_dashTemporalId('dash-temporal-authors', scope)}"></div>
 </div>`;
 }
 
@@ -133,5 +134,5 @@ _dashRegisterWidget({
     labelKey: 'dashTemporalTitle',
     defaultSize: 'L',
     render(container, size, stats) { _dashRenderTemporal(container, stats, size); },
-    renderDetail(container, stats) { _dashRenderTemporal(container, stats, 'L'); },
+    renderDetail(container, stats) { _dashRenderTemporal(container, stats, 'L', 'detail'); },
 });

@@ -1,66 +1,116 @@
 // @module Dashboard_view/widgets/widget_structure
-// Structure — file types doughnut, language distribution bar, module treemap.
+// Structure: file types doughnut, language distribution bar, module treemap.
 
-const _DASH_TYPES_KEY    = 'structure_file_types';
-const _DASH_TYPES_TYPES  = ['doughnut', 'bar'];
+const _DASH_TYPES_KEY     = 'structure_file_types';
+const _DASH_TYPES_TYPES   = ['doughnut', 'bar'];
 const _DASH_TYPES_DEFAULT = 'doughnut';
 
 const _DASH_LANG_KEY      = 'structure_lang_dist';
 const _DASH_LANG_TYPES    = ['bar', 'pie'];
 const _DASH_LANG_DEFAULT  = 'bar';
 
-function _dashRenderStructure(container, stats) {
+function _dashStructureId(base, scope) {
+    return scope ? `${base}-${scope}` : base;
+}
+
+function _dashStructureKeys(scope) {
+    return {
+        typesKey:  _dashStructureId(_DASH_TYPES_KEY, scope),
+        langKey:   _dashStructureId(_DASH_LANG_KEY, scope),
+        typesId:   _dashStructureId('dash-chart-types', scope),
+        langId:    _dashStructureId('dash-chart-lang', scope),
+        treemapId: _dashStructureId('dash-treemap-target', scope),
+    };
+}
+
+function _dashStructureRows(sorted, labeler) {
+    if (sorted.length <= 5) {
+        return sorted.map(([key, value]) => ({
+            key,
+            keys: [key],
+            label: labeler(key),
+            value,
+        }));
+    }
+
+    const top = sorted.slice(0, 4).map(([key, value]) => ({
+        key,
+        keys: [key],
+        label: labeler(key),
+        value,
+    }));
+    const rest = sorted.slice(4);
+    return top.concat([{
+        key: '__others__',
+        keys: rest.map(([key]) => key),
+        label: _dashT('dashOthers') || 'Others',
+        value: rest.reduce((sum, [, value]) => sum + value, 0),
+    }]);
+}
+
+function _dashStructureFilesForRows(row, resolver) {
+    return (row && row.keys ? row.keys : []).flatMap(key => resolver(key));
+}
+
+function _dashRenderStructure(container, stats, options) {
     if (!container) return;
+    const scope = (options && options.scope) || '';
+    const isDetail = !!(options && options.detail);
+    const keys = _dashStructureKeys(scope);
 
     container.innerHTML = `
-<div style="height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:var(--space-3);overflow:hidden;">
-  <div class="dash-grid dash-grid-2" style="flex:1;min-height:0;overflow:hidden;">
+<div class="dash-structure-layout${isDetail ? ' dash-structure-layout--detail' : ''}" style="height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:var(--space-3);overflow:hidden;">
+  <div class="dash-grid dash-grid-2 dash-structure-chart-grid" style="flex:1;min-height:0;overflow:hidden;">
     <div class="dash-card" style="display:flex;flex-direction:column;overflow:hidden;min-height:0;">
       <div class="dash-card-title">
         <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureFileTypes'))}
-        ${_dashChartToggleHTML(_DASH_TYPES_KEY, _DASH_TYPES_TYPES, _DASH_TYPES_DEFAULT)}
+        ${_dashChartToggleHTML(keys.typesKey, _DASH_TYPES_TYPES, _DASH_TYPES_DEFAULT)}
       </div>
-      <div class="dash-chart-wrap" style="flex:1;min-height:0;"><canvas id="dash-chart-types"></canvas></div>
+      <div class="dash-chart-wrap dash-structure-chart-wrap" style="flex:1;min-height:0;"><canvas id="${keys.typesId}"></canvas></div>
     </div>
     <div class="dash-card" style="display:flex;flex-direction:column;overflow:hidden;min-height:0;">
       <div class="dash-card-title">
         <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureLangDist'))}
-        ${_dashChartToggleHTML(_DASH_LANG_KEY, _DASH_LANG_TYPES, _DASH_LANG_DEFAULT)}
+        ${_dashChartToggleHTML(keys.langKey, _DASH_LANG_TYPES, _DASH_LANG_DEFAULT)}
       </div>
-      <div class="dash-chart-wrap" style="flex:1;min-height:0;"><canvas id="dash-chart-lang"></canvas></div>
+      <div class="dash-chart-wrap dash-structure-chart-wrap" style="flex:1;min-height:0;"><canvas id="${keys.langId}"></canvas></div>
     </div>
   </div>
-  <div class="dash-card" style="flex:0 0 auto;max-height:35%;overflow:hidden;">
+  <div class="dash-card dash-structure-treemap-card" style="flex:0 0 auto;max-height:35%;overflow:hidden;">
     <div class="dash-card-title">
       <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureTreemap'))}
     </div>
-    <div class="dash-treemap" id="dash-treemap-target"></div>
+    <div class="dash-treemap" id="${keys.treemapId}"></div>
   </div>
 </div>`;
 
-    _dashRegisterChartSwitch(_DASH_TYPES_KEY, () => _dashChartFileTypes(stats));
-    _dashRegisterChartSwitch(_DASH_LANG_KEY,  () => _dashChartLanguageDist(stats));
+    _dashRegisterChartSwitch(keys.typesKey, () => _dashChartFileTypes(stats, scope));
+    _dashRegisterChartSwitch(keys.langKey,  () => _dashChartLanguageDist(stats, scope));
 
-    _dashChartFileTypes(stats);
-    _dashChartLanguageDist(stats);
-    _dashBuildTreemap();
+    _dashChartFileTypes(stats, scope);
+    _dashChartLanguageDist(stats, scope);
+    _dashBuildTreemap(scope);
 }
 
-function _dashChartFileTypes(stats) {
-    const canvas = document.getElementById('dash-chart-types');
+function _dashChartFileTypes(stats, scope) {
+    const keys = _dashStructureKeys(scope);
+    const canvas = document.getElementById(keys.typesId);
     if (!canvas || typeof Chart === 'undefined') return;
+
     const tc = stats.type_counts || {};
     const sorted = Object.entries(tc).sort((a, b) => b[1] - a[1]);
     if (!sorted.length) return;
-    const labels = sorted.map(([k]) => k.replace('_', ' '));
-    const vals   = sorted.map(([, v]) => v);
-    // Categorical fills derived from accent at decreasing alpha — replaces
-    // the old 15-colour _DASH_PALETTE rainbow.
-    const fills   = _dashAccentSeries(sorted.length);
-    const strokes = fills.map(() => _dashAccentTint(1.0));
 
-    const type = _dashChartCurrentType(_DASH_TYPES_KEY, _DASH_TYPES_DEFAULT);
+    const type = _dashChartCurrentType(keys.typesKey, _DASH_TYPES_DEFAULT);
     const isCircular = (type === 'doughnut' || type === 'pie');
+    const rows = isCircular
+        ? _dashStructureRows(sorted, key => key.replace('_', ' '))
+        : sorted.map(([key, value]) => ({ key, keys: [key], label: key.replace('_', ' '), value }));
+
+    const labels = rows.map(row => row.label);
+    const vals   = rows.map(row => row.value);
+    const fills  = isCircular ? _dashAccentForSlices(rows.length) : _dashAccentSeries(rows.length);
+    const strokes = fills.map(() => _dashAccentTint(1.0));
 
     _dashMkChart(canvas, type, {
         labels,
@@ -68,7 +118,7 @@ function _dashChartFileTypes(stats) {
             label: 'Files',
             data: vals,
             backgroundColor: fills,
-            borderColor:     strokes,
+            borderColor: strokes,
             borderWidth: 1.5,
             hoverOffset: isCircular ? 10 : 0,
             borderRadius: isCircular ? 0 : 4,
@@ -78,8 +128,13 @@ function _dashChartFileTypes(stats) {
         maintainAspectRatio: false,
         onClick: (_evt, elements) => {
             if (!elements || !elements.length) return;
-            const item = sorted[elements[0].index];
-            if (item) _dashOpenFileGroupDrilldown(`Files: ${item[0]}`, _dashFilesByType(item[0]));
+            const row = rows[elements[0].index];
+            if (row) {
+                _dashOpenFileGroupDrilldown(
+                    `Files: ${row.label}`,
+                    _dashStructureFilesForRows(row, _dashFilesByType)
+                );
+            }
         },
         cutout: type === 'doughnut' ? '60%' : 0,
         indexAxis: type === 'bar' ? 'y' : undefined,
@@ -95,19 +150,25 @@ function _dashChartFileTypes(stats) {
     });
 }
 
-function _dashChartLanguageDist(stats) {
-    const canvas = document.getElementById('dash-chart-lang');
+function _dashChartLanguageDist(stats, scope) {
+    const keys = _dashStructureKeys(scope);
+    const canvas = document.getElementById(keys.langId);
     if (!canvas || typeof Chart === 'undefined') return;
+
     const langs = stats.language_distribution || {};
     const sorted = Object.entries(langs).sort((a, b) => b[1] - a[1]).slice(0, 12);
     if (!sorted.length) return;
-    const labels = sorted.map(([ext]) => ext || 'unknown');
-    const vals   = sorted.map(([, v]) => v);
-    const fills   = _dashAccentSeries(sorted.length);
-    const strokes = fills.map(() => _dashAccentTint(1.0));
 
-    const type = _dashChartCurrentType(_DASH_LANG_KEY, _DASH_LANG_DEFAULT);
+    const type = _dashChartCurrentType(keys.langKey, _DASH_LANG_DEFAULT);
     const isPie = (type === 'pie');
+    const rows = isPie
+        ? _dashStructureRows(sorted, ext => ext || 'unknown')
+        : sorted.map(([key, value]) => ({ key, keys: [key], label: key || 'unknown', value }));
+
+    const labels = rows.map(row => row.label);
+    const vals   = rows.map(row => row.value);
+    const fills  = isPie ? _dashAccentForSlices(rows.length) : _dashAccentSeries(rows.length);
+    const strokes = fills.map(() => _dashAccentTint(1.0));
 
     _dashMkChart(canvas, type, {
         labels,
@@ -115,7 +176,7 @@ function _dashChartLanguageDist(stats) {
             label: 'Files',
             data: vals,
             backgroundColor: fills,
-            borderColor:     strokes,
+            borderColor: strokes,
             borderWidth: 1.5,
             hoverOffset: isPie ? 10 : 0,
             borderRadius: isPie ? 0 : 4,
@@ -126,8 +187,13 @@ function _dashChartLanguageDist(stats) {
         maintainAspectRatio: false,
         onClick: (_evt, elements) => {
             if (!elements || !elements.length) return;
-            const item = sorted[elements[0].index];
-            if (item) _dashOpenFileGroupDrilldown(`Files ${item[0]}`, _dashFilesByExt(item[0]));
+            const row = rows[elements[0].index];
+            if (row) {
+                _dashOpenFileGroupDrilldown(
+                    `Files ${row.label}`,
+                    _dashStructureFilesForRows(row, _dashFilesByExt)
+                );
+            }
         },
         plugins: {
             legend: isPie
@@ -141,8 +207,8 @@ function _dashChartLanguageDist(stats) {
     });
 }
 
-function _dashBuildTreemap() {
-    const el = document.getElementById('dash-treemap-target');
+function _dashBuildTreemap(scope) {
+    const el = document.getElementById(_dashStructureKeys(scope).treemapId);
     if (!el || !window.DATA) return;
 
     const modules = (DATA.modules || [])
@@ -165,7 +231,7 @@ function _dashBuildTreemap() {
         const pct    = Math.max(8, Math.round((m.size / total) * 100));
         const rows   = Math.max(2, Math.round((m.size / max) * 5));
         const height = Math.max(40, rows * 22);
-        const label  = `${m.label} • ${_dashFmtBytes(m.size)}`;
+        const label  = `${m.label} - ${_dashFmtBytes(m.size)}`;
         const click  = m.firstFile
             ? ` data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Module ${_dashEscape(m.label)}', _dashFilesByModule(${_dashJson(m.id)}))"`
             : '';
@@ -176,7 +242,6 @@ function _dashBuildTreemap() {
 </div>`;
     }).join('');
 }
-
 
 _dashRegisterWidget({
     id: 'structure',
@@ -220,5 +285,7 @@ _dashRegisterWidget({
         _dashRenderStructure(container, stats);
     },
 
-    renderDetail(container, stats) { _dashRenderStructure(container, stats); },
+    renderDetail(container, stats) {
+        _dashRenderStructure(container, stats, { scope: 'detail', detail: true });
+    },
 });

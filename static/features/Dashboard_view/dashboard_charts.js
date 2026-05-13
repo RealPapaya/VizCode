@@ -84,6 +84,45 @@ function _dashAccentSeries(n) {
     return out;
 }
 
+// Visual fallback for pie/doughnut hover enlargement when our onHover-based
+// mutation isn't running (e.g. programmatic setActiveElements). Skips arcs
+// that onHover has already grown — detected via _dashBaseR being set AND
+// outerRadius already diverging from the base. Without this guard the
+// onHover'd arc would be drawn at base+2*grow.
+const _dashArcGrowPlugin = {
+    id: 'dashArcGrow',
+    afterDatasetsDraw(chart) {
+        const t = chart.config.type;
+        if (t !== 'doughnut' && t !== 'pie') return;
+        const active = chart.getActiveElements();
+        if (!active.length) return;
+
+        for (const { datasetIndex, index } of active) {
+            const meta = chart.getDatasetMeta(datasetIndex);
+            const arc = meta && meta.data && meta.data[index];
+            if (!arc) continue;
+            // onHover already grew this one — skip to avoid double-grow.
+            if (arc._dashBaseR != null && Math.abs(arc.outerRadius - arc._dashBaseR) > 0.5) {
+                continue;
+            }
+            const ds = chart.data.datasets[datasetIndex] || {};
+            const grow = ds.hoverOffset
+                ?? chart.options?.elements?.arc?.hoverOffset
+                ?? 10;
+            const savedOuter = arc.outerRadius;
+            const savedBW    = arc.options.borderWidth;
+            const savedBC    = arc.options.borderColor;
+            arc.outerRadius = savedOuter + grow;
+            if (ds.hoverBorderWidth != null) arc.options.borderWidth = ds.hoverBorderWidth;
+            if (ds.hoverBorderColor != null) arc.options.borderColor = ds.hoverBorderColor;
+            arc.draw(chart.ctx);
+            arc.outerRadius = savedOuter;
+            arc.options.borderWidth = savedBW;
+            arc.options.borderColor = savedBC;
+        }
+    }
+};
+
 function _dashApplyChartDefaults() {
     if (typeof Chart === 'undefined') return;
     Chart.defaults.color                               = _dashCssVar('--muted', '#93918b');
@@ -107,6 +146,13 @@ function _dashApplyChartDefaults() {
     Chart.defaults.datasets.pie.hoverOffset      = 10;
     Chart.defaults.datasets.doughnut.hoverOffset = 10;
     Chart.defaults.animation = { duration: 300, easing: 'easeOutQuart' };
+    Chart.defaults.transitions = Chart.defaults.transitions || {};
+    Chart.defaults.transitions.active = Chart.defaults.transitions.active || {};
+    Chart.defaults.transitions.active.animation = { duration: 300, easing: 'easeOutQuart' };
+
+    if (!Chart.registry.plugins.get(_dashArcGrowPlugin.id)) {
+        Chart.register(_dashArcGrowPlugin);
+    }
 }
 
 function _dashMkChart(canvas, type, data, options) {
@@ -117,9 +163,152 @@ function _dashMkChart(canvas, type, data, options) {
         try { _dashCharts[id].destroy(); } catch (_) {}
         delete _dashCharts[id];
     }
+    // Chart.js keeps its own static registry keyed on canvas; clearing our
+    // map alone can leave a stale instance bound to this canvas across
+    // detach/reattach cycles (e.g. mode-switching), which breaks recreation.
+    const stray = Chart.getChart(canvas);
+    if (stray) { try { stray.destroy(); } catch (_) {} }
     const ctx = canvas.getContext('2d');
-    _dashCharts[id] = new Chart(ctx, { type, data, options });
-    return _dashCharts[id];
+    const enhanced = _dashInteractiveChartConfig(canvas, type, data, options);
+    _dashCharts[id] = new Chart(ctx, enhanced);
+
+    // The detail panel opens with a CSS scale animation. The chart may be
+    // created while the canvas is mid-resize; Chart.js's internal
+    // ResizeObserver sometimes misses the final size, leaving the canvas
+    // bitmap blank even though the chart instance is intact. Nudge the chart
+    // to re-measure and redraw after the open animation completes.
+    const chart = _dashCharts[id];
+    const nudge = () => {
+        try {
+            if (_dashCharts[id] === chart) { chart.resize(); chart.update('none'); }
+        } catch (_) {}
+    };
+    requestAnimationFrame(() => requestAnimationFrame(nudge));
+    setTimeout(nudge, 320);
+
+    return chart;
+}
+
+function _dashInteractiveChartConfig(canvas, type, data, options) {
+    const chartData = data || {};
+    const chartOptions = options ? { ...options } : {};
+    const isActionable = typeof chartOptions.onClick === 'function';
+
+    const circular = type === 'pie' || type === 'doughnut';
+
+    if (isActionable) {
+        const userHover = chartOptions.onHover;
+        chartOptions.onHover = (evt, elements, chart) => {
+            const active = !!(elements && elements.length);
+            if (canvas) canvas.style.cursor = active ? 'pointer' : '';
+
+            // Manually drive arc enlargement for pie/doughnut: Chart.js's
+            // native hoverOffset → outerRadius animation is unreliable here
+            // (a broken interpolator surfaces as "this._fn is not a function"
+            // and leaves outerRadius unchanged). Mutate arc.outerRadius
+            // directly and force a redraw — independent of the animation
+            // pipeline that's failing.
+            if (circular && chart && chart.data && chart.data.datasets) {
+                let needsDraw = false;
+                chart.data.datasets.forEach((ds, dsi) => {
+                    const meta = chart.getDatasetMeta(dsi);
+                    if (!meta || !meta.data) return;
+                    const grow = ds.hoverOffset
+                        ?? chart.options?.elements?.arc?.hoverOffset
+                        ?? 10;
+                    meta.data.forEach((arc, i) => {
+                        if (!arc) return;
+                        if (arc._dashBaseR == null) arc._dashBaseR = arc.outerRadius;
+                        const isActive = active && elements.some(
+                            e => e.datasetIndex === dsi && e.index === i
+                        );
+                        const target = isActive ? arc._dashBaseR + grow : arc._dashBaseR;
+                        if (Math.abs(arc.outerRadius - target) > 0.5) {
+                            arc.outerRadius = target;
+                            needsDraw = true;
+                        }
+                    });
+                });
+                if (needsDraw) {
+                    try { chart.draw(); } catch (_) {}
+                }
+            }
+
+            if (typeof userHover === 'function') userHover(evt, elements, chart);
+        };
+        // Chart.js 4.x: `interaction` drives visual active-element state (hoverOffset,
+        // tooltip). `hover` only drives the onHover callback. Set both so the cursor
+        // change and the visual arc expansion come from the same hit-detection pass.
+        chartOptions.interaction = chartOptions.interaction || {};
+        chartOptions.interaction.mode      = chartOptions.interaction.mode      || 'nearest';
+        chartOptions.interaction.intersect = chartOptions.interaction.intersect ?? true;
+        chartOptions.hover = chartOptions.hover || {};
+        chartOptions.hover.mode      = chartOptions.hover.mode      || 'nearest';
+        chartOptions.hover.intersect = chartOptions.hover.intersect ?? true;
+
+        const userClick = chartOptions.onClick;
+        chartOptions.onClick = (evt, elements, chart) => {
+            if (elements && elements.length && evt && evt.native) {
+                evt.native.stopPropagation?.();
+            }
+            userClick(evt, elements, chart);
+        };
+    }
+
+    const datasets = Array.isArray(chartData.datasets)
+        ? chartData.datasets.map(ds => _dashEnhanceInteractiveDataset(ds, type, isActionable))
+        : chartData.datasets;
+
+    // For pie/doughnut: Chart.js computes the outer radius after a responsive resize
+    // using the canvas pixel size. Without explicit layout.padding, the ring fills the
+    // canvas edge-to-edge and hoverOffset pushes arcs outside the drawable area,
+    // making the expansion invisible. Reserve padding >= max hoverOffset so the ring
+    // always has room to grow outward.
+    if (circular && !chartOptions.layout?.padding) {
+        const maxHoverOffset = (datasets || []).reduce(
+            (m, ds) => Math.max(m, (ds && ds.hoverOffset) || 0),
+            0
+        );
+        if (maxHoverOffset > 0) {
+            chartOptions.layout = Object.assign({}, chartOptions.layout, {
+                padding: maxHoverOffset,
+            });
+        }
+    }
+
+    // Some Chart.js code paths consult elements.arc.hoverOffset before
+    // dataset.hoverOffset; set both so the active arc visually enlarges.
+    if (circular) {
+        chartOptions.elements = chartOptions.elements || {};
+        chartOptions.elements.arc = chartOptions.elements.arc || {};
+        if (chartOptions.elements.arc.hoverOffset == null) {
+            chartOptions.elements.arc.hoverOffset = 10;
+        }
+    }
+
+    return {
+        type,
+        data: { ...chartData, datasets },
+        options: chartOptions,
+    };
+}
+
+function _dashEnhanceInteractiveDataset(dataset, type, isActionable) {
+    if (!isActionable || !dataset || typeof dataset !== 'object') return dataset;
+    const ds = { ...dataset };
+    const circular = type === 'pie' || type === 'doughnut';
+    if (circular) {
+        ds.hoverOffset = ds.hoverOffset ?? 14;
+        ds.hoverBorderWidth = ds.hoverBorderWidth ?? 2;
+        ds.hoverBorderColor = ds.hoverBorderColor || _dashCssVar('--text', '#eae8e3');
+        return ds;
+    }
+    if (type === 'bar') {
+        ds.hoverBorderWidth = ds.hoverBorderWidth ?? 2;
+        ds.hoverBorderColor = ds.hoverBorderColor || _dashCssVar('--text', '#eae8e3');
+        ds.hoverBackgroundColor = ds.hoverBackgroundColor || _dashAccentTint(1);
+    }
+    return ds;
 }
 
 function _dashDestroyAllCharts() {

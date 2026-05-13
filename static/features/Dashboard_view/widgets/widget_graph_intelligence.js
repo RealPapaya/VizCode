@@ -20,12 +20,12 @@ function _dashRenderGraphIntelligence(container, stats) {
   </div>
 </div>`;
 
-    _dashRenderHotspots(stats.hotspot_nodes || []);
-    _dashRenderSurprising(stats.surprising_connections || []);
+    _dashRenderHotspots(stats.hotspot_nodes || [], container);
+    _dashRenderSurprising(stats.surprising_connections || [], container);
 }
 
-function _dashRenderHotspots(items) {
-    const el = document.getElementById('dash-graph-hotspots');
+function _dashRenderHotspots(items, root) {
+    const el = (root || document).querySelector('#dash-graph-hotspots');
     if (!el) return;
     if (!items.length) {
         el.innerHTML = `<div class="dash-empty">${_dashEscape(_dashT('dashGraphHotspotsEmpty'))}</div>`;
@@ -46,8 +46,8 @@ function _dashRenderHotspots(items) {
     }).join('');
 }
 
-function _dashRenderSurprising(items) {
-    const el = document.getElementById('dash-graph-surprising');
+function _dashRenderSurprising(items, root) {
+    const el = (root || document).querySelector('#dash-graph-surprising');
     if (!el) return;
     if (!items.length) {
         el.innerHTML = `<div class="dash-empty">${_dashEscape(_dashT('dashGraphSurprisingEmpty'))}</div>`;
@@ -105,7 +105,7 @@ _dashRegisterWidget({
   </div>
   <div class="dash-list" id="dash-graph-hotspots" style="flex:1;overflow:hidden;"></div>
 </div>`;
-            _dashRenderHotspots((stats.hotspot_nodes || []).slice(0, 5));
+            _dashRenderHotspots((stats.hotspot_nodes || []).slice(0, 5), container);
             return;
         }
 
