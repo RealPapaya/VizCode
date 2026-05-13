@@ -17,6 +17,7 @@ const _DASH_ACCENT_SCALE = ['#eedcbc', '#DFA745', '#c57429', '#955223', '#673606
 // Commit-delta exceptions (not accent-derived)
 const _DASH_COLOR_ADD = '#A4B55B';
 const _DASH_COLOR_DEL = '#E05A5A';
+const _DASH_CHART_TOOLTIP_ID = 'dash-chart-tooltip';
 
 function _dashAccentStop(i) {
     return _DASH_ACCENT_SCALE[((i % 5) + 5) % 5];
@@ -68,6 +69,77 @@ function _dashBorderTint(alpha) {
     const a = (alpha == null) ? 1 : Math.max(0, Math.min(1, alpha));
     const { r, g, b } = _dashHexToRgb(_dashCssVar('--border', '#2e302b'));
     return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+function _dashChartEscape(value) {
+    if (typeof _dashEscape === 'function') return _dashEscape(value);
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[ch]));
+}
+
+function _dashChartTooltipEl() {
+    if (typeof document === 'undefined') return null;
+    let el = document.getElementById(_DASH_CHART_TOOLTIP_ID);
+    if (!el) {
+        el = document.createElement('div');
+        el.id = _DASH_CHART_TOOLTIP_ID;
+        document.body.appendChild(el);
+    }
+    return el;
+}
+
+function _dashHideChartTooltip() {
+    const el = typeof document !== 'undefined' ? document.getElementById(_DASH_CHART_TOOLTIP_ID) : null;
+    if (el) el.classList.remove('visible');
+}
+
+function _dashShowChartTooltip(evt, chart, element) {
+    const native = evt && (evt.native || evt);
+    if (!native || !chart || !element) {
+        _dashHideChartTooltip();
+        return;
+    }
+
+    const ds = chart.data.datasets[element.datasetIndex] || {};
+    const label = (chart.data.labels || [])[element.index] || '';
+    const raw = Array.isArray(ds.data) ? ds.data[element.index] : null;
+    const value = Number(raw || 0);
+    const total = Array.isArray(ds.data)
+        ? ds.data.reduce((sum, n) => sum + Number(n || 0), 0)
+        : 0;
+    const pct = total > 0 ? ` · ${Math.round(value / total * 100)}%` : '';
+    const color = Array.isArray(ds.backgroundColor)
+        ? ds.backgroundColor[element.index]
+        : ds.backgroundColor;
+    const fmt = typeof _dashFmtNum === 'function' ? _dashFmtNum(value) : String(value);
+    const el = _dashChartTooltipEl();
+    if (!el) return;
+
+    el.innerHTML = `
+<div class="dash-chart-tip-row">
+  <span class="dash-chart-tip-swatch" style="background:${_dashChartEscape(color || 'var(--accent)')}"></span>
+  <span class="dash-chart-tip-label">${_dashChartEscape(label)}</span>
+</div>
+<div class="dash-chart-tip-value">${_dashChartEscape(fmt + pct)}</div>`;
+
+    const offset = 14;
+    const pad = 8;
+    el.style.left = `${native.clientX + offset}px`;
+    el.style.top = `${native.clientY + offset}px`;
+    el.classList.add('visible');
+
+    const rect = el.getBoundingClientRect();
+    let left = native.clientX + offset;
+    let top = native.clientY + offset;
+    if (left + rect.width + pad > window.innerWidth) {
+        left = native.clientX - rect.width - offset;
+    }
+    if (top + rect.height + pad > window.innerHeight) {
+        top = native.clientY - rect.height - offset;
+    }
+    el.style.left = `${Math.max(pad, left)}px`;
+    el.style.top = `${Math.max(pad, top)}px`;
 }
 
 // Multi-bar/category alpha-stepped fills (for bar charts; bars are
@@ -149,10 +221,10 @@ function _dashApplyChartDefaults() {
     Chart.defaults.datasets.doughnut = Chart.defaults.datasets.doughnut || {};
     Chart.defaults.datasets.pie.hoverOffset      = 0;
     Chart.defaults.datasets.doughnut.hoverOffset = 0;
-    Chart.defaults.animation = { duration: 300, easing: 'easeOutQuart' };
+    Chart.defaults.animation = { duration: 260, easing: 'easeOutQuart' };
     Chart.defaults.transitions = Chart.defaults.transitions || {};
     Chart.defaults.transitions.active = Chart.defaults.transitions.active || {};
-    Chart.defaults.transitions.active.animation = { duration: 300, easing: 'easeOutQuart' };
+    Chart.defaults.transitions.active.animation = { duration: 0 };
 
     if (!Chart.registry.plugins.get(_dashArcGrowPlugin.id)) {
         Chart.register(_dashArcGrowPlugin);
@@ -224,6 +296,11 @@ function _dashInteractiveChartConfig(canvas, type, data, options) {
                     chart._dashActive = next;
                     try { chart.draw(); } catch (_) {}
                 }
+                if (active) {
+                    _dashShowChartTooltip(evt, chart, elements[0]);
+                } else {
+                    _dashHideChartTooltip();
+                }
             }
 
             if (typeof userHover === 'function') userHover(evt, elements, chart);
@@ -273,6 +350,15 @@ function _dashInteractiveChartConfig(canvas, type, data, options) {
         chartOptions.elements = chartOptions.elements || {};
         chartOptions.elements.arc = chartOptions.elements.arc || {};
         chartOptions.elements.arc.hoverOffset = 0;
+        chartOptions.animation = false;
+        chartOptions.animations = false;
+        chartOptions.transitions = chartOptions.transitions || {};
+        chartOptions.transitions.active = chartOptions.transitions.active || {};
+        chartOptions.transitions.active.animation = { duration: 0 };
+        chartOptions.plugins = chartOptions.plugins || {};
+        chartOptions.plugins.tooltip = Object.assign({}, chartOptions.plugins.tooltip, {
+            enabled: false,
+        });
     }
 
     return {
@@ -283,7 +369,7 @@ function _dashInteractiveChartConfig(canvas, type, data, options) {
 }
 
 function _dashEnhanceInteractiveDataset(dataset, type, isActionable) {
-    if (!isActionable || !dataset || typeof dataset !== 'object') return dataset;
+    if (!dataset || typeof dataset !== 'object') return dataset;
     const ds = { ...dataset };
     const circular = type === 'pie' || type === 'doughnut';
     if (circular) {
@@ -291,12 +377,15 @@ function _dashEnhanceInteractiveDataset(dataset, type, isActionable) {
         // Chart.js's native hoverOffset so its broken animation can't
         // mutate outerRadius behind our back. The dashArcGrow plugin reads
         // _dashHoverGrow to render the enlarged active arc.
-        ds._dashHoverGrow = ds.hoverOffset ?? 14;
+        ds._dashHoverGrow = isActionable ? (ds.hoverOffset ?? 14) : 0;
         ds.hoverOffset = 0;
-        ds.hoverBorderWidth = ds.hoverBorderWidth ?? 2;
-        ds.hoverBorderColor = ds.hoverBorderColor || _dashCssVar('--text', '#eae8e3');
+        if (isActionable) {
+            ds.hoverBorderWidth = ds.hoverBorderWidth ?? 2;
+            ds.hoverBorderColor = ds.hoverBorderColor || _dashCssVar('--text', '#eae8e3');
+        }
         return ds;
     }
+    if (!isActionable) return ds;
     if (type === 'bar') {
         ds.hoverBorderWidth = ds.hoverBorderWidth ?? 2;
         ds.hoverBorderColor = ds.hoverBorderColor || _dashCssVar('--text', '#eae8e3');
@@ -306,6 +395,7 @@ function _dashEnhanceInteractiveDataset(dataset, type, isActionable) {
 }
 
 function _dashDestroyAllCharts() {
+    _dashHideChartTooltip();
     Object.keys(_dashCharts).forEach(id => {
         try { _dashCharts[id]?.destroy(); } catch (_) {}
         delete _dashCharts[id];

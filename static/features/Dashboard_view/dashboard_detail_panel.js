@@ -100,6 +100,7 @@ function _dashCloseDetailPanel(immediate) {
     if (!backdrop && !panel) return;
 
     _dashDetailOpen = false;
+    if (typeof _dashHideChartTooltip === 'function') _dashHideChartTooltip();
 
     // Destroy Chart.js instances while the canvas nodes are still in the DOM.
     // This lets any pending ResizeObserver callbacks fire against an already-

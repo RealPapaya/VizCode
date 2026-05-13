@@ -95,13 +95,11 @@ _dashRegisterWidget({
         container.innerHTML = `
 <div class="dash-card">
   <div class="dash-card-title"><span class="dash-card-title-dot"></span>Composition</div>
-  <div class="dash-chart-wrap" style="min-height:200px;">
-    <canvas id="${canvasId}"></canvas>
-  </div>
-</div>
-<div class="dash-card">
-  <div class="dash-card-title"><span class="dash-card-title-dot"></span>Breakdown</div>
-  <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+  <div class="dash-detail-split">
+    <div class="dash-chart-wrap dash-detail-chart-sm">
+      <canvas id="${canvasId}"></canvas>
+    </div>
+    <div class="dash-detail-breakdown">
     <div class="dash-health-row" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with code LOC', _dashAllFiles().filter(f => (f.loc || {}).code > 0), { meta: f => _dashFmtNum((f.loc || {}).code || 0) + ' LOC' })">
       <span class="dash-health-row-label">Code</span>
       <div class="dash-health-row-track">
@@ -123,6 +121,7 @@ _dashRegisterWidget({
       </div>
       <span class="dash-health-row-value">${_dashFmtNum(blank)} <small style="color:var(--muted)">(${blankPct}%)</small></span>
     </div>
+    </div>
   </div>
 </div>`;
 
@@ -141,7 +140,7 @@ _dashRegisterWidget({
                         meta: f => `${_dashFmtNum(((f.loc || {})[key] || 0))} lines`,
                     });
                 },
-                plugins: { legend: { position: 'right', labels: { boxWidth: 10, padding: 10 } } },
+                plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10 } } },
                 cutout: '70%',
             });
         }
