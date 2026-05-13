@@ -5,6 +5,7 @@
 const _DASH_TIMELINE_KEY = 'temporal_timeline';
 const _DASH_TIMELINE_TYPES = ['line', 'bar'];
 const _DASH_TIMELINE_DEFAULT = 'line';
+let _dashTimelineWidgetSeq = 0;
 
 function _dashTimelineId(scope) {
     return scope ? `dash-chart-timeline-${scope}` : 'dash-chart-timeline';
@@ -12,6 +13,15 @@ function _dashTimelineId(scope) {
 
 function _dashTimelineKey(scope) {
     return scope ? `${_DASH_TIMELINE_KEY}_${scope}` : _DASH_TIMELINE_KEY;
+}
+
+function _dashTimelineStandaloneScope(container, suffix) {
+    if (!container) return suffix || 'standalone';
+    if (!container.dataset.dashTimelineScope) {
+        _dashTimelineWidgetSeq += 1;
+        container.dataset.dashTimelineScope = `standalone-${suffix || 'main'}-${_dashTimelineWidgetSeq}`;
+    }
+    return container.dataset.dashTimelineScope;
 }
 
 function _dashRenderTemporalTimeline(container, stats, scope) {
@@ -25,7 +35,7 @@ function _dashRenderTemporalTimeline(container, stats, scope) {
   <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashTemporalChurn'))}
   ${_dashChartToggleHTML(key, _DASH_TIMELINE_TYPES, _DASH_TIMELINE_DEFAULT)}
 </div>
-<div class="dash-chart-wrap"><canvas id="${_dashTimelineId(scope)}"></canvas></div>`;
+<div class="dash-chart-wrap dash-timeline-chart-wrap"><canvas id="${_dashTimelineId(scope)}"></canvas></div>`;
 
     if (!buckets.length) {
         const wrap = container.querySelector('.dash-chart-wrap');
@@ -117,3 +127,42 @@ function _dashDrawTimelineChart(buckets, scope) {
         },
     });
 }
+
+function _dashRenderChurnTimelineWidget(container, size, stats, suffix) {
+    if (!container) return;
+    const buckets = stats.churn_timeline || [];
+
+    if (size === 'S') {
+        const latest = buckets[buckets.length - 1] || {};
+        const totalAdds = buckets.reduce((sum, b) => sum + Number(b.additions || 0), 0);
+        const totalDels = buckets.reduce((sum, b) => sum + Number(b.deletions || 0), 0);
+        container.innerHTML = `
+<div class="dash-kpi-s">
+  <div class="dash-kpi-s-body">
+    <div class="dash-widget-title">${_dashEscape(_dashT('dashTemporalChurn'))}</div>
+    <div class="dash-widget-stat">${_dashFmtNum(stats.commits_analyzed || 0)}</div>
+    <div class="dash-widget-sub">${_dashEscape(latest.week_start || stats.period_end || '')}</div>
+    ${_dashMiniPills([
+        { label: '+', value: _dashFmtNum(totalAdds), title: _dashT('dashTemporalAdditions') },
+        { label: '-', value: _dashFmtNum(totalDels), title: _dashT('dashTemporalDeletions') },
+        { label: 'Weeks', value: buckets.length },
+    ])}
+  </div>
+</div>`;
+        return;
+    }
+
+    _dashRenderTemporalTimeline(container, stats, _dashTimelineStandaloneScope(container, suffix));
+}
+
+_dashRegisterWidget({
+    id: 'churn_timeline',
+    labelKey: 'dashTemporalChurn',
+    defaultSize: 'L',
+    render(container, size, stats) {
+        _dashRenderChurnTimelineWidget(container, size, stats, 'widget');
+    },
+    renderDetail(container, stats) {
+        _dashRenderChurnTimelineWidget(container, 'L', stats, 'detail');
+    },
+});

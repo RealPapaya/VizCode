@@ -273,6 +273,31 @@ function _dashHeatmapAppendStats(container, stats) {
     container.appendChild(statsEl);
 }
 
+function _dashHeatmapAppendChurnFiles(container, stats) {
+    const rows = (stats.file_churn || []).slice(0, 5);
+    if (!rows.length) return;
+    const max = rows[0].commits || 1;
+    const wrap = document.createElement('div');
+    wrap.className = 'dash-commit-activity-files';
+    wrap.innerHTML = `
+<div class="dash-card-title"><span class="dash-card-title-dot"></span>Most Changed Files</div>
+<div class="dash-list">
+${rows.map((row, i) => {
+    const file = String(row.file || '');
+    const short = file.split('/').pop();
+    return `
+  <div class="dash-list-row" data-clickable="true" data-tip="${_dashEscape(file)}"
+       onclick="_dashGoToGraphFile(${_dashJson(file)}, null)">
+    <span class="dash-list-rank">${i + 1}</span>
+    <span class="dash-list-name">${_dashEscape(short)}<span class="dash-list-meta">${_dashEscape(file)}</span></span>
+    <div class="dash-list-bar" style="width:${Math.round((row.commits || 0) / max * 60)}px"></div>
+    <span class="dash-list-val">${_dashFmtNum(row.commits || 0)}</span>
+  </div>`;
+}).join('')}
+</div>`;
+    container.appendChild(wrap);
+}
+
 _dashRegisterWidget({
     id: 'commit_heatmap',
     labelKey: 'dashTemporalHeatmap',
@@ -305,6 +330,10 @@ _dashRegisterWidget({
             return;
         }
         _dashRenderTemporalHeatmap(container, stats);
-        if (size === 'L') _dashHeatmapAppendStats(container, stats);
+        if (size === 'L') {
+            container.classList.add('dash-commit-activity-l');
+            _dashHeatmapAppendStats(container, stats);
+            _dashHeatmapAppendChurnFiles(container, stats);
+        }
     },
 });

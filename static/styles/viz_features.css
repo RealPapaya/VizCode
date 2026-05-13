@@ -127,6 +127,16 @@
     max-width: 100%;
 }
 
+.dash-timeline-chart-wrap {
+    min-height: 0;
+    padding-bottom: 16px;
+    box-sizing: border-box;
+}
+
+.dash-timeline-chart-wrap canvas {
+    height: 100% !important;
+}
+
 /* ── Fun Facts / Top Lists ── */
 .dash-list {
     display: flex;
@@ -1016,6 +1026,39 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     font-weight: 600;
+}
+
+.dash-commit-activity-l {
+    flex: 1;
+    min-height: 0;
+}
+
+.dash-commit-activity-l .dash-temporal-heatmap-body {
+    flex: 0 0 auto;
+}
+
+.dash-commit-activity-l .dash-temporal-heatmap-stats {
+    flex: 0 0 auto;
+    margin-bottom: 0;
+}
+
+.dash-commit-activity-files {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border);
+}
+
+.dash-commit-activity-files .dash-card-title {
+    margin-bottom: var(--space-2);
+}
+
+.dash-commit-activity-files .dash-list {
+    min-height: 0;
+    overflow: hidden;
 }
 
 @media (max-width: 720px) {

@@ -64,7 +64,11 @@ def _head_sha(root: str) -> str:
     try:
         proc = subprocess.run(
             ['git', 'rev-parse', 'HEAD'],
-            cwd=root, capture_output=True, text=True,
+            cwd=root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding='utf-8',
+            errors='replace',
             timeout=10, check=True,
         )
         return proc.stdout.strip()
@@ -124,7 +128,11 @@ def _run_git_log(root: str, since_days: int) -> str:
              '--pretty=format:COMMIT %H %ad %an',
              '--date=short',
              '--numstat'],
-            cwd=root, capture_output=True, text=True,
+            cwd=root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding='utf-8',
+            errors='replace',
             timeout=GIT_TIMEOUT_SEC, check=True,
         )
         return proc.stdout

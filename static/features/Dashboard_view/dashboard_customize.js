@@ -447,7 +447,7 @@ const _DASH_AWP_CATEGORIES = [
         label: 'Git History',
         items: [
             { id: 'commit_heatmap',     desc: 'GitHub-style commit calendar — daily activity coloured by intensity.' },
-            { id: 'temporal',           desc: 'Full git dashboard: heatmap, velocity, churn timeline, and author ranking.' },
+            { id: 'churn_timeline',     desc: 'Weekly commits, additions, and deletions over time.' },
             { id: 'graph_intelligence', desc: 'Dependency hotspots ranked by change frequency and coupling.' },
         ],
     },

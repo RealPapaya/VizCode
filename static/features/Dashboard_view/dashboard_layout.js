@@ -23,7 +23,7 @@ const _DASH_DEFAULT_LAYOUT = [
 ];
 
 // Optional widgets (not in default layout; available via + Add Widget)
-const _DASH_OPTIONAL_IDS = ['dead_code', 'coupling', 'issues', 'structure', 'graph_intelligence', 'temporal', 'commit_heatmap'];
+const _DASH_OPTIONAL_IDS = ['dead_code', 'coupling', 'issues', 'structure', 'graph_intelligence', 'churn_timeline', 'commit_heatmap'];
 
 // Size tier definitions: S = small, M = medium, L = large
 const _DASH_SIZE_TIERS = {
@@ -250,9 +250,14 @@ function _dashAllWidgetIds() {
     const ordered = [
         ..._DASH_DEFAULT_LAYOUT.map(c => c.id),
         ..._DASH_OPTIONAL_IDS,
-        ...Object.keys(_dashWidgetRegistry),
+        ...Object.entries(_dashWidgetRegistry)
+            .filter(([, widget]) => !widget.deprecated)
+            .map(([id]) => id),
     ];
-    return [...new Set(ordered)].filter(id => _dashWidgetRegistry[id]);
+    return [...new Set(ordered)].filter(id => {
+        const widget = _dashWidgetRegistry[id];
+        return widget && !widget.deprecated;
+    });
 }
 
 // -- Grid capacity helpers -----------------------------------------------------
@@ -484,14 +489,6 @@ function _dashMountLayout() {
         const content = document.createElement('div');
         content.style.cssText = 'flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;';
 
-        try {
-            const size = _dashWidgetSizeName(cell.w, cell.h);
-            widget.render(content, size, DATA.stats);
-        } catch (err) {
-            console.error(`[dashboard] widget ${cell.id} failed:`, err);
-            content.innerHTML = '<div class="dash-empty">Widget error</div>';
-        }
-
         el.appendChild(content);
 
         el.addEventListener('click', e => {
@@ -518,6 +515,14 @@ function _dashMountLayout() {
         });
 
         bento.appendChild(el);
+
+        try {
+            const size = _dashWidgetSizeName(cell.w, cell.h);
+            widget.render(content, size, DATA.stats);
+        } catch (err) {
+            console.error(`[dashboard] widget ${cell.id} failed:`, err);
+            content.innerHTML = '<div class="dash-empty">Widget error</div>';
+        }
     }
 }
 

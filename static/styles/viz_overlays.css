@@ -2242,9 +2242,9 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 /* S: compact square, centered in stage */
 .dash-awp-preview-box[data-tier='S'] { width: 220px; height: 220px; }
 /* M: fixed height — clearly shorter than L */
-.dash-awp-preview-box[data-tier='M'] { width: 100%; height: 200px; }
+.dash-awp-preview-box[data-tier='M'] { width: 100%; height: min(280px, 100%); }
 /* L: stretches to fill the entire stage — radius must match stage to avoid corner gaps */
-.dash-awp-preview-box[data-tier='L'] { width: 100%; align-self: stretch; min-height: 0; border-radius: var(--radius-md); }
+.dash-awp-preview-box[data-tier='L'] { width: 100%; height: min(340px, 100%); align-self: center; border-radius: var(--radius-md); }
 
 /* ── Preview-specific overrides to prevent content clipping ── */
 /* Unset tall chart min-heights so charts scale to fit the preview box */
@@ -2252,6 +2252,12 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 .dash-awp-preview-inner .dash-chart-wrap--tall { min-height: 0; }
 /* Suppress horizontal scrollbar reservation that pushes legend out of view */
 .dash-awp-preview-inner .dash-temporal-heatmap-body { overflow: hidden; }
+.dash-awp-preview-inner .dash-temporal-heatmap-svg { min-width: 0; }
+.dash-awp-preview-inner .dash-temporal-heatmap-legend { margin-top: 7px; }
+.dash-awp-preview-inner .dash-temporal-heatmap-stats {
+    margin-top: var(--space-2);
+    padding-top: var(--space-2);
+}
 
 /* Meta section below preview */
 .dash-awp-meta {

@@ -263,6 +263,8 @@ const _DASH_WIDGET_LABEL_KEYS = {
     issues:             'dashSettingsWidgetIssues',
     structure:          'dashSettingsWidgetStructure',
     graph_intelligence: 'dashSettingsWidgetGraph',
+    commit_heatmap:     'dashTemporalHeatmap',
+    churn_timeline:     'dashTemporalChurn',
     temporal:           'dashTemporalTitle',
 };
 

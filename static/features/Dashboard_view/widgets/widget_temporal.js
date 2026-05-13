@@ -133,6 +133,7 @@ _dashRegisterWidget({
     id: 'temporal',
     labelKey: 'dashTemporalTitle',
     defaultSize: 'L',
+    deprecated: true,
     render(container, size, stats) { _dashRenderTemporal(container, stats, size); },
     renderDetail(container, stats) { _dashRenderTemporal(container, stats, 'L', 'detail'); },
 });
