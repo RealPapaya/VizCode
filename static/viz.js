@@ -6,6 +6,31 @@
    Uses cytoscape.js (canvas). No D3. No SVG renderer.
 */
 
+// Block browser zoom on the whole page. Ctrl+wheel changes devicePixelRatio
+// which causes canvas-backed views (Chart.js, cytoscape, Sigma) to clear and
+// not reliably redraw, producing "disappearing chart" bugs that look like
+// rendering glitches. Capture phase + passive:false so we can preventDefault
+// before any nested handler sees the event. Pinch-zoom on trackpads dispatches
+// wheel events with ctrlKey=true and is covered by the same handler.
+(function _blockPageZoom() {
+    const stop = e => {
+        if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    };
+    window.addEventListener('wheel', stop, { passive: false, capture: true });
+    // Keyboard zoom shortcuts (Ctrl/Cmd with +, -, =, 0) — eliminate this
+    // variable too while we're at it.
+    window.addEventListener('keydown', e => {
+        if (!(e.ctrlKey || e.metaKey)) return;
+        if (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '0') {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    }, { capture: true });
+})();
+
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 

@@ -84,42 +84,45 @@ function _dashAccentSeries(n) {
     return out;
 }
 
-// Visual fallback for pie/doughnut hover enlargement when our onHover-based
-// mutation isn't running (e.g. programmatic setActiveElements). Skips arcs
-// that onHover has already grown — detected via _dashBaseR being set AND
-// outerRadius already diverging from the base. Without this guard the
-// onHover'd arc would be drawn at base+2*grow.
+// Pie/doughnut hover enlargement.
+//
+// Chart.js's native `hoverOffset` is disabled on our datasets (set to 0 in
+// _dashEnhanceInteractiveDataset) because its animation interpolator is
+// broken in this context — symptoms: "this._fn is not a function" plus arcs
+// that grow but never shrink back, accumulating until every slice is
+// enlarged. We replace it with our own deterministic system:
+//
+//   1. _dashEnhanceInteractiveDataset stashes the desired growth amount on
+//      `ds._dashHoverGrow` and zeroes `ds.hoverOffset`.
+//   2. The onHover wrapper writes the single currently-hovered arc into
+//      `chart._dashActive` ({ datasetIndex, index } | null) and calls
+//      `chart.draw()` whenever that target changes.
+//   3. This plugin's afterDatasetsDraw reads `chart._dashActive` and
+//      redraws ONLY that arc with an enlarged outerRadius on top of the
+//      normal pass. The base outerRadius is never mutated, so there is no
+//      drift between hovers.
 const _dashArcGrowPlugin = {
     id: 'dashArcGrow',
     afterDatasetsDraw(chart) {
         const t = chart.config.type;
         if (t !== 'doughnut' && t !== 'pie') return;
-        const active = chart.getActiveElements();
-        if (!active.length) return;
-
-        for (const { datasetIndex, index } of active) {
-            const meta = chart.getDatasetMeta(datasetIndex);
-            const arc = meta && meta.data && meta.data[index];
-            if (!arc) continue;
-            // onHover already grew this one — skip to avoid double-grow.
-            if (arc._dashBaseR != null && Math.abs(arc.outerRadius - arc._dashBaseR) > 0.5) {
-                continue;
-            }
-            const ds = chart.data.datasets[datasetIndex] || {};
-            const grow = ds.hoverOffset
-                ?? chart.options?.elements?.arc?.hoverOffset
-                ?? 10;
-            const savedOuter = arc.outerRadius;
-            const savedBW    = arc.options.borderWidth;
-            const savedBC    = arc.options.borderColor;
-            arc.outerRadius = savedOuter + grow;
-            if (ds.hoverBorderWidth != null) arc.options.borderWidth = ds.hoverBorderWidth;
-            if (ds.hoverBorderColor != null) arc.options.borderColor = ds.hoverBorderColor;
-            arc.draw(chart.ctx);
-            arc.outerRadius = savedOuter;
-            arc.options.borderWidth = savedBW;
-            arc.options.borderColor = savedBC;
-        }
+        const active = chart._dashActive;
+        if (!active) return;
+        const meta = chart.getDatasetMeta(active.datasetIndex);
+        const arc = meta && meta.data && meta.data[active.index];
+        if (!arc) return;
+        const ds = chart.data.datasets[active.datasetIndex] || {};
+        const grow = ds._dashHoverGrow ?? ds.hoverOffset ?? 10;
+        const savedOuter = arc.outerRadius;
+        const savedBW    = arc.options.borderWidth;
+        const savedBC    = arc.options.borderColor;
+        arc.outerRadius = savedOuter + grow;
+        if (ds.hoverBorderWidth != null) arc.options.borderWidth = ds.hoverBorderWidth;
+        if (ds.hoverBorderColor != null) arc.options.borderColor = ds.hoverBorderColor;
+        arc.draw(chart.ctx);
+        arc.outerRadius = savedOuter;
+        arc.options.borderWidth = savedBW;
+        arc.options.borderColor = savedBC;
     }
 };
 
@@ -140,11 +143,12 @@ function _dashApplyChartDefaults() {
     // Bar defaults — rounded tops, 300ms grow animation
     Chart.defaults.datasets.bar = Chart.defaults.datasets.bar || {};
     Chart.defaults.datasets.bar.borderRadius = 6;
-    // Pie / doughnut slice enlarge on hover
+    // Pie / doughnut: native hoverOffset is OFF — the dashArcGrow plugin
+    // handles slice enlargement instead. See plugin comment for why.
     Chart.defaults.datasets.pie      = Chart.defaults.datasets.pie      || {};
     Chart.defaults.datasets.doughnut = Chart.defaults.datasets.doughnut || {};
-    Chart.defaults.datasets.pie.hoverOffset      = 10;
-    Chart.defaults.datasets.doughnut.hoverOffset = 10;
+    Chart.defaults.datasets.pie.hoverOffset      = 0;
+    Chart.defaults.datasets.doughnut.hoverOffset = 0;
     Chart.defaults.animation = { duration: 300, easing: 'easeOutQuart' };
     Chart.defaults.transitions = Chart.defaults.transitions || {};
     Chart.defaults.transitions.active = Chart.defaults.transitions.active || {};
@@ -202,34 +206,22 @@ function _dashInteractiveChartConfig(canvas, type, data, options) {
             const active = !!(elements && elements.length);
             if (canvas) canvas.style.cursor = active ? 'pointer' : '';
 
-            // Manually drive arc enlargement for pie/doughnut: Chart.js's
-            // native hoverOffset → outerRadius animation is unreliable here
-            // (a broken interpolator surfaces as "this._fn is not a function"
-            // and leaves outerRadius unchanged). Mutate arc.outerRadius
-            // directly and force a redraw — independent of the animation
-            // pipeline that's failing.
-            if (circular && chart && chart.data && chart.data.datasets) {
-                let needsDraw = false;
-                chart.data.datasets.forEach((ds, dsi) => {
-                    const meta = chart.getDatasetMeta(dsi);
-                    if (!meta || !meta.data) return;
-                    const grow = ds.hoverOffset
-                        ?? chart.options?.elements?.arc?.hoverOffset
-                        ?? 10;
-                    meta.data.forEach((arc, i) => {
-                        if (!arc) return;
-                        if (arc._dashBaseR == null) arc._dashBaseR = arc.outerRadius;
-                        const isActive = active && elements.some(
-                            e => e.datasetIndex === dsi && e.index === i
-                        );
-                        const target = isActive ? arc._dashBaseR + grow : arc._dashBaseR;
-                        if (Math.abs(arc.outerRadius - target) > 0.5) {
-                            arc.outerRadius = target;
-                            needsDraw = true;
-                        }
-                    });
-                });
-                if (needsDraw) {
+            // For pie/doughnut, record the single hovered arc on the chart
+            // and redraw if it changed. The dashArcGrow plugin reads
+            // chart._dashActive in afterDatasetsDraw and renders the
+            // enlarged version on top — only ever one slice at a time.
+            // Never mutate arc.outerRadius directly here (doing so corrupts
+            // the natural base across hovers and arcs end up accumulating).
+            if (circular) {
+                const next = active
+                    ? { datasetIndex: elements[0].datasetIndex, index: elements[0].index }
+                    : null;
+                const prev = chart._dashActive || null;
+                const changed = !!next !== !!prev || (
+                    next && prev && (next.datasetIndex !== prev.datasetIndex || next.index !== prev.index)
+                );
+                if (changed) {
+                    chart._dashActive = next;
                     try { chart.draw(); } catch (_) {}
                 }
             }
@@ -259,31 +251,28 @@ function _dashInteractiveChartConfig(canvas, type, data, options) {
         ? chartData.datasets.map(ds => _dashEnhanceInteractiveDataset(ds, type, isActionable))
         : chartData.datasets;
 
-    // For pie/doughnut: Chart.js computes the outer radius after a responsive resize
-    // using the canvas pixel size. Without explicit layout.padding, the ring fills the
-    // canvas edge-to-edge and hoverOffset pushes arcs outside the drawable area,
-    // making the expansion invisible. Reserve padding >= max hoverOffset so the ring
-    // always has room to grow outward.
+    // For pie/doughnut: reserve layout.padding >= the plugin's hover growth
+    // so the enlarged active arc has room to render outside the base ring
+    // without being clipped at the canvas edge.
     if (circular && !chartOptions.layout?.padding) {
-        const maxHoverOffset = (datasets || []).reduce(
-            (m, ds) => Math.max(m, (ds && ds.hoverOffset) || 0),
+        const maxHoverGrow = (datasets || []).reduce(
+            (m, ds) => Math.max(m, (ds && (ds._dashHoverGrow ?? ds.hoverOffset)) || 0),
             0
         );
-        if (maxHoverOffset > 0) {
+        if (maxHoverGrow > 0) {
             chartOptions.layout = Object.assign({}, chartOptions.layout, {
-                padding: maxHoverOffset,
+                padding: maxHoverGrow,
             });
         }
     }
 
-    // Some Chart.js code paths consult elements.arc.hoverOffset before
-    // dataset.hoverOffset; set both so the active arc visually enlarges.
+    // Force-disable Chart.js's native arc-level hoverOffset. Our plugin
+    // owns the visual enlargement; leaving this non-zero would let
+    // Chart.js mutate outerRadius on hover and the two systems would fight.
     if (circular) {
         chartOptions.elements = chartOptions.elements || {};
         chartOptions.elements.arc = chartOptions.elements.arc || {};
-        if (chartOptions.elements.arc.hoverOffset == null) {
-            chartOptions.elements.arc.hoverOffset = 10;
-        }
+        chartOptions.elements.arc.hoverOffset = 0;
     }
 
     return {
@@ -298,7 +287,12 @@ function _dashEnhanceInteractiveDataset(dataset, type, isActionable) {
     const ds = { ...dataset };
     const circular = type === 'pie' || type === 'doughnut';
     if (circular) {
-        ds.hoverOffset = ds.hoverOffset ?? 14;
+        // Stash the desired hover growth on a custom property; zero out
+        // Chart.js's native hoverOffset so its broken animation can't
+        // mutate outerRadius behind our back. The dashArcGrow plugin reads
+        // _dashHoverGrow to render the enlarged active arc.
+        ds._dashHoverGrow = ds.hoverOffset ?? 14;
+        ds.hoverOffset = 0;
         ds.hoverBorderWidth = ds.hoverBorderWidth ?? 2;
         ds.hoverBorderColor = ds.hoverBorderColor || _dashCssVar('--text', '#eae8e3');
         return ds;
