@@ -61,10 +61,11 @@ _dashRegisterWidget({
 
         const topExts = _overviewTopExts(size === 'L' ? 7 : 3);
         const maxExt  = topExts.length ? topExts[0][1] : 1;
+        const colors  = _dashColorScale(topExts.length);
         const extRows = topExts.map(([ext, cnt], i) => `
 <div class="dash-kpi-bar-row" style="cursor:pointer" onclick="_dashOpenFileGroupDrilldown('Files .${_dashEscape(ext)}', _dashFilesByExt(${_dashJson(ext)}))">
   <span class="dash-kpi-bar-label">.${_dashEscape(ext)}</span>
-  <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${Math.round((cnt / maxExt) * 100)}%;background:${_dashAccentStop(i)}"></div></div>
+  <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${Math.round((cnt / maxExt) * 100)}%;background:${colors[i]}"></div></div>
   <span class="dash-kpi-bar-val">${cnt}</span>
 </div>`).join('');
 
@@ -145,11 +146,11 @@ _dashRegisterWidget({
         const exts     = _overviewTopExts(8);
         const extTotal = _overviewExtCount();
         const maxExt   = exts.length ? exts[0][1] : 1;
-        const colors   = _dashAccentForSlices(Math.max(exts.length, 3));
+        const colors   = _dashColorScale(exts.length);
 
         const extRows = exts.map(([ext, cnt], i) => {
             const pct = Math.round((cnt / maxExt) * 100);
-            const col = colors[Math.min(i, colors.length - 1)];
+            const col = colors[i];
             return `<div class="dash-list-row" data-clickable="true"
                 onclick="_dashOpenFileGroupDrilldown('Files .${_dashEscape(ext)}', _dashFilesByExt(${_dashJson(ext)}))">
                 <span class="dash-list-rank">${i + 1}</span>
@@ -177,14 +178,14 @@ _dashRegisterWidget({
     <div class="dash-health-row">
       <span class="dash-health-row-label">Code</span>
       <div class="dash-health-row-track">
-        <div class="dash-health-row-fill" style="width:${codePct}%;background:${colors[0]}"></div>
+        <div class="dash-health-row-fill" style="width:${codePct}%;background:${_dashAccentStop(0)}"></div>
       </div>
       <span class="dash-health-row-value">${_dashFmtExactNum(code)} <small style="color:var(--muted)">(${codePct}%)</small></span>
     </div>
     <div class="dash-health-row">
       <span class="dash-health-row-label">Comments</span>
       <div class="dash-health-row-track">
-        <div class="dash-health-row-fill" style="width:${cmtPct}%;background:${colors[1] || colors[0]}"></div>
+        <div class="dash-health-row-fill" style="width:${cmtPct}%;background:${_dashAccentStop(1)}"></div>
       </div>
       <span class="dash-health-row-value">${_dashFmtExactNum(comment)} <small style="color:var(--muted)">(${cmtPct}%)</small></span>
     </div>

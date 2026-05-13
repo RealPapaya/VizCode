@@ -18,7 +18,6 @@ _dashRegisterWidget({
     render(container, size, stats) {
         const top    = stats.complexity_top_offenders || [];
         const avg    = Number(stats.avg_complexity || 0);
-        const colors = _dashAccentForSlices(Math.min(top.length, 5));
 
         if (size === 'S') {
             const topName = top[0] ? (top[0].name || top[0].file || '?').split('/').pop() : 'n/a';
@@ -42,9 +41,11 @@ _dashRegisterWidget({
 
         const limit = size === 'L' ? 8 : 5;
         const maxVal = top[0]?.complexity || 1;
-        const rows = top.slice(0, limit).map((sym, i) => {
+        const sliced = top.slice(0, limit);
+        const colors = typeof _dashColorScale === 'function' ? _dashColorScale(sliced.length) : [];
+        const rows = sliced.map((sym, i) => {
             const pct      = Math.round((sym.complexity / maxVal) * 100);
-            const col      = colors[Math.min(i, colors.length - 1)];
+            const col      = colors[i];
             const fileShort = String(sym.file || '').split('/').pop();
             const fileJSON  = JSON.stringify(sym.file).replace(/"/g, '&quot;');
             const nameJSON  = JSON.stringify(sym.name).replace(/"/g, '&quot;');
@@ -72,7 +73,7 @@ _dashRegisterWidget({
         const top    = stats.complexity_top_offenders || [];
         const avg    = Number(stats.avg_complexity || 0);
         const canvasId = 'dash-detail-cyclo-canvas';
-        const colors = _dashAccentForSlices(Math.min(top.length, 5));
+        const colors = typeof _dashColorScale === 'function' ? _dashColorScale(top.length) : [];
         const max    = top[0]?.complexity || 1;
 
         container.innerHTML = `
@@ -90,7 +91,7 @@ _dashRegisterWidget({
   <div class="dash-list" style="max-height:300px;overflow-y:auto;">
     ${top.map((sym, i) => {
         const pct = Math.round((sym.complexity / max) * 100);
-        const col = colors[Math.min(i, colors.length - 1)];
+        const col = colors[i];
         const fileShort = String(sym.file || '').split('/').pop();
         const fileJSON  = JSON.stringify(sym.file).replace(/"/g, '&quot;');
         const nameJSON  = JSON.stringify(sym.name).replace(/"/g, '&quot;');
@@ -107,11 +108,12 @@ _dashRegisterWidget({
 
         const canvas = document.getElementById(canvasId);
         if (canvas && typeof Chart !== 'undefined' && dist.length) {
+            const chartColors = typeof _dashColorScale === 'function' ? _dashColorScale(dist.length) : dist.map((_, i) => _dashAccentStop(i));
             _dashMkChart(canvas, 'bar', {
                 labels: dist.map(b => b.range),
                 datasets: [{
                     data: dist.map(b => b.count),
-                    backgroundColor: dist.map((_, i) => _dashAccentStop(i)),
+                    backgroundColor: chartColors,
                     borderRadius: 6,
                     borderWidth: 0,
                 }],

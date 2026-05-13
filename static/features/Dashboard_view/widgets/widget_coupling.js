@@ -27,15 +27,17 @@ function _dashCouplingRows(items, suffix) {
     return `<div class="dash-empty">✅ ${_dashEscape(_dashT('dashCouplingNone'))}</div>`;
   }
   const max = items[0].count || 1;
+  const colors = typeof _dashColorScale === 'function' ? _dashColorScale(items.length) : [];
   return items.map((item, i) => {
     const fileShort = String(item.file || '').split('/').pop();
     const fileJSON = JSON.stringify(item.file).replace(/"/g, '&quot;');
+    const bg = colors[i] ? `background:${colors[i]}` : '';
     return `
 <div class="dash-list-row" data-clickable="true" data-tip="${_dashEscape(item.file)}"
      onclick="_dashDrill(${fileJSON}, null)">
   <span class="dash-list-rank">${i + 1}</span>
   <span class="dash-list-name" style="min-width: 0;">${_dashEscape(fileShort)}</span>
-  <div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${Math.round(item.count / max * 100)}%"></div></div>
+  <div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${Math.round(item.count / max * 100)}%;${bg}"></div></div>
   <span class="dash-list-val">${item.count} ${_dashEscape(suffix)}</span>
 </div>`;
   }).join('');
@@ -67,12 +69,15 @@ _dashRegisterWidget({
 
     if (size === 'M') {
       const max = imported.length ? imported[0].count || 1 : 1;
-      const rows = imported.slice(0, 5).map((item, i) => {
+      const sliced = imported.slice(0, 5);
+      const colors = typeof _dashColorScale === 'function' ? _dashColorScale(sliced.length) : [];
+      const rows = sliced.map((item, i) => {
         const fileShort = String(item.file || '').split('/').pop();
         const fileJSON = JSON.stringify(item.file).replace(/"/g, '&quot;');
+        const bg = colors[i] ? `background:${colors[i]}` : '';
         return `<div class="dash-kpi-bar-row" style="cursor:pointer" onclick="_dashDrill(${fileJSON}, null)">
   <span class="dash-kpi-bar-label">${_dashEscape(fileShort)}</span>
-  <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${Math.round(item.count / max * 100)}%;background:${_dashAccentStop(i)}"></div></div>
+  <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${Math.round(item.count / max * 100)}%;${bg}"></div></div>
   <span class="dash-kpi-bar-val">${item.count}</span>
 </div>`;
       }).join('') || '<span class="dash-kpi-empty">No data</span>';

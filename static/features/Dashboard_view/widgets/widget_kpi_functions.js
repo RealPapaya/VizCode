@@ -45,12 +45,17 @@ _dashRegisterWidget({
 
     const mods = _kpiFuncModules();
     const limit = size === 'L' ? 7 : 4;
-    const rows = mods.slice(0, limit).map(([modId, mod, cnt], i) => `
+    const sliced = mods.slice(0, limit);
+    const colors = typeof _dashColorScale === 'function' ? _dashColorScale(sliced.length) : [];
+    const rows = sliced.map(([modId, mod, cnt], i) => {
+        const bg = colors[i] ? `background:${colors[i]}` : '';
+        return `
 <div class="dash-kpi-bar-row" style="cursor:pointer" onclick="_dashOpenFileGroupDrilldown('Files in ${_dashEscape(mod)}', _dashFilesByModule(${_dashJson(modId)}))">
   <span class="dash-kpi-bar-label">${_dashEscape(mod)}</span>
-  <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${Math.round((cnt / (mods[0]?.[2] || 1)) * 100)}%;background:${_dashAccentStop(i)}"></div></div>
+  <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${Math.round((cnt / (mods[0]?.[2] || 1)) * 100)}%;${bg}"></div></div>
   <span class="dash-kpi-bar-val">${cnt}</span>
-</div>`).join('');
+</div>`;
+    }).join('');
 
     if (size === 'M') {
       container.innerHTML = `
@@ -87,7 +92,7 @@ _dashRegisterWidget({
     allFuncs.sort((a, b) => b.lines - a.lines);
     const top = allFuncs.slice(0, 15);
     const max = top.length ? top[0].lines : 1;
-    const colors = _dashAccentForSlices(Math.min(top.length, 5));
+    const colors = typeof _dashColorScale === 'function' ? _dashColorScale(top.length) : [];
 
     const allModEntries = Object.entries(DATA.files_by_module || {}).map(([mod, files]) => {
       const fnCount = (files || []).reduce((s, f) => s + (f.func_count || (f.functions || []).length), 0);
@@ -118,7 +123,7 @@ _dashRegisterWidget({
   <div class="dash-list">
     ${top.map((fn, i) => {
       const pct = Math.round((fn.lines / max) * 100);
-      const col = colors[Math.min(i, colors.length - 1)];
+      const col = colors[i];
       return `<div class="dash-list-row" data-clickable="true" onclick="_dashGoToGraphFile(${_dashJson(fn.file)}, ${_dashJson(fn.name)})">
           <span class="dash-list-rank">${i + 1}</span>
           <span class="dash-list-name" title="${_dashEscape(fn.file)}">${_dashEscape(fn.name)}</span>
@@ -142,7 +147,7 @@ _dashRegisterWidget({
             count: modEntries.slice(4).reduce((sum, e) => sum + e[2], 0),
           }])
         : modEntries.map(e => ({ label: e[1], mods: [e[0]], count: e[2] }));
-      const colors = circular ? _dashAccentForSlices(rows.length) : rows.map((_, i) => _dashAccentStop(i));
+      const colors = circular ? _dashAccentForSlices(rows.length) : (typeof _dashColorScale === 'function' ? _dashColorScale(rows.length) : rows.map((_, i) => _dashAccentStop(i)));
       _dashMkChart(canvas, type, {
         labels: rows.map(row => row.label),
         datasets: [{

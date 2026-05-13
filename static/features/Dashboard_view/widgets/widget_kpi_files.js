@@ -42,12 +42,17 @@ _dashRegisterWidget({
     const exts = _kpiFileExts();
     const max = exts.length ? exts[0][1] : 1;
     const limit = size === 'L' ? 7 : 4;
-    const rows = exts.slice(0, limit).map(([ext, cnt], i) => `
+    const sliced = exts.slice(0, limit);
+    const colors = typeof _dashColorScale === 'function' ? _dashColorScale(sliced.length) : [];
+    const rows = sliced.map(([ext, cnt], i) => {
+        const bg = colors[i] ? `background:${colors[i]}` : '';
+        return `
 <div class="dash-kpi-bar-row" style="cursor:pointer" onclick="_dashOpenFileGroupDrilldown('Files .${_dashEscape(ext)}', _dashFilesByExt(${_dashJson(ext)}))">
   <span class="dash-kpi-bar-label">.${_dashEscape(ext)}</span>
-  <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${Math.round((cnt / max) * 100)}%;background:${_dashAccentStop(i)}"></div></div>
+  <div class="dash-kpi-bar-track"><div class="dash-kpi-bar-fill" style="width:${Math.round((cnt / max) * 100)}%;${bg}"></div></div>
   <span class="dash-kpi-bar-val">${cnt}</span>
-</div>`).join('');
+</div>`;
+    }).join('');
 
     if (size === 'M') {
       container.innerHTML = `
@@ -95,13 +100,15 @@ _dashRegisterWidget({
       : langs.map(([ext, cnt]) => ({ label: `.${ext}`, exts: [ext], count: cnt }));
     const labels = sliceRows.map(row => row.label);
     const data = sliceRows.map(row => row.count);
-    const sliceColors = _dashAccentForSlices(sliceRows.length);
+    const sliceColors = typeof _dashColorScale === 'function' ? _dashColorScale(sliceRows.length) : _dashAccentForSlices(sliceRows.length);
     const chartKey = 'kpi_files_detail_chart';
     const chartTypes = ['doughnut', 'bar'];
 
-    const breakdownRows = langs.slice(0, 12).map(([ext, cnt], i) => {
+    const breakdownSlice = langs.slice(0, 12);
+    const breakdownColors = typeof _dashColorScale === 'function' ? _dashColorScale(breakdownSlice.length) : [];
+    const breakdownRows = breakdownSlice.map(([ext, cnt], i) => {
       const pct = Math.round((cnt / max) * 100);
-      const col = sliceColors[Math.min(i, sliceColors.length - 1)];
+      const col = breakdownColors[i];
       const files = _dashFilesByExt(ext);
       return `<div class="dash-list-row" data-clickable="true"
           onclick="_dashOpenFileGroupDrilldown('Files .${_dashEscape(ext)}', _dashFilesByExt(${_dashJson(ext)}))">
@@ -141,7 +148,7 @@ _dashRegisterWidget({
       const rows = circular
         ? sliceRows
         : langs.slice(0, 12).map(([ext, cnt]) => ({ label: `.${ext}`, exts: [ext], count: cnt }));
-      const colors = circular ? sliceColors : rows.map((_, i) => _dashAccentStop(i));
+      const colors = circular ? sliceColors : (typeof _dashColorScale === 'function' ? _dashColorScale(rows.length) : rows.map((_, i) => _dashAccentStop(i)));
       _dashMkChart(canvas, type, {
         labels: rows.map(row => row.label),
         datasets: [{

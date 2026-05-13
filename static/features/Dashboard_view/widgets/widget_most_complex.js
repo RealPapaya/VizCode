@@ -49,11 +49,11 @@ _dashRegisterWidget({
     }
 
     const maxVal = top[0].complexity || top[0].score || 1;
-    const colors = _dashAccentForSlices(Math.min(top.length, 5));
+    const colors = _dashColorScale(top.length);
     const rows = top.map((item, i) => {
       const val = item.complexity || item.score || 0;
       const pct = Math.round((val / maxVal) * 100);
-      const col = colors[Math.min(i, colors.length - 1)];
+      const col = colors[i];
       const name = (item.name || item.function || item.file || '?').split('/').pop();
       return `<div class="dash-list-row" data-clickable="true" onclick="_dashGoToGraphFile(${_dashJson(item.file || '')}, ${_dashJson(item.name || item.function || '')})">
         <span class="dash-list-rank">${i + 1}</span>
@@ -75,7 +75,7 @@ _dashRegisterWidget({
     const avg = Number(stats.avg_complexity || 0);
     const dist = stats.complexity_distribution || [];
     const canvasId = 'dash-detail-complex-chart';
-    const colors = _dashAccentForSlices(Math.min(all.length, 5));
+    const colors = _dashColorScale(all.length);
 
     container.innerHTML = `
 <div class="dash-card">
@@ -91,7 +91,7 @@ _dashRegisterWidget({
       const val = item.complexity || item.score || 0;
       const max2 = all[0] ? (all[0].complexity || all[0].score || 1) : 1;
       const pct = Math.round((val / max2) * 100);
-      const col = colors[Math.min(i, colors.length - 1)];
+      const col = colors[i];
       const name = (item.name || item.function || '?');
       const file = (item.file || '').split('/').pop();
       return `<div class="dash-list-row" data-clickable="true" onclick="_dashGoToGraphFile(${_dashJson(item.file || '')}, ${_dashJson(item.name || item.function || '')})">
@@ -106,11 +106,12 @@ _dashRegisterWidget({
 
     const canvas = document.getElementById(canvasId);
     if (canvas && typeof Chart !== 'undefined' && dist.length) {
+      const chartColors = typeof _dashColorScale === 'function' ? _dashColorScale(dist.length) : dist.map((_, i) => _dashAccentStop(i));
       _dashMkChart(canvas, 'bar', {
         labels: dist.map(b => b.range),
         datasets: [{
           data: dist.map(b => b.count),
-          backgroundColor: dist.map((_, i) => _dashAccentStop(i)),
+          backgroundColor: chartColors,
           borderRadius: 6,
           borderWidth: 0,
         }],

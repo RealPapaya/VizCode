@@ -31,6 +31,37 @@ function _dashAccentForSlices(n) {
     return _DASH_ACCENT_SCALE.slice(0, count);
 }
 
+function _dashInterpolateColor(c1, c2, t) {
+    const r1 = _dashHexToRgb(c1), r2 = _dashHexToRgb(c2);
+    const r = Math.round(r1.r + (r2.r - r1.r) * t);
+    const g = Math.round(r1.g + (r2.g - r1.g) * t);
+    const b = Math.round(r1.b + (r2.b - r1.b) * t);
+    return `#${(1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1)}`;
+}
+
+// Generate a gradient of n colors for lists. 
+// Uses _DASH_ACCENT_SCALE, biased towards lighter colors to avoid too many indistinguishable darks.
+function _dashColorScale(n) {
+    if (!n || n < 1) return [];
+    if (n === 1) return [_DASH_ACCENT_SCALE[0]];
+    if (n <= 5) return _DASH_ACCENT_SCALE.slice(0, n);
+
+    const out = [];
+    const maxIdx = _DASH_ACCENT_SCALE.length - 1;
+    for (let i = 0; i < n; i++) {
+        let t = i / (n - 1);
+        t = Math.pow(t, 1.5); // Bias towards lighter colors (lower indices)
+        const pos = t * maxIdx;
+        const idx = Math.floor(pos);
+        if (idx >= maxIdx) {
+            out.push(_DASH_ACCENT_SCALE[maxIdx]);
+        } else {
+            out.push(_dashInterpolateColor(_DASH_ACCENT_SCALE[idx], _DASH_ACCENT_SCALE[idx + 1], pos - idx));
+        }
+    }
+    return out;
+}
+
 // Read a CSS custom property from :root.
 function _dashCssVar(name, fallback) {
     if (typeof document === 'undefined') return fallback || '';
