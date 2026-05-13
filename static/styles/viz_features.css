@@ -64,15 +64,15 @@
 }
 
 .dash-grid-2 {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
 .dash-grid-3 {
-    grid-template-columns: 1fr 1.6fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr);
 }
 
 .dash-grid-full {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
 }
 
 /* DASHBOARD_DESIGN_SPEC.md §3 — card base + hover lift. */
@@ -84,6 +84,7 @@
     display: flex;
     flex-direction: column;
     box-shadow: var(--shadow-sm);
+    min-width: 0;
     transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
 }
 

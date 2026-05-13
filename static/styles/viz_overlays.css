@@ -2236,6 +2236,10 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     pointer-events: none;
     font-size: 12px;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
 }
 
 /* Preview box sizing — adapts to S / M / L tier */
@@ -2623,127 +2627,134 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 }
 
 
+/* -- Detail panel summary metrics (e.g. 163 files / 14 extensions) -- */
 
-/* ── Lists (detail panel rows) ── */
+.dash-detail-metrics {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-5);
+    padding: var(--space-2) 0 var(--space-3);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: var(--space-2);
+    flex-shrink: 0;
+}
+
+.dash-detail-metric {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    min-width: 0;
+}
+
+.dash-detail-metric span {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+}
+
+.dash-detail-metric small {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted);
+    white-space: nowrap;
+    text-transform: lowercase;
+    letter-spacing: 0;
+}
+
+
+/* -- Lists (detail panel rows) -- */
 
 .dash-list {
-
     display: flex;
-
     flex-direction: column;
-
     gap: 2px;
-
 }
-
-
 
 .dash-list-row {
-
     display: flex;
-
     align-items: center;
-
     gap: var(--space-2);
-
-    padding: 4px var(--space-2);
-
-    border-radius: 4px;
-
+    padding: 5px 6px;
+    border-radius: 5px;
     transition: background 0.12s;
-
-    font-size: var(--text-xs, 11px);
-
-    min-height: 28px;
-
+    font-size: 12px;
+    min-height: 30px;
 }
-
-
 
 .dash-list-row[data-clickable] { cursor: pointer; }
 
-.dash-list-row[data-clickable]:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
-
-
+.dash-list-row[data-clickable]:hover {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
 
 .dash-list-rank {
-
-    color: var(--muted);
-
+    color: color-mix(in srgb, var(--muted) 60%, transparent);
     font-size: 10px;
-
     font-weight: 600;
-
-    width: 18px;
-
+    width: 20px;
     flex-shrink: 0;
-
     text-align: right;
-
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
 }
-
-
 
 .dash-list-name {
-
     flex: 1;
-
     overflow: hidden;
-
     text-overflow: ellipsis;
-
     white-space: nowrap;
-
     color: var(--text);
-
-    font-weight: 500;
-
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.01em;
 }
-
-
 
 .dash-list-meta {
-
     color: var(--muted);
-
     font-weight: 400;
-
     margin-left: var(--space-2);
-
     font-size: 10px;
-
 }
 
-
-
-.dash-list-bar {
-
-    height: 6px;
-
-    border-radius: 3px;
-
-    background: #DFA745;
-
+/* bar track: flex container so fill width is % of track, not hardcoded px */
+.dash-list-bar-track {
+    flex: 0 0 80px;
+    height: 4px;
+    background: color-mix(in srgb, var(--accent) 14%, var(--surface-elevated));
+    border-radius: 2px;
+    overflow: hidden;
     flex-shrink: 0;
-
-    min-width: 4px;
-
 }
 
+.dash-list-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.35s ease;
+}
 
+/* legacy single-element bar (kept for compat, hidden width set via JS) */
+.dash-list-bar {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--accent);
+    flex-shrink: 0;
+    min-width: 3px;
+    opacity: 0.7;
+}
 
 .dash-list-val {
-
-    font-size: 10px;
-
-    color: var(--muted);
-
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
     white-space: nowrap;
-
     flex-shrink: 0;
-
+    font-variant-numeric: tabular-nums;
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
-
+    min-width: 28px;
+    text-align: right;
 }
 
 

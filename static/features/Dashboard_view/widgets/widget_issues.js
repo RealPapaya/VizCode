@@ -77,7 +77,7 @@ function _dashLongestFuncsRows(items) {
      onclick="_dashDrill(${fileJSON}, ${nameJSON})">
   <span class="dash-list-rank">${i + 1}</span>
   <span class="dash-list-name">${_dashEscape(it.name)}</span>
-  <div class="dash-list-bar" style="width:${Math.round(it.lines / max * 60)}px"></div>
+  <div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${Math.round(it.lines / max * 100)}%"></div></div>
   <span class="dash-list-val">${it.lines} lines</span>
 </div>`;
   }).join('');

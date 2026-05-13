@@ -31,7 +31,7 @@ function _dashRenderTemporalAuthors(container, stats) {
      onclick="_dashOpenFileGroupDrilldown('Files by ${_dashEscape(a.author)}', (DATA.stats.files_by_author || {})[${_dashJson(a.author)}] || [], { meta: f => (f.count || 0) + ' commits' })">
   <span class="dash-list-rank">${i + 1}</span>
   <span class="dash-list-name">${_dashEscape(a.author)}<span class="dash-list-meta">${a.commits} ${_dashEscape(_dashT('dashTemporalCommits'))} · <span class="dash-diff-add">+${adds}</span> / <span class="dash-diff-del">-${dels}</span></span></span>
-  <div class="dash-list-bar" style="width:${Math.round(a.commits / max * 60)}px"></div>
+  <div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${Math.round(a.commits / max * 100)}%"></div></div>
   <span class="dash-list-val">${sharePct}% <span class="dash-list-meta dash-list-meta--inline">${_dashEscape(shareLabel)}</span></span>
 </div>`;
     }).join('');

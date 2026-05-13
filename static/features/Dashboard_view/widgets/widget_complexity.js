@@ -43,7 +43,7 @@ _dashRegisterWidget({
         const limit = size === 'L' ? 8 : 5;
         const maxVal = top[0]?.complexity || 1;
         const rows = top.slice(0, limit).map((sym, i) => {
-            const pct      = Math.round((sym.complexity / maxVal) * 60);
+            const pct      = Math.round((sym.complexity / maxVal) * 100);
             const col      = colors[Math.min(i, colors.length - 1)];
             const fileShort = String(sym.file || '').split('/').pop();
             const fileJSON  = JSON.stringify(sym.file).replace(/"/g, '&quot;');
@@ -52,7 +52,7 @@ _dashRegisterWidget({
              onclick="_dashDrill(${fileJSON}, ${nameJSON})">
           <span class="dash-list-rank">${i + 1}</span>
           <span class="dash-list-name">${_dashEscape(sym.name)}<span class="dash-list-meta">${_dashEscape(fileShort)}</span></span>
-          <div class="dash-list-bar" style="width:${pct}px;background:${col}"></div>
+          <div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${pct}%;background:${col}"></div></div>
           <span class="dash-list-val">${sym.complexity}</span>
         </div>`;
         }).join('') || `<div class="dash-empty">${_dashEscape(_dashT('dashNoData'))}</div>`;
@@ -89,7 +89,7 @@ _dashRegisterWidget({
   <div class="dash-card-title"><span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashComplexityTopOffenders'))}</div>
   <div class="dash-list" style="max-height:300px;overflow-y:auto;">
     ${top.map((sym, i) => {
-        const pct = Math.round((sym.complexity / max) * 60);
+        const pct = Math.round((sym.complexity / max) * 100);
         const col = colors[Math.min(i, colors.length - 1)];
         const fileShort = String(sym.file || '').split('/').pop();
         const fileJSON  = JSON.stringify(sym.file).replace(/"/g, '&quot;');
@@ -98,7 +98,7 @@ _dashRegisterWidget({
              onclick="_dashDrill(${fileJSON}, ${nameJSON})">
           <span class="dash-list-rank">${i + 1}</span>
           <span class="dash-list-name">${_dashEscape(sym.name)}<span class="dash-list-meta">${_dashEscape(fileShort)}</span></span>
-          <div class="dash-list-bar" style="width:${pct}px;background:${col}"></div>
+          <div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${pct}%;background:${col}"></div></div>
           <span class="dash-list-val">${sym.complexity}</span>
         </div>`;
     }).join('') || `<div class="dash-empty">${_dashEscape(_dashT('dashNoData'))}</div>`}

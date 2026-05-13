@@ -143,10 +143,10 @@ function _dashRenderChurnTimelineWidget(container, size, stats, suffix) {
     <div class="dash-widget-stat">${_dashFmtNum(stats.commits_analyzed || 0)}</div>
     <div class="dash-widget-sub">${_dashEscape(latest.week_start || stats.period_end || '')}</div>
     ${_dashMiniPills([
-        { label: '+', value: _dashFmtNum(totalAdds), title: _dashT('dashTemporalAdditions') },
-        { label: '-', value: _dashFmtNum(totalDels), title: _dashT('dashTemporalDeletions') },
-        { label: 'Weeks', value: buckets.length },
-    ])}
+            { label: '+', value: _dashFmtNum(totalAdds), title: _dashT('dashTemporalAdditions') },
+            { label: '-', value: _dashFmtNum(totalDels), title: _dashT('dashTemporalDeletions') },
+            { label: 'Weeks', value: buckets.length },
+        ])}
   </div>
 </div>`;
         return;

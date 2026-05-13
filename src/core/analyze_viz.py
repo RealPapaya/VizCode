@@ -1752,7 +1752,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         file_import_counts.items(),
         key=lambda x: x[1],
         reverse=True
-    )[:5]
+    )[:50]
     
     # God File candidates: files calling the most functions
     file_call_counts = defaultdict(int)
@@ -1763,7 +1763,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         file_call_counts.items(),
         key=lambda x: x[1],
         reverse=True
-    )[:5]
+    )[:50]
     
     # Dead Code Detection
     all_defined_funcs = set()

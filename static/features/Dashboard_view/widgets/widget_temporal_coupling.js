@@ -2,29 +2,29 @@
 // Phase 2 — Change Coupling (file pairs that change together).
 
 function _dashRenderTemporalCoupling(container, stats) {
-    if (!container) return;
+  if (!container) return;
 
-    const items = stats.change_coupling || [];
-    container.innerHTML = `
+  const items = stats.change_coupling || [];
+  container.innerHTML = `
 <div class="dash-card-title">
   <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashTemporalCoupling'))}
 </div>
 <div class="dash-list" id="dash-temporal-coupling-list"></div>`;
 
-    const list = container.querySelector('#dash-temporal-coupling-list');
-    if (!list) return;
-    if (!items.length) {
-        list.innerHTML = `<div class="dash-empty">${_dashEscape(_dashT('dashTemporalEmpty'))}</div>`;
-        return;
-    }
-    const max = items[0].co_changes || 1;
-    list.innerHTML = items.slice(0, 10).map((p, i) => {
-        const aShort = String(p.file_a || '').split('/').pop();
-        const bShort = String(p.file_b || '').split('/').pop();
-        const supportPct = Math.round((p.support || 0) * 100);
-        const aJSON = JSON.stringify(p.file_a).replace(/"/g, '&quot;');
-        const bJSON = JSON.stringify(p.file_b).replace(/"/g, '&quot;');
-        return `
+  const list = container.querySelector('#dash-temporal-coupling-list');
+  if (!list) return;
+  if (!items.length) {
+    list.innerHTML = `<div class="dash-empty">${_dashEscape(_dashT('dashTemporalEmpty'))}</div>`;
+    return;
+  }
+  const max = items[0].co_changes || 1;
+  list.innerHTML = items.slice(0, 10).map((p, i) => {
+    const aShort = String(p.file_a || '').split('/').pop();
+    const bShort = String(p.file_b || '').split('/').pop();
+    const supportPct = Math.round((p.support || 0) * 100);
+    const aJSON = JSON.stringify(p.file_a).replace(/"/g, '&quot;');
+    const bJSON = JSON.stringify(p.file_b).replace(/"/g, '&quot;');
+    return `
 <div class="dash-list-row dash-list-row--stacked">
   <div class="dash-pair-head">
     <span class="dash-list-rank">${i + 1}</span>
@@ -38,9 +38,9 @@ function _dashRenderTemporalCoupling(container, stats) {
     <span class="dash-temporal-support">${supportPct}%</span>
   </div>
   <div class="dash-pair-body">
-    <div class="dash-list-bar" style="flex:0 0 auto;width:${Math.round(p.co_changes / max * 60)}px"></div>
+    <div class="dash-list-bar-track" style="flex:1"><div class="dash-list-bar-fill" style="width:${Math.round(p.co_changes / max * 100)}%"></div></div>
     <span class="dash-pair-count">${p.co_changes} ${_dashEscape(_dashT('dashTemporalCoChange'))}</span>
   </div>
 </div>`;
-    }).join('');
+  }).join('');
 }

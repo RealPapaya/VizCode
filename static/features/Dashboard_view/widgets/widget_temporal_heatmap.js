@@ -69,12 +69,12 @@ function _dashBuildTemporalHeatmapModel(rows, stats) {
     rows.forEach(row => {
         const date = String(row.date || '').trim();
         if (!_dashHeatmapValidISO(date)) return;
-        const commits   = Math.max(0, Number(row.commits   || 0));
+        const commits = Math.max(0, Number(row.commits || 0));
         const additions = Math.max(0, Number(row.additions || 0));
         const deletions = Math.max(0, Number(row.deletions || 0));
         const prev = dayMap.get(date) || { commits: 0, additions: 0, deletions: 0 };
         const next = {
-            commits:   prev.commits   + commits,
+            commits: prev.commits + commits,
             additions: prev.additions + additions,
             deletions: prev.deletions + deletions,
         };
@@ -88,13 +88,13 @@ function _dashBuildTemporalHeatmapModel(rows, stats) {
     if (!sortedDates.length) return null;
 
     // Determine visible window: prefer stats metadata, fall back to data extent
-    let endStr   = stats.window_end   || stats.period_end   || sortedDates[sortedDates.length - 1];
+    let endStr = stats.window_end || stats.period_end || sortedDates[sortedDates.length - 1];
     let startStr = stats.window_start || stats.period_start || sortedDates[0];
 
     // If window_end is missing, compute from today
     if (!endStr) {
         const today = new Date();
-        endStr = `${today.getUTCFullYear()}-${String(today.getUTCMonth()+1).padStart(2,'0')}-${String(today.getUTCDate()).padStart(2,'0')}`;
+        endStr = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, '0')}-${String(today.getUTCDate()).padStart(2, '0')}`;
     }
     // If window_start is missing, use window_days fallback
     if (!startStr) {
@@ -104,13 +104,13 @@ function _dashBuildTemporalHeatmapModel(rows, stats) {
     }
 
     const start = _dashHeatmapParseISO(startStr);
-    const end   = _dashHeatmapParseISO(endStr);
+    const end = _dashHeatmapParseISO(endStr);
     if (!start || !end || start > end) return null;
 
-    const gridStart  = _dashHeatmapWeekStart(start);
-    const gridEnd    = _dashHeatmapWeekEnd(end);
-    const totalDays  = Math.round((gridEnd - gridStart) / 86400000) + 1;
-    const weeks      = Math.max(1, Math.ceil(totalDays / 7));
+    const gridStart = _dashHeatmapWeekStart(start);
+    const gridEnd = _dashHeatmapWeekEnd(end);
+    const totalDays = Math.round((gridEnd - gridStart) / 86400000) + 1;
+    const weeks = Math.max(1, Math.ceil(totalDays / 7));
 
     return { dayMap, start, end, gridStart, totalDays, weeks, maxCommits, totalCommits };
 }
@@ -151,12 +151,12 @@ function _dashTemporalHeatmapSVG(model) {
         if (date < model.start || date > model.end) continue;
 
         // Use UTC-based ISO string that matches dayMap keys from git log
-        const iso  = _dashHeatmapISOStr(date);
+        const iso = _dashHeatmapISOStr(date);
         const info = model.dayMap.get(iso) || { commits: 0, additions: 0, deletions: 0 };
         const week = Math.floor(i / 7);
-        const day  = _dashHeatmapDayIndex(date);
-        const x    = labelW + week * (cell + gap);
-        const y    = monthH + day * (cell + gap);
+        const day = _dashHeatmapDayIndex(date);
+        const x = labelW + week * (cell + gap);
+        const y = monthH + day * (cell + gap);
         const fill = _dashHeatmapColor(info.commits, model.maxCommits);
         const commitsLabel = `${info.commits} ${_dashT('dashTemporalCommits')}`;
 
@@ -332,17 +332,17 @@ function _dashHeatmapAppendChurnFiles(container, stats) {
 <div class="dash-card-title"><span class="dash-card-title-dot"></span>Most Changed Files</div>
 <div class="dash-list">
 ${rows.map((row, i) => {
-    const file = String(row.file || '');
-    const short = file.split('/').pop();
-    return `
+        const file = String(row.file || '');
+        const short = file.split('/').pop();
+        return `
   <div class="dash-list-row" data-clickable="true" data-tip="${_dashEscape(file)}"
        onclick="_dashGoToGraphFile(${_dashJson(file)}, null)">
     <span class="dash-list-rank">${i + 1}</span>
     <span class="dash-list-name">${_dashEscape(short)}<span class="dash-list-meta">${_dashEscape(file)}</span></span>
-    <div class="dash-list-bar" style="width:${Math.round((row.commits || 0) / max * 60)}px"></div>
+    <div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${Math.round((row.commits || 0) / max * 100)}%"></div></div>
     <span class="dash-list-val">${_dashFmtNum(row.commits || 0)}</span>
   </div>`;
-}).join('')}
+    }).join('')}
 </div>`;
     container.appendChild(wrap);
 }

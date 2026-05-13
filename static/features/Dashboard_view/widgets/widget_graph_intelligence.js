@@ -40,7 +40,7 @@ function _dashRenderHotspots(items, root) {
      onclick="_dashDrill(${fileJSON}, null)">
   <span class="dash-list-rank">${i + 1}</span>
   <span class="dash-list-name">${_dashEscape(item.label)}<span class="dash-list-meta">${_dashEscape(fileShort)}</span></span>
-  <div class="dash-list-bar" style="width:${Math.round(item.degree / max * 60)}px"></div>
+  <div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${Math.round(item.degree / max * 100)}%"></div></div>
   <span class="dash-list-val">${item.degree}</span>
 </div>`;
     }).join('');

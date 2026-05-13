@@ -6,18 +6,18 @@ function _dashRenderCoupling(container, stats) {
   const imported = stats.top_imported_files || [];
   const callers = stats.top_caller_files || [];
   container.innerHTML = `
-<div class="dash-grid dash-grid-2">
-  <div class="dash-card">
+<div class="dash-grid dash-grid-2" style="height: 100%; min-height: 0;">
+  <div class="dash-card" style="min-height: 0;">
     <div class="dash-card-title">
       <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashCouplingTopImported'))}
     </div>
-    <div class="dash-list">${_dashCouplingRows(imported, _dashT('dashCouplingImports'))}</div>
+    <div class="dash-list" style="overflow-y: auto; min-height: 0; padding-right: 4px;">${_dashCouplingRows(imported, _dashT('dashCouplingImports'))}</div>
   </div>
-  <div class="dash-card">
+  <div class="dash-card" style="min-height: 0;">
     <div class="dash-card-title">
       <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashCouplingTopCallers'))}
     </div>
-    <div class="dash-list">${_dashCouplingRows(callers, _dashT('dashCouplingCalls'))}</div>
+    <div class="dash-list" style="overflow-y: auto; min-height: 0; padding-right: 4px;">${_dashCouplingRows(callers, _dashT('dashCouplingCalls'))}</div>
   </div>
 </div>`;
 }
@@ -34,8 +34,8 @@ function _dashCouplingRows(items, suffix) {
 <div class="dash-list-row" data-clickable="true" data-tip="${_dashEscape(item.file)}"
      onclick="_dashDrill(${fileJSON}, null)">
   <span class="dash-list-rank">${i + 1}</span>
-  <span class="dash-list-name">${_dashEscape(fileShort)}</span>
-  <div class="dash-list-bar" style="width:${Math.round(item.count / max * 60)}px"></div>
+  <span class="dash-list-name" style="min-width: 0;">${_dashEscape(fileShort)}</span>
+  <div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${Math.round(item.count / max * 100)}%"></div></div>
   <span class="dash-list-val">${item.count} ${_dashEscape(suffix)}</span>
 </div>`;
   }).join('');
