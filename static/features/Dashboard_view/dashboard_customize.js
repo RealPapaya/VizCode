@@ -421,6 +421,7 @@ const _DASH_AWP_CATEGORIES = [
     {
         label: 'Codebase',
         items: [
+            { id: 'overview',      desc: 'High-level snapshot — files, functions, LOC, and file types in one tile.' },
             { id: 'kpi_files',     desc: 'Total number of files in the project.' },
             { id: 'kpi_functions', desc: 'Total number of functions and methods.' },
             { id: 'kpi_lines',     desc: 'Total lines of code (real LOC).' },

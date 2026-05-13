@@ -104,24 +104,58 @@ _dashRegisterWidget({
     },
 
     renderDetail(container, stats) {
+        const score     = Number(stats.code_health_score || 0);
         const breakdown = stats.code_health_breakdown || {};
-        const weights = stats.code_health_weights || {};
+        const weights   = stats.code_health_weights   || {};
+        const color     = _dashHealthColor(score);
+        const statusKey = score >= _DASH_HEALTH_BANDS.amber ? 'dashHealthGood'
+                        : score >= _DASH_HEALTH_BANDS.red   ? 'dashHealthFair'
+                        : 'dashHealthPoor';
+        const pct     = Math.max(0, Math.min(1, score / 10));
+        const fillLen = (pct * _DASH_HEALTH_TRACK_LEN).toFixed(2);
+        const gapLen  = _DASH_HEALTH_TRACK_LEN.toFixed(2);
+
         const rows = _DASH_HEALTH_SUBSCORES.map(s => {
             const value = Number(breakdown[s.key] || 0);
             const files = _dashHealthCategoryFiles(s.key, stats);
-            return `<div class="dash-health-row" data-clickable="true"
+            return `<div class="dash-list-row" data-clickable="true"
      onclick="_dashOpenFileGroupDrilldown('Code Health: ${_dashEscape(_dashT(s.label))}', _dashHealthCategoryFiles(${_dashJson(s.key)}, DATA.stats))">
-  <span class="dash-health-row-label">${_dashEscape(_dashT(s.label))}</span>
-  <div class="dash-health-row-track">
-    <div class="dash-health-row-fill" style="width:${Math.round(value * 10)}%;background:${_dashHealthColor(value)}"></div>
+  <span class="dash-list-name" style="min-width: 0;">${_dashEscape(_dashT(s.label))}</span>
+  <div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${Math.round(value * 10)}%;background:${_dashHealthColor(value)}"></div></div>
+  <div style="display:flex; flex-direction:column; align-items:flex-end;">
+    <span class="dash-list-val" style="color:${_dashHealthColor(value)}">${value.toFixed(1)}</span>
+    <span style="font-size:9px; color:var(--muted); line-height:1; margin-top:2px;">w ${Math.round((weights[s.key] || 0) * 100)}% · ${files.length} files</span>
   </div>
-  <span class="dash-health-row-value">${value.toFixed(1)} <small style="color:var(--muted)">w ${Math.round((weights[s.key] || 0) * 100)}% · ${files.length} files</small></span>
 </div>`;
         }).join('');
+
         container.innerHTML = `
-<div class="dash-card">
-  <div class="dash-card-title"><span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashCodeHealthTitle'))}</div>
-  <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">${rows}</div>
+<div class="dash-grid dash-grid-2" style="height: 100%; min-height: 0;">
+  <div class="dash-card" style="min-height: 0;">
+    <div class="dash-card-title">
+      <span class="dash-card-title-dot" style="background:${color}"></span>${_dashEscape(_dashT('dashCodeHealthTitle'))}
+    </div>
+    <div class="dash-health-gauge-area" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+      <svg class="dash-health-gauge-svg" viewBox="0 0 220 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="width: 100%; max-width: 260px; height: auto;">
+        <path class="dash-health-gauge-track" d="M 22 110 A 88 88 0 0 1 198 110"/>
+        <path class="dash-health-gauge-fill" d="M 22 110 A 88 88 0 0 1 198 110"
+              style="stroke-dasharray:${fillLen} ${gapLen};stroke:${color}"/>
+        <text x="110" y="84"  class="dash-health-gauge-score">${score.toFixed(1)}</text>
+        <text x="110" y="104" class="dash-health-gauge-den">/ 10</text>
+      </svg>
+      <div style="margin-top:-10px;">
+        <span class="dash-health-status-badge" style="color:${color}">${_dashEscape(_dashT(statusKey))}</span>
+      </div>
+    </div>
+  </div>
+  <div class="dash-card" style="min-height: 0;">
+    <div class="dash-card-title">
+      <span class="dash-card-title-dot"></span>Health Breakdown
+    </div>
+    <div class="dash-list" style="overflow-y: auto; min-height: 0; padding-right: 4px; padding-top: 8px;">
+      ${rows}
+    </div>
+  </div>
 </div>`;
     },
 
