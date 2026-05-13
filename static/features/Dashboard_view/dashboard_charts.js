@@ -101,6 +101,11 @@ function _dashApplyChartDefaults() {
     // Bar defaults — rounded tops, 300ms grow animation
     Chart.defaults.datasets.bar = Chart.defaults.datasets.bar || {};
     Chart.defaults.datasets.bar.borderRadius = 6;
+    // Pie / doughnut slice enlarge on hover
+    Chart.defaults.datasets.pie      = Chart.defaults.datasets.pie      || {};
+    Chart.defaults.datasets.doughnut = Chart.defaults.datasets.doughnut || {};
+    Chart.defaults.datasets.pie.hoverOffset      = 10;
+    Chart.defaults.datasets.doughnut.hoverOffset = 10;
     Chart.defaults.animation = { duration: 300, easing: 'easeOutQuart' };
 }
 

@@ -143,12 +143,21 @@
     background: var(--panel2);
     border-radius: 5px;
     border: 1px solid transparent;
-    transition: border-color 0.15s;
+    transition: border-color 0.15s, background 0.12s;
     cursor: default;
 }
 
 .dash-list-row:hover {
     border-color: var(--border);
+}
+
+.dash-list-row[data-clickable] {
+    cursor: pointer;
+}
+
+.dash-list-row[data-clickable]:hover {
+    background: color-mix(in srgb, var(--accent) 10%, var(--panel2));
+    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .dash-list-rank {
@@ -229,12 +238,18 @@
     padding: 4px 6px;
     overflow: hidden;
     cursor: default;
-    transition: opacity 0.15s;
+    transition: filter 0.15s, transform 0.15s;
     position: relative;
 }
 
 .dash-tm-cell:hover {
-    opacity: 0.85;
+    filter: brightness(1.12);
+}
+
+.dash-tm-cell[data-clickable]:hover {
+    cursor: pointer;
+    filter: brightness(1.18);
+    transform: translateY(-1px);
 }
 
 .dash-tm-label {

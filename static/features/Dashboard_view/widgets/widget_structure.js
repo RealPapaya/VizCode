@@ -70,7 +70,7 @@ function _dashChartFileTypes(stats) {
             backgroundColor: fills,
             borderColor:     strokes,
             borderWidth: 1.5,
-            hoverOffset: isCircular ? 6 : 0,
+            hoverOffset: isCircular ? 10 : 0,
             borderRadius: isCircular ? 0 : 4,
         }],
     }, {
@@ -117,6 +117,7 @@ function _dashChartLanguageDist(stats) {
             backgroundColor: fills,
             borderColor:     strokes,
             borderWidth: 1.5,
+            hoverOffset: isPie ? 10 : 0,
             borderRadius: isPie ? 0 : 4,
         }],
     }, {

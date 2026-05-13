@@ -1773,6 +1773,16 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     color: var(--muted);
 }
 
+.dash-s-pill[onclick] {
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.dash-s-pill[onclick]:hover {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+}
+
 .dash-group-drilldown-overlay {
     position: fixed;
     inset: 0;

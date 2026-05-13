@@ -119,7 +119,7 @@ _dashRegisterWidget({
         if (canvas && typeof Chart !== 'undefined') {
             _dashMkChart(canvas, 'doughnut', {
                 labels,
-                datasets: [{ data, backgroundColor: sliceColors, borderWidth: 0, hoverOffset: 8 }],
+                datasets: [{ data, backgroundColor: sliceColors, borderWidth: 0 }],
             }, {
                 responsive: true, maintainAspectRatio: false,
                 onClick: (_evt, elements) => {
