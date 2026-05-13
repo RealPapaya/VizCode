@@ -60,6 +60,12 @@ function _dashRenderStructure(container, stats, options) {
 
     container.innerHTML = `
 <div class="dash-structure-layout${isDetail ? ' dash-structure-layout--detail' : ''}" style="height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:var(--space-3);overflow:hidden;">
+  ${isDetail ? `<div class="dash-detail-metrics">
+    <div class="dash-detail-metric"><span>${_dashFmtExactNum(stats.files || 0)}</span><small>files</small></div>
+    <div class="dash-detail-metric"><span>${_dashFmtExactNum(stats.modules || 0)}</span><small>modules</small></div>
+    <div class="dash-detail-metric"><span>${_dashFmtExactNum(Object.keys(stats.type_counts || {}).length)}</span><small>file types</small></div>
+    <div class="dash-detail-metric"><span>${_dashFmtExactNum(Object.keys(stats.language_distribution || {}).length)}</span><small>extensions</small></div>
+  </div>` : ''}
   <div class="dash-grid dash-grid-2 dash-structure-chart-grid" style="flex:1;min-height:0;overflow:hidden;">
     <div class="dash-card" style="display:flex;flex-direction:column;overflow:hidden;min-height:0;">
       <div class="dash-card-title">

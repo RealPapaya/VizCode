@@ -89,15 +89,26 @@ _dashRegisterWidget({
         const max    = top.length ? top[0].lines : 1;
         const colors = _dashAccentForSlices(Math.min(top.length, 5));
 
-        const modEntries = Object.entries(DATA.files_by_module || {}).map(([mod, files]) => {
+        const allModEntries = Object.entries(DATA.files_by_module || {}).map(([mod, files]) => {
             const fnCount = (files || []).reduce((s, f) => s + (f.func_count || (f.functions || []).length), 0);
             return [mod, mod.split('/').pop() || mod, fnCount];
-        }).sort((a, b) => b[2] - a[2]).slice(0, 8);
+        }).filter(([, , count]) => count > 0).sort((a, b) => b[2] - a[2]);
+        const modEntries = allModEntries.slice(0, 12);
 
         const canvasId = 'dash-detail-functions-chart';
+        const chartKey = 'kpi_functions_detail_chart';
+        const chartTypes = ['bar', 'doughnut'];
         container.innerHTML = `
 <div class="dash-card">
-  <div class="dash-card-title"><span class="dash-card-title-dot"></span>Functions per Module</div>
+  <div class="dash-card-title">
+    <span class="dash-card-title-dot"></span>Functions per Module
+    ${_dashChartToggleHTML(chartKey, chartTypes, 'bar')}
+  </div>
+  <div class="dash-detail-metrics">
+    <div class="dash-detail-metric"><span>${_dashFmtExactNum(stats.functions || allFuncs.length)}</span><small>functions</small></div>
+    <div class="dash-detail-metric"><span>${_dashFmtExactNum(stats.calls || 0)}</span><small>calls</small></div>
+    <div class="dash-detail-metric"><span>${_dashFmtExactNum(allModEntries.length)}</span><small>modules with functions</small></div>
+  </div>
   <div class="dash-chart-wrap" style="min-height:160px;">
     <canvas id="${canvasId}"></canvas>
   </div>
@@ -112,35 +123,56 @@ _dashRegisterWidget({
           <span class="dash-list-rank">${i + 1}</span>
           <span class="dash-list-name" title="${_dashEscape(fn.file)}">${_dashEscape(fn.name)}</span>
           <div class="dash-list-bar" style="width:${Math.round(pct * 0.6)}px;background:${col}"></div>
-          <span class="dash-list-val">${fn.lines}L</span>
+          <span class="dash-list-val" title="Function length in source lines">${_dashFmtExactNum(fn.lines)} lines</span>
         </div>`;
     }).join('')}
   </div>
 </div>`;
 
-        const canvas = document.getElementById(canvasId);
-        if (canvas && typeof Chart !== 'undefined' && modEntries.length) {
-            _dashMkChart(canvas, 'bar', {
-                labels: modEntries.map(e => e[1]),
+        function renderChart() {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas || typeof Chart === 'undefined' || !modEntries.length) return;
+            const type = _dashChartCurrentType(chartKey, 'bar');
+            const circular = type === 'doughnut' || type === 'pie';
+            const rows = circular && modEntries.length > 5
+                ? modEntries.slice(0, 4).map(e => ({ label: e[1], mods: [e[0]], count: e[2] }))
+                    .concat([{
+                        label: _dashT('dashOthers') || 'Others',
+                        mods: modEntries.slice(4).map(e => e[0]),
+                        count: modEntries.slice(4).reduce((sum, e) => sum + e[2], 0),
+                    }])
+                : modEntries.map(e => ({ label: e[1], mods: [e[0]], count: e[2] }));
+            const colors = circular ? _dashAccentForSlices(rows.length) : rows.map((_, i) => _dashAccentStop(i));
+            _dashMkChart(canvas, type, {
+                labels: rows.map(row => row.label),
                 datasets: [{
-                    data: modEntries.map(e => e[2]),
-                    backgroundColor: modEntries.map((_, i) => _dashAccentStop(i)),
-                    borderRadius: 6,
+                    data: rows.map(row => row.count),
+                    backgroundColor: colors,
+                    borderRadius: circular ? 0 : 6,
                     borderWidth: 0,
                 }],
             }, {
-                responsive: true, maintainAspectRatio: false,
+                responsive: true,
+                maintainAspectRatio: false,
                 onClick: (_evt, elements) => {
                     if (!elements || !elements.length) return;
-                    const entry = modEntries[elements[0].index];
-                    if (entry) _dashOpenFileGroupDrilldown(`Files in ${entry[1]}`, _dashFilesByModule(entry[0]));
+                    const row = rows[elements[0].index];
+                    if (!row) return;
+                    _dashOpenFileGroupDrilldown(
+                        `Files in ${row.label}`,
+                        row.mods.flatMap(mod => _dashFilesByModule(mod))
+                    );
                 },
-                plugins: { legend: { display: false } },
-                scales: {
+                plugins: { legend: circular ? { position: 'bottom', labels: { boxWidth: 10, padding: 10 } } : { display: false } },
+                cutout: type === 'doughnut' ? '68%' : 0,
+                scales: type === 'bar' ? {
                     y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.06)' } },
                     x: { grid: { display: false } },
-                },
+                } : {},
             });
         }
+
+        _dashRegisterChartSwitch(chartKey, renderChart);
+        renderChart();
     },
 });

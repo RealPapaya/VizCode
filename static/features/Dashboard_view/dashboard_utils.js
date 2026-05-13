@@ -7,6 +7,11 @@ function _dashFmtNum(n) {
     return String(n);
 }
 
+function _dashFmtExactNum(n) {
+    const value = Number(n || 0);
+    return Number.isFinite(value) ? value.toLocaleString() : '0';
+}
+
 function _dashFmtBytes(b) {
     if (!b) return '0 B';
     if (b < 1024) return b + ' B';

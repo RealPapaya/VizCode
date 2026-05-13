@@ -87,6 +87,8 @@ _dashRegisterWidget({
         const blankPct   = Math.round((blank   / total) * 100);
 
         const canvasId = 'dash-detail-lines-donut';
+        const chartKey = 'kpi_lines_detail_chart';
+        const chartTypes = ['doughnut', 'bar'];
         const { labels, data, colors: sliceColors } = _dashGroupedSlices(
             ['Code', 'Comments', 'Blank'],
             [code, comment, blank]
@@ -94,55 +96,81 @@ _dashRegisterWidget({
 
         container.innerHTML = `
 <div class="dash-card">
-  <div class="dash-card-title"><span class="dash-card-title-dot"></span>Composition</div>
+  <div class="dash-card-title">
+    <span class="dash-card-title-dot"></span>Line Composition
+    ${_dashChartToggleHTML(chartKey, chartTypes, 'doughnut')}
+  </div>
+  <div class="dash-detail-metrics">
+    <div class="dash-detail-metric"><span>${_dashFmtExactNum(total)}</span><small>total lines</small></div>
+    <div class="dash-detail-metric"><span>${_dashFmtExactNum(code)}</span><small>lines of code</small></div>
+    <div class="dash-detail-metric"><span>${_dashFmtExactNum(comment)}</span><small>comment lines</small></div>
+    <div class="dash-detail-metric"><span>${_dashFmtExactNum(blank)}</span><small>blank lines</small></div>
+  </div>
   <div class="dash-detail-split">
     <div class="dash-chart-wrap dash-detail-chart-sm">
       <canvas id="${canvasId}"></canvas>
     </div>
     <div class="dash-detail-breakdown">
-    <div class="dash-health-row" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with code LOC', _dashAllFiles().filter(f => (f.loc || {}).code > 0), { meta: f => _dashFmtNum((f.loc || {}).code || 0) + ' LOC' })">
+    <div class="dash-health-row" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with code LOC', _dashAllFiles().filter(f => (f.loc || {}).code > 0), { meta: f => _dashFmtExactNum((f.loc || {}).code || 0) + ' lines of code' })">
       <span class="dash-health-row-label">Code</span>
       <div class="dash-health-row-track">
         <div class="dash-health-row-fill" style="width:${codePct}%;background:${sliceColors[0]}"></div>
       </div>
-      <span class="dash-health-row-value">${_dashFmtNum(code)} <small style="color:var(--muted)">(${codePct}%)</small></span>
+      <span class="dash-health-row-value">${_dashFmtExactNum(code)} <small style="color:var(--muted)">lines (${codePct}%)</small></span>
     </div>
     <div class="dash-health-row" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with comment LOC', _dashAllFiles().filter(f => (f.loc || {}).comment > 0), { meta: f => _dashFmtNum((f.loc || {}).comment || 0) + ' lines' })">
       <span class="dash-health-row-label">Comments</span>
       <div class="dash-health-row-track">
         <div class="dash-health-row-fill" style="width:${commentPct}%;background:${sliceColors[1] || sliceColors[0]}"></div>
       </div>
-      <span class="dash-health-row-value">${_dashFmtNum(comment)} <small style="color:var(--muted)">(${commentPct}%)</small></span>
+      <span class="dash-health-row-value">${_dashFmtExactNum(comment)} <small style="color:var(--muted)">lines (${commentPct}%)</small></span>
     </div>
     <div class="dash-health-row" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with blank LOC', _dashAllFiles().filter(f => (f.loc || {}).blank > 0), { meta: f => _dashFmtNum((f.loc || {}).blank || 0) + ' lines' })">
       <span class="dash-health-row-label">Blank</span>
       <div class="dash-health-row-track">
         <div class="dash-health-row-fill" style="width:${blankPct}%;background:var(--border)"></div>
       </div>
-      <span class="dash-health-row-value">${_dashFmtNum(blank)} <small style="color:var(--muted)">(${blankPct}%)</small></span>
+      <span class="dash-health-row-value">${_dashFmtExactNum(blank)} <small style="color:var(--muted)">lines (${blankPct}%)</small></span>
     </div>
     </div>
   </div>
 </div>`;
 
-        const canvas = document.getElementById(canvasId);
-        if (canvas && typeof Chart !== 'undefined') {
-            _dashMkChart(canvas, 'doughnut', {
+        function renderChart() {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas || typeof Chart === 'undefined') return;
+            const type = _dashChartCurrentType(chartKey, 'doughnut');
+            const circular = type === 'doughnut' || type === 'pie';
+            _dashMkChart(canvas, type, {
                 labels,
-                datasets: [{ data, backgroundColor: sliceColors, borderWidth: 0 }],
+                datasets: [{
+                    data,
+                    backgroundColor: sliceColors,
+                    borderWidth: circular ? 0 : 1,
+                    borderRadius: circular ? 0 : 5,
+                }],
             }, {
-                responsive: true, maintainAspectRatio: false,
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: type === 'bar' ? 'y' : undefined,
                 onClick: (_evt, elements) => {
                     if (!elements || !elements.length) return;
                     const label = labels[elements[0].index];
                     const key = label === 'Comments' ? 'comment' : String(label || '').toLowerCase();
                     _dashOpenFileGroupDrilldown(`Files with ${label} LOC`, _dashAllFiles().filter(f => ((f.loc || {})[key] || 0) > 0), {
-                        meta: f => `${_dashFmtNum(((f.loc || {})[key] || 0))} lines`,
+                        meta: f => `${_dashFmtExactNum(((f.loc || {})[key] || 0))} lines`,
                     });
                 },
-                plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10 } } },
-                cutout: '70%',
+                plugins: { legend: circular ? { position: 'bottom', labels: { boxWidth: 10, padding: 10 } } : { display: false } },
+                cutout: type === 'doughnut' ? '70%' : 0,
+                scales: type === 'bar' ? {
+                    x: { beginAtZero: true, grid: { color: _dashBorderTint(0.6) } },
+                    y: { grid: { display: false }, ticks: { font: { size: 11 } } },
+                } : {},
             });
         }
+
+        _dashRegisterChartSwitch(chartKey, renderChart);
+        renderChart();
     },
 });

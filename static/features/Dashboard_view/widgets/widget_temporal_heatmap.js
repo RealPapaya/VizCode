@@ -57,6 +57,7 @@ ${_dashTemporalHeatmapSVG(model)}
     ${_dashFmtNum(model.totalCommits)} ${_dashEscape(_dashT('dashTemporalCommits'))} / max ${model.maxCommits}
   </span>
 </div>`;
+    _dashBindTemporalHeatmapTooltips(host);
 }
 
 function _dashBuildTemporalHeatmapModel(rows, stats) {
@@ -122,7 +123,7 @@ function _dashTemporalHeatmapSVG(model) {
     const gridW = model.weeks * (cell + gap) - gap;
     const gridH = 7 * (cell + gap) - gap;
     const width = labelW + gridW;
-    const height = monthH + gridH;
+    const height = monthH + gridH + 3;
     const cells = [];
     const labels = [];
 
@@ -158,14 +159,17 @@ function _dashTemporalHeatmapSVG(model) {
         const y    = monthH + day * (cell + gap);
         const fill = _dashHeatmapColor(info.commits, model.maxCommits);
         const commitsLabel = `${info.commits} ${_dashT('dashTemporalCommits')}`;
-        const title = `${iso}: ${commitsLabel}, +${info.additions} / -${info.deletions}`;
 
         cells.push(`
 <rect class="dash-temporal-heatmap-cell${info.commits ? ' active' : ''}"
       x="${x}" y="${y}" width="${cell}" height="${cell}" rx="2"
-      fill="${fill}" ${info.commits ? `onclick="_dashOpenFileGroupDrilldown('Files changed on ${iso}', (DATA.stats.files_by_day || {})[${_dashJson(iso)}] || [], { meta: f => (f.count || 0) + ' commits' })"` : ''}>
-  <title>${_dashEscape(title)}</title>
-</rect>`);
+      fill="${fill}"
+      data-date="${_dashEscape(iso)}"
+      data-commits="${info.commits}"
+      data-additions="${info.additions}"
+      data-deletions="${info.deletions}"
+      ${info.commits ? `data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files changed on ${iso}', (DATA.stats.files_by_day || {})[${_dashJson(iso)}] || [], { meta: f => (f.count || 0) + ' commits' })"` : ''}
+      aria-label="${_dashEscape(`${iso}: ${commitsLabel}, +${info.additions} / -${info.deletions}`)}"></rect>`);
     }
 
     return `
@@ -177,6 +181,51 @@ function _dashTemporalHeatmapSVG(model) {
   ${labels.join('')}
   ${cells.join('')}
 </svg>`;
+}
+
+function _dashBindTemporalHeatmapTooltips(host) {
+    if (!host || typeof _dashChartTooltipEl !== 'function') return;
+    host.querySelectorAll('.dash-temporal-heatmap-cell').forEach(cell => {
+        cell.addEventListener('mousemove', e => _dashShowTemporalHeatmapTooltip(e, cell));
+        cell.addEventListener('mouseleave', () => {
+            if (typeof _dashHideChartTooltip === 'function') _dashHideChartTooltip();
+        });
+    });
+}
+
+function _dashShowTemporalHeatmapTooltip(evt, cell) {
+    const el = _dashChartTooltipEl();
+    if (!el) return;
+    const commits = Number(cell.dataset.commits || 0);
+    const additions = Number(cell.dataset.additions || 0);
+    const deletions = Number(cell.dataset.deletions || 0);
+    const date = cell.dataset.date || '';
+    const commitLabel = commits === 1 ? 'commit' : 'commits';
+
+    el.innerHTML = `
+<div class="dash-chart-tip-row">
+  <span class="dash-chart-tip-swatch" style="background:${_dashEscape(cell.getAttribute('fill') || 'var(--accent)')}"></span>
+  <span class="dash-chart-tip-label">${_dashEscape(date)}</span>
+</div>
+<div class="dash-chart-tip-value">${_dashFmtNum(commits)} ${commitLabel}</div>
+<div class="dash-chart-tip-delta">
+  <span class="dash-chart-tip-add">+${_dashFmtNum(additions)}</span>
+  <span class="dash-chart-tip-del">-${_dashFmtNum(deletions)}</span>
+</div>`;
+
+    const offset = 14;
+    const pad = 8;
+    let left = evt.clientX + offset;
+    let top = evt.clientY + offset;
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+    el.classList.add('visible');
+
+    const rect = el.getBoundingClientRect();
+    if (left + rect.width + pad > window.innerWidth) left = evt.clientX - rect.width - offset;
+    if (top + rect.height + pad > window.innerHeight) top = evt.clientY - rect.height - offset;
+    el.style.left = `${Math.max(pad, left)}px`;
+    el.style.top = `${Math.max(pad, top)}px`;
 }
 
 function _dashHeatmapDayLabel(text, day, labelW, monthH, cell, gap) {
@@ -335,5 +384,18 @@ _dashRegisterWidget({
             _dashHeatmapAppendStats(container, stats);
             _dashHeatmapAppendChurnFiles(container, stats);
         }
+    },
+
+    renderDetail(container, stats) {
+        container.innerHTML = `
+<div class="dash-commit-activity-detail">
+  <div class="dash-card dash-commit-activity-detail-main"></div>
+  <div class="dash-commit-activity-detail-side"></div>
+</div>`;
+        const main = container.querySelector('.dash-commit-activity-detail-main');
+        const side = container.querySelector('.dash-commit-activity-detail-side');
+        _dashRenderTemporalHeatmap(main, stats);
+        _dashHeatmapAppendStats(main, stats);
+        _dashHeatmapAppendChurnFiles(side, stats);
     },
 });

@@ -96,6 +96,8 @@ _dashRegisterWidget({
         const labels = sliceRows.map(row => row.label);
         const data = sliceRows.map(row => row.count);
         const sliceColors = _dashAccentForSlices(sliceRows.length);
+        const chartKey = 'kpi_files_detail_chart';
+        const chartTypes = ['doughnut', 'bar'];
 
         const breakdownRows = langs.slice(0, 12).map(([ext, cnt], i) => {
             const pct = Math.round((cnt / max) * 100);
@@ -112,7 +114,15 @@ _dashRegisterWidget({
 
         container.innerHTML = `
 <div class="dash-card">
-  <div class="dash-card-title"><span class="dash-card-title-dot"></span>File Types</div>
+  <div class="dash-card-title">
+    <span class="dash-card-title-dot"></span>File Types
+    ${_dashChartToggleHTML(chartKey, chartTypes, 'doughnut')}
+  </div>
+  <div class="dash-detail-metrics">
+    <div class="dash-detail-metric"><span>${_dashFmtExactNum(stats.files || _dashAllFiles().length)}</span><small>files</small></div>
+    <div class="dash-detail-metric"><span>${_dashFmtExactNum(langs.length)}</span><small>extensions</small></div>
+    <div class="dash-detail-metric"><span>${_dashFmtExactNum((DATA.modules || []).length)}</span><small>modules</small></div>
+  </div>
   <div class="dash-detail-split">
     <div class="dash-chart-wrap dash-detail-chart-sm">
       <canvas id="${canvasId}"></canvas>
@@ -123,17 +133,30 @@ _dashRegisterWidget({
   </div>
 </div>`;
 
-        const canvas = document.getElementById(canvasId);
-        if (canvas && typeof Chart !== 'undefined') {
-            _dashMkChart(canvas, 'doughnut', {
-                labels,
-                datasets: [{ data, backgroundColor: sliceColors, borderWidth: 0 }],
+        function renderChart() {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas || typeof Chart === 'undefined') return;
+            const type = _dashChartCurrentType(chartKey, 'doughnut');
+            const circular = type === 'doughnut' || type === 'pie';
+            const rows = circular
+                ? sliceRows
+                : langs.slice(0, 12).map(([ext, cnt]) => ({ label: `.${ext}`, exts: [ext], count: cnt }));
+            const colors = circular ? sliceColors : rows.map((_, i) => _dashAccentStop(i));
+            _dashMkChart(canvas, type, {
+                labels: rows.map(row => row.label),
+                datasets: [{
+                    data: rows.map(row => row.count),
+                    backgroundColor: colors,
+                    borderWidth: circular ? 0 : 1,
+                    borderRadius: circular ? 0 : 5,
+                }],
             }, {
-                responsive: true, maintainAspectRatio: false,
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: type === 'bar' ? 'y' : undefined,
                 onClick: (_evt, elements) => {
                     if (!elements || !elements.length) return;
-                    const idx = elements[0].index;
-                    const row = sliceRows[idx];
+                    const row = rows[elements[0].index];
                     if (row) {
                         _dashOpenFileGroupDrilldown(
                             `Files ${row.label}`,
@@ -141,9 +164,16 @@ _dashRegisterWidget({
                         );
                     }
                 },
-                plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10 } } },
-                cutout: '70%',
+                plugins: { legend: circular ? { position: 'bottom', labels: { boxWidth: 10, padding: 10 } } : { display: false } },
+                cutout: type === 'doughnut' ? '70%' : 0,
+                scales: type === 'bar' ? {
+                    x: { beginAtZero: true, grid: { color: _dashBorderTint(0.6) } },
+                    y: { grid: { display: false }, ticks: { font: { size: 11 } } },
+                } : {},
             });
         }
+
+        _dashRegisterChartSwitch(chartKey, renderChart);
+        renderChart();
     },
 });
