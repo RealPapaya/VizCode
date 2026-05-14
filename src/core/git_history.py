@@ -382,6 +382,223 @@ def _aggregate_temporal_file_groups(commits: list) -> dict:
     }
 
 
+# ─── Bus Factor (knowledge loss risk) ───────────────────────────────────────
+
+BUS_FACTOR_MIN_COMMITS = 3    # ignore files with fewer commits
+BUS_FACTOR_TOP_N       = 50   # max files in output
+BUS_FACTOR_HIGH        = 0.80 # primary_share >= 80% → high risk
+BUS_FACTOR_MEDIUM      = 0.50 # primary_share >= 50% → medium risk
+
+
+def compute_bus_factor(files_by_author: dict) -> list:
+    """Compute knowledge-loss risk per file from author commit distributions.
+
+    Returns a list of up to BUS_FACTOR_TOP_N dicts sorted by risk level, then
+    by primary_share descending:
+        {file, bus_factor, primary_owner, primary_share,
+         total_authors, total_commits, risk}
+
+    risk = 'high'   if one author owns >= 80 % of commits
+           'medium' if one author owns >= 50 %
+           'low'    otherwise
+    """
+    file_counts: dict[str, Counter] = defaultdict(Counter)
+    for author, files in files_by_author.items():
+        for entry in files:
+            file_counts[entry['file']][author] += entry['count']
+
+    results = []
+    for file, author_counts in file_counts.items():
+        total = sum(author_counts.values())
+        if total < BUS_FACTOR_MIN_COMMITS:
+            continue
+        sorted_authors = sorted(author_counts.items(), key=lambda x: -x[1])
+        primary_owner, primary_count = sorted_authors[0]
+        primary_share = primary_count / total
+
+        # Bus factor = min people to cover > 50 % of commits
+        cumulative, bf = 0, 0
+        for _, cnt in sorted_authors:
+            cumulative += cnt
+            bf += 1
+            if cumulative / total > 0.5:
+                break
+
+        if primary_share >= BUS_FACTOR_HIGH:
+            risk = 'high'
+        elif primary_share >= BUS_FACTOR_MEDIUM:
+            risk = 'medium'
+        else:
+            risk = 'low'
+
+        results.append({
+            'file':          file,
+            'bus_factor':    bf,
+            'primary_owner': primary_owner,
+            'primary_share': round(primary_share, 3),
+            'total_authors': len(author_counts),
+            'total_commits': total,
+            'risk':          risk,
+        })
+
+    _RISK_ORDER = {'high': 0, 'medium': 1, 'low': 2}
+    results.sort(key=lambda x: (_RISK_ORDER[x['risk']], -x['primary_share']))
+    return results[:BUS_FACTOR_TOP_N]
+
+
+# ─── Branch analysis ─────────────────────────────────────────────────────────
+
+BRANCH_TIMEOUT_SEC = 30
+BRANCH_TOP_N       = 30   # max branches in output
+
+
+def _detect_base_branch(root: str) -> str:
+    """Return the most likely integration branch name (main/master/trunk/develop)."""
+    candidates = ['main', 'master', 'trunk', 'develop']
+    try:
+        proc = subprocess.run(
+            ['git', 'branch', '--format=%(refname:short)'],
+            cwd=root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding='utf-8',
+            errors='replace',
+            timeout=10,
+        )
+        existing = set(proc.stdout.splitlines())
+        for c in candidates:
+            if c in existing:
+                return c
+    except Exception:
+        pass
+    return 'main'
+
+
+def _run_git(root: str, args: list, timeout: int = BRANCH_TIMEOUT_SEC) -> str:
+    """Run a git command and return stdout, or empty string on any failure."""
+    try:
+        proc = subprocess.run(
+            ['git'] + args,
+            cwd=root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding='utf-8',
+            errors='replace',
+            timeout=timeout,
+        )
+        return proc.stdout if proc.returncode == 0 else ''
+    except Exception:
+        return ''
+
+
+def compute_branch_analysis(root: str,
+                            hotspot_files: list = None,
+                            symbol_index: dict = None) -> dict:
+    """Return branch overview dict for the dashboard branch widget.
+
+    Collects all local (and tracked remote) branches, computes ahead/behind
+    counts relative to the detected base branch, and tags each branch with any
+    hotspot files it touches.
+
+    Returns None silently if git is unavailable.
+    """
+    try:
+        hotspot_set = {h['file'] for h in (hotspot_files or [])}
+        avg_cx_by_file = _file_avg_complexity(symbol_index or {})
+
+        current_branch = _run_git(root, ['rev-parse', '--abbrev-ref', 'HEAD']).strip()
+        if not current_branch:
+            return None
+
+        base_branch = _detect_base_branch(root)
+
+        # List branches: name|sha|author|date
+        # Use for-each-ref (available since git 1.6) instead of
+        # `git branch --format` which requires git 2.13+.
+        raw = _run_git(root, [
+            'for-each-ref', 'refs/heads/',
+            '--sort=-committerdate',
+            '--format=%(refname:short)|%(objectname:short)|%(authorname)|%(committerdate:short)',
+        ])
+        if not raw:
+            return None
+
+        branches = []
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split('|', 3)
+            name = parts[0] if len(parts) > 0 else ''
+            short_sha = parts[1] if len(parts) > 1 else ''
+            author = parts[2] if len(parts) > 2 else ''
+            date = parts[3] if len(parts) > 3 else ''
+
+            if not name:
+                continue
+
+            # ahead / behind vs base
+            ahead = behind = 0
+            if name != base_branch:
+                a_raw = _run_git(root, ['rev-list', '--count', f'{base_branch}..{name}'])
+                b_raw = _run_git(root, ['rev-list', '--count', f'{name}..{base_branch}'])
+                try:
+                    ahead = int(a_raw.strip())
+                except (ValueError, AttributeError):
+                    ahead = 0
+                try:
+                    behind = int(b_raw.strip())
+                except (ValueError, AttributeError):
+                    behind = 0
+
+            # diff stat vs base
+            files_changed = additions = deletions = 0
+            touched_paths = []
+            if name != base_branch:
+                diff_raw = _run_git(root, ['diff', '--stat', '--name-only',
+                                           f'{base_branch}...{name}'])
+                touched_paths = [l.strip() for l in diff_raw.splitlines() if l.strip()]
+                stat_raw = _run_git(root, ['diff', '--shortstat', f'{base_branch}...{name}'])
+                # parse "3 files changed, 40 insertions(+), 5 deletions(-)"
+                import re
+                m_files = re.search(r'(\d+) files? changed', stat_raw)
+                m_ins   = re.search(r'(\d+) insertion', stat_raw)
+                m_del   = re.search(r'(\d+) deletion', stat_raw)
+                files_changed = int(m_files.group(1)) if m_files else len(touched_paths)
+                additions     = int(m_ins.group(1))   if m_ins   else 0
+                deletions     = int(m_del.group(1))   if m_del   else 0
+
+            # hotspot intersection
+            touches_hotspots = [p for p in touched_paths if p in hotspot_set]
+
+            # avg complexity of touched files
+            cx_vals = [avg_cx_by_file[p] for p in touched_paths if p in avg_cx_by_file]
+            avg_cx_touched = round(sum(cx_vals) / len(cx_vals), 1) if cx_vals else None
+
+            branches.append({
+                'name':                name,
+                'short_sha':           short_sha,
+                'author':              author,
+                'date':                date,
+                'is_current':          name == current_branch,
+                'ahead':               ahead,
+                'behind':              behind,
+                'files_changed':       files_changed,
+                'additions':           additions,
+                'deletions':           deletions,
+                'touches_hotspots':    touches_hotspots,
+                'avg_complexity_touched': avg_cx_touched,
+            })
+
+        return {
+            'current_branch': current_branch,
+            'base_branch':    base_branch,
+            'branches':       branches[:BRANCH_TOP_N],
+        }
+    except Exception:
+        return None
+
+
 # ─── Hotspot scoring (consumes file_churn + symbol_index) ────────────────────
 
 _FUNC_KINDS = {'function', 'method'}
@@ -488,6 +705,9 @@ def compute_git_history(root: str,
         'files_by_week':    temporal_file_groups['files_by_week'],
         'files_by_day':     temporal_file_groups['files_by_day'],
         'per_file_churn_timeline': per_file_timeline,
+        # bus_factor_files is filled by the caller (needs files_by_author,
+        # which is computed in this same run).
+        'bus_factor_files': [],
         # Carry the full file_churn (capped) so the caller can recompute
         # hotspot_files without re-running git when only complexity changed.
         '_full_file_churn': file_churn,
@@ -518,5 +738,6 @@ def _empty_payload(window_days: int) -> dict:
         'files_by_week':    {},
         'files_by_day':     {},
         'per_file_churn_timeline': {},
+        'bus_factor_files': [],
         '_full_file_churn': [],
     }

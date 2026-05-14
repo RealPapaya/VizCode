@@ -517,6 +517,41 @@ def stop_server():
         except: pass
         _server_proc = None
 
+def _kill_port(port: int) -> bool:
+    """Kill whichever process is listening on *port* (cross-platform best-effort)."""
+    try:
+        import subprocess as _sp
+        if IS_WIN:
+            r = _sp.run(['netstat', '-ano'], capture_output=True, text=True, timeout=5)
+            import re as _re
+            for line in r.stdout.splitlines():
+                m = _re.search(rf'[:\s]{port}\s.*LISTENING\s+(\d+)', line)
+                if m:
+                    _sp.run(['taskkill', '/F', '/PID', m.group(1)],
+                            capture_output=True, timeout=5)
+                    return True
+        else:
+            r = _sp.run(['lsof', '-ti', f'TCP:{port}'], capture_output=True, text=True, timeout=5)
+            for pid in r.stdout.split():
+                _sp.run(['kill', '-9', pid.strip()], capture_output=True, timeout=5)
+            return bool(r.stdout.strip())
+    except Exception:
+        pass
+    return False
+
+def restart_server(tui: TUI):
+    global _server_proc
+    # 1. Stop our own child process if we have one
+    stop_server()
+    # 2. Kill any external process still holding the port
+    _kill_port(PORT)
+    # 3. Wait until port is free (up to 3 s)
+    for _ in range(30):
+        if _port_free(PORT): break
+        time.sleep(0.1)
+    # 4. Start fresh
+    start_server(tui)
+
 # ─── Analysis ─────────────────────────────────────────────────────────────────
 def trigger_analysis(path: str, generate_report: bool = False) -> Optional[str]:
     try:
@@ -1203,6 +1238,22 @@ def action_help():
             if _getch() == 'ENTER': break
         except: break
 
+def action_restart_server():
+    _tui.show_text(["", f"  {dim('Restarting server…')}"])
+    try:
+        restart_server(_tui)
+        _tui.update_badge('ready')
+        _tui.show_text(["", f"  {green('●')} Server restarted on {BASE_URL}",
+                        "", f"  {dim('Press Enter to return to menu…')}"])
+    except Exception as e:
+        _tui.update_badge('none')
+        _tui.show_text(["", f"  {red('✗')} Restart failed: {dim(str(e))}",
+                        "", f"  {dim('Press Enter to return to menu…')}"])
+    while True:
+        try:
+            if _getch() == 'ENTER': break
+        except: break
+
 def action_exit():
     r = _tui._bottom + 1
     _tui._at(r, f"  {dim('Stopping server…')}"); _tui.flush()
@@ -1231,6 +1282,7 @@ MENU = [
     ("📂  Analyze a Project", action_analyze_new),
     ("🕑  Recent Projects",   action_recent),
     ("🌐  Open Browser",      action_open_browser),
+    ("🔄  Restart Server",    action_restart_server),
     ("-" * 35,                None),
     ("❓  Help",              action_help),
     ("✖   Exit",              action_exit),

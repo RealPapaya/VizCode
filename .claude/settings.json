@@ -70,7 +70,19 @@
       "Bash(mv \"/tmp/viz_overlays_trimmed.css\" \"/d/Google AI/CodeViz/static/styles/viz_overlays.css\")",
       "Bash(sleep 5 && tail -10 \"/c/Users/MORRIS~1/AppData/Local/Temp/claude/d--Google-AI-CodeViz/20f915d4-ec93-4c43-bb37-75b0a105363b/tasks/bvw8xfffn.output\" 2>/dev/null || echo \"file not ready\")",
       "Read(//c/Users/MORRIS~1/AppData/Local/Temp/claude/d--Google-AI-CodeViz/20f915d4-ec93-4c43-bb37-75b0a105363b/tasks/**)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(pip install *)",
+      "Bash(playwright install *)",
+      "PowerShell(python -m playwright install chromium 2>&1)",
+      "PowerShell(notebooklm login 2>&1)",
+      "PowerShell(python -m notebooklm login 2>&1)",
+      "Bash(cache\")",
+      "Bash(grep -E \"\\\\.html$\")",
+      "Bash(tasklist /FI \"PID eq 22312\" /FO LIST)",
+      "PowerShell(Get-Process -Id 22312)",
+      "PowerShell(Get-Process -Id 22312 -ErrorAction SilentlyContinue)",
+      "Bash(git --version)",
+      "Bash(git branch *)"
     ],
     "additionalDirectories": [
       "D:\\Google AI\\CodeViz\\testproject\\.local",

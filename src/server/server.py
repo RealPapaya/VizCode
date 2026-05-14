@@ -1808,6 +1808,78 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.json_resp({'history': []})
 
+        elif p == '/api/branches':
+            # ── Branch overview (fresh git query) ────────────────────────
+            jid = qs.get('job_id', qs.get('job', ['']))[0]
+            with JOBS_LOCK:
+                job = JOBS.get(jid, {})
+            root = job.get('root', '')
+            if not root:
+                with JOBS_LOCK:
+                    recent = [(v.get('started', 0), v.get('root', ''))
+                              for v in JOBS.values() if v.get('root')]
+                if recent:
+                    root = sorted(recent, reverse=True)[0][1]
+            if not root or not os.path.isdir(os.path.join(root, '.git')):
+                self.json_resp({'error': 'No git repository found'}, 404)
+                return
+            try:
+                sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'core'))
+                from git_history import compute_branch_analysis
+                # Try to pull hotspot data from the most recent result
+                hotspot_files = []
+                with JOBS_LOCK:
+                    job_data = JOBS.get(jid, {})
+                result = compute_branch_analysis(root, hotspot_files=hotspot_files)
+                if result is None:
+                    self.json_resp({'error': 'Branch analysis unavailable'}, 503)
+                else:
+                    self.json_resp(result)
+            except Exception as _e:
+                self.json_resp({'error': str(_e)}, 500)
+
+        elif p == '/api/branch-diff':
+            # ── Branch diff details vs base branch ───────────────────────
+            jid = qs.get('job_id', qs.get('job', ['']))[0]
+            branch = qs.get('branch', [''])[0].strip()
+            with JOBS_LOCK:
+                job = JOBS.get(jid, {})
+            root = job.get('root', '')
+            if not root:
+                with JOBS_LOCK:
+                    recent = [(v.get('started', 0), v.get('root', ''))
+                              for v in JOBS.values() if v.get('root')]
+                if recent:
+                    root = sorted(recent, reverse=True)[0][1]
+            if not root or not os.path.isdir(os.path.join(root, '.git')):
+                self.json_resp({'error': 'No git repository found'}, 404)
+                return
+            if not branch:
+                self.json_resp({'error': 'Missing branch parameter'}, 400)
+                return
+            try:
+                sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'core'))
+                from git_history import _detect_base_branch, _run_git
+                base = _detect_base_branch(root)
+                files_raw = _run_git(root, ['diff', '--name-only', f'{base}...{branch}'])
+                files = [l.strip() for l in files_raw.splitlines() if l.strip()]
+                stat_raw = _run_git(root, ['diff', '--shortstat', f'{base}...{branch}'])
+                commits_raw = _run_git(root, ['log', '--oneline', f'{base}..{branch}'])
+                commits = [l.strip() for l in commits_raw.splitlines() if l.strip()][:30]
+                import re as _re
+                m_ins = _re.search(r'(\d+) insertion', stat_raw)
+                m_del = _re.search(r'(\d+) deletion', stat_raw)
+                self.json_resp({
+                    'branch':     branch,
+                    'base':       base,
+                    'files':      files,
+                    'additions':  int(m_ins.group(1)) if m_ins else 0,
+                    'deletions':  int(m_del.group(1)) if m_del else 0,
+                    'commits':    commits,
+                })
+            except Exception as _e:
+                self.json_resp({'error': str(_e)}, 500)
+
         elif p == '/dashboard-config':
             # ── Dashboard Mode 2: load saved widget layout / settings ─────
             jid = qs.get('job', [''])[0]

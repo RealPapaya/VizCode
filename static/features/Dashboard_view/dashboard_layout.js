@@ -23,7 +23,7 @@ const _DASH_DEFAULT_LAYOUT = [
 ];
 
 // Optional widgets (not in default layout; available via + Add Widget)
-const _DASH_OPTIONAL_IDS = ['overview', 'dead_code', 'coupling', 'issues', 'structure', 'graph_intelligence', 'churn_timeline', 'commit_heatmap'];
+const _DASH_OPTIONAL_IDS = ['overview', 'dead_code', 'coupling', 'issues', 'structure', 'graph_intelligence', 'churn_timeline', 'commit_heatmap', 'health_trend', 'bus_factor', 'branch_overview'];
 
 // Size tier definitions: S = small, M = medium, L = large
 const _DASH_SIZE_TIERS = {
@@ -38,6 +38,14 @@ const _dashWidgetRegistry = {};
 function _dashRegisterWidget(descriptor) {
     if (!descriptor || !descriptor.id) return;
     _dashWidgetRegistry[descriptor.id] = descriptor;
+    console.log('[dash] registered widget:', descriptor.id);
+}
+
+// Resolve {w, h} for a tier name, respecting widget-level sizeTiers overrides.
+function _dashWidgetSizeTier(widgetId, tier) {
+    const widget = _dashWidgetRegistry[widgetId];
+    const tiers  = (widget && widget.sizeTiers) || _DASH_SIZE_TIERS;
+    return tiers[tier] || _DASH_SIZE_TIERS[tier] || _DASH_SIZE_TIERS.M;
 }
 
 // -- Tab and layout persistence ------------------------------------------------
@@ -254,10 +262,12 @@ function _dashAllWidgetIds() {
             .filter(([, widget]) => !widget.deprecated)
             .map(([id]) => id),
     ];
-    return [...new Set(ordered)].filter(id => {
+    const result = [...new Set(ordered)].filter(id => {
         const widget = _dashWidgetRegistry[id];
         return widget && !widget.deprecated;
     });
+    console.log('[dash] _dashAllWidgetIds =', result);
+    return result;
 }
 
 // -- Grid capacity helpers -----------------------------------------------------
@@ -277,11 +287,13 @@ function _dashGridHasRoom(excludeId, w, h) {
 function _dashAddOptionalWidgetWithSize(widgetId, tier) {
     const cells = _dashLoadLayout();
     if (cells.some(c => c.id === widgetId)) return;
-    const { w, h } = _DASH_SIZE_TIERS[tier] || _DASH_SIZE_TIERS.M;
+    const { w, h } = _dashWidgetSizeTier(widgetId, tier);
+    console.log('[dash] _dashAddOptionalWidgetWithSize', widgetId, tier, '→ size', w, 'x', h);
     const grid = {};
     for (const c of _dashReflowCells(cells)) _dashOccupy(grid, c.col, c.row, c.w, c.h, c.id);
     const slot = _dashFindFreeSlot(grid, w, h);
-    if (!slot) return;
+    console.log('[dash] found slot:', slot);
+    if (!slot) { console.warn('[dash] no free slot for', widgetId, w+'x'+h, '— widget NOT added'); return; }
     cells.push({ id: widgetId, col: slot.col, row: slot.row, w, h });
     _dashSaveLayout(cells);
     _dashMountLayout();
@@ -557,7 +569,7 @@ function _dashAddOptionalWidget(widgetId) {
 
     const widget = _dashWidgetRegistry[widgetId];
     const tier   = (widget && widget.defaultSize) || 'M';
-    const { w, h } = _DASH_SIZE_TIERS[tier] || _DASH_SIZE_TIERS.M;
+    const { w, h } = _dashWidgetSizeTier(widgetId, tier);
 
     const grid = {};
     for (const c of _dashReflowCells(cells)) {

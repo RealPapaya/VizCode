@@ -12,7 +12,7 @@ Project type is auto-detected and displayed during analysis.
 Backward compatible: still importable as analyze_bios (server.py alias).
 """
 
-import os, re, json, sys, argparse
+import os, re, json, sys, argparse, datetime
 from pathlib import Path
 from collections import defaultdict, Counter
 from typing import Dict, Optional
@@ -2049,6 +2049,8 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                         window_days = int(cd)
                 except Exception:
                     pass
+            from git_history import (compute_bus_factor,
+                                      compute_branch_analysis)
             gh = compute_git_history(root, since_days=window_days)
             if gh is not None:
                 # Git tracks historical paths (including renames). Filter
@@ -2071,6 +2073,16 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                 gh['hotspot_files'] = _compute_hotspot(
                     full_churn, symbol_index, file_meta,
                 )
+                # Bus factor — uses already-filtered files_by_author
+                gh['bus_factor_files'] = compute_bus_factor(
+                    gh.get('files_by_author', {})
+                )
+                # Branch overview (best-effort; None → widget shows empty state)
+                gh['branch_analysis'] = compute_branch_analysis(
+                    root,
+                    hotspot_files=gh['hotspot_files'],
+                    symbol_index=symbol_index,
+                )
                 _result['stats'].update(gh)
             else:
                 # git binary missing or git failed — degrade silently.
@@ -2079,7 +2091,81 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             _console_print(f'[WARN] Git-history pass failed: {_gh_err}', file=sys.stderr)
             _result['stats']['has_git_history'] = False
 
+    # ── Phase 3: Health history snapshot ─────────────────────────────────────
+    if root and _result['stats'].get('code_health_score') is not None:
+        try:
+            _append_health_snapshot(root, _result['stats'])
+            history = _load_health_history(root)
+            _result['stats']['health_history'] = history
+        except Exception as _hs_err:
+            _console_print(f'[WARN] Health-snapshot write failed: {_hs_err}', file=sys.stderr)
+
     return _result
+
+
+def _append_health_snapshot(root: str, stats: dict) -> None:
+    """Append a health score snapshot to .vizcode/health_history.json."""
+    vizcode_dir = os.path.join(root, '.vizcode')
+    os.makedirs(vizcode_dir, exist_ok=True)
+    path = os.path.join(vizcode_dir, 'health_history.json')
+
+    commit_sha = ''
+    try:
+        import subprocess
+        proc = subprocess.run(
+            ['git', 'rev-parse', '--short', 'HEAD'],
+            cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            encoding='utf-8', timeout=5,
+        )
+        if proc.returncode == 0:
+            commit_sha = proc.stdout.strip()
+    except Exception:
+        pass
+
+    entry = {
+        'ts':               datetime.datetime.utcnow().isoformat(timespec='seconds') + 'Z',
+        'date':             datetime.date.today().isoformat(),
+        'commit':           commit_sha,
+        'score':            stats.get('code_health_score', 0),
+        'breakdown':        stats.get('code_health_breakdown', {}),
+        'avg_complexity':   stats.get('complexity_avg', 0),
+        'tech_debt_hours':  stats.get('tech_debt_hours', 0),
+    }
+
+    history = []
+    if os.path.isfile(path):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                history = json.load(f)
+            if not isinstance(history, list):
+                history = []
+        except Exception:
+            history = []
+
+    # Replace entry with same commit SHA (avoid duplicates on re-analysis)
+    if commit_sha:
+        history = [h for h in history if h.get('commit') != commit_sha]
+    history.append(entry)
+    history = history[-100:]  # keep last 100 snapshots
+
+    try:
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(history, f, ensure_ascii=False, separators=(',', ':'))
+    except Exception:
+        pass
+
+
+def _load_health_history(root: str) -> list:
+    """Load health history from .vizcode/health_history.json, newest last."""
+    path = os.path.join(root, '.vizcode', 'health_history.json')
+    if not os.path.isfile(path):
+        return []
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
 
 
 # ─── HTML assembly — delegated to html_builder ───────────────────────────────

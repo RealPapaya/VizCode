@@ -452,16 +452,25 @@ const _DASH_AWP_CATEGORIES = [
             { id: 'commit_heatmap',     desc: 'GitHub-style commit calendar — daily activity coloured by intensity.' },
             { id: 'churn_timeline',     desc: 'Weekly commits, additions, and deletions over time.' },
             { id: 'graph_intelligence', desc: 'Dependency hotspots ranked by change frequency and coupling.' },
+            { id: 'health_trend',       desc: 'Code health score over time — tracked across every analysis run.' },
+            { id: 'bus_factor',         desc: 'Files where a single author owns most commits — knowledge loss risk.' },
+            { id: 'branch_overview',    desc: 'Local branches with ahead/behind counts, diff stats, and hotspot warnings.' },
         ],
     },
 ];
 
 function _dashOpenAddWidgetPicker() {
-    if (typeof _dashActiveTabEditable === 'function' && !_dashActiveTabEditable()) return;
+    console.log('[dash] _dashOpenAddWidgetPicker called');
+    console.log('[dash] registry keys:', Object.keys(_dashWidgetRegistry));
+    if (typeof _dashActiveTabEditable === 'function' && !_dashActiveTabEditable()) {
+        console.log('[dash] picker blocked: tab not editable');
+        return;
+    }
     if (document.getElementById('dash-add-widget-overlay')) return;
 
     const hidden = _dashHiddenWidgetIds();
     const hiddenSet = new Set(hidden);
+    console.log('[dash] hidden widget ids:', hidden);
 
     // Show ALL categories/widgets — added ones will be dimmed
     const categories = _DASH_AWP_CATEGORIES.map(cat => ({ ...cat }));
@@ -482,12 +491,14 @@ function _dashOpenAddWidgetPicker() {
         if (!hiddenSet.has(id)) return; // already on dashboard — no tier needed
         const widget = _dashWidgetRegistry[id];
         const def = (widget && widget.defaultSize) || 'M';
-        const { w: dw, h: dh } = _DASH_SIZE_TIERS[def] || _DASH_SIZE_TIERS.M;
+        const { w: dw, h: dh } = _dashWidgetSizeTier(id, def);
         if (_dashGridHasRoom(null, dw, dh)) {
             selectedTier[id] = def;
         } else {
-            const fit = Object.entries(_DASH_SIZE_TIERS).find(([, { w: gw, h: gh }]) =>
-                _dashGridHasRoom(null, gw, gh));
+            const fit = Object.entries(_DASH_SIZE_TIERS).find(([t]) => {
+                const { w: gw, h: gh } = _dashWidgetSizeTier(id, t);
+                return _dashGridHasRoom(null, gw, gh);
+            });
             selectedTier[id] = fit ? fit[0] : null;
         }
     }));
@@ -554,10 +565,13 @@ function _dashOpenAddWidgetPicker() {
         if (previewBox) previewBox.dataset.tier = tier;
         const label    = _dashT(widget.labelKey || id) || id;
         const desc     = getCategoryDesc(id);
-        const anyFits  = !isAdded && Object.values(_DASH_SIZE_TIERS).some(({ w: gw, h: gh }) =>
-            _dashGridHasRoom(null, gw, gh));
+        const anyFits  = !isAdded && Object.keys(_DASH_SIZE_TIERS).some(t => {
+            const { w: gw, h: gh } = _dashWidgetSizeTier(id, t);
+            return _dashGridHasRoom(null, gw, gh);
+        });
 
-        const tierBtns = Object.entries(_DASH_SIZE_TIERS).map(([t, { w: gw, h: gh }]) => {
+        const tierBtns = Object.entries(_DASH_SIZE_TIERS).map(([t]) => {
+            const { w: gw, h: gh } = _dashWidgetSizeTier(id, t);
             const fits     = !isAdded && _dashGridHasRoom(null, gw, gh);
             const isActive = t === tier;
             return `<button class="dash-size-btn${isActive ? ' active' : ''}"
