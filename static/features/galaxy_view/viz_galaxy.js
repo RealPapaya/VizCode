@@ -1630,11 +1630,8 @@ function _galaxyInitSigma() {
         // Skip the camera-nudge hack — a direct refresh redraws node sizes/colors
         // without queuing a 50ms camera animation that fires another redraw.
         _galaxySyncExplorer(_gGraph ? _gGraph.getNodeAttributes(node) : null);
-        if (_gSig) _gSig.refresh();
-    });
-
-    _gSig.on('doubleClickNode', ({ node }) => {
         _galaxyNavigate(node);
+        if (_gSig) _gSig.refresh();
     });
 
         _gSig.on('clickStage', () => {
