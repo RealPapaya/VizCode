@@ -10,10 +10,10 @@ import os
 import sys
 from pathlib import Path
 
-# Locate project root the same way analyze_viz.py does.
-_CORE_DIR = Path(__file__).parent          # .../VizCode/src/core
-_SRC_DIR  = _CORE_DIR.parent               # .../VizCode/src
-_ROOT_DIR = _SRC_DIR.parent                # .../VizCode
+# Locate project root from this file's absolute path.
+_CORE_DIR = Path(__file__).resolve().parent   # .../VizCode/src/core
+_SRC_DIR  = _CORE_DIR.parent                  # .../VizCode/src
+_ROOT_DIR = _SRC_DIR.parent                   # .../VizCode
 
 
 # ─── HTML Skeleton (CSS/JS loaded from static/) ───────────────────────────────

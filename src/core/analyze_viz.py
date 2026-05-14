@@ -874,7 +874,8 @@ def _compute_tech_debt(circular_count: int,
 
 
 # ─── build_graph ─────────────────────────────────────────────────────────────
-def build_graph(root_dir: str, progress_cb=None, include_build=False, include_dirs=None) -> dict:
+def build_graph(root_dir: str, progress_cb=None, include_build=False, include_dirs=None,
+                skip_health_snapshot: bool = False) -> dict:
     stage_flow = [
         ('scan', 'Scan source files'),
         ('detect', 'Detect project type'),
@@ -2092,7 +2093,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             _result['stats']['has_git_history'] = False
 
     # ── Phase 3: Health history snapshot ─────────────────────────────────────
-    if root and _result['stats'].get('code_health_score') is not None:
+    if not skip_health_snapshot and root and _result['stats'].get('code_health_score') is not None:
         try:
             _append_health_snapshot(root, _result['stats'])
             history = _load_health_history(root)
@@ -2142,9 +2143,11 @@ def _append_health_snapshot(root: str, stats: dict) -> None:
         except Exception:
             history = []
 
-    # Replace entry with same commit SHA (avoid duplicates on re-analysis)
-    if commit_sha:
-        history = [h for h in history if h.get('commit') != commit_sha]
+    # Keep one entry per calendar day (latest analysis wins).
+    # Within the same day, also deduplicate by commit SHA so re-running on the
+    # same commit doesn't accumulate noise from identical data.
+    today = entry['date']
+    history = [h for h in history if h.get('date') != today]
     history.append(entry)
     history = history[-100:]  # keep last 100 snapshots
 

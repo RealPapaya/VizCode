@@ -82,7 +82,8 @@
       "PowerShell(Get-Process -Id 22312)",
       "PowerShell(Get-Process -Id 22312 -ErrorAction SilentlyContinue)",
       "Bash(git --version)",
-      "Bash(git branch *)"
+      "Bash(git branch *)",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\(f'total entries: {len\\(data\\)}'\\); [print\\(f\\\\\"  {d['date']} commit={d.get\\('commit',''\\)} score={d.get\\('score'\\)}\\\\\"\\) for d in data]\")"
     ],
     "additionalDirectories": [
       "D:\\Google AI\\CodeViz\\testproject\\.local",

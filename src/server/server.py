@@ -76,6 +76,11 @@ from job_manager import (
 )
 from fetcher import _extract_zip, _clone_git_repo, _fetch_npm_package, ZIP_MAX_BYTES
 
+# ── Health backfill job registry ──────────────────────────────────────────────
+# token → progress dict (updated in-place by the background thread)
+BACKFILL_JOBS: dict = {}
+BACKFILL_LOCK = threading.Lock()
+
 
 def _browse_for_folder(start_dir: str = '') -> str:
     try:
@@ -1808,6 +1813,52 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.json_resp({'history': []})
 
+        elif p == '/api/health-backfill-status':
+            # ── Backfill progress poll ────────────────────────────────────
+            token = qs.get('token', [''])[0]
+            with BACKFILL_LOCK:
+                prog = BACKFILL_JOBS.get(token)
+            if not prog:
+                self.json_resp({'error': 'Unknown token'}, 404)
+                return
+            # Return a snapshot; include history when finished
+            resp = dict(prog)
+            if prog.get('finished') and not prog.get('error'):
+                root = prog.get('root', '')
+                if root:
+                    try:
+                        import json as _json
+                        hp = os.path.join(root, '.vizcode', 'health_history.json')
+                        resp['history'] = _json.loads(
+                            open(hp, 'r', encoding='utf-8').read()
+                        ) if os.path.isfile(hp) else []
+                    except Exception:
+                        resp['history'] = []
+            self.json_resp(resp)
+
+        elif p == '/api/health-history':
+            # ── Return the current health history for the active project ──
+            jid = qs.get('job_id', qs.get('job', ['']))[0]
+            with JOBS_LOCK:
+                job = JOBS.get(jid, {})
+            root = job.get('root', '')
+            if not root:
+                with JOBS_LOCK:
+                    recent = [(v.get('started', 0), v.get('root', ''))
+                              for v in JOBS.values() if v.get('root')]
+                if recent:
+                    root = sorted(recent, reverse=True)[0][1]
+            if not root:
+                self.json_resp({'history': []})
+                return
+            hp = os.path.join(root, '.vizcode', 'health_history.json')
+            try:
+                with open(hp, 'r', encoding='utf-8') as f:
+                    history = json.load(f)
+                self.json_resp({'history': history if isinstance(history, list) else []})
+            except Exception:
+                self.json_resp({'history': []})
+
         elif p == '/api/branches':
             # ── Branch overview (fresh git query) ────────────────────────
             jid = qs.get('job_id', qs.get('job', ['']))[0]
@@ -1982,6 +2033,50 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             self.json_resp({'path': path})
+
+        elif p == '/api/health-backfill':
+            # ── Start a health-history backfill job ───────────────────────
+            try:
+                body = _read_json_body(self)
+            except Exception:
+                self.json_resp({'error': 'Invalid JSON'}, 400)
+                return
+
+            mode = body.get('mode', 'sample')   # 'sample' | 'full'
+            days = int(body.get('days', 90))
+            jid  = body.get('job_id', body.get('job', ''))
+
+            # Resolve project root
+            with JOBS_LOCK:
+                job = JOBS.get(jid, {})
+            root = job.get('root', '')
+            if not root:
+                with JOBS_LOCK:
+                    recent = [(v.get('started', 0), v.get('root', ''))
+                              for v in JOBS.values() if v.get('root')]
+                if recent:
+                    root = sorted(recent, reverse=True)[0][1]
+
+            if not root or not os.path.isdir(os.path.join(root, '.git')):
+                self.json_resp({'error': 'No git repository found'}, 404)
+                return
+
+            token = str(uuid.uuid4())[:8]
+            progress: dict = {'root': root}
+            with BACKFILL_LOCK:
+                BACKFILL_JOBS[token] = progress
+
+            def _run():
+                try:
+                    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'core'))
+                    from health_backfill import run_backfill
+                    run_backfill(root, mode=mode, days=days, progress=progress)
+                except Exception as ex:
+                    progress.update({'error': str(ex), 'finished': True})
+
+            threading.Thread(target=_run, daemon=True,
+                             name=f'backfill-{token}').start()
+            self.json_resp({'token': token})
 
         elif p == '/analyze':
             length = int(self.headers.get('Content-Length', 0))

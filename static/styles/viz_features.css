@@ -2825,3 +2825,36 @@
 #code-panel {
     border-left: none;
 }
+
+/* ── Dashboard backfill buttons ─────────────────────────────────────────── */
+.dash-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--accent);
+    color: #191614;
+    border: none;
+    border-radius: var(--radius-sm, 4px);
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 5px 12px;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    white-space: nowrap;
+    font-family: inherit;
+    line-height: 1;
+}
+.dash-btn:hover:not(:disabled) { opacity: 0.82; transform: translateY(-1px); }
+.dash-btn:active:not(:disabled) { transform: translateY(0); opacity: 1; }
+.dash-btn:disabled { opacity: 0.35; cursor: default; }
+
+.dash-btn--ghost {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+.dash-btn--ghost:hover:not(:disabled) {
+    background: var(--surface-elevated);
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+    opacity: 1;
+}
