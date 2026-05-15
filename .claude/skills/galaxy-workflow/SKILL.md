@@ -1,6 +1,6 @@
 ---
 name: galaxy-workflow
-description: Work on the Galaxy view in CodeViz. Use this skill whenever the user mentions Galaxy view, Galaxy button effects, background precompute, ForceAtlas2 layout, noverlap, Sigma/graphology rendering, Galaxy performance, Galaxy UX timing, or files under static/galaxy/. Also use it for Galaxy-specific bug fixes, architecture questions, or tuning when the normal graph view is not the topic.
+description: Work on the Galaxy view in CodeViz. Use this skill whenever the user mentions Galaxy view, Galaxy button effects, background precompute, ForceAtlas2 layout, noverlap, Sigma/graphology rendering, Galaxy performance, Galaxy UX timing, or files under static/features/galaxy_view/. Also use it for Galaxy-specific bug fixes, architecture questions, or tuning when the normal graph view is not the topic.
 ---
 
 # SKILL: Galaxy Workflow
@@ -11,10 +11,10 @@ Maintain and debug the Galaxy view in CodeViz. The Galaxy feature is a separate 
 
 | Area | File |
 |------|------|
-| Galaxy state, lifecycle, button effect, Sigma setup | `static/galaxy/viz_galaxy.js` |
-| Galaxy graph build and initial positions | `static/galaxy/viz_galaxy_graph.js` |
-| Galaxy physics, FA2, yield strategy, noverlap | `static/galaxy/viz_galaxy_physics.js` |
-| Galaxy button animation and topbar styles | `static/viz.css` |
+| Galaxy state, lifecycle, button effect, Sigma setup | `static/features/galaxy_view/viz_galaxy.js` |
+| Galaxy graph build and initial positions | `static/features/galaxy_view/viz_galaxy_graph.js` |
+| Galaxy physics, FA2, yield strategy, noverlap | `static/features/galaxy_view/viz_galaxy_physics.js` |
+| Galaxy button animation and topbar styles | `static/styles/viz_features.css` (and `viz_overlays.css`) |
 | App bootstrap that schedules background Galaxy work | `static/viz.js` |
 
 ## Current Background Stages
@@ -76,6 +76,8 @@ Check these first:
 - Whether background mode is still active after Galaxy view opens.
 - Whether `_gLayoutNeedsNoverlap` keeps extra work pending longer than necessary.
 
+> Note: state flags now live under `static/features/galaxy_view/viz_galaxy.js` (formerly `static/galaxy/viz_galaxy.js`). Update any tooling that greps the old path.
+
 ### If the user reports button effect is wrong
 Check these first:
 - `_gPrecomputeQueued`
@@ -85,7 +87,7 @@ Check these first:
 - `_gLayoutNeedsNoverlap`
 - `_galaxyShouldShowButtonEffect()`
 - `_galaxySetButtonComputing()`
-- `.topbar-mode-btn.computing` in `static/viz.css`
+- `.topbar-mode-btn.computing` in `static/styles/viz_overlays.css`
 
 The usual failure modes are:
 - effect starts too late
@@ -133,7 +135,7 @@ Do not guess. Inspect which phase is responsible before changing thresholds.
 ## Notes
 
 - Galaxy behavior is intentionally different from the normal graph view.
-- Prefer editing Galaxy behavior in `static/galaxy/*` rather than leaking logic into generic graph files.
+- Prefer editing Galaxy behavior in `static/features/galaxy_view/*` rather than leaking logic into generic graph files.
 - If a request is Galaxy-only, stay inside the Galaxy pipeline unless the bootstrap hook or topbar CSS truly needs adjustment.
 
 ## Known Sigma.js Rendering Limitations

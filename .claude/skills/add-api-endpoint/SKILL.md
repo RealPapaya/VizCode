@@ -5,7 +5,9 @@ description: Add a new API endpoint to server.py. Use this skill whenever adding
 
 # SKILL: Add API Endpoint to server.py
 
-`server.py` uses Python's stdlib `http.server.BaseHTTPRequestHandler`. There's no framework — routing is done manually inside `do_GET` and `do_POST`.
+The HTTP server lives in [`src/server/server.py`](src/server/server.py). It uses Python's stdlib `http.server.BaseHTTPRequestHandler` — no framework. Routing is done manually inside `do_GET` and `do_POST` on the `Handler` class.
+
+`JOBS` and `JOBS_LOCK` are owned by [`src/server/job_manager.py`](src/server/job_manager.py) and imported at the top of `server.py`. Any background-job code you add must touch them through that import — do not redefine them locally.
 
 ## Anatomy of the Handler
 

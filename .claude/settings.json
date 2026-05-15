@@ -83,7 +83,15 @@
       "PowerShell(Get-Process -Id 22312 -ErrorAction SilentlyContinue)",
       "Bash(git --version)",
       "Bash(git branch *)",
-      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\(f'total entries: {len\\(data\\)}'\\); [print\\(f\\\\\"  {d['date']} commit={d.get\\('commit',''\\)} score={d.get\\('score'\\)}\\\\\"\\) for d in data]\")"
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\(f'total entries: {len\\(data\\)}'\\); [print\\(f\\\\\"  {d['date']} commit={d.get\\('commit',''\\)} score={d.get\\('score'\\)}\\\\\"\\) for d in data]\")",
+      "PowerShell(gh pr list)",
+      "Edit(/.claude/skills/vizcode/**)",
+      "Edit(/.claude/skills/add-api-endpoint/**)",
+      "Edit(/.claude/skills/add-language-parser/**)",
+      "Edit(/.claude/skills/add-ui-theme/**)",
+      "Edit(/.claude/skills/coding-style/**)",
+      "Edit(/.claude/skills/debug-graph-render/**)",
+      "Edit(/.claude/skills/galaxy-workflow/**)"
     ],
     "additionalDirectories": [
       "D:\\Google AI\\CodeViz\\testproject\\.local",

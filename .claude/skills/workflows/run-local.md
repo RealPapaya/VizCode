@@ -4,11 +4,11 @@ description: Start the VIZCODE local server and verify it's running correctly
 
 # Run Local Server
 
-1. Open a terminal in the project root (`d:\GOOGLE\CodeViz`)
+1. Open a terminal in the project root (`d:\Google AI\CodeViz`)
 
 2. Start the server:
 ```powershell
-python vizcode.py
+python src\vizcode.py
 ```
 Or launch via the batch file (opens its own terminal window):
 ```powershell
@@ -33,7 +33,7 @@ taskkill /PID <PID> /F
 http://localhost:7777
 ```
 
-6. To stop the server, press `Ctrl+C` in the terminal running `vizcode.py`.
+6. To stop the server, press `Ctrl+C` in the terminal running `src\vizcode.py`.
 
 ## Troubleshooting
 

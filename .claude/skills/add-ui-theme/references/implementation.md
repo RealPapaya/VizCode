@@ -4,7 +4,7 @@ This guide provides the exact steps for registering a new theme in `themes.css` 
 
 ## Implementation Checklist
 
-### 1. Define Theme Variables in `themes.css`
+### 1. Define Theme Variables in `static/styles/themes.css`
 
 All themes must reside in the shared static stylesheet. Create a new `[data-theme="theme_name"]` block.
 
@@ -41,12 +41,13 @@ If your new theme requires specific component overrides (e.g., hover states, bor
 
 ### 3. Add to the Theme Carousel / Switcher
 
-There are **two** places to register the `<option>` element — both must be updated:
+Register the `<option>` element in:
 
-- **`launcher.html`** — the project launcher page preference panel (`<select id="pref-theme-select">`)
-- **`analyze_viz.py`** — the embedded HTML template for the visualizer page (same `pref-theme-select`, around line 1394)
+- **`static/launcher.html`** — the project launcher / visualizer SPA preference panel (`<select id="pref-theme-select">`)
 
-Also add i18n keys in **`static/i18n.js`** for both `en` and `zh-tw` sections:
+> Note: The theme selector is no longer duplicated inside `src/core/analyze_viz.py`. There is only **one** `pref-theme-select` and it lives in `static/launcher.html`. Grep for `pref-theme-select` if you suspect this changed again.
+
+Also add i18n keys in **`static/core/i18n.js`** for both `en` and `zh-tw` sections:
 ```js
 themeOptMyTheme: 'My Theme',   // en section
 themeOptMyTheme: '我的主題',   // zh-tw section
@@ -56,7 +57,7 @@ themeOptMyTheme: '我的主題',   // zh-tw section
 
 Light themes (light `--bg`) require additional CSS and JS fixes beyond dark themes, because many elements hardcode dark colors.
 
-#### 4a. Hardcoded dark backgrounds to override in `themes.css`
+#### 4a. Hardcoded dark backgrounds to override in `static/styles/themes.css`
 
 | Selector | Issue | Fix |
 |---|---|---|
@@ -67,7 +68,7 @@ Light themes (light `--bg`) require additional CSS and JS fixes beyond dark them
 | `.tip-body` | `color: #cbd5e1` hardcoded (light gray) | Override with `color: var(--text)` |
 | `#node-modal` | `box-shadow: 0 12px 48px rgba(0,0,0,0.8)` | Override with lighter shadow |
 
-#### 4b. Syntax highlighting overrides in `themes.css`
+#### 4b. Syntax highlighting overrides in `static/styles/themes.css`
 
 All `.hljs-*` token colors are hardcoded for dark backgrounds. For a light theme, override all of them with dark, high-contrast variants. See the `parchment` block in `themes.css` for reference color values.
 
@@ -76,10 +77,10 @@ Also fix code panel micro-items:
 - `.code-line.fn-highlight` — change `rgba(0,212,255,.08)` → accent-tinted
 - `#cp-code-wrap .line-content span:hover` — change `outline: 1px solid white` → `var(--text)`
 
-#### 4c. Cytoscape graph nodes (`viz.js`)
+#### 4c. Cytoscape graph nodes (`static/ui/viz_preferences.js`)
 
 Node backgrounds and label colors are set via JS data (`data(bg)` / `'color': '#e2e8f0'`) and are all hardcoded dark.
-Add a `CY_THEME_OVERRIDES['my-new-theme']` entry in `viz.js` (near the `CY_THEME_OVERRIDES` constant, line ~648):
+Add a `CY_THEME_OVERRIDES['my-new-theme']` entry in `static/ui/viz_preferences.js` — grep for `CY_THEME_OVERRIDES` to find the exact location:
 
 ```js
 CY_THEME_OVERRIDES['my-new-theme'] = [
@@ -91,10 +92,10 @@ CY_THEME_OVERRIDES['my-new-theme'] = [
 ];
 ```
 
-#### 4d. Node modal inline styles (`viz.js`)
+#### 4d. Node modal inline styles
 
 The node details modal uses many `rgba(255,255,255,…)` inline styles that are invisible on light backgrounds.
-Use the `_tC(dark, light)` helper (defined near `applyTheme`) to switch colors:
+Use the `_tC(dark, light)` helper to switch colors. The helper is defined alongside `applyTheme` — grep for `_tC(` and `applyTheme` to locate them; they currently live in `static/core/viz_utils.js` and `static/ui/viz_preferences.js`, with consumers in `static/ui/viz_sidebar.js`, `static/ui/viz_toolbar.js`, `static/features/graph/graph_l1.js`, `static/features/graph/graph_l2.js`, and `static/features/galaxy_view/viz_galaxy.js`.
 
 ```js
 // Instead of hardcoded rgba(255,255,255,…):

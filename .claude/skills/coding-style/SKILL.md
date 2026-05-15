@@ -7,7 +7,7 @@ description: Code style guidelines for the CodeViz project. These rules must be 
 
 ## General Principles
 
-- **Zero external dependencies**: Never introduce third-party packages requiring `pip install`. Only Python standard library is allowed. The same applies to the frontend — only libraries already loaded in `launcher.html` or `static/` may be used (currently D3.js and highlight.js).
+- **Zero external dependencies**: Never introduce third-party packages requiring `pip install`. Only Python standard library is allowed. The same applies to the frontend — only libraries already loaded in `static/launcher.html` or `static/` may be used (currently Cytoscape + cytoscape-dagre and highlight.js for the main view; Sigma + graphology for the Galaxy view).
 - **Single responsibility**: Each function does one thing only. If it exceeds 60 lines, consider splitting it.
 - **Silent fail**: All I/O and regex inside parsers must be wrapped in `try/except`. On parse failure, return an empty value — never let exceptions propagate upward and abort the entire analysis.
 
@@ -86,7 +86,7 @@ EDGE_TYPES = {
 
 ---
 
-## JavaScript Guidelines (`static/viz.js`, `static/i18n.js`)
+## JavaScript Guidelines (`static/viz.js`, `static/core/i18n.js`, all files under `static/core|ui|features|file_viewers/`)
 
 ### Naming
 ```javascript
@@ -140,9 +140,9 @@ function renderGraph(data) { ... }
 
 ---
 
-## Parser Interface Contract (when adding or modifying parsers/)
+## Parser Interface Contract (when adding or modifying `src/parsers/`)
 
-The main function of every `parsers/*.py` must return this tuple format:
+The main function of every `src/parsers/*.py` must return this tuple format:
 
 ```python
 return (
@@ -151,7 +151,8 @@ return (
     funccalls,            # list[str]
     extra_dict,           # dict | None
     func_calls_by_func,   # list[list[str]]
+    symbol_defs,          # list[dict] | None  — fine-grained symbol nodes (classes/methods/etc.)
 )
 ```
 
-**Never** directly import or modify constants from `analyze_viz.py` inside a parser. Parsers are pure text transformers — they have no knowledge of the outside world.
+**Never** directly import or modify constants from `src/core/analyze_viz.py` inside a parser. Parsers are pure text transformers — they have no knowledge of the outside world.

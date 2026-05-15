@@ -66,8 +66,10 @@ Read `<PROJECT_PATH>/.vizcode/scan_cache.json`.
 
 Run:
 ```bash
-python "<VIZCODE_ROOT>/semantic_enricher.py" check "<PROJECT_PATH>" < "<PROJECT_PATH>/.vizcode/scan_cache.json"
+python "<VIZCODE_ROOT>/src/core/semantic_enricher.py" check "<PROJECT_PATH>" < "<PROJECT_PATH>/.vizcode/scan_cache.json"
 ```
+
+> Note: `<VIZCODE_ROOT>` is the directory that contains `src/vizcode.py` (i.e. the repo root), **not** `src/` itself.
 
 If the output is `valid`, skip Phase 3–4 and go straight to Phase 5 (the existing semantic cache is up-to-date).
 
@@ -118,14 +120,14 @@ Rules:
 Serialize the `inferred_edges` list to a temp JSON string, then write:
 
 ```bash
-echo '<inferred_edges_json>' | python "<VIZCODE_ROOT>/semantic_enricher.py" write "<PROJECT_PATH>"
+echo '<inferred_edges_json>' | python "<VIZCODE_ROOT>/src/core/semantic_enricher.py" write "<PROJECT_PATH>"
 ```
 
 (On Windows PowerShell, use `Write-Output` or a temp file if `echo` has quote issues.)
 
-Alternative approach using a temp file:
-1. Write the JSON array to a temporary file (e.g., `/tmp/edges.json` or `%TEMP%\edges.json`)
-2. Run: `python "<VIZCODE_ROOT>/semantic_enricher.py" write "<PROJECT_PATH>" < <temp_file>`
+Alternative approach using a temp file (recommended on Windows):
+1. Write the JSON array to a temporary file under `<PROJECT_PATH>/.vizcode/_tmp_edges.json`
+2. Run: `python "<VIZCODE_ROOT>/src/core/semantic_enricher.py" write "<PROJECT_PATH>" < <temp_file>`
 3. Delete the temp file
 
 ### Phase 5 — Report
@@ -164,7 +166,7 @@ semantic_cache.json exists AND cache is valid (check command outputs "valid")
 
 - Do NOT read `scan_cache.json` or `semantic_cache.json` raw files in future conversations — use the MCP tools instead (`vizcode_query`, `vizcode_path`, `vizcode_explain`)
 - The MCP server is registered in `.claude/settings.json`; it starts automatically when Claude Code connects to it
-- If `mcp_server.py` is not yet registered, inform the user and point them to Step E in the setup guide
+- If `src/server/mcp_server.py` is not yet registered, run `python ai/install.py` (which copies `ai/mcp_template.json` into the user's Claude config) and then restart Claude Code
 
 ## Context Shortcut (save tokens)
 

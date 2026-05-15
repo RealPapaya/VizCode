@@ -7,8 +7,8 @@ description: Add or improve language support in VIZCODE — covers import/depend
 
 VIZCODE supports two tiers of language parsers:
 
-- **Dedicated parsers** (`parsers/<lang>_parser.py`) — Python, JS/TS, Go, BIOS/C/C++. Full AST-level analysis.
-- **Common parser** (`parsers/common_parser.py`) — Regex-based fallback for 52+ other languages. This is almost always the right place to add new languages.
+- **Dedicated parsers** (`src/parsers/<lang>_parser.py`) — Python, JS/TS, Go, BIOS/C/C++. Full AST-level analysis.
+- **Common parser** (`src/parsers/common_parser.py`) — Regex-based fallback for 52+ other languages. This is almost always the right place to add new languages.
 
 This skill focuses on the common parser path, which handles: Rust, Java, Kotlin, Scala, C#, Ruby, Swift, Dart, Elixir, Erlang, Haskell, OCaml, F#, Lua, PHP, Perl, R, Julia, Nim, Zig, D, Clojure, SQL, GraphQL, Protobuf, Shell, and more.
 
@@ -30,7 +30,7 @@ Use web search or context7 MCP to verify. Do not guess.
 
 ---
 
-## Step 1: Add Import Patterns — `parsers/common_parser.py`
+## Step 1: Add Import Patterns — `src/parsers/common_parser.py`
 
 ### 1a. Map file extension to language name
 
@@ -190,7 +190,7 @@ _SKIP_NAMES = {
 
 ---
 
-## Step 5: Update Frontend — `static/viz_constants.js`
+## Step 5: Update Frontend — `static/core/viz_constants.js`
 
 ### 5a. File extension color — `extColor()`
 
@@ -205,7 +205,7 @@ Pick a color that's visually distinct from nearby languages in the same family.
 
 ### 5b. Node shape — `FILE_TYPE_SHAPE`
 
-Find `FILE_TYPE_SHAPE`. Map the file type key (matches `FILE_TYPE_MAP` in `analyze_viz.py`) to a Cytoscape shape:
+Find `FILE_TYPE_SHAPE`. Map the file type key (matches `FILE_TYPE_MAP` in `src/core/analyze_viz.py`) to a Cytoscape shape:
 
 ```javascript
 const FILE_TYPE_SHAPE = {
@@ -249,8 +249,9 @@ Find the appropriate family block in `LEGEND_NODES` and add:
 ## Step 6: Verify — Quick Smoke Test
 
 ```python
-# Run from project root (bash)
+# Run from project root (bash). Add src/ to sys.path so the package layout resolves.
 python - <<'EOF'
+import sys; sys.path.insert(0, 'src')
 from parsers.common_parser import scan_common
 
 # Replace with your language's sample code
@@ -265,10 +266,12 @@ class MyService : BaseService() {
 }
 """
 
-imports, funcdefs, funccalls, extra, calls_by_func = scan_common(sample, '.kt')
+result = scan_common(sample, '.kt')
+imports, funcdefs, funccalls, extra, calls_by_func, *rest = result
 print('imports:', imports)
 print('funcdefs:', [f['label'] for f in funcdefs])
 print('classes:', extra.get('classdefs', []) if extra else [])
+# Note: dedicated parsers also return a 6th `symbol_defs`; common_parser may omit it.
 EOF
 ```
 
@@ -279,14 +282,14 @@ Expected checks:
 
 ---
 
-## Step 7: Update memory.md
+## Step 7: Update CLAUDE.md (only when contract changes)
 
-After adding a new language, run the `update-memory-md` skill if:
-- A new file type key was added to `FILE_TYPE_MAP` in `analyze_viz.py`
-- The parser interface tuple changed
-- A new dedicated parser file was created
+After adding a new language, update [CLAUDE.md](CLAUDE.md) only if:
+- A new file type key was added to `FILE_TYPE_MAP` in `src/core/analyze_viz.py`
+- The parser interface tuple changed (the 6-tuple contract documented in CLAUDE.md)
+- A new dedicated parser file was created under `src/parsers/`
 
-For common_parser additions only (no new files, no interface changes), memory.md update is optional.
+For `common_parser.py` additions only (no new files, no interface changes), CLAUDE.md does not need to change.
 
 ---
 

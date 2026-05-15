@@ -7,16 +7,23 @@ description: Adjust CSS styles in the VIZCODE frontend. Use this skill whenever 
 
 ## File Map
 
+The frontend stylesheet was split. There is no longer a single `viz.css` — start by grepping the right file under `static/styles/`.
+
 | What to change | Which file |
 |----------------|------------|
-| Global color scheme, background, panel, border | `static/viz.css` (`:root` CSS variables) |
-| Themes (dark/light/solarized) | `static/themes.css` |
-| Symbol View SVG node appearance (background/border/effects) | `static/symbol_view/symbol_view.css` |
-| Symbol View layout spacing/size constants | `static/symbol_view/sv_graph.js` (top-level `_SV_*` constants) |
-| Symbol View color mapping definitions | `static/symbol_view/sv_core.js` (`_SV_KIND_COLOR`, `_SV_EDGE_COLOR`) |
-| Main view (L0/L1/L2) graph node colors and shapes | `static/viz_state.js` or `static/viz.js` (`extColor()`, `FILE_TYPE_SHAPE`) |
+| Global color scheme, `:root` CSS variables (`--bg`, `--panel`, `--accent`, …) | `static/styles/viz_base.css` |
+| Themes (dark / claude / parchment + per-theme overrides) | `static/styles/themes.css` |
+| Panels, sections, cards, modal chrome | `static/styles/viz_panels.css` |
+| Code panel, syntax highlighting, line hover | `static/styles/viz_code.css` |
+| Chat side panel | `static/styles/viz_chat.css` |
+| Galaxy / Dashboard / feature-specific styles | `static/styles/viz_features.css` |
+| Toolbar, legend, tooltip, layout switcher (overlays) | `static/styles/viz_overlays.css` |
+| Symbol View SVG node appearance (background/border/effects) | `static/features/symbol_view/symbol_view.css` |
+| Symbol View layout spacing/size constants | `static/features/symbol_view/sv_graph.js` (top-level `_SV_*` constants) |
+| Symbol View color mapping definitions | `static/features/symbol_view/sv_core.js` (`_SV_KIND_COLOR`, `_SV_EDGE_COLOR`) |
+| Main view (L0/L1/L2) graph node colors and shapes | `static/core/viz_constants.js` (`extColor()`, `FILE_TYPE_SHAPE`) |
 
-## CSS Variable Reference (viz.css :root)
+## CSS Variable Reference (`static/styles/viz_base.css` `:root`)
 
 ```css
 --bg          /* Bottom-most background */
@@ -29,9 +36,9 @@ description: Adjust CSS styles in the VIZCODE frontend. Use this skill whenever 
 --code-font   /* Code font */
 ```
 
-## Symbol View (V3) SVG Styles (symbol_view.css)
+## Symbol View (V3) SVG Styles (`static/features/symbol_view/symbol_view.css`)
 
-Symbol View now uses pure SVG rendering (no Cytoscape dependency). All appearance is defined in `static/symbol_view/symbol_view.css`:
+Symbol View now uses pure SVG rendering (no Cytoscape dependency). All appearance is defined in `static/features/symbol_view/symbol_view.css`:
 
 - **Node base**: `.sv-node .sv-node-bg` (fill/stroke)
 - **Type border colors**: `.sv-kind-class .sv-node-bg`, `.sv-kind-method .sv-node-bg`, etc.
@@ -41,9 +48,9 @@ Symbol View now uses pure SVG rendering (no Cytoscape dependency). All appearanc
 - **Edges**: `.sv-edge`, `.sv-edge-hit`, `.sv-edge:hover`
 - **Focus detail card (HTML in SVG)**: `.sv-fd-card`, `.sv-fd-header`, `.sv-fd-section`, etc.
 
-## Symbol View Layout Constants (top of sv_graph.js)
+## Symbol View Layout Constants (top of `sv_graph.js`)
 
-To adjust node size, spacing, and layout distances, modify the constants at the top of `static/symbol_view/sv_graph.js`:
+To adjust node size, spacing, and layout distances, modify the constants at the top of `static/features/symbol_view/sv_graph.js`:
 
 ```js
 const _SV_CLASS_PAD_X   = 16;   // Class card horizontal padding

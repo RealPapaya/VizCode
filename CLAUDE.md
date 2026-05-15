@@ -34,6 +34,11 @@ src/
     detector.py           # Project type detection
     parse_memo.py         # Parser result caching
     semantic_enricher.py  # Semantic cache support
+    analytics_helpers.py  # Stats / aggregations for the graph
+    code_health.py        # Health scoring
+    git_history.py        # Git log enrichment
+    health_backfill.py    # Backfill missing health metrics
+    qa_cache.py           # Q&A response cache
   parsers/
     python_parser.py  js_parser.py  go_parser.py
     bios_parser.py    common_parser.py  json_parser.py
@@ -52,8 +57,19 @@ ai/
   install.py              # Install AI configs and skill files
 
 static/
-  launcher.html  viz.js  viz_graph.js  viz_dashboard.js  viz_chat.js
-  galaxy/  symbol_view/  file_viewers/
+  launcher.html
+  viz.js                       # SPA bootstrap / D3 + Cytoscape main view
+  core/                        # i18n, viz_constants, viz_state, viz_utils, viz_nav_history
+  ui/                          # viz_layout, viz_sidebar, viz_toolbar, viz_code_panel, viz_preferences
+  styles/                      # themes.css + viz_base / viz_chat / viz_code / viz_features / viz_overlays / viz_panels
+  features/
+    graph/                     # graph_core / graph_l1 / graph_l2 / graph_interact / graph_style / graph_multiselect
+    galaxy_view/               # viz_galaxy / viz_galaxy_graph / viz_galaxy_physics
+    Dashboard_view/            # dashboard_*.js + widgets/
+    symbol_view/               # sv_core / sv_graph / sv_search / symbol_view.css
+    viz_chat.js  viz_search.js  viz_help.js
+  file_viewers/                # viz_markdown / viz_office / viz_pdf
+  icon/
 ```
 
 ---
@@ -78,7 +94,7 @@ Core of the data pipeline — lives in `src/core/` and `src/parsers/`.
 
 - Keep `analyze_viz.py` data contract intact — don't change just one parser in isolation.
 - Adding a new language requires touching:
-  `src/parsers/<lang>_parser.py` · `analyze_viz.py` · `detector.py` · `viz_constants.js` · `viz_sidebar.js`
+  `src/parsers/<lang>_parser.py` · `src/core/analyze_viz.py` · `src/core/detector.py` · `static/core/viz_constants.js` · `static/ui/viz_sidebar.js`
 - If parser output format changes, verify graph / dashboard / MCP / AI still consume it correctly.
 
 ---
@@ -88,7 +104,7 @@ Core of the data pipeline — lives in `src/core/` and `src/parsers/`.
 Three parallel tracks:
 
 ### 2.1 Web AI
-`ai/vizbridge.py` → SSE via `/chat-stream` → `static/viz_chat.js`
+`ai/vizbridge.py` → SSE via `/chat-stream` → `static/features/viz_chat.js`
 - Provider routing, tool-use loop, system prompt injection
 - Reads `.vizcode/scan_cache.json` / `.vizcode/semantic_cache.json`
 
@@ -114,10 +130,10 @@ Implemented in `ai/chat_cli.py` + `ai/vizbridge.py`.
 
 | View | Key Files |
 |------|-----------|
-| **Main graph (L0–L3)** | `viz.js`, `viz_graph.js`, `viz_layout.js`, `viz_sidebar.js`, `viz_toolbar.js`, `viz_state.js`, `viz_constants.js` |
-| **Galaxy** | `galaxy/viz_galaxy.js`, `viz_galaxy_graph.js`, `viz_galaxy_physics.js` |
-| **Dashboard** | `viz_dashboard.js` |
-| **Symbol / Structure** | `symbol_view/`, `viz_code_panel.js`, `file_viewers/` |
+| **Main graph (L0–L3)** | `static/viz.js`, `static/features/graph/graph_*.js`, `static/ui/viz_layout.js`, `static/ui/viz_sidebar.js`, `static/ui/viz_toolbar.js`, `static/core/viz_state.js`, `static/core/viz_constants.js` |
+| **Galaxy** | `static/features/galaxy_view/viz_galaxy.js`, `viz_galaxy_graph.js`, `viz_galaxy_physics.js` |
+| **Dashboard** | `static/features/Dashboard_view/dashboard_*.js` (+ `widgets/`) |
+| **Symbol / Structure** | `static/features/symbol_view/`, `static/ui/viz_code_panel.js`, `static/file_viewers/` |
 
 Graph levels: `L0` module overview · `L1` file deps · `L2` function drill-down · `L3` fine-grained symbol interaction
 
@@ -135,10 +151,10 @@ vizcode.py  →  server.py  →  analyze_viz.py  →  static/*.js  →  vizbridg
 
 | Focus Area | Start Here |
 |------------|------------|
-| Parsing | `analyze_viz.py`, `src/parsers/*`, `detector.py` |
-| AI | `vizbridge.py`, `chat_cli.py`, `chat_modes.py`, `mcp_server.py` |
-| Server / Jobs | `server.py`, `job_manager.py`, `fetcher.py` |
-| Graph / UI | `viz.js`, `viz_graph.js`, `viz_dashboard.js`, `galaxy/*`, `viz_chat.js` |
+| Parsing | `src/core/analyze_viz.py`, `src/parsers/*`, `src/core/detector.py` |
+| AI | `ai/vizbridge.py`, `ai/chat_cli.py`, `ai/chat_modes.py`, `src/server/mcp_server.py` |
+| Server / Jobs | `src/server/server.py`, `src/server/job_manager.py`, `src/server/fetcher.py` |
+| Graph / UI | `static/viz.js`, `static/features/graph/*`, `static/features/Dashboard_view/*`, `static/features/galaxy_view/*`, `static/features/viz_chat.js` |
 
 ---
 
