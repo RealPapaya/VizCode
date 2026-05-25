@@ -812,7 +812,11 @@ def _run_progress_loop(job_id: str, skip_report_stage=True):
                 index_start_t  = now
         elif vphase == 'index':
             backend_at_node = backend_stage_idx >= ANALYSIS_STAGE_INDEX.get('node', 3)
-            if vphase_elapsed >= min_index and (backend_at_node or done):
+            # If backend has surged past analysis (e.g. parallel parsing finished
+            # in a burst), don't wait the full calibrated min_index — otherwise
+            # the bar lags while stages already say "Finalize output".
+            backend_far_ahead = backend_stage_idx >= ANALYSIS_STAGE_INDEX.get('edge', 4)
+            if (backend_at_node or done) and (vphase_elapsed >= min_index or backend_far_ahead):
                 vphase = 'build'
                 vphase_entered = now
         # 'build' stays until the loop exits

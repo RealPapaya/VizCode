@@ -13,6 +13,7 @@ Backward compatible: still importable as analyze_bios (server.py alias).
 """
 
 import os, re, json, sys, argparse, datetime
+import concurrent.futures
 from pathlib import Path
 from collections import defaultdict, Counter
 from typing import Dict, Optional
@@ -608,47 +609,44 @@ def scan_file(filepath: str, root: str, _memo: Optional[dict] = None):
     else:
         rel = file_sha = p_sha = None
 
+    result = _compute_parse_result(file_bytes, ext)
+
+    # ── Cache write ───────────────────────────────────────────────────────────
+    if _memo is not None and rel is not None:
+        parse_memo.record_entry(_memo, rel, file_sha, p_sha, result)
+
+    return result
+
+
+def _compute_parse_result(file_bytes: bytes, ext: str) -> tuple:
+    """Pure parser+LOC pass on already-read bytes; returns normalized 7-tuple
+    with `loc` baked into the extras slot. Shared by serial scan_file() and
+    the multiprocessing worker — keeping the dispatch in one place avoids
+    drift between paths."""
     try:
         src = file_bytes.decode('utf-8', errors='replace')
     except Exception:
         src = ''
 
-    # ── Real LOC pass (computed once; cached via the parser tuple's extra) ──
     loc_data = count_loc(src, ext) if _PARSERS_LOADED else {'code': 0, 'comment': 0, 'blank': 0}
 
-    # ── Parser dispatch (single exit point for cache-write) ──────────────────
     raw = None
-
-    # ── BIOS / UEFI / AMI / C / ASM ──────────────────────────────────────────
     if ext in _BIOS_EXTENSIONS and _PARSERS_LOADED:
         raw = scan_bios(src, ext)
-
-    # ── Python ───────────────────────────────────────────────────────────────
     elif ext == '.py' and _PARSERS_LOADED:
         raw = scan_python(src)
-
-    # ── JavaScript / TypeScript ───────────────────────────────────────────────
     elif ext in ('.js', '.mjs', '.cjs', '.jsx') and _PARSERS_LOADED:
         raw = scan_js(src)
-
     elif ext in ('.ts', '.tsx') and _PARSERS_LOADED:
         raw = scan_ts(src)
-
-    # ── Go ────────────────────────────────────────────────────────────────────
     elif ext == '.go' and _PARSERS_LOADED:
         raw = scan_go(src)
-
-    # ── JSON ──────────────────────────────────────────────────────────────────
     elif ext == '.json' and _PARSERS_LOADED:
         raw = scan_json(src, ext)
-
-    # ── Common fallback for any remaining recognized extension ────────────────
     elif _PARSERS_LOADED:
         raw = scan_common(src, ext)
 
     if raw is not None:
-        # Pluggable parsers return 5-, 6-, or 7-tuples. Normalise to 7:
-        #   (imports, funcdefs, calls, extra, calls_by_func, symbol_defs, parse_diag)
         n = len(raw)
         if n == 5:
             result = (*raw, [], None)
@@ -657,27 +655,41 @@ def scan_file(filepath: str, root: str, _memo: Optional[dict] = None):
         elif n == 7:
             result = tuple(raw)
         else:
-            # Defensive: coerce any future shape to 7 by truncating or padding.
             padded = list(raw)[:7] + [None] * max(0, 7 - n)
             result = tuple(padded)
     else:
-        # Reached only when parser imports failed (_PARSERS_LOADED is False).
-        # Return an empty 7-tuple so build_graph keeps going with no symbols.
         result = ([], [], [], None, [], [], None)
 
-    # ── Inject LOC into the extra slot so it's cached with the parser tuple ─
     _extra = result[3]
     if isinstance(_extra, dict):
         _extra = {**_extra, 'loc': loc_data}
     else:
         _extra = {'loc': loc_data}
-    result = (result[0], result[1], result[2], _extra) + tuple(result[4:])
+    return (result[0], result[1], result[2], _extra) + tuple(result[4:])
 
-    # ── Cache write ───────────────────────────────────────────────────────────
-    if _memo is not None and rel is not None:
-        parse_memo.record_entry(_memo, rel, file_sha, p_sha, result)
 
-    return result
+def _parse_one_worker(args):
+    """ProcessPoolExecutor worker — must be top-level so it pickles. Reads the
+    file, hashes it, runs the parser, returns:
+        (filepath, result_7tuple, file_sha, parser_sha, ext)
+    Cache lookup/writes stay in the parent so the memo dict has a single owner."""
+    fp, _root = args
+    fp_path = Path(fp)
+    ext = fp_path.suffix.lower()
+    empty_result = ([], [], [], {'loc': {'code': 0, 'comment': 0, 'blank': 0}}, [], [], None)
+    try:
+        file_bytes = fp_path.read_bytes()
+    except Exception:
+        return (fp, empty_result, '', '', ext)
+    try:
+        file_sha = parse_memo.digest_bytes(file_bytes)
+        parser_fn = _get_parser_fn(ext)
+        p_sha = parse_memo.parser_fingerprint(parser_fn)
+        result = _compute_parse_result(file_bytes, ext)
+        return (fp, result, file_sha, p_sha, ext)
+    except Exception as e:
+        diag_result = ([], [], [], {'loc': {'code': 0, 'comment': 0, 'blank': 0}}, [], [], {'file_error': str(e)})
+        return (fp, diag_result, '', '', ext)
 
 
 # ─── get_module ───────────────────────────────────────────────────────────────
@@ -989,33 +1001,127 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     # ── Open per-file parse cache ─────────────────────────────────────────────
     _memo = parse_memo.open_memo(Path(root))
 
+    # ── Phase 1: cache lookup in parent (SHA-256 + dict get — fast) ──────────
+    # Hashing every file once here lets us send only the misses to workers and
+    # keeps the memo dict single-owner.
+    pending = []           # files needing a parse
+    cached_hits = {}       # fp → 7-tuple from memo
+    pending_hashes = {}    # fp → (file_sha, p_sha) so we can record_entry later
+
     for i, fp in enumerate(all_files):
+        fp_path = Path(fp)
+        ext = fp_path.suffix.lower()
+        rel = os.path.relpath(fp, root).replace('\\', '/')
+        try:
+            file_bytes = fp_path.read_bytes()
+        except Exception:
+            pending.append(fp)
+            pending_hashes[fp] = ('', '')
+            continue
+        file_sha = parse_memo.digest_bytes(file_bytes)
+        parser_fn = _get_parser_fn(ext)
+        p_sha = _parser_fingerprints.get(parser_fn)
+        if p_sha is None:
+            p_sha = parse_memo.parser_fingerprint(parser_fn)
+            _parser_fingerprints[parser_fn] = p_sha
+        hit = parse_memo.lookup_entry(_memo, rel, file_sha, p_sha)
+        if hit is not None:
+            cached_hits[fp] = hit
+        else:
+            pending.append(fp)
+            pending_hashes[fp] = (file_sha, p_sha)
         if (i + 1) % 20 == 0 or (i + 1) == total:
-            pct = _stage_pct('analysis', ((i + 1) / total) if total else 1.0, ease_power=0.72)
+            # analyzed_files counts every file checked (hit OR miss) so the TUI
+            # gets a steady ramp during lookup. Phase-2 emissions may report
+            # smaller numbers (cached + parsed-so-far), but the TUI tracks
+            # monotonic-max for real_analyzed so this never regresses the bar.
+            checked = i + 1
+            pct = _stage_pct('analysis', (checked / total) if total else 1.0, ease_power=0.72)
             _cb(
                 pct,
-                f'{i + 1}/{total} source files analyzed',
+                f'{checked}/{total} source files analyzed',
                 stage='analysis',
-                analyzed_files=i + 1,
+                analyzed_files=checked,
                 total_files=total,
                 project_total_files=total_project_files,
-                project_processed_files=i + 1,
+                project_processed_files=checked,
                 source_files_total=total,
             )
+
+    # ── Phase 2: parse pending files (parallel when worth it) ────────────────
+    parsed_results = {}    # fp → 7-tuple
+    PARSE_PARALLEL_THRESHOLD = 100
+    _workers_env = os.environ.get('VIZCODE_PARSE_WORKERS')
+    try:
+        _max_workers = int(_workers_env) if _workers_env else min(8, (os.cpu_count() or 2))
+    except ValueError:
+        _max_workers = min(8, (os.cpu_count() or 2))
+    use_parallel = len(pending) >= PARSE_PARALLEL_THRESHOLD and _max_workers > 1
+    cached_count = len(cached_hits)
+
+    def _emit_parse_progress(done_in_phase: int) -> None:
+        done_total = cached_count + done_in_phase
+        pct = _stage_pct('analysis', (done_total / total) if total else 1.0, ease_power=0.72)
+        _cb(
+            pct,
+            f'{done_total}/{total} source files analyzed',
+            stage='analysis',
+            analyzed_files=done_total,
+            total_files=total,
+            project_total_files=total_project_files,
+            project_processed_files=done_total,
+            source_files_total=total,
+        )
+
+    if pending:
+        if use_parallel:
+            chunksize = max(1, len(pending) // (_max_workers * 4))
+            with concurrent.futures.ProcessPoolExecutor(max_workers=_max_workers) as pool:
+                for i, out in enumerate(pool.map(
+                    _parse_one_worker,
+                    ((fp, root) for fp in pending),
+                    chunksize=chunksize,
+                )):
+                    fp, result, file_sha, p_sha, ext_w = out
+                    parsed_results[fp] = result
+                    if file_sha and p_sha:
+                        pending_hashes[fp] = (file_sha, p_sha)
+                    if (i + 1) % 20 == 0 or (i + 1) == len(pending):
+                        _emit_parse_progress(i + 1)
+        else:
+            for i, fp in enumerate(pending):
+                fp_path = Path(fp)
+                ext_s = fp_path.suffix.lower()
+                try:
+                    file_bytes = fp_path.read_bytes()
+                    parsed_results[fp] = _compute_parse_result(file_bytes, ext_s)
+                except Exception:
+                    parsed_results[fp] = ([], [], [], {'loc': {'code': 0, 'comment': 0, 'blank': 0}}, [], [], None)
+                if (i + 1) % 20 == 0 or (i + 1) == len(pending):
+                    _emit_parse_progress(i + 1)
+
+    # ── Phase 3: merge into file_* dicts; record new entries into memo ───────
+    for fp in all_files:
         rel = os.path.relpath(fp, root).replace('\\', '/')
-        _scanned = scan_file(fp, root, _memo=_memo)
-        # scan_file may return 6- or 7-tuple depending on parser — unpack safely.
+        if fp in cached_hits:
+            _scanned = cached_hits[fp]
+        else:
+            _scanned = parsed_results.get(fp, ([], [], [], None, [], [], None))
+            file_sha, p_sha = pending_hashes.get(fp, ('', ''))
+            if file_sha and p_sha:
+                try:
+                    parse_memo.record_entry(_memo, rel, file_sha, p_sha, _scanned)
+                except Exception:
+                    pass
         inc, defs, calls, extra, func_calls_by_func, sym_defs = _scanned[:6]
         parse_diag = _scanned[6] if len(_scanned) > 6 else None
         ext = Path(fp).suffix.lower()
         bios_meta = {}
         if extra and 'meta' in extra:
             bios_meta = extra['meta']
-
         loc_meta = (extra or {}).get('loc') if isinstance(extra, dict) else None
         if not isinstance(loc_meta, dict):
             loc_meta = {'code': 0, 'comment': 0, 'blank': 0}
-
         file_meta[rel] = {
             'label':     os.path.basename(fp),
             'ext':       ext,
