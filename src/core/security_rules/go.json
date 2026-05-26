@@ -1,0 +1,15 @@
+{
+  "schema_rev": 1,
+  "rules": [
+    {
+      "id": "VZS050",
+      "name": "Go Shell Command Injection",
+      "applies_to": ["go"],
+      "severity": "high",
+      "keywords": ["exec.command"],
+      "pattern": "exec\\.Command\\s*\\(\\s*\"(?:sh|bash|cmd|powershell)\"\\s*,\\s*\"(?:-c|/c|-Command)\"",
+      "recommendation": "exec.Command with shell + -c passes the second argument to a shell. Use a direct command and args.",
+      "source": "DevSkim"
+    }
+  ]
+}

@@ -68,6 +68,18 @@ except ImportError as _pe:
 
 import parse_memo
 from code_health import compute_code_health
+import security_scanner
+
+# ─── Security rules: load + compile once at module import ─────────────────────
+# Pure-function module, so the compiled list is safe to share across all
+# scan_file() calls during the lifetime of the process.
+try:
+    _SECURITY_RULES = security_scanner.compile_rules(
+        security_scanner.load_rules(_CORE_DIR / 'security_rules')
+    )
+except Exception as _sec_load_err:
+    _SECURITY_RULES = []
+    _console_print(f'[WARN] Security rules failed to load: {_sec_load_err}', file=sys.stderr)
 
 # ─── Parser-fingerprint cache (populated lazily in scan_file) ─────────────────
 # Maps a parser callable to the SHA-256 of its source file. Built once per
@@ -1132,6 +1144,15 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             'bios_meta': bios_meta,
             'parse_error': (parse_diag or {}).get('file_error') if isinstance(parse_diag, dict) else None,
         }
+        # ── Security scan (regex-based; pure stdlib, silent-fail per file) ───
+        if _SECURITY_RULES:
+            try:
+                sec_src = Path(fp).read_text(encoding='utf-8', errors='replace')
+                file_meta[rel]['security_issues'] = security_scanner.scan_file(
+                    sec_src, ext, rel, _SECURITY_RULES,
+                )
+            except Exception:
+                file_meta[rel]['security_issues'] = []
         file_incs[rel]  = inc
         file_defs[rel]  = defs
         file_calls[rel] = calls
@@ -2147,6 +2168,18 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         _result['stats']['code_health_score']     = health['score']
         _result['stats']['code_health_breakdown'] = health['breakdown']
         _result['stats']['code_health_weights']   = health['weights']
+
+        # ── Security findings aggregation + per-run history append ───────────
+        try:
+            _file_sec_view = {
+                _rel: _meta.get('security_issues', [])
+                for _rel, _meta in file_meta.items()
+            }
+            _sec_payload = security_scanner.aggregate(_file_sec_view)
+            _sec_payload['trend'] = security_scanner.append_history(Path(root), _sec_payload)
+            _result['stats']['security_findings'] = _sec_payload
+        except Exception as _se:
+            _console_print(f'[WARN] Security aggregation failed: {_se}', file=sys.stderr)
 
         _result['stats']['has_git_history'] = bool(
             root and os.path.isdir(os.path.join(root, '.git'))

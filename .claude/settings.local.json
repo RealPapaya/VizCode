@@ -30,7 +30,8 @@
       "Bash(del _smoke.html)",
       "Bash(powershell -Command \"Remove-Item _smoke.html -ErrorAction SilentlyContinue\")",
       "Bash(Get-Content \"d:\\\\GOOGLE\\\\VizCode\\\\static\\\\styles\\\\viz_features.css\")",
-      "Bash(Measure-Object -Line)"
+      "Bash(Measure-Object -Line)",
+      "Bash(grep *)"
     ]
   }
 }

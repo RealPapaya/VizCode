@@ -1,0 +1,56 @@
+{
+  "schema_rev": 1,
+  "rules": [
+    {
+      "id": "VZS040",
+      "name": "SendKeys Usage",
+      "applies_to": ["vba"],
+      "severity": "high",
+      "keywords": ["sendkeys"],
+      "pattern": "(?i)\\bSendKeys\\s*\\(",
+      "recommendation": "SendKeys can be exploited for code injection. Avoid using SendKeys.",
+      "source": "CodeFlow"
+    },
+    {
+      "id": "VZS041",
+      "name": "Shell Command Execution",
+      "applies_to": ["vba"],
+      "severity": "high",
+      "keywords": ["shell"],
+      "pattern": "(?i)\\bShell\\s*\\(",
+      "recommendation": "Shell() executes system commands. Ensure input is validated.",
+      "source": "CodeFlow"
+    },
+    {
+      "id": "VZS042",
+      "name": "WScript.Shell Creation",
+      "applies_to": ["vba"],
+      "severity": "high",
+      "keywords": ["wscript.shell"],
+      "pattern": "(?i)CreateObject\\s*\\(\\s*[\"']WScript\\.Shell[\"']",
+      "recommendation": "Creating WScript.Shell allows command execution. Use with caution.",
+      "source": "CodeFlow"
+    },
+    {
+      "id": "VZS043",
+      "name": "Dynamic Code Execution (VBA)",
+      "applies_to": ["vba"],
+      "severity": "medium",
+      "keywords": ["application.run"],
+      "pattern": "(?i)Application\\.Run\\s*\\(",
+      "recommendation": "Application.Run can execute arbitrary code. Validate input.",
+      "source": "CodeFlow"
+    },
+    {
+      "id": "VZS044",
+      "name": "Excessive Error Suppression",
+      "applies_to": ["vba"],
+      "severity": "medium",
+      "keywords": ["on error resume next"],
+      "pattern": "(?i)On\\s+Error\\s+Resume\\s+Next",
+      "count_min": 3,
+      "recommendation": "Multiple 'On Error Resume Next' found. This can hide bugs.",
+      "source": "CodeFlow"
+    }
+  ]
+}

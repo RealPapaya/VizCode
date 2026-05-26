@@ -1,0 +1,128 @@
+{
+  "schema_rev": 1,
+  "rules": [
+    {
+      "id": "VZS001",
+      "name": "Hardcoded Secret",
+      "applies_to": ["*"],
+      "severity": "high",
+      "keywords": ["password", "passwd", "pwd", "secret", "api_key", "apikey", "token", "auth"],
+      "pattern": "(?i)(?:password|passwd|pwd|secret|api_key|apikey|token|auth)\\s*[=:]\\s*['\"]([^'\"]{4,})['\"]",
+      "entropy_capture_group": 1,
+      "entropy_min": 2.5,
+      "deny_substrings_in_line": ["process.env", "os.environ", "getenv", "config.", "deno.env", "import.meta.env"],
+      "allowlist_substrings": ["example", "your-", "your_", "placeholder", "changeme", "xxxxxxxx", "${", "<token>", "<password>", "redacted"],
+      "recommendation": "Credentials should never be hardcoded. Use environment variables or a secrets manager.",
+      "source": "CodeFlow / Gitleaks"
+    },
+    {
+      "id": "VZS002",
+      "name": "Dynamic Code Execution",
+      "applies_to": ["javascript", "typescript"],
+      "severity": "medium",
+      "keywords": ["eval("],
+      "pattern": "\\beval\\s*\\(",
+      "recommendation": "eval() executes arbitrary code. Avoid if possible or validate input strictly.",
+      "source": "CodeFlow"
+    },
+    {
+      "id": "VZS003",
+      "name": "Function Constructor",
+      "applies_to": ["javascript", "typescript"],
+      "severity": "medium",
+      "keywords": ["function("],
+      "pattern": "(?:\\bnew\\s+Function\\s*\\(|(?<![A-Za-z0-9_])Function\\s*\\()",
+      "recommendation": "Function constructor is similar to eval(). Consider alternatives.",
+      "source": "CodeFlow"
+    },
+    {
+      "id": "VZS004",
+      "name": "Command Execution",
+      "applies_to": ["javascript", "typescript"],
+      "severity": "medium",
+      "keywords": ["child_process", "execsync", "execfile"],
+      "pattern": "(?:\\bchild_process\\b|\\bexecSync\\s*\\(|\\bexecFile(?:Sync)?\\s*\\(|\\bspawnSync?\\s*\\()",
+      "recommendation": "Shell command execution detected. Ensure input is sanitized to prevent injection.",
+      "source": "CodeFlow"
+    },
+    {
+      "id": "VZS005",
+      "name": "Debug Statements",
+      "applies_to": ["javascript", "typescript"],
+      "severity": "low",
+      "keywords": ["console."],
+      "pattern": "\\bconsole\\.(?:log|debug|info)\\(",
+      "count_min": 4,
+      "skip_in_tests": true,
+      "recommendation": "Multiple console statements found. Remove before production.",
+      "source": "CodeFlow"
+    },
+    {
+      "id": "VZS006",
+      "name": "TODO/FIXME Comments",
+      "applies_to": ["*"],
+      "severity": "low",
+      "keywords": ["todo", "fixme", "hack", "xxx"],
+      "pattern": "\\b(?:TODO|FIXME|HACK|XXX)\\b",
+      "count_min": 5,
+      "skip_in_tests": true,
+      "recommendation": "Multiple TODO/FIXME comments found. Address before release.",
+      "source": "CodeFlow"
+    },
+    {
+      "id": "VZS010",
+      "name": "Weak Hash Algorithm",
+      "applies_to": ["python", "javascript", "typescript", "go", "java", "csharp"],
+      "severity": "medium",
+      "keywords": ["md5", "sha1", "createhash"],
+      "pattern": "(?:hashlib\\.(?:md5|sha1)\\s*\\(|hashlib\\.new\\(\\s*['\"](?:md5|sha1)['\"]|crypto\\.createHash\\(\\s*['\"](?:md5|sha1)['\"]\\)|md5\\.New\\(|sha1\\.New\\(|MessageDigest\\.getInstance\\(\\s*\"(?:MD5|SHA-?1)\")",
+      "recommendation": "MD5 and SHA-1 are cryptographically broken. Use SHA-256 or stronger.",
+      "source": "DevSkim DS126858 / Bandit B303"
+    },
+    {
+      "id": "VZS011",
+      "name": "AWS Access Key",
+      "applies_to": ["*"],
+      "severity": "high",
+      "keywords": ["akia", "asia", "abia", "acca"],
+      "pattern": "\\b((?:AKIA|ASIA|ABIA|ACCA)[A-Z0-9]{16})\\b",
+      "entropy_capture_group": 1,
+      "entropy_min": 3.0,
+      "allowlist_substrings": ["example", "xxxxxx", "0000000000000000"],
+      "recommendation": "AWS access key found in source. Rotate immediately and store in environment variables or AWS Secrets Manager.",
+      "source": "Gitleaks aws-access-token"
+    },
+    {
+      "id": "VZS012",
+      "name": "GitHub Token",
+      "applies_to": ["*"],
+      "severity": "high",
+      "keywords": ["ghp_", "gho_", "ghu_", "ghs_", "ghr_"],
+      "pattern": "\\b(gh[pousr]_[A-Za-z0-9]{36,255})\\b",
+      "entropy_capture_group": 1,
+      "entropy_min": 3.0,
+      "recommendation": "GitHub token found in source. Rotate via GitHub settings and store in environment variables.",
+      "source": "Gitleaks github-pat"
+    },
+    {
+      "id": "VZS013",
+      "name": "Private Key Block",
+      "applies_to": ["*"],
+      "severity": "high",
+      "keywords": ["private key"],
+      "pattern": "-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----",
+      "recommendation": "Private key material in source. Move to a secrets manager and rotate the key.",
+      "source": "Gitleaks private-key"
+    },
+    {
+      "id": "VZS014",
+      "name": "TLS Verification Disabled",
+      "applies_to": ["python", "javascript", "typescript", "go"],
+      "severity": "high",
+      "keywords": ["verify=false", "rejectunauthorized", "insecureskipverify"],
+      "pattern": "(?:\\bverify\\s*=\\s*False\\b|rejectUnauthorized\\s*:\\s*false|InsecureSkipVerify\\s*:\\s*true)",
+      "recommendation": "TLS certificate verification disabled. This allows man-in-the-middle attacks. Re-enable verification.",
+      "source": "DevSkim / njsscan"
+    }
+  ]
+}
