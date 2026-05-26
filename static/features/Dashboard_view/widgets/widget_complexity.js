@@ -77,18 +77,18 @@ _dashRegisterWidget({
         const max    = top[0]?.complexity || 1;
 
         container.innerHTML = `
-<div class="dash-card">
+<div class="dash-card dash-detail-section">
   <div class="dash-card-title">
     <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashComplexityTitle'))}
     <span class="dash-card-sub">avg ${avg.toFixed(1)}</span>
   </div>
-  <div class="dash-chart-wrap" style="min-height:160px;">
+  <div class="dash-chart-wrap dash-detail-chart dash-detail-chart--md">
     <canvas id="${canvasId}"></canvas>
   </div>
 </div>
-<div class="dash-card">
+<div class="dash-card dash-detail-section">
   <div class="dash-card-title"><span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashComplexityTopOffenders'))}</div>
-  <div class="dash-list" style="max-height:300px;overflow-y:auto;">
+  <div class="dash-list dash-detail-flow-list dash-detail-wrap-rows">
     ${top.map((sym, i) => {
         const pct = Math.round((sym.complexity / max) * 100);
         const col = colors[i];

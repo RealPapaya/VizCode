@@ -99,6 +99,7 @@ function _dashTemporalRefreshSubs(container, stats, scope) {
 }
 
 function _dashTemporalShell(stats, scope) {
+    const isDetail = String(scope || '').includes('detail');
     const maxDays = Number(stats.window_days || 180);
     const pills = [30, 90, 180]
         .filter(d => d <= maxDays)
@@ -120,12 +121,12 @@ function _dashTemporalShell(stats, scope) {
   </span>
   <span class="dash-temporal-pills">${pills}</span>
 </div>
-<div class="dash-grid dash-grid-2 dash-temporal-grid">
-  <div class="dash-card" id="${_dashTemporalId('dash-temporal-hotspot', scope)}"></div>
-  <div class="dash-card" id="${_dashTemporalId('dash-temporal-coupling', scope)}"></div>
-  <div class="dash-card" id="${_dashTemporalId('dash-temporal-heatmap', scope)}"></div>
-  <div class="dash-card" id="${_dashTemporalId('dash-temporal-timeline', scope)}"></div>
-  <div class="dash-card" id="${_dashTemporalId('dash-temporal-authors', scope)}"></div>
+<div class="dash-grid dash-grid-2 dash-temporal-grid${isDetail ? ' dash-detail-grid dash-detail-grid-2' : ''}">
+  <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" id="${_dashTemporalId('dash-temporal-hotspot', scope)}"></div>
+  <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" id="${_dashTemporalId('dash-temporal-coupling', scope)}"></div>
+  <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" id="${_dashTemporalId('dash-temporal-heatmap', scope)}"></div>
+  <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" id="${_dashTemporalId('dash-temporal-timeline', scope)}"></div>
+  <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" id="${_dashTemporalId('dash-temporal-authors', scope)}"></div>
 </div>`;
 }
 

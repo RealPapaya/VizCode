@@ -104,7 +104,7 @@ _dashRegisterWidget({
     const chartKey = 'kpi_functions_detail_chart';
     const chartTypes = ['bar', 'doughnut'];
     container.innerHTML = `
-<div class="dash-card">
+<div class="dash-card dash-detail-section">
   <div class="dash-card-title">
     <span class="dash-card-title-dot"></span>Functions per Module
     ${_dashChartToggleHTML(chartKey, chartTypes, 'bar')}
@@ -114,13 +114,13 @@ _dashRegisterWidget({
     <div class="dash-detail-metric"><span>${_dashFmtExactNum(stats.calls || 0)}</span><small>calls</small></div>
     <div class="dash-detail-metric"><span>${_dashFmtExactNum(allModEntries.length)}</span><small>modules with functions</small></div>
   </div>
-  <div class="dash-chart-wrap" style="min-height:160px;">
+  <div class="dash-chart-wrap dash-detail-chart dash-detail-chart--md">
     <canvas id="${canvasId}"></canvas>
   </div>
 </div>
-<div class="dash-card">
+<div class="dash-card dash-detail-section">
   <div class="dash-card-title"><span class="dash-card-title-dot"></span>Longest Functions</div>
-  <div class="dash-list">
+  <div class="dash-list dash-detail-flow-list">
     ${top.map((fn, i) => {
       const pct = Math.round((fn.lines / max) * 100);
       const col = colors[i];

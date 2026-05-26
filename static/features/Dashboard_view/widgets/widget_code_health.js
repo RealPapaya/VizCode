@@ -133,10 +133,6 @@ _dashRegisterWidget({
         const statusKey = score >= _DASH_HEALTH_BANDS.amber ? 'dashHealthGood'
                         : score >= _DASH_HEALTH_BANDS.red   ? 'dashHealthFair'
                         : 'dashHealthPoor';
-        const pct     = Math.max(0, Math.min(1, score / 10));
-        const fillLen = (pct * _DASH_HEALTH_TRACK_LEN).toFixed(2);
-        const gapLen  = _DASH_HEALTH_TRACK_LEN.toFixed(2);
-
         const rows = _DASH_HEALTH_SUBSCORES.map(s => {
             const value = Number(breakdown[s.key] || 0);
             const files = _dashHealthCategoryFiles(s.key, stats);
@@ -152,31 +148,13 @@ _dashRegisterWidget({
         }).join('');
 
         container.innerHTML = `
-<div class="dash-grid dash-grid-2" style="height: 100%; min-height: 0;">
-  <div class="dash-card" style="min-height: 0;">
-    <div class="dash-card-title">
-      <span class="dash-card-title-dot" style="background:${color}"></span>${_dashEscape(_dashT('dashCodeHealthTitle'))}
-    </div>
-    <div class="dash-health-gauge-area" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-      <svg class="dash-health-gauge-svg" viewBox="0 0 220 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="width: 100%; max-width: 260px; height: auto;">
-        <path class="dash-health-gauge-track" d="M 22 110 A 88 88 0 0 1 198 110"/>
-        <path class="dash-health-gauge-fill" d="M 22 110 A 88 88 0 0 1 198 110"
-              style="stroke-dasharray:${fillLen} ${gapLen};stroke:${color}"/>
-        <text x="110" y="84"  class="dash-health-gauge-score">${score.toFixed(1)}</text>
-        <text x="110" y="104" class="dash-health-gauge-den">/ 10</text>
-      </svg>
-      <div style="margin-top:-10px;">
-        <span class="dash-health-status-badge" style="color:${color}">${_dashEscape(_dashT(statusKey))}</span>
-      </div>
-    </div>
+<div class="dash-card dash-health-report-breakdown dash-detail-section">
+  <div class="dash-card-title">
+    <span class="dash-card-title-dot" style="background:${color}"></span>Health Breakdown
+    <span class="dash-card-sub" style="color:${color}">${_dashEscape(_dashT(statusKey))} ${score.toFixed(1)} / 10</span>
   </div>
-  <div class="dash-card" style="min-height: 0;">
-    <div class="dash-card-title">
-      <span class="dash-card-title-dot"></span>Health Breakdown
-    </div>
-    <div class="dash-list" style="overflow-y: auto; min-height: 0; padding-right: 4px; padding-top: 8px;">
-      ${rows}
-    </div>
+  <div class="dash-list dash-detail-flow-list dash-detail-wrap-rows" style="padding-top:8px;">
+    ${rows}
   </div>
 </div>`;
     },

@@ -76,8 +76,9 @@ function _dashCircStatusColor(count) {
 }
 
 // ── L / detail layout with prominent panel header ──
-function _dashRenderCircularDeps(container, stats) {
+function _dashRenderCircularDeps(container, stats, opts) {
   if (!container) return;
+  const isDetail = !!(opts && opts.detail);
   const cycles = stats.top_circular_deps || [];
   const count = stats.circular_dependencies || 0;
   const color = _dashCircStatusColor(count);
@@ -91,7 +92,7 @@ function _dashRenderCircularDeps(container, stats) {
     : `<div class="dash-empty">✅ ${_dashEscape(_dashT('dashIssuesNoCycles'))}</div>`;
 
   container.innerHTML = `
-<div class="dash-arch-panel">
+<div class="dash-arch-panel${isDetail ? ' dash-detail-section dash-detail-natural' : ''}">
   <div class="dash-arch-panel-header">
     <div class="dash-arch-panel-title-block">
       <div class="dash-arch-panel-title">
@@ -107,7 +108,7 @@ function _dashRenderCircularDeps(container, stats) {
     </div>
   </div>
   <div class="dash-arch-panel-body">
-    <div class="dash-arch-cycles-list">${cyclesHTML}</div>
+    <div class="dash-arch-cycles-list${isDetail ? ' dash-detail-flow-list' : ''}">${cyclesHTML}</div>
   </div>
 </div>`;
 }
@@ -173,5 +174,5 @@ _dashRegisterWidget({
     _dashRenderCircularDeps(container, stats);
   },
 
-  renderDetail(container, stats) { _dashRenderCircularDeps(container, stats); },
+  renderDetail(container, stats) { _dashRenderCircularDeps(container, stats, { detail: true }); },
 });

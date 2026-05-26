@@ -81,9 +81,10 @@ function _dashOvTilesData(stats) {
 function _dashRenderIssuesOverview(container, stats, opts) {
   const t = _dashOvTilesData(stats);
   const layout = (opts && opts.layout) || 'grid'; // grid | row
+  const isDetail = !!(opts && opts.detail);
   const tiles = `${_dashOvTile(t.circular)}${_dashOvTile(t.dead)}${_dashOvTile(t.entry)}`;
   container.innerHTML = `
-<div class="dash-arch-panel">
+<div class="dash-arch-panel${isDetail ? ' dash-detail-section dash-detail-natural' : ''}">
   <div class="dash-arch-panel-header">
     <div class="dash-arch-panel-title-block">
       <div class="dash-arch-panel-title">${_dashEscape(_dashT('dashIssuesOverviewTitle'))}</div>
@@ -91,7 +92,7 @@ function _dashRenderIssuesOverview(container, stats, opts) {
     </div>
   </div>
   <div class="dash-arch-panel-body">
-    <div class="dash-ov-tiles dash-ov-tiles--${layout}">${tiles}</div>
+    <div class="dash-ov-tiles dash-ov-tiles--${layout}${isDetail ? ' dash-detail-grid' : ''}">${tiles}</div>
   </div>
 </div>`;
 }
@@ -132,6 +133,6 @@ _dashRegisterWidget({
   },
 
   renderDetail(container, stats) {
-    _dashRenderIssuesOverview(container, stats, { layout: 'row' });
+    _dashRenderIssuesOverview(container, stats, { layout: 'row', detail: true });
   },
 });

@@ -117,19 +117,19 @@ _dashRegisterWidget({
         }).join('');
 
         container.innerHTML = `
-<div class="dash-card">
+<div class="dash-card dash-detail-section">
   <div class="dash-card-title"><span class="dash-card-title-dot"></span>Total Estimated Debt</div>
   <div style="font-size:var(--text-display);font-weight:700;color:#DFA745;line-height:1;padding:12px 0 4px">
     ${hours.toFixed(1)}<span style="font-size:var(--text-base);color:var(--muted);margin-left:4px">hours</span>
   </div>
 </div>
-<div class="dash-card">
+<div class="dash-card dash-detail-section">
   <div class="dash-card-title"><span class="dash-card-title-dot"></span>By Category</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;margin-top:8px;">
-    <div class="dash-chart-wrap" style="min-height:180px;">
+  <div class="dash-detail-grid dash-detail-grid-2" style="margin-top:8px;">
+    <div class="dash-chart-wrap dash-detail-chart dash-detail-chart--sm">
       <canvas id="${canvasId}"></canvas>
     </div>
-    <div class="dash-debt-rows">${bars}</div>
+    <div class="dash-debt-rows dash-detail-bar-rows">${bars}</div>
   </div>
 </div>`;
 

@@ -17,7 +17,7 @@ _dashRegisterWidget({
     },
 
     renderDetail(container, stats) {
-        _dashRenderBranchLarge(container, stats, stats.branch_analysis || null);
+        _dashRenderBranchLarge(container, stats, stats.branch_analysis || null, { detail: true });
     },
 });
 
@@ -91,14 +91,15 @@ function _dashBranchRowCompact(b, base) {
 
 // ── L size (4×2): branch list + diff panel ────────────────────────────────────
 
-function _dashRenderBranchLarge(container, stats, branchData) {
+function _dashRenderBranchLarge(container, stats, branchData, opts) {
+    const isDetail = !!(opts && opts.detail);
     container.innerHTML = `
 <div class="dash-card-title">
   <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashBranchOverviewTitle'))}
 </div>
-<div class="dash-bf-body" style="display:flex;gap:0.75rem;flex:1;min-height:0;overflow:hidden">
-  <div id="dash-branch-list-l" class="dash-list" style="flex:0 0 44%;overflow-y:auto;border-right:1px solid var(--panel-border-color);padding-right:0.5rem"></div>
-  <div id="dash-branch-diff-panel" style="flex:1;overflow-y:auto;font-size:0.78rem"></div>
+<div class="dash-bf-body${isDetail ? ' dash-detail-grid dash-detail-grid-2' : ''}" style="${isDetail ? '' : 'display:flex;'}gap:0.75rem;flex:1;min-height:0;${isDetail ? '' : 'overflow:hidden'}">
+  <div id="dash-branch-list-l" class="dash-list${isDetail ? ' dash-detail-flow-list' : ''}" style="${isDetail ? '' : 'flex:0 0 44%;overflow-y:auto;border-right:1px solid var(--panel-border-color);padding-right:0.5rem'}"></div>
+  <div id="dash-branch-diff-panel" class="${isDetail ? 'dash-detail-flow-list' : ''}" style="${isDetail ? '' : 'flex:1;overflow-y:auto;'}font-size:0.78rem"></div>
 </div>`;
 
     _dashBranchLoad(container, stats, data => {

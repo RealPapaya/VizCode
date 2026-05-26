@@ -389,8 +389,8 @@ _dashRegisterWidget({
     renderDetail(container, stats) {
         container.innerHTML = `
 <div class="dash-commit-activity-detail">
-  <div class="dash-card dash-commit-activity-detail-main"></div>
-  <div class="dash-commit-activity-detail-side"></div>
+  <div class="dash-card dash-detail-section dash-commit-activity-detail-main"></div>
+  <div class="dash-detail-section dash-commit-activity-detail-side"></div>
 </div>`;
         const main = container.querySelector('.dash-commit-activity-detail-main');
         const side = container.querySelector('.dash-commit-activity-detail-side');

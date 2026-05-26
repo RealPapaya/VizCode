@@ -106,7 +106,7 @@ _dashRegisterWidget({
     }).join('') || `<div class="dash-empty">✅ ${_dashEscape(_dashT('dashDuplicationNone'))}</div>`;
 
     container.innerHTML = `
-<div class="dash-card">
+<div class="dash-card dash-detail-section">
   <div class="dash-card-title">
     <span class="dash-card-title-dot" style="background:${color}"></span>${_dashEscape(_dashT('dashDuplicationTitle'))}
   </div>
@@ -118,9 +118,9 @@ _dashRegisterWidget({
     </div>
   </div>
 </div>
-<div class="dash-card">
+<div class="dash-card dash-detail-section">
   <div class="dash-card-title"><span class="dash-card-title-dot"></span>Duplicated Blocks</div>
-  <div class="dash-dup-list" style="max-height:360px;overflow-y:auto;margin-top:8px;">${blocksHTML}</div>
+  <div class="dash-dup-list dash-detail-flow-list" style="margin-top:8px;">${blocksHTML}</div>
 </div>`;
   },
 });

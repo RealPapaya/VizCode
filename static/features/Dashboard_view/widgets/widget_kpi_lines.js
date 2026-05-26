@@ -95,7 +95,7 @@ _dashRegisterWidget({
         );
 
         container.innerHTML = `
-<div class="dash-card">
+<div class="dash-card dash-detail-section">
   <div class="dash-card-title">
     <span class="dash-card-title-dot"></span>Line Composition
     ${_dashChartToggleHTML(chartKey, chartTypes, 'doughnut')}
@@ -107,10 +107,10 @@ _dashRegisterWidget({
     <div class="dash-detail-metric"><span>${_dashFmtExactNum(blank)}</span><small>blank lines</small></div>
   </div>
   <div class="dash-detail-split">
-    <div class="dash-chart-wrap dash-detail-chart-sm">
+    <div class="dash-chart-wrap dash-detail-chart dash-detail-chart--sm dash-detail-chart-sm">
       <canvas id="${canvasId}"></canvas>
     </div>
-    <div class="dash-detail-breakdown">
+    <div class="dash-detail-breakdown dash-detail-bar-rows">
     <div class="dash-health-row" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with code LOC', _dashAllFiles().filter(f => (f.loc || {}).code > 0), { meta: f => _dashFmtExactNum((f.loc || {}).code || 0) + ' lines of code' })">
       <span class="dash-health-row-label">Code</span>
       <div class="dash-health-row-track">

@@ -1992,9 +1992,9 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 
     position: fixed;
 
-    width: min(980px, calc(100vw - 96px));
+    width: min(1440px, calc(100vw - 48px));
 
-    height: min(680px, calc(100vh - 96px));
+    height: min(980px, calc(100vh - 48px));
 
     top: 50%;
 
@@ -2032,8 +2032,8 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 
 @media (max-width: 720px) {
     .dash-detail-panel {
-        width: calc(100vw - 28px);
-        height: calc(100vh - 28px);
+        width: calc(100vw - 16px);
+        height: calc(100vh - 16px);
     }
 }
 
@@ -2057,7 +2057,8 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 
     padding: var(--space-3) var(--space-5);
 
-    border-bottom: 1px solid var(--border);
+    border-bottom: 0;
+    position: relative;
 
     display: flex;
 
@@ -2163,7 +2164,7 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 
     overflow-x: hidden;
 
-    padding: var(--space-4) var(--space-5);
+    padding: 0;
 
     scrollbar-width: thin;
 
@@ -2175,6 +2176,580 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 
     gap: var(--space-3);
 
+}
+
+.dash-detail-head::after {
+    content: "";
+    position: absolute;
+    left: var(--space-5);
+    right: var(--space-5);
+    bottom: 0;
+    height: 1px;
+    background: var(--border);
+}
+
+.dash-report-body {
+    background: var(--surface-card);
+    gap: clamp(18px, 2.2vw, 26px);
+    padding: clamp(16px, 2.2vw, 24px);
+    box-sizing: border-box;
+}
+
+.dash-report-body *,
+.dash-report-body *::before,
+.dash-report-body *::after {
+    box-sizing: border-box;
+}
+
+.dash-report-hero {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+    gap: clamp(14px, 2vw, 24px);
+    align-items: stretch;
+    min-height: 0;
+    padding: 0 0 clamp(18px, 2.2vw, 24px);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+    min-width: 0;
+}
+
+.dash-report-hero::after {
+    content: "";
+    position: absolute;
+    left: clamp(4px, 1vw, 10px);
+    right: clamp(4px, 1vw, 10px);
+    bottom: 0;
+    height: 1px;
+    background: color-mix(in srgb, var(--border) 78%, transparent);
+}
+
+.dash-report-hero--reverse .dash-report-hero-copy { order: 2; }
+.dash-report-hero--reverse .dash-report-hero-visual { order: 1; }
+
+.dash-report-hero-copy {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(170px, auto) minmax(0, 1fr);
+    grid-template-areas:
+        "eyebrow eyebrow"
+        "title title"
+        "primary summary"
+        "metrics metrics";
+    gap: 12px 22px;
+    align-content: start;
+}
+
+.dash-report-eyebrow {
+    grid-area: eyebrow;
+    font-size: 10px;
+    line-height: 1.2;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: color-mix(in srgb, var(--dash-report-accent, var(--accent)) 80%, var(--muted));
+    margin: 0;
+}
+
+.dash-report-title {
+    grid-area: title;
+    margin: 0;
+    font-size: clamp(18px, 2vw, 24px);
+    line-height: 1.15;
+    font-weight: 720;
+    letter-spacing: 0;
+    color: var(--text);
+}
+
+.dash-report-primary {
+    grid-area: primary;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 2px;
+    min-width: 0;
+}
+
+.dash-report-primary-value {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: clamp(36px, 4.4vw, 58px);
+    line-height: 0.95;
+    font-weight: 760;
+    letter-spacing: 0;
+    color: var(--dash-report-accent, var(--accent));
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+.dash-report-primary-suffix {
+    max-width: 130px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.2;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.dash-report-summary {
+    grid-area: summary;
+    align-self: center;
+    margin: 0;
+    color: color-mix(in srgb, var(--text) 74%, var(--muted));
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.dash-report-metrics {
+    grid-area: metrics;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px;
+    margin-top: 2px;
+}
+
+.dash-report-metric {
+    min-width: 0;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    border: 0;
+}
+
+.dash-report-metric-value {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: clamp(17px, 1.8vw, 22px);
+    line-height: 1;
+    font-weight: 740;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-report-metric-label {
+    display: block;
+    margin-top: 7px;
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dash-report-hero-visual {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    border: 0;
+    overflow: visible;
+}
+
+.dash-report-bars {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+}
+
+.dash-report-bar-row {
+    display: grid;
+    grid-template-columns: minmax(72px, 0.8fr) minmax(90px, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    min-width: 0;
+}
+
+.dash-report-bar-row span,
+.dash-report-bar-row b {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    line-height: 1.2;
+}
+
+.dash-report-bar-row span {
+    color: color-mix(in srgb, var(--text) 72%, var(--muted));
+    font-weight: 650;
+}
+
+.dash-report-bar-row b {
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-report-bar-row div {
+    height: 8px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--accent) 9%, var(--surface-elevated));
+}
+
+.dash-report-bar-row i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+}
+
+.dash-report-details {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(18px, 2.2vw, 26px);
+    min-height: 0;
+    padding: 0 0 clamp(8px, 1.5vw, 14px);
+    box-sizing: border-box;
+    min-width: 0;
+}
+
+.dash-report-details > * {
+    position: relative;
+    min-width: 0;
+}
+
+.dash-report-details > * + * {
+    padding-top: clamp(16px, 2vw, 22px);
+}
+
+.dash-report-details > * + *::before {
+    content: "";
+    position: absolute;
+    left: clamp(4px, 1vw, 10px);
+    right: clamp(4px, 1vw, 10px);
+    top: 0;
+    height: 1px;
+    background: color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.dash-report-details > .dash-card,
+.dash-report-details > .dash-arch-panel,
+.dash-report-details > .dash-detail-section,
+.dash-report-details .dash-detail-section {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+    padding: 0;
+    min-width: 0;
+    min-height: 0;
+    height: auto;
+    max-height: none;
+}
+
+.dash-report-details > .dash-card:hover,
+.dash-report-details > .dash-detail-section:hover {
+    transform: none;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+.dash-report-details .dash-card-title {
+    min-width: 0;
+    flex-wrap: wrap;
+    row-gap: 6px;
+}
+
+.dash-report-details > .dash-arch-panel .dash-arch-panel-header,
+.dash-detail-section > .dash-arch-panel-header {
+    position: relative;
+    border-bottom: 0;
+    padding: 2px 0 12px;
+}
+
+.dash-report-details > .dash-arch-panel .dash-arch-panel-header::after,
+.dash-detail-section > .dash-arch-panel-header::after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    bottom: 0;
+    height: 1px;
+    background: color-mix(in srgb, var(--border) 64%, transparent);
+}
+
+.dash-report-details .dash-detail-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: clamp(10px, 1.5vw, 16px);
+    align-items: stretch;
+    border-bottom: 0;
+    padding: 0;
+    min-width: 0;
+}
+
+.dash-report-details .dash-detail-metric {
+    align-items: baseline;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    min-width: 0;
+}
+
+.dash-detail-section {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(10px, 1.4vw, 16px);
+    min-width: 0;
+}
+
+.dash-detail-natural {
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    overflow: visible;
+}
+
+.dash-detail-grid,
+.dash-report-details .dash-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+    gap: clamp(14px, 1.8vw, 22px);
+    min-width: 0;
+    align-items: start;
+}
+
+.dash-detail-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dash-detail-chart {
+    position: relative;
+    min-height: 220px;
+    min-width: 0;
+}
+
+.dash-detail-chart--sm { min-height: 180px; }
+.dash-detail-chart--md { min-height: 240px; }
+.dash-detail-chart--lg { min-height: 340px; }
+
+.dash-detail-chart canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.dash-detail-flow-list,
+.dash-report-details .dash-detail-flow-list {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    min-width: 0;
+    padding-right: 0;
+}
+
+.dash-detail-flow-list .dash-list-row,
+.dash-detail-wrap-rows .dash-list-row {
+    min-width: 0;
+}
+
+.dash-detail-flow-list .dash-list-name,
+.dash-detail-wrap-rows .dash-list-name {
+    min-width: 0;
+}
+
+.dash-detail-bar-rows,
+.dash-detail-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.dash-detail-bar-rows .dash-health-row,
+.dash-detail-bar-rows .dash-debt-row,
+.dash-detail-breakdown .dash-health-row,
+.dash-detail-breakdown .dash-debt-row {
+    display: grid;
+    grid-template-columns: minmax(90px, 160px) minmax(100px, 1fr) minmax(84px, auto);
+    gap: 10px;
+    align-items: center;
+    min-width: 0;
+}
+
+.dash-detail-bar-rows .dash-health-row-value,
+.dash-detail-bar-rows .dash-debt-row-value,
+.dash-detail-breakdown .dash-health-row-value,
+.dash-detail-breakdown .dash-debt-row-value {
+    width: auto;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.dash-detail-stat-row {
+    display: flex;
+    align-items: center;
+    gap: clamp(12px, 2vw, 32px);
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.dash-detail-stat-row > * {
+    min-width: 0;
+}
+
+.dash-detail-list-column {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: var(--space-2);
+}
+
+.dash-report-details > .dash-arch-panel .dash-arch-panel-body,
+.dash-detail-section > .dash-arch-panel-body {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+}
+
+.dash-report-details--structure .dash-structure-treemap-card {
+    min-height: 220px;
+}
+
+.dash-report-details--temporal .dash-temporal-period {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0 0 var(--space-3);
+}
+
+.dash-report-details--temporal .dash-temporal-grid,
+.dash-report-details--commit_heatmap .dash-commit-activity-detail {
+    align-items: start;
+}
+
+.dash-report-details--temporal .dash-temporal-grid .dash-list,
+.dash-report-details--commit_heatmap .dash-commit-activity-files .dash-list {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+}
+
+.dash-report-details--commit_heatmap .dash-temporal-heatmap-body {
+    overflow-x: auto;
+}
+
+.dash-report-details--commit_heatmap .dash-temporal-heatmap-svg {
+    min-width: 420px;
+}
+
+.dash-report-details--branch_overview #dash-branch-list-l {
+    border-right: 0;
+    padding-right: 0;
+}
+
+.dash-report-details--security .dash-list-row {
+    min-width: 0;
+}
+
+.dash-report-details--security .dash-list-row > div,
+.dash-report-details--security .dash-list-row span {
+    min-width: 0;
+}
+
+@media (max-width: 900px) {
+    .dash-report-hero,
+    .dash-report-hero--reverse {
+        grid-template-columns: 1fr;
+        min-height: 0;
+    }
+
+    .dash-report-hero--reverse .dash-report-hero-copy,
+    .dash-report-hero--reverse .dash-report-hero-visual {
+        order: initial;
+    }
+
+    .dash-report-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .dash-report-hero-copy {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "eyebrow"
+            "title"
+            "primary"
+            "summary"
+            "metrics";
+    }
+}
+
+@media (max-width: 560px) {
+    .dash-report-body {
+        padding: 12px;
+        gap: 16px;
+    }
+
+    .dash-report-hero {
+        padding: 0 0 16px;
+        gap: 12px;
+    }
+
+    .dash-report-primary {
+        flex-wrap: wrap;
+    }
+
+    .dash-report-primary-suffix {
+        max-width: none;
+    }
+
+    .dash-report-metrics {
+        grid-template-columns: 1fr;
+    }
+
+    .dash-report-details {
+        padding: 0 0 10px;
+    }
+
+    .dash-report-bar-row {
+        grid-template-columns: minmax(64px, 0.7fr) minmax(70px, 1fr) auto;
+        gap: 8px;
+    }
+
+    .dash-detail-grid-2,
+    .dash-detail-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dash-detail-bar-rows .dash-health-row,
+    .dash-detail-bar-rows .dash-debt-row,
+    .dash-detail-breakdown .dash-health-row,
+    .dash-detail-breakdown .dash-debt-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 6px;
+    }
+
+    .dash-detail-bar-rows .dash-health-row-track,
+    .dash-detail-bar-rows .dash-debt-row-track,
+    .dash-detail-breakdown .dash-health-row-track,
+    .dash-detail-breakdown .dash-debt-row-track {
+        width: 100%;
+    }
+
+    .dash-detail-bar-rows .dash-health-row-value,
+    .dash-detail-bar-rows .dash-debt-row-value,
+    .dash-detail-breakdown .dash-health-row-value,
+    .dash-detail-breakdown .dash-debt-row-value {
+        text-align: left;
+    }
 }
 
 
@@ -2691,14 +3266,14 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     display: grid;
     grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.8fr);
     gap: var(--space-4);
-    height: 100%;
+    height: auto;
     min-height: 0;
 }
 
 .dash-commit-activity-detail-main,
 .dash-commit-activity-detail-side {
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .dash-commit-activity-detail-main {
@@ -2731,7 +3306,7 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 }
 
 .dash-detail-body .dash-structure-layout--detail .dash-structure-chart-grid {
-    flex: 0 0 min(360px, 58%);
+    flex: 0 0 auto;
 }
 
 .dash-detail-body .dash-structure-layout--detail .dash-structure-chart-wrap {
@@ -2739,13 +3314,20 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 }
 
 .dash-detail-body .dash-structure-layout--detail .dash-structure-treemap-card {
-    max-height: 220px !important;
+    max-height: none;
 }
 
 @media (max-width: 860px) {
     .dash-detail-body .dash-structure-layout--detail .dash-structure-chart-grid {
         grid-template-columns: 1fr;
         flex: 0 0 auto;
+    }
+
+    .dash-report-details .dash-detail-grid-2,
+    .dash-report-details .dash-detail-split,
+    .dash-report-details .dash-commit-activity-detail,
+    .dash-report-details .dash-structure-chart-grid {
+        grid-template-columns: minmax(0, 1fr) !important;
     }
 }
 

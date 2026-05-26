@@ -78,15 +78,15 @@ _dashRegisterWidget({
     const colors = _dashColorScale(all.length);
 
     container.innerHTML = `
-<div class="dash-card">
+<div class="dash-card dash-detail-section">
   <div class="dash-card-title"><span class="dash-card-title-dot"></span>Distribution <span class="dash-card-sub">avg ${avg.toFixed(1)}</span></div>
-  <div class="dash-chart-wrap" style="min-height:160px;">
+  <div class="dash-chart-wrap dash-detail-chart dash-detail-chart--md">
     <canvas id="${canvasId}"></canvas>
   </div>
 </div>
-<div class="dash-card">
+<div class="dash-card dash-detail-section">
   <div class="dash-card-title"><span class="dash-card-title-dot"></span>All Offenders</div>
-  <div class="dash-list" style="max-height:320px;overflow-y:auto;">
+  <div class="dash-list dash-detail-flow-list dash-detail-wrap-rows">
     ${all.map((item, i) => {
       const val = item.complexity || item.score || 0;
       const max2 = all[0] ? (all[0].complexity || all[0].score || 1) : 1;

@@ -58,13 +58,14 @@ function _dashCouplingLegend() {
 }
 
 // ── L / detail layout ──
-function _dashRenderCoupling(container, stats) {
+function _dashRenderCoupling(container, stats, opts) {
   if (!container) return;
+  const isDetail = !!(opts && opts.detail);
   const imported = stats.top_imported_files || [];
   const callers = stats.top_caller_files || [];
   const conc = _dashCouplingConcentration(imported);
   container.innerHTML = `
-<div class="dash-arch-panel">
+<div class="dash-arch-panel${isDetail ? ' dash-detail-section dash-detail-natural' : ''}">
   <div class="dash-arch-panel-header">
     <div class="dash-arch-panel-title-block">
       <div class="dash-arch-panel-title">
@@ -76,18 +77,18 @@ function _dashRenderCoupling(container, stats) {
     <div class="dash-arch-panel-stats">${_dashCouplingLegend()}</div>
   </div>
   <div class="dash-arch-panel-body">
-    <div class="dash-grid dash-grid-2" style="height:100%;min-height:0">
-      <div class="dash-card" style="min-height:0;display:flex;flex-direction:column;overflow:hidden">
+    <div class="dash-grid dash-grid-2${isDetail ? ' dash-detail-grid dash-detail-grid-2' : ''}" style="${isDetail ? '' : 'height:100%;min-height:0'}">
+      <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" style="${isDetail ? '' : 'min-height:0;display:flex;flex-direction:column;overflow:hidden'}">
         <div class="dash-card-title">
           <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashCouplingTopImported'))}
         </div>
-        <div class="dash-list" style="overflow-y:auto;min-height:0;padding-right:4px">${_dashCouplingRows(imported, _dashT('dashCouplingImports'))}</div>
+        <div class="dash-list${isDetail ? ' dash-detail-flow-list' : ''}" style="${isDetail ? '' : 'overflow-y:auto;min-height:0;padding-right:4px'}">${_dashCouplingRows(imported, _dashT('dashCouplingImports'))}</div>
       </div>
-      <div class="dash-card" style="min-height:0;display:flex;flex-direction:column;overflow:hidden">
+      <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" style="${isDetail ? '' : 'min-height:0;display:flex;flex-direction:column;overflow:hidden'}">
         <div class="dash-card-title">
           <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashCouplingTopCallers'))}
         </div>
-        <div class="dash-list" style="overflow-y:auto;min-height:0;padding-right:4px">${_dashCouplingRows(callers, _dashT('dashCouplingCalls'))}</div>
+        <div class="dash-list${isDetail ? ' dash-detail-flow-list' : ''}" style="${isDetail ? '' : 'overflow-y:auto;min-height:0;padding-right:4px'}">${_dashCouplingRows(callers, _dashT('dashCouplingCalls'))}</div>
       </div>
     </div>
   </div>
@@ -159,5 +160,5 @@ _dashRegisterWidget({
     _dashRenderCoupling(container, stats);
   },
 
-  renderDetail(container, stats) { _dashRenderCoupling(container, stats); },
+  renderDetail(container, stats) { _dashRenderCoupling(container, stats, { detail: true }); },
 });

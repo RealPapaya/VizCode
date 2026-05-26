@@ -120,7 +120,7 @@ _dashRegisterWidget({
     }).join('');
 
     container.innerHTML = `
-<div class="dash-card">
+<div class="dash-card dash-detail-section">
   <div class="dash-card-title">
     <span class="dash-card-title-dot"></span>File Types
     ${_dashChartToggleHTML(chartKey, chartTypes, 'doughnut')}
@@ -131,10 +131,10 @@ _dashRegisterWidget({
     <div class="dash-detail-metric"><span>${_dashFmtExactNum((DATA.modules || []).length)}</span><small>modules</small></div>
   </div>
   <div class="dash-detail-split">
-    <div class="dash-chart-wrap dash-detail-chart-sm">
+    <div class="dash-chart-wrap dash-detail-chart dash-detail-chart--sm dash-detail-chart-sm">
       <canvas id="${canvasId}"></canvas>
     </div>
-    <div class="dash-list dash-detail-list">
+    <div class="dash-list dash-detail-list dash-detail-flow-list">
       ${breakdownRows}
     </div>
   </div>

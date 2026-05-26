@@ -29,13 +29,14 @@ function _dashRenderTemporalTimeline(container, stats, scope) {
 
     const buckets = stats.churn_timeline || [];
     const key = _dashTimelineKey(scope);
+    const isDetail = String(scope || '').includes('detail');
 
     container.innerHTML = `
 <div class="dash-card-title">
   <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashTemporalChurn'))}
   ${_dashChartToggleHTML(key, _DASH_TIMELINE_TYPES, _DASH_TIMELINE_DEFAULT)}
 </div>
-<div class="dash-chart-wrap dash-timeline-chart-wrap"><canvas id="${_dashTimelineId(scope)}"></canvas></div>`;
+<div class="dash-chart-wrap dash-timeline-chart-wrap${isDetail ? ' dash-detail-chart dash-detail-chart--lg' : ''}"><canvas id="${_dashTimelineId(scope)}"></canvas></div>`;
 
     if (!buckets.length) {
         const wrap = container.querySelector('.dash-chart-wrap');

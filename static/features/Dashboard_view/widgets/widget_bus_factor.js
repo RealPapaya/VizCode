@@ -40,8 +40,8 @@ _dashRegisterWidget({
         }
 
         container.innerHTML = `
-<div class="dash-card" style="padding:12px 16px;margin-bottom:0.75rem">
-  <div style="display:flex;align-items:center;gap:2rem">
+<div class="dash-card dash-detail-section">
+  <div class="dash-detail-stat-row">
     <div style="text-align:center">
       <div style="font-size:2.25rem;font-weight:700;color:var(--status-bad);line-height:1">${high.length}</div>
       <div style="font-size:0.7rem;opacity:0.55;margin-top:4px">${_dashEscape(_dashT('dashBusFactorHigh'))}</div>
@@ -60,7 +60,7 @@ _dashRegisterWidget({
     <div style="font-size:0.75rem;opacity:0.4">${items.length} files</div>
   </div>
 </div>
-<div style="flex:1;min-height:0;overflow-y:auto;padding-right:4px">
+<div class="dash-detail-section dash-detail-flow-list">
   ${riskSection(_dashT('dashBusFactorHigh'),   high,   'var(--status-bad)')}
   ${riskSection(_dashT('dashBusFactorMedium'), medium, 'var(--status-warn)')}
   ${riskSection(_dashT('dashBusFactorLow'),    low,    'var(--status-good)')}

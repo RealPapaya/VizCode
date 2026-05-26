@@ -57,32 +57,47 @@ function _dashRenderStructure(container, stats, options) {
     const scope = (options && options.scope) || '';
     const isDetail = !!(options && options.detail);
     const keys = _dashStructureKeys(scope);
+    const layoutStyle = isDetail
+        ? 'box-sizing:border-box;display:flex;flex-direction:column;gap:var(--space-3);'
+        : 'height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:var(--space-3);overflow:hidden;';
+    const chartGridStyle = isDetail
+        ? ''
+        : 'flex:1;min-height:0;overflow:hidden;';
+    const chartCardStyle = isDetail
+        ? ''
+        : 'display:flex;flex-direction:column;overflow:hidden;min-height:0;';
+    const chartWrapStyle = isDetail
+        ? ''
+        : 'flex:1;min-height:0;';
+    const treemapStyle = isDetail
+        ? ''
+        : 'flex:0 0 auto;max-height:35%;overflow:hidden;';
 
     container.innerHTML = `
-<div class="dash-structure-layout${isDetail ? ' dash-structure-layout--detail' : ''}" style="height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:var(--space-3);overflow:hidden;">
+<div class="dash-structure-layout${isDetail ? ' dash-structure-layout--detail dash-detail-section dash-detail-natural' : ''}" style="${layoutStyle}">
   ${isDetail ? `<div class="dash-detail-metrics">
     <div class="dash-detail-metric"><span>${_dashFmtExactNum(stats.files || 0)}</span><small>files</small></div>
     <div class="dash-detail-metric"><span>${_dashFmtExactNum(stats.modules || 0)}</span><small>modules</small></div>
     <div class="dash-detail-metric"><span>${_dashFmtExactNum(Object.keys(stats.type_counts || {}).length)}</span><small>file types</small></div>
     <div class="dash-detail-metric"><span>${_dashFmtExactNum(Object.keys(stats.language_distribution || {}).length)}</span><small>extensions</small></div>
   </div>` : ''}
-  <div class="dash-grid dash-grid-2 dash-structure-chart-grid" style="flex:1;min-height:0;overflow:hidden;">
-    <div class="dash-card" style="display:flex;flex-direction:column;overflow:hidden;min-height:0;">
+  <div class="dash-grid dash-grid-2 dash-structure-chart-grid${isDetail ? ' dash-detail-grid dash-detail-grid-2' : ''}" style="${chartGridStyle}">
+    <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" style="${chartCardStyle}">
       <div class="dash-card-title">
         <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureFileTypes'))}
         ${_dashChartToggleHTML(keys.typesKey, _DASH_TYPES_TYPES, _DASH_TYPES_DEFAULT)}
       </div>
-      <div class="dash-chart-wrap dash-structure-chart-wrap" style="flex:1;min-height:0;"><canvas id="${keys.typesId}"></canvas></div>
+      <div class="dash-chart-wrap dash-structure-chart-wrap${isDetail ? ' dash-detail-chart dash-detail-chart--md' : ''}" style="${chartWrapStyle}"><canvas id="${keys.typesId}"></canvas></div>
     </div>
-    <div class="dash-card" style="display:flex;flex-direction:column;overflow:hidden;min-height:0;">
+    <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" style="${chartCardStyle}">
       <div class="dash-card-title">
         <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureLangDist'))}
         ${_dashChartToggleHTML(keys.langKey, _DASH_LANG_TYPES, _DASH_LANG_DEFAULT)}
       </div>
-      <div class="dash-chart-wrap dash-structure-chart-wrap" style="flex:1;min-height:0;"><canvas id="${keys.langId}"></canvas></div>
+      <div class="dash-chart-wrap dash-structure-chart-wrap${isDetail ? ' dash-detail-chart dash-detail-chart--md' : ''}" style="${chartWrapStyle}"><canvas id="${keys.langId}"></canvas></div>
     </div>
   </div>
-  <div class="dash-card dash-structure-treemap-card" style="flex:0 0 auto;max-height:35%;overflow:hidden;">
+  <div class="dash-card dash-structure-treemap-card${isDetail ? ' dash-detail-section dash-detail-natural' : ''}" style="${treemapStyle}">
     <div class="dash-card-title">
       <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureTreemap'))}
     </div>

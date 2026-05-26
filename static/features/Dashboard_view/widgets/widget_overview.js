@@ -161,7 +161,7 @@ _dashRegisterWidget({
         }).join('');
 
         container.innerHTML = `
-<div class="dash-card">
+<div class="dash-card dash-detail-section">
   <div class="dash-card-title"><span class="dash-card-title-dot"></span>Codebase Snapshot</div>
   <div class="dash-detail-metrics">
     <div class="dash-detail-metric"><span>${_dashFmtExactNum(files)}</span><small>files</small></div>
@@ -172,7 +172,7 @@ _dashRegisterWidget({
     <div class="dash-detail-metric"><span>${_dashFmtExactNum(calls)}</span><small>calls</small></div>
   </div>
 </div>
-<div class="dash-card">
+<div class="dash-card dash-detail-section">
   <div class="dash-card-title"><span class="dash-card-title-dot"></span>Line Composition</div>
   <div class="dash-detail-breakdown">
     <div class="dash-health-row">
@@ -198,9 +198,9 @@ _dashRegisterWidget({
     </div>
   </div>
 </div>
-<div class="dash-card">
+<div class="dash-card dash-detail-section">
   <div class="dash-card-title"><span class="dash-card-title-dot"></span>Top File Types</div>
-  <div class="dash-list">${extRows || '<div class="dash-empty">No data</div>'}</div>
+  <div class="dash-list dash-detail-flow-list">${extRows || '<div class="dash-empty">No data</div>'}</div>
 </div>`;
     },
 });

@@ -19,15 +19,16 @@ function _dashEntryRows(files, limit) {
   return slice.map((f, i) => _dashEntryRow(f, i)).join('');
 }
 
-function _dashRenderEntryPoints(container, stats) {
+function _dashRenderEntryPoints(container, stats, opts) {
   if (!container) return;
+  const isDetail = !!(opts && opts.detail);
   const entries = stats.entry_point_files || [];
   const isolated = stats.isolated_file_paths || [];
   const entryCount = stats.entry_points || entries.length;
   const isoCount = stats.isolated_files || isolated.length;
 
   container.innerHTML = `
-<div class="dash-arch-panel">
+<div class="dash-arch-panel${isDetail ? ' dash-detail-section dash-detail-natural' : ''}">
   <div class="dash-arch-panel-header">
     <div class="dash-arch-panel-title-block">
       <div class="dash-arch-panel-title">
@@ -48,18 +49,18 @@ function _dashRenderEntryPoints(container, stats) {
     </div>
   </div>
   <div class="dash-arch-panel-body">
-    <div class="dash-grid dash-grid-2" style="height:100%;min-height:0">
-      <div class="dash-card" style="display:flex;flex-direction:column;min-height:0">
+    <div class="dash-grid dash-grid-2${isDetail ? ' dash-detail-grid dash-detail-grid-2' : ''}" style="${isDetail ? '' : 'height:100%;min-height:0'}">
+      <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" style="${isDetail ? '' : 'display:flex;flex-direction:column;min-height:0'}">
         <div class="dash-card-title">
           <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashIssuesEntry'))}
         </div>
-        <div class="dash-list" style="flex:1;overflow-y:auto;min-height:0;padding-right:4px">${_dashEntryRows(entries, 0)}</div>
+        <div class="dash-list${isDetail ? ' dash-detail-flow-list' : ''}" style="${isDetail ? '' : 'flex:1;overflow-y:auto;min-height:0;padding-right:4px'}">${_dashEntryRows(entries, 0)}</div>
       </div>
-      <div class="dash-card" style="display:flex;flex-direction:column;min-height:0">
+      <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" style="${isDetail ? '' : 'display:flex;flex-direction:column;min-height:0'}">
         <div class="dash-card-title">
           <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashEntryPointsIsolated'))}
         </div>
-        <div class="dash-list" style="flex:1;overflow-y:auto;min-height:0;padding-right:4px">${_dashEntryRows(isolated, 0)}</div>
+        <div class="dash-list${isDetail ? ' dash-detail-flow-list' : ''}" style="${isDetail ? '' : 'flex:1;overflow-y:auto;min-height:0;padding-right:4px'}">${_dashEntryRows(isolated, 0)}</div>
       </div>
     </div>
   </div>
@@ -121,5 +122,5 @@ _dashRegisterWidget({
     _dashRenderEntryPoints(container, stats);
   },
 
-  renderDetail(container, stats) { _dashRenderEntryPoints(container, stats); },
+  renderDetail(container, stats) { _dashRenderEntryPoints(container, stats, { detail: true }); },
 });

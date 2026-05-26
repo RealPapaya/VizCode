@@ -111,9 +111,9 @@ _dashRegisterWidget({
         const fileEntries = [...byFile.entries()].sort((a, b) => b[1].length - a[1].length);
 
         container.innerHTML = `
-<div class="dash-card">
+<div class="dash-card dash-detail-section">
   <div class="dash-card-title"><span class="dash-card-title-dot" style="background:${color}"></span>Summary</div>
-  <div style="display:flex;gap:32px;padding:12px 0;">
+  <div class="dash-detail-stat-row" style="padding:12px 0;">
     <div>
       <div style="font-size:var(--text-display);font-weight:700;color:${color};line-height:1">${_dashFmtNum(count)}</div>
       <div style="font-size:var(--text-xs);color:var(--muted);margin-top:4px">unused symbols</div>
@@ -124,9 +124,9 @@ _dashRegisterWidget({
     </div>
   </div>
 </div>
-<div class="dash-card">
+<div class="dash-card dash-detail-section">
   <div class="dash-card-title"><span class="dash-card-title-dot"></span>Dead Symbols by File</div>
-  <div class="dash-list" style="max-height:340px;overflow-y:auto;">
+  <div class="dash-list dash-detail-flow-list">
     ${fileEntries.map(([file, syms]) => {
         const shortFile = file.split('/').pop();
         return `<div style="margin-bottom:8px;">
