@@ -47,6 +47,8 @@ const _srState = {
 let _srStream = null;
 let _srStreamBatchTimer = null;
 let _srStreamPending = [];
+let _srCodeFilterTimer = null;
+let _srFileFilterTimer = null;
 
 // ── Build search indices once ─────────────────────────────────────────────────
 function _srBuildIndex() {
@@ -609,9 +611,14 @@ function _srRenderActionBar() {
     const bar = document.getElementById('sr-action-bar');
     if (!bar) return;
 
+    const active = document.activeElement;
+    const restoreFocus = active && bar.contains(active) && active.classList.contains('sr-ab-filter-input')
+        ? { id: active.id, start: active.selectionStart, end: active.selectionEnd }
+        : null;
+    const hasActiveSearch = !!(_srState.query || _srState.include || _srState.exclude);
     const hasResults = _srState.mode === 'code'
-        ? (_srState._contentGroups.length > 0 || _srState._contentLoading)
-        : _srState.results.length > 0;
+        ? (_srState._contentGroups.length > 0 || _srState._contentLoading || hasActiveSearch)
+        : (_srState.results.length > 0 || hasActiveSearch);
 
     if (!hasResults) { bar.style.display = 'none'; return; }
 
@@ -678,12 +685,11 @@ function _srRenderActionBar() {
 
         const incInput = document.getElementById('sr-ab-inc');
         const excInput = document.getElementById('sr-ab-exc');
-        let _abTimer = null;
         function _abChanged() {
-            clearTimeout(_abTimer);
-            _abTimer = setTimeout(() => {
-                _srState.include = incInput?.value.trim() || '';
-                _srState.exclude = excInput?.value.trim() || '';
+            _srState.include = incInput?.value.trim() || '';
+            _srState.exclude = excInput?.value.trim() || '';
+            clearTimeout(_srCodeFilterTimer);
+            _srCodeFilterTimer = setTimeout(() => {
                 if (_srState.query) _srDebounce(_srState.query);
                 else _srRenderActionBar();
             }, 400);
@@ -692,6 +698,7 @@ function _srRenderActionBar() {
         if (excInput) excInput.addEventListener('input', _abChanged);
         bar.querySelectorAll('.sr-ab-filter-clear').forEach(btn => {
             btn.addEventListener('click', () => {
+                clearTimeout(_srCodeFilterTimer);
                 if (btn.dataset.target === 'inc') { _srState.include = ''; if (incInput) incInput.value = ''; }
                 else { _srState.exclude = ''; if (excInput) excInput.value = ''; }
                 if (_srState.query) _srDebounce(_srState.query);
@@ -768,12 +775,11 @@ function _srRenderActionBar() {
             });
         });
 
-        let _fTimer = null;
         function _fiChanged() {
-            clearTimeout(_fTimer);
-            _fTimer = setTimeout(() => {
-                _srState.include = iInc?.value.trim() || '';
-                _srState.exclude = iExc?.value.trim() || '';
+            _srState.include = iInc?.value.trim() || '';
+            _srState.exclude = iExc?.value.trim() || '';
+            clearTimeout(_srFileFilterTimer);
+            _srFileFilterTimer = setTimeout(() => {
                 _srBuildIndex();
                 _srState.results = _srSearchFiles(_srState.query);
                 _srRenderResults(); _srRenderActionBar();
@@ -783,6 +789,7 @@ function _srRenderActionBar() {
         if (iExc) iExc.addEventListener('input', _fiChanged);
         bar.querySelectorAll('.sr-ab-filter-clear').forEach(btn => {
             btn.addEventListener('click', () => {
+                clearTimeout(_srFileFilterTimer);
                 if (btn.dataset.target === 'inc') { _srState.include = ''; if (iInc) iInc.value = ''; }
                 else { _srState.exclude = ''; if (iExc) iExc.value = ''; }
                 _srState.results = _srSearchFiles(_srState.query);
@@ -795,6 +802,17 @@ function _srRenderActionBar() {
                 if (e.key === 'Escape') { inp.value = ''; inp.dispatchEvent(new Event('input')); e.stopPropagation(); }
                 if (e.key === 'Enter') e.stopPropagation();
             });
+        });
+    }
+
+    if (restoreFocus?.id) {
+        requestAnimationFrame(() => {
+            const el = document.getElementById(restoreFocus.id);
+            if (!el) return;
+            el.focus({ preventScroll: true });
+            if (typeof el.setSelectionRange === 'function' && restoreFocus.start != null) {
+                el.setSelectionRange(restoreFocus.start, restoreFocus.end ?? restoreFocus.start);
+            }
         });
     }
 }
@@ -1232,6 +1250,35 @@ function _srRenderTree(resultsEl, groups, q) {
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
+function _srEnsurePanelStructure(panel) {
+    let filters = document.getElementById('sr-filters');
+    if (filters) filters.remove();
+
+    let actionBar = document.getElementById('sr-action-bar');
+    if (!actionBar) {
+        const results = document.getElementById('sr-results');
+        if (results) results.insertAdjacentHTML('beforebegin',
+            '<div id="sr-action-bar" class="sr-action-bar" style="display:none"></div>');
+        else panel.insertAdjacentHTML('afterbegin',
+            '<div id="sr-action-bar" class="sr-action-bar" style="display:none"></div>');
+    }
+
+    if (!document.getElementById('sr-results')) {
+        const after = document.getElementById('sr-action-bar');
+        after.insertAdjacentHTML('afterend', '<div id="sr-results"></div>');
+    }
+
+    if (!panel.querySelector('.sr-footer')) {
+        panel.insertAdjacentHTML('beforeend', `
+<div class="sr-footer">
+  <span class="sr-footer-hint"><kbd>&uarr;&darr;</kbd> ${T('searchHintNavigate')}</span>
+  <span class="sr-footer-hint"><kbd>Enter</kbd> ${T('searchHintOpen')}</span>
+  <span class="sr-footer-hint"><kbd>Tab</kbd> ${T('searchHintSwitchMode')}</span>
+  <span class="sr-footer-hint"><kbd>Esc</kbd> ${T('searchHintClose')}</span>
+</div>`);
+    }
+}
+
 function _srRenderPanel() {
     const panel = document.getElementById('sr-panel');
     const countEl = document.getElementById('sr-count');
@@ -1251,6 +1298,8 @@ function _srRenderPanel() {
 
     if (!q) { panel.classList.remove('visible'); _srRenderActionBar(); return; }
     panel.classList.add('visible');
+
+    _srEnsurePanelStructure(panel);
 
     let actionBar = document.getElementById('sr-action-bar');
     let resultsEl = document.getElementById('sr-results');
@@ -1426,6 +1475,9 @@ function _srSetMode(mode) {
             _srRenderPanel();
         } else {
             _srState.results = [];
+            _srState._streamRendered = false;
+            _srState._streamRenderMode = _srState.viewMode;
+            _srRenderPanel();
             _srDebounce(_srState.query);
         }
     }
@@ -1476,21 +1528,6 @@ function initSearch() {
             if (e.key === 'w' || e.key === 'W') { e.preventDefault(); document.getElementById('srt-word').click(); }
             if (e.key === 'r' || e.key === 'R') { e.preventDefault(); document.getElementById('srt-regex').click(); }
         }
-    });
-
-    // Include / Exclude filter inputs
-    ['sr-include', 'sr-exclude'].forEach(id => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.addEventListener('input', () => {
-            _srState.include = document.getElementById('sr-include')?.value.trim() || '';
-            _srState.exclude = document.getElementById('sr-exclude')?.value.trim() || '';
-            if (_srState.query && _srState.mode === 'code') _srDebounce(_srState.query);
-        });
-        // Prevent search navigation keys from leaving filter input
-        el.addEventListener('keydown', e => {
-            if (e.key === 'Escape') { el.value = ''; el.dispatchEvent(new Event('input')); }
-        });
     });
 
     // Main input events
