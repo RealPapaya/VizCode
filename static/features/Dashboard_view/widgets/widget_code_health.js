@@ -2,6 +2,25 @@
 
 const _DASH_HEALTH_TRACK_LEN = Math.PI * 88;
 
+function _dashHealthGaugeSvg(score, color, opts = {}) {
+    const pct       = Math.max(0, Math.min(1, score / 10));
+    const fillLen   = (pct * _DASH_HEALTH_TRACK_LEN).toFixed(2);
+    const gapLen    = _DASH_HEALTH_TRACK_LEN.toFixed(2);
+    const scoreFont = opts.scoreFont || 28;
+    const denFont   = opts.denFont   || 13;
+    const denDy     = opts.denDy     || 20;
+    const showDen   = opts.showDen !== false;
+    const scoreY    = showDen ? (104 - denDy) : 100;
+    return `
+<svg class="dash-health-gauge-svg" viewBox="0 0 220 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"${opts.style ? ` style="${opts.style}"` : ''}>
+  <path class="dash-health-gauge-track" d="M 22 110 A 88 88 0 0 1 198 110"/>
+  <path class="dash-health-gauge-fill" d="M 22 110 A 88 88 0 0 1 198 110"
+        style="stroke-dasharray:${fillLen} ${gapLen};stroke:${color}"/>
+  <text x="110" y="${scoreY}" class="dash-health-gauge-score" style="font-size:${scoreFont}px">${score.toFixed(1)}</text>
+  ${showDen ? `<text x="110" y="104" class="dash-health-gauge-den" style="font-size:${denFont}px">/ 10</text>` : ''}
+</svg>`;
+}
+
 function _dashHealthCategoryFiles(key, stats) {
     if (key === 'complexity') return (stats.complexity_top_offenders || []).map(x => x.file);
     if (key === 'coupling') {
@@ -49,9 +68,10 @@ _dashRegisterWidget({
 <div class="dash-kpi-s">
   <div class="dash-kpi-s-body">
     <div class="dash-widget-title">Code Health</div>
-    <div class="dash-widget-stat" style="color:${color}">${score.toFixed(1)}</div>
-    <div class="dash-widget-sub" style="color:${color}">${_dashEscape(_dashT(statusKey))} / 10</div>
-    ${_dashMiniPills(worst)}
+    <div class="dash-health-gauge-area" style="flex:1;min-height:0;justify-content:center;margin-top:-4px;">
+      ${_dashHealthGaugeSvg(score, color, { scoreFont: 50, showDen: false, style: 'width:100%;max-width:100%;height:auto;display:block;' })}
+      <div class="dash-widget-sub" style="color:${color};margin-top:-6px;text-align:center;">${_dashEscape(_dashT(statusKey))}</div>
+    </div>
   </div>
 </div>`;
             return;
@@ -73,10 +93,12 @@ _dashRegisterWidget({
             }).join('');
             container.innerHTML = `
 <div class="dash-kpi-m">
-  <div class="dash-kpi-m-left">
+  <div class="dash-kpi-m-left" style="align-items:center;text-align:center;min-width:150px;">
     <div class="dash-widget-title">Code Health</div>
-    <div class="dash-widget-stat-md" style="color:${color}">${score.toFixed(1)}</div>
-    <div class="dash-widget-sub" style="color:${color}">${_dashEscape(_dashT(statusKey))} / 10</div>
+    <div class="dash-health-gauge-area" style="flex:0 0 auto;margin:2px 0;">
+      ${_dashHealthGaugeSvg(score, color, { scoreFont: 32, denFont: 12, denDy: 22, style: 'width:150px;height:auto;' })}
+    </div>
+    <div class="dash-widget-sub" style="color:${color}">${_dashEscape(_dashT(statusKey))}</div>
   </div>
   <div class="dash-kpi-m-sep"></div>
   <div class="dash-kpi-m-right">${bars}</div>

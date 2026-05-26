@@ -388,7 +388,9 @@ function _dashHandleSizePickerClick(e) {
     if (!widgetEl || !tier) return;
 
     const id = widgetEl.dataset.id;
-    const { w, h } = _DASH_SIZE_TIERS[tier] || _DASH_SIZE_TIERS.M;
+    const { w, h } = (typeof _dashWidgetSizeTier === 'function')
+        ? _dashWidgetSizeTier(id, tier)
+        : (_DASH_SIZE_TIERS[tier] || _DASH_SIZE_TIERS.M);
 
     if (!_dashGridHasRoom(id, w, h)) {
         const orig = btn.textContent;
@@ -436,14 +438,16 @@ const _DASH_AWP_CATEGORIES = [
             { id: 'complexity',    desc: 'Average and peak cyclomatic complexity.' },
             { id: 'most_complex',  desc: 'Functions and methods with the highest complexity scores.' },
             { id: 'duplication',   desc: 'Code duplication percentage and clones.' },
-            { id: 'dead_code',     desc: 'Unreferenced symbols and files that are safe to remove.' },
         ],
     },
     {
         label: 'Architecture',
         items: [
-            { id: 'issues',        desc: 'Circular dependencies, orphan modules, and architecture issues.' },
-            { id: 'coupling',      desc: 'Most-imported modules and dependency concentration heat.' },
+            { id: 'issues',         desc: 'Overview tile — circular, dead, and entry counts at a glance.' },
+            { id: 'circular_deps',  desc: 'Circular dependency cycles with expandable file chains and graph jump.' },
+            { id: 'dead_code',      desc: 'Unused functions and symbols, grouped by file with drill-in.' },
+            { id: 'entry_points',   desc: 'Files not imported by anyone — entry points and isolated nodes.' },
+            { id: 'coupling',       desc: 'Most-imported modules and dependency concentration heat.' },
         ],
     },
     {

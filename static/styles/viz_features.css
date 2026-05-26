@@ -107,11 +107,7 @@
 }
 
 .dash-card-title-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--accent);
-    flex-shrink: 0;
+    display: none;
 }
 
 .dash-chart-wrap {
@@ -349,8 +345,7 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    DASHBOARD_DESIGN_SPEC.md §2-§5 — bento grid · card variants · helpers
    These classes are additive: none of the existing widgets break if a
-   .dash-card-title-dot loses its inline style — the base rules above
-   already default to var(--accent).
+   .dash-card-title-dot loses its inline style.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* §2 — 12-column bento grid. Use instead of .dash-grid-2 / -3 / -full. */
@@ -959,6 +954,25 @@
     min-width: 380px;
     height: auto;
 }
+
+.dash-widget[data-id="commit_heatmap"] .dash-temporal-heatmap-body {
+    overflow-x: hidden;
+}
+
+.dash-widget[data-id="commit_heatmap"] .dash-temporal-heatmap-svg {
+    min-width: 0;
+}
+
+.dash-widget[data-id="commit_heatmap"] .dash-temporal-heatmap-legend {
+    flex-wrap: wrap;
+    row-gap: 4px;
+}
+
+.dash-widget[data-id="commit_heatmap"] .dash-temporal-heatmap-summary {
+    flex-basis: 100%;
+    margin-left: 0;
+}
+
 .dash-temporal-heatmap-label,
 .dash-temporal-heatmap-month {
     fill: var(--muted);
@@ -1941,12 +1955,15 @@
 .sr-ab-filter-icon {
     font-size: 11px;
     color: #34d399;
-    padding: 0 6px;
+    width: 24px;
+    padding: 0;
     flex-shrink: 0;
     border-right: 1px solid var(--border);
     align-self: stretch;
     display: flex;
     align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
     opacity: 0.8;
 }
 

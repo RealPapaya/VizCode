@@ -1958,7 +1958,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     circular_dep_count = len(circular_deps)
     
     # Get top circular dependency groups by size
-    top_circular_deps = sorted(circular_deps, key=len, reverse=True)[:3]
+    top_circular_deps = sorted(circular_deps, key=len, reverse=True)[:10]
     
     # Entry Points (root files - not imported by anyone)
     entry_points = [f for f in all_file_paths if f not in imported_files]
@@ -2107,14 +2107,19 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         _result['stats']['duplication_percent'] = round(dup['percent'] * 100, 1)
         _result['stats']['duplication_blocks']  = dup['blocks']
 
-        # God-file count = files whose outgoing call count crosses an absolute
-        # threshold. Previously this was len(top_caller_files), but that list
-        # is a fixed top-50 slice, so god_count saturated at 50 on any
+        # God-file count: files in the top 5% of outgoing-call counts AND
+        # with at least 100 outgoing calls. Both conditions are required so
+        # the metric stays meaningful across project sizes — a 30-file repo
+        # has at most ~2 god files, a 600-file repo at most ~30.
+        # The previous len(top_caller_files) approach saturated at 50 on any
         # non-trivial repo and forced the coupling sub-score to clamp to 0.
-        _GOD_FILE_CALL_THRESHOLD = 50
+        _GOD_FILE_CALL_FLOOR = 100
+        _GOD_FILE_TOP_RATIO  = 0.05
+        _top_callers_list = _result['stats'].get('top_caller_files', [])
+        _top_n = max(1, int(round(total * _GOD_FILE_TOP_RATIO)))
         god_count = sum(
-            1 for item in _result['stats'].get('top_caller_files', [])
-            if int(item.get('count', 0)) >= _GOD_FILE_CALL_THRESHOLD
+            1 for item in _top_callers_list[:_top_n]
+            if int(item.get('count', 0)) >= _GOD_FILE_CALL_FLOOR
         )
 
         debt = _compute_tech_debt(
@@ -2133,6 +2138,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             avg_complexity=cx['avg'],
             circular_deps=circular_dep_count,
             god_files=god_count,
+            total_files=total,
             dead_funcs=uncalled_func_count,
             total_funcs=cx['total_funcs'] or total_funcs,
             duplication_percent=dup['percent'],

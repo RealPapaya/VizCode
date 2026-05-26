@@ -1,139 +1,137 @@
 // @module Dashboard_view/widgets/widget_issues
-// Issues — circular deps, dead code, god files, longest functions. The
-// existing per-issue widgets compressed into a single 4-card row.
+// Architecture Issues — overview-only widget. Shows three KPI tiles
+// (Circular / Dead / Entry) as a quick health snapshot. Detailed
+// drill-down lives in the dedicated widget_circular_deps / widget_dead_code
+// / widget_entry_points widgets.
 
-function _dashRenderIssues(container, stats) {
-  if (!container) return;
-
-  // Issue cards differ in semantics: circular = warning, dead = neutral,
-  // entry = positive. We map to status tokens for the headline number while
-  // keeping the title-dot on accent (single-accent identity).
-  container.innerHTML = `
-<div class="dash-grid dash-grid-3" style="margin-bottom:var(--space-3)">
-  ${_dashIssueCard(
-    _dashT('dashIssuesCircular'),
-    'var(--status-warn)',
-    stats.circular_dependencies || 0,
-    _dashT('dashIssuesCirculaSub'),
-    _dashCircularList(stats.top_circular_deps || [])
-  )}
-  ${_dashIssueCard(
-    _dashT('dashIssuesDead'),
-    'var(--muted)',
-    stats.uncalled_functions || 0,
-    _dashT('dashIssuesDeadSub'),
-    `<div class="dash-issue-foot">${stats.unimported_files || 0} ${_dashEscape(_dashT('dashIssuesUnimported'))}</div>`
-  )}
-  ${_dashIssueCard(
-    _dashT('dashIssuesEntry'),
-    'var(--status-good)',
-    stats.entry_points || 0,
-    _dashT('dashIssuesEntrySub'),
-    `<div class="dash-issue-foot">${stats.isolated_files || 0} ${_dashEscape(_dashT('dashIssuesIsolated'))}</div>`
-  )}
-</div>
-<div class="dash-card">
-  <div class="dash-card-title">
-    <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashIssuesLongestFuncs'))}
-  </div>
-  <div class="dash-list">${_dashLongestFuncsRows(stats.longest_functions || [])}</div>
-</div>`;
+function _dashOvStatusColor(value, mode) {
+  // mode: 'warn' → > 0 is warn; 'good' → > 0 is good (entry points etc.)
+  if (mode === 'good') return value > 0 ? 'var(--status-good)' : 'var(--muted)';
+  return value > 0 ? 'var(--status-warn)' : 'var(--status-good)';
 }
 
-function _dashIssueCard(title, color, value, sub, extra) {
+function _dashOvTile(opts) {
+  // opts: { labelKey, value, sub, color, openWidgetId, drillFiles, drillTitle }
+  const value = opts.value || 0;
+  const color = opts.color || 'var(--muted)';
+  const sub = opts.sub || '';
+  const click = opts.drillFiles && opts.drillFiles.length
+    ? ` data-clickable="true" onclick="_dashOpenFileGroupDrilldown(${_dashJson(opts.drillTitle || '')}, ${_dashJson(opts.drillFiles)})"`
+    : '';
+  const cta = opts.drillFiles && opts.drillFiles.length
+    ? `<div class="dash-ov-tile-cta">${_dashEscape(_dashT('dashAllProblems'))} →</div>`
+    : '';
   return `
-<div class="dash-card">
-  <div class="dash-card-title">
-    <span class="dash-card-title-dot"></span>${_dashEscape(title)}
+<div class="dash-ov-tile sev-${opts.tier || 'info'}"${click}>
+  <div class="dash-arch-stat-row" style="gap:6px;align-items:center">
+    <span class="dash-arch-status-dot" style="color:${color};background:${color}"></span>
+    <div class="dash-ov-tile-label">${_dashEscape(_dashT(opts.labelKey))}</div>
   </div>
-  <div class="dash-issue-value" style="color:${color}">${_dashFmtNum(value)}</div>
-  <div class="dash-stat-sub dash-issue-sub">${_dashEscape(sub)}</div>
-  ${extra || ''}
+  <div class="dash-ov-tile-value" style="color:${color}">${_dashFmtNum(value)}</div>
+  <div class="dash-ov-tile-sub">${_dashEscape(sub)}</div>
+  ${cta}
 </div>`;
 }
 
-function _dashCircularList(cycles) {
-  if (!cycles.length) return `<div class="dash-issue-foot">✅ ${_dashEscape(_dashT('dashIssuesNoCycles'))}</div>`;
-  return `<div class="dash-list" style="margin-top:var(--space-2)">${cycles.slice(0, 3).map((cycle, i) => `
-<div class="dash-list-row dash-list-row--stacked">
-  <div class="dash-cycle-head">
-    <span class="dash-list-rank">${i + 1}</span>
-    <span class="dash-cycle-count">${cycle.length} files</span>
-  </div>
-  <div class="dash-cycle-path">
-    ${cycle.slice(0, 3).map(f => _dashEscape(String(f).split('/').pop())).join(' → ')}${cycle.length > 3 ? ` → +${cycle.length - 3}` : ''}
-  </div>
-</div>`).join('')}</div>`;
+function _dashOvTilesData(stats) {
+  const circular = stats.circular_dependencies || 0;
+  const cycles = stats.top_circular_deps || [];
+  // Flatten all cycle files for "view all" overlay
+  const cycleFiles = Array.from(new Set(cycles.flat()));
+
+  const deadFuncs = stats.uncalled_functions || 0;
+  const unimp = stats.unimported_files || 0;
+  const unimpFiles = stats.unimported_file_paths || [];
+
+  const entry = stats.entry_points || 0;
+  const iso = stats.isolated_files || 0;
+  const entryFiles = stats.entry_point_files || [];
+
+  return {
+    circular: {
+      labelKey: 'dashIssuesCircular',
+      value: circular,
+      sub: `${cycles.length} ${_dashT('dashCircularDepsSub')}`,
+      color: _dashOvStatusColor(circular),
+      tier: circular >= 5 ? 'critical' : (circular > 0 ? 'warn' : 'info'),
+      drillFiles: cycleFiles,
+      drillTitle: _dashT('dashIssuesCircular'),
+    },
+    dead: {
+      labelKey: 'dashIssuesDead',
+      value: deadFuncs,
+      sub: `${unimp} ${_dashT('dashIssuesUnimported')}`,
+      color: deadFuncs > 0 ? 'var(--muted)' : 'var(--status-good)',
+      tier: deadFuncs > 50 ? 'warn' : 'info',
+      drillFiles: unimpFiles,
+      drillTitle: _dashT('dashIssuesUnimported'),
+    },
+    entry: {
+      labelKey: 'dashIssuesEntry',
+      value: entry,
+      sub: `${iso} ${_dashT('dashIssuesIsolated')}`,
+      color: _dashOvStatusColor(entry, 'good'),
+      tier: 'info',
+      drillFiles: entryFiles,
+      drillTitle: _dashT('dashIssuesEntry'),
+    },
+  };
 }
 
-function _dashLongestFuncsRows(items) {
-  if (!items.length) return `<div class="dash-empty">${_dashEscape(_dashT('dashNoData'))}</div>`;
-  const max = items[0].lines || 1;
-  return items.slice(0, 8).map((it, i) => {
-    const fileJSON = JSON.stringify(it.file).replace(/"/g, '&quot;');
-    const nameJSON = JSON.stringify(it.name).replace(/"/g, '&quot;');
-    return `
-<div class="dash-list-row" data-clickable="true" data-tip="${_dashEscape(it.file)}"
-     onclick="_dashDrill(${fileJSON}, ${nameJSON})">
-  <span class="dash-list-rank">${i + 1}</span>
-  <span class="dash-list-name">${_dashEscape(it.name)}</span>
-  <div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${Math.round(it.lines / max * 100)}%"></div></div>
-  <span class="dash-list-val">${it.lines} lines</span>
+function _dashRenderIssuesOverview(container, stats, opts) {
+  const t = _dashOvTilesData(stats);
+  const layout = (opts && opts.layout) || 'grid'; // grid | row
+  const tiles = `${_dashOvTile(t.circular)}${_dashOvTile(t.dead)}${_dashOvTile(t.entry)}`;
+  container.innerHTML = `
+<div class="dash-arch-panel">
+  <div class="dash-arch-panel-header">
+    <div class="dash-arch-panel-title-block">
+      <div class="dash-arch-panel-title">${_dashEscape(_dashT('dashIssuesOverviewTitle'))}</div>
+      <div class="dash-arch-panel-sub">${_dashEscape(_dashT('dashIssuesOverviewSub'))}</div>
+    </div>
+  </div>
+  <div class="dash-arch-panel-body">
+    <div class="dash-ov-tiles dash-ov-tiles--${layout}">${tiles}</div>
+  </div>
 </div>`;
-  }).join('');
 }
 
 _dashRegisterWidget({
   id: 'issues',
-  labelKey: 'dashIssuesCircular',
-  defaultSize: 'L',
+  labelKey: 'dashIssuesOverviewTitle',
+  defaultSize: 'M',
 
   render(container, size, stats) {
     if (size === 'S') {
-      const circular = stats.circular_dependencies || 0;
-      const color = circular > 0 ? 'var(--status-warn)' : 'var(--status-good)';
+      // S = compact KPI showing the most-severe metric (circular) + dot row
+      const t = _dashOvTilesData(stats);
       container.innerHTML = `
 <div class="dash-kpi-s">
   <div class="dash-kpi-s-body">
-    <div class="dash-widget-title">Issues</div>
-    <div class="dash-widget-stat" style="color:${color}">${circular}</div>
-    <div class="dash-widget-sub">circular deps</div>
+    <div class="dash-widget-title">${_dashEscape(_dashT('dashIssuesOverviewTitle'))}</div>
+    <div class="dash-widget-stat" style="color:${t.circular.color}">${_dashFmtNum(t.circular.value)}</div>
+    <div class="dash-widget-sub">${_dashEscape(_dashT('dashIssuesCircular'))}</div>
+    <div class="dash-ov-dotrow">
+      <span title="${_dashEscape(_dashT('dashIssuesCircular'))}: ${t.circular.value}">
+        <span class="dash-arch-status-dot" style="color:${t.circular.color};background:${t.circular.color}"></span>${_dashFmtNum(t.circular.value)}
+      </span>
+      <span title="${_dashEscape(_dashT('dashIssuesDead'))}: ${t.dead.value}">
+        <span class="dash-arch-status-dot" style="color:${t.dead.color};background:${t.dead.color}"></span>${_dashFmtNum(t.dead.value)}
+      </span>
+      <span title="${_dashEscape(_dashT('dashIssuesEntry'))}: ${t.entry.value}">
+        <span class="dash-arch-status-dot" style="color:${t.entry.color};background:${t.entry.color}"></span>${_dashFmtNum(t.entry.value)}
+      </span>
+    </div>
   </div>
-</div>
 </div>`;
       return;
     }
 
-    if (size === 'M') {
-      container.innerHTML = `
-<div class="dash-grid dash-grid-3">
-  ${_dashIssueCard(
-        _dashT('dashIssuesCircular'),
-        'var(--status-warn)',
-        stats.circular_dependencies || 0,
-        _dashT('dashIssuesCirculaSub'),
-        _dashCircularList(stats.top_circular_deps || [])
-      )}
-  ${_dashIssueCard(
-        _dashT('dashIssuesDead'),
-        'var(--muted)',
-        stats.uncalled_functions || 0,
-        _dashT('dashIssuesDeadSub'),
-        `<div class="dash-issue-foot">${stats.unimported_files || 0} ${_dashEscape(_dashT('dashIssuesUnimported'))}</div>`
-      )}
-  ${_dashIssueCard(
-        _dashT('dashIssuesEntry'),
-        'var(--status-good)',
-        stats.entry_points || 0,
-        _dashT('dashIssuesEntrySub'),
-        `<div class="dash-issue-foot">${stats.isolated_files || 0} ${_dashEscape(_dashT('dashIssuesIsolated'))}</div>`
-      )}
-</div>`;
-      return;
-    }
-
-    _dashRenderIssues(container, stats);
+    // M and L both show 3 KPI tiles; L uses row layout (taller tiles), M uses grid
+    _dashRenderIssuesOverview(container, stats, { layout: size === 'L' ? 'row' : 'grid' });
   },
 
-  renderDetail(container, stats) { _dashRenderIssues(container, stats); },
+  renderDetail(container, stats) {
+    _dashRenderIssuesOverview(container, stats, { layout: 'row' });
+  },
 });

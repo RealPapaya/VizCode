@@ -23,7 +23,7 @@ const _DASH_DEFAULT_LAYOUT = [
 ];
 
 // Optional widgets (not in default layout; available via + Add Widget)
-const _DASH_OPTIONAL_IDS = ['overview', 'dead_code', 'coupling', 'issues', 'structure', 'graph_intelligence', 'churn_timeline', 'commit_heatmap', 'health_trend', 'bus_factor', 'branch_overview'];
+const _DASH_OPTIONAL_IDS = ['overview', 'dead_code', 'coupling', 'issues', 'circular_deps', 'entry_points', 'structure', 'graph_intelligence', 'churn_timeline', 'commit_heatmap', 'health_trend', 'bus_factor', 'branch_overview'];
 
 // Size tier definitions: S = small, M = medium, L = large
 const _DASH_SIZE_TIERS = {

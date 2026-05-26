@@ -552,6 +552,8 @@ def build_html(data: dict, job_id: str = None) -> str:
         # ── Optional widgets (available via + Add Widget) ─────────────────────
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_coupling.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_issues.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_circular_deps.js',
+        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_entry_points.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_structure.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_graph_intelligence.js',
         # ── Temporal sub-widgets must precede the orchestrator ────────────────

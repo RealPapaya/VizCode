@@ -9,7 +9,8 @@ without touching the analysis pipeline or the dashboard rendering code.
 Sub-scores (10 = excellent):
 
     complexity   30%   10 - clamp(avg_complexity / 10, 0, 10)
-    coupling     20%   10 - clamp((circular_deps + god_files) * 1.5, 0, 10)
+    coupling     20%   10 - clamp((circular_deps + god_files * 0.5)
+                                  / max(total_files * 0.1, 10) * 10, 0, 10)
     dead_code    20%   10 * (1 - dead_funcs / max(total_funcs, 1))
     duplication  15%   10 * (1 - duplication_percent)
     cohesion     15%   10 * graph_modularity   (Louvain Q)
@@ -47,8 +48,25 @@ def _score_complexity(avg_complexity: float) -> float:
     return 10.0 - _clamp(float(avg_complexity) / 10.0, 0.0, 10.0)
 
 
-def _score_coupling(circular_deps: int, god_files: int) -> float:
-    return 10.0 - _clamp((int(circular_deps) + int(god_files)) * 1.5, 0.0, 10.0)
+def _score_coupling(circular_deps: int, god_files: int, total_files: int) -> float:
+    """Penalize circular SCCs and god files, normalized by project size.
+
+    Penalty model:
+      raw = circular_deps + 0.5 * god_files
+      budget = max(total_files * 0.1, 10)   # ~10% of files = score 0
+      penalty = raw / budget * 10           # scale to 0..10 range
+
+    Floor of 10 keeps tiny projects from swinging wildly off a single hotspot.
+    Without size normalization the previous formula clamped to 0 on every
+    non-trivial repo (any project with circular_deps + god_files >= 7
+    instantly saturated).
+    """
+    if int(total_files) <= 0:
+        return 10.0
+    raw = float(circular_deps) + 0.5 * float(god_files)
+    budget = max(float(total_files) * 0.1, 10.0)
+    penalty = raw / budget * 10.0
+    return 10.0 - _clamp(penalty, 0.0, 10.0)
 
 
 def _score_dead_code(dead_funcs: int, total_funcs: int) -> float:
@@ -69,6 +87,7 @@ def compute_code_health(*,
                         avg_complexity: float,
                         circular_deps: int,
                         god_files: int,
+                        total_files: int,
                         dead_funcs: int,
                         total_funcs: int,
                         duplication_percent: float,
@@ -80,7 +99,7 @@ def compute_code_health(*,
     """
     breakdown = {
         'complexity':  round(_score_complexity(avg_complexity), 2),
-        'coupling':    round(_score_coupling(circular_deps, god_files), 2),
+        'coupling':    round(_score_coupling(circular_deps, god_files, total_files), 2),
         'dead_code':   round(_score_dead_code(dead_funcs, total_funcs), 2),
         'duplication': round(_score_duplication(duplication_percent), 2),
         'cohesion':    round(_score_cohesion(graph_modularity), 2),
