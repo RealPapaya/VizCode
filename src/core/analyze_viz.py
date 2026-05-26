@@ -2107,8 +2107,15 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         _result['stats']['duplication_percent'] = round(dup['percent'] * 100, 1)
         _result['stats']['duplication_blocks']  = dup['blocks']
 
-        # God-file count = top-tier callers (existing top_caller_files is top 5)
-        god_count = len(_result['stats'].get('top_caller_files', []))
+        # God-file count = files whose outgoing call count crosses an absolute
+        # threshold. Previously this was len(top_caller_files), but that list
+        # is a fixed top-50 slice, so god_count saturated at 50 on any
+        # non-trivial repo and forced the coupling sub-score to clamp to 0.
+        _GOD_FILE_CALL_THRESHOLD = 50
+        god_count = sum(
+            1 for item in _result['stats'].get('top_caller_files', [])
+            if int(item.get('count', 0)) >= _GOD_FILE_CALL_THRESHOLD
+        )
 
         debt = _compute_tech_debt(
             circular_count=circular_dep_count,
