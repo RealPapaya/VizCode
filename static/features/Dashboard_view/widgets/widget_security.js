@@ -43,17 +43,24 @@ function _dashSecIssueRow(issue, opts) {
     const sev   = issue.severity || 'low';
     const color = _dashSecSevColor(sev);
     const title = _dashEscape(issue.title || issue.rule_id || '');
-    const path  = _dashEscape(issue.path  || issue.file   || '');
-    const line  = issue.line ? `:${issue.line}` : '';
+    const rawPath = issue.path || issue.file || '';
+    const path  = _dashEscape(rawPath);
+    const lineNo = Number(issue.line) > 0 ? Number(issue.line) : 0;
+    const lineSuffix = lineNo ? `:${lineNo}` : '';
     const code  = issue.code ? `<div class="dash-list-sub" style="font-family:var(--font-mono,monospace);font-size:0.7rem;opacity:0.5;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_dashEscape(issue.code)}</div>` : '';
     const showCode = opts && opts.showCode;
+    const clickAttrs = rawPath
+        ? ` data-clickable="true" onclick="event.stopPropagation();_dashGoToGraphFile(${_dashJson(rawPath)}, null, ${lineNo || 'null'})"`
+        : '';
+    const cursorStyle = rawPath ? ';cursor:pointer' : '';
+    const tipAttr = rawPath ? ` title="${path}${lineSuffix}"` : '';
     return `
-<div class="dash-list-row" style="align-items:flex-start;padding:6px 8px">
+<div class="dash-list-row"${clickAttrs}${tipAttr} style="align-items:flex-start;padding:6px 8px${cursorStyle}">
   <span class="dash-arch-status-dot" style="color:${color};background:${color};margin-top:6px;flex-shrink:0"></span>
   <div style="flex:1;min-width:0">
     <div style="display:flex;gap:6px;align-items:baseline">
       <span style="font-weight:600;font-size:0.78rem">${title}</span>
-      <span style="font-size:0.68rem;opacity:0.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">${path}${line}</span>
+      <span style="font-size:0.68rem;opacity:0.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">${path}${lineSuffix}</span>
     </div>
     ${showCode ? code : ''}
   </div>

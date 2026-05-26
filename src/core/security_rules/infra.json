@@ -1,0 +1,87 @@
+{
+    "schema_rev": 1,
+    "rules": [
+        {
+            "id": "VZS110",
+            "name": "Dockerfile Runs As Root",
+            "applies_to": ["dockerfile"],
+            "severity": "medium",
+            "keywords": ["from "],
+            "custom_handler": "dockerfile_missing_user",
+            "recommendation": "Set a non-root USER near the end of the Dockerfile so the container does not run as uid 0."
+        },
+        {
+            "id": "VZS111",
+            "name": "Dockerfile ADD With Remote URL",
+            "applies_to": ["dockerfile"],
+            "severity": "medium",
+            "keywords": ["add "],
+            "pattern": "(?im)^\\s*ADD\\s+https?://",
+            "recommendation": "ADD with a URL skips checksum verification and bloats layers. Use RUN curl + sha256sum or COPY for local artefacts."
+        },
+        {
+            "id": "VZS112",
+            "name": "Dockerfile Floating Or Latest Tag",
+            "applies_to": ["dockerfile"],
+            "severity": "low",
+            "keywords": ["from "],
+            "pattern": "(?im)^\\s*FROM\\s+(?!scratch\\b)\\S+:latest\\b",
+            "count_min": 1,
+            "recommendation": "Pin base images to a specific tag or digest so builds are reproducible."
+        },
+        {
+            "id": "VZS113",
+            "name": "Dockerfile Privileged Build Flag",
+            "applies_to": ["dockerfile"],
+            "severity": "high",
+            "keywords": ["--privileged", "--security-opt"],
+            "pattern": "(?:--privileged\\b|--security-opt(?:=|\\s+)['\"]?(?:apparmor=unconfined|seccomp=unconfined))",
+            "recommendation": "Privileged or unconfined containers disable kernel isolation. Drop the flag and add only the capabilities you need."
+        },
+        {
+            "id": "VZS114",
+            "name": "Dockerfile apt-get Without Cleanup",
+            "applies_to": ["dockerfile"],
+            "severity": "low",
+            "keywords": ["apt-get install", "apt install"],
+            "custom_handler": "dockerfile_apt_no_cleanup",
+            "recommendation": "Combine apt-get install with --no-install-recommends and rm -rf /var/lib/apt/lists/* in the same RUN to keep images small."
+        },
+        {
+            "id": "VZS115",
+            "name": "Kubernetes Privileged Pod",
+            "applies_to": ["yaml"],
+            "severity": "high",
+            "keywords": ["privileged:", "runasnonroot:", "allowprivilegeescalation:"],
+            "pattern": "(?im)^\\s*(?:privileged|allowPrivilegeEscalation)\\s*:\\s*true\\s*$|^\\s*runAsNonRoot\\s*:\\s*false\\s*$",
+            "recommendation": "Privileged or root containers can escape isolation. Set runAsNonRoot: true and drop ALL capabilities, allow only what's needed."
+        },
+        {
+            "id": "VZS116",
+            "name": "Kubernetes Host Namespace Sharing",
+            "applies_to": ["yaml"],
+            "severity": "medium",
+            "keywords": ["hostnetwork:", "hostpid:", "hostipc:"],
+            "pattern": "(?im)^\\s*(?:hostNetwork|hostPID|hostIPC)\\s*:\\s*true\\s*$",
+            "recommendation": "Sharing the host network or PID namespace lets a pod observe and attack other workloads. Remove unless strictly required."
+        },
+        {
+            "id": "VZS117",
+            "name": "IAM Policy Wildcard Action And Resource",
+            "applies_to": ["yaml", "*"],
+            "severity": "high",
+            "keywords": ["\"action\"", "\"resource\"", "verbs:"],
+            "custom_handler": "iam_policy_action_wildcard",
+            "recommendation": "Action and Resource both set to '*' grants effectively-admin rights. Scope each statement to the verbs and ARNs it actually needs."
+        },
+        {
+            "id": "VZS118",
+            "name": "Terraform Ingress Open To World",
+            "applies_to": ["terraform"],
+            "severity": "high",
+            "keywords": ["0.0.0.0/0", "ingress"],
+            "pattern": "(?m)cidr_blocks\\s*=\\s*\\[\\s*\"0\\.0\\.0\\.0/0\"\\s*\\]",
+            "recommendation": "0.0.0.0/0 ingress exposes the port to the entire internet. Restrict to known CIDRs or front with a load balancer / VPN."
+        }
+    ]
+}

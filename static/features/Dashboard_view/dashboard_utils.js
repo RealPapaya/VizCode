@@ -151,7 +151,7 @@ function _dashMiniPills(items, options) {
     }).join('')}</div>`;
 }
 
-function _dashGoToGraphFile(filePath, funcName) {
+function _dashGoToGraphFile(filePath, funcName, line) {
     if (!filePath) return;
     if (typeof _dashCloseGroupDrilldown === 'function') _dashCloseGroupDrilldown();
     if (typeof _dashCloseDrilldown === 'function') _dashCloseDrilldown();
@@ -159,14 +159,23 @@ function _dashGoToGraphFile(filePath, funcName) {
 
     const rel = String(filePath).replace(/\\/g, '/');
     const modId = _dashFindModule(rel);
+    const lineNo = Number(line) > 0 ? Number(line) : 0;
+    const needsFile = !!(funcName || lineNo);
+
+    const afterFileOpen = () => {
+        if (lineNo && typeof jumpToLine === 'function') {
+            setTimeout(() => jumpToLine(lineNo), 260);
+        }
+    };
 
     if (modId && typeof drillToModule === 'function') {
         drillToModule(modId, { focusFile: rel });
-        if (funcName && typeof drillToFile === 'function') {
-            setTimeout(() => drillToFile(rel), 220);
+        if (needsFile && typeof drillToFile === 'function') {
+            setTimeout(() => { drillToFile(rel); afterFileOpen(); }, 220);
         }
-    } else if (funcName && typeof drillToFile === 'function') {
+    } else if (needsFile && typeof drillToFile === 'function') {
         drillToFile(rel);
+        afterFileOpen();
     }
 }
 

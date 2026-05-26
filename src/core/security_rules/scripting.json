@@ -1,0 +1,59 @@
+{
+    "schema_rev": 1,
+    "rules": [
+        {
+            "id": "VZS104",
+            "name": "PHP eval",
+            "applies_to": ["php"],
+            "severity": "high",
+            "keywords": ["eval("],
+            "pattern": "(?<![A-Za-z0-9_])eval\\s*\\(",
+            "recommendation": "PHP eval executes any string. Refactor with proper dispatch tables or json_decode; never eval untrusted input."
+        },
+        {
+            "id": "VZS105",
+            "name": "PHP Shell Command",
+            "applies_to": ["php"],
+            "severity": "high",
+            "keywords": ["shell_exec", "passthru", "system(", "proc_open", "popen(", "exec("],
+            "pattern": "(?<![A-Za-z0-9_])(?:shell_exec|passthru|system|proc_open|popen|exec)\\s*\\(",
+            "recommendation": "These functions execute a shell command. Use escapeshellarg/escapeshellcmd or a typed library; never concatenate user input."
+        },
+        {
+            "id": "VZS106",
+            "name": "PHP Unserialize With User Input",
+            "applies_to": ["php"],
+            "severity": "high",
+            "keywords": ["unserialize"],
+            "pattern": "\\bunserialize\\s*\\([^)]*\\$_(?:GET|POST|COOKIE|REQUEST|SERVER|FILES|SESSION)",
+            "recommendation": "PHP unserialize on user input triggers magic methods and POP chains. Use json_decode or igbinary with a whitelist class option."
+        },
+        {
+            "id": "VZS107",
+            "name": "PHP Dynamic Include From Request",
+            "applies_to": ["php"],
+            "severity": "high",
+            "keywords": ["include", "require"],
+            "pattern": "\\b(?:include|require)(?:_once)?\\s*\\(?\\s*\\$_(?:GET|POST|COOKIE|REQUEST)",
+            "recommendation": "Including a request-controlled path leads to RFI/LFI. Resolve against an explicit allowlist of templates."
+        },
+        {
+            "id": "VZS108",
+            "name": "Ruby Marshal.load",
+            "applies_to": ["ruby"],
+            "severity": "high",
+            "keywords": ["marshal.load"],
+            "pattern": "\\bMarshal\\.load\\s*\\(",
+            "recommendation": "Marshal.load instantiates any class and runs gadget chains. Use JSON or msgpack for untrusted input."
+        },
+        {
+            "id": "VZS109",
+            "name": "Ruby OpenSSL Verification Disabled",
+            "applies_to": ["ruby"],
+            "severity": "high",
+            "keywords": ["verify_none"],
+            "pattern": "OpenSSL::SSL::VERIFY_NONE",
+            "recommendation": "VERIFY_NONE disables TLS peer verification. Use VERIFY_PEER and provide a CA bundle via cert_store."
+        }
+    ]
+}

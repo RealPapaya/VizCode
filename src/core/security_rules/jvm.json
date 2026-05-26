@@ -1,0 +1,68 @@
+{
+    "schema_rev": 1,
+    "rules": [
+        {
+            "id": "VZS097",
+            "name": "Runtime.exec Command Injection",
+            "applies_to": ["java"],
+            "severity": "high",
+            "keywords": ["runtime.getruntime"],
+            "pattern": "\\bRuntime\\.getRuntime\\s*\\(\\s*\\)\\s*\\.exec\\s*\\(",
+            "recommendation": "Runtime.exec with a single string runs through a shell-like parser. Use ProcessBuilder with a List<String> of args."
+        },
+        {
+            "id": "VZS098",
+            "name": "Java Deserialization Sink",
+            "applies_to": ["java"],
+            "severity": "high",
+            "keywords": ["objectinputstream", "readobject", "xmldecoder"],
+            "pattern": "\\b(?:new\\s+ObjectInputStream\\s*\\(|\\.readObject\\s*\\(\\s*\\)|new\\s+XMLDecoder\\s*\\()",
+            "recommendation": "ObjectInputStream / XMLDecoder execute attacker-controlled class loaders. Use JSON or protobuf, or wrap with a strict ObjectInputFilter."
+        },
+        {
+            "id": "VZS099",
+            "name": "Weak Cipher Mode Or Algorithm",
+            "applies_to": ["java", "csharp"],
+            "severity": "high",
+            "keywords": ["cipher.getinstance", "createencryptor"],
+            "pattern": "(?:Cipher\\.getInstance\\s*\\(\\s*\"(?:AES/ECB|DES|DESede|RC2|RC4|Blowfish)[^\"]*\"|new\\s+(?:DES|RC2|RC4|TripleDES)CryptoServiceProvider\\s*\\(|\\.Mode\\s*=\\s*CipherMode\\.ECB)",
+            "recommendation": "ECB, DES, 3DES, RC2 and RC4 are insecure. Use AES-GCM with a 12-byte random IV (Java AES/GCM/NoPadding or .NET AesGcm)."
+        },
+        {
+            "id": "VZS100",
+            "name": "Dynamic Class Loading",
+            "applies_to": ["java"],
+            "severity": "medium",
+            "keywords": ["class.forname"],
+            "pattern": "\\bClass\\.forName\\s*\\(\\s*(?![\"'])",
+            "recommendation": "Class.forName with a non-literal argument allows attacker-chosen classes to be loaded. Resolve names against a fixed allowlist."
+        },
+        {
+            "id": "VZS101",
+            "name": ".NET Insecure Formatter",
+            "applies_to": ["csharp"],
+            "severity": "high",
+            "keywords": ["binaryformatter", "soapformatter", "netdatacontractserializer", "losformatter"],
+            "pattern": "\\bnew\\s+(?:BinaryFormatter|SoapFormatter|NetDataContractSerializer|LosFormatter|ObjectStateFormatter)\\s*\\(",
+            "recommendation": "These formatters can deserialize attacker types and run gadget chains. Use System.Text.Json or DataContractJsonSerializer."
+        },
+        {
+            "id": "VZS102",
+            "name": ".NET SqlCommand With String Concatenation",
+            "applies_to": ["csharp"],
+            "severity": "high",
+            "keywords": ["sqlcommand"],
+            "pattern": "new\\s+SqlCommand\\s*\\(\\s*[\"$][^\")]*(?:\\+\\s*\\w+|\\{)",
+            "recommendation": "Building SqlCommand text via concatenation or interpolation enables SQL injection. Use parameters with cmd.Parameters.AddWithValue."
+        },
+        {
+            "id": "VZS103",
+            "name": "Log4Shell JNDI Lookup Literal",
+            "applies_to": ["*"],
+            "severity": "high",
+            "keywords": ["${jndi:"],
+            "pattern": "\\$\\{jndi:(?:ldap|ldaps|rmi|dns|nis|iiop|corba|nds|http)s?:",
+            "recommendation": "A literal ${jndi:...} string suggests a Log4Shell payload or test. Ensure Log4j is ≥ 2.17 and that JNDI lookups are disabled."
+        }
+    ]
+}

@@ -1,109 +1,231 @@
-{
-  "schema_rev": 1,
-  "rules": [
-    {
-      "id": "VZS030",
-      "name": "Python eval()",
-      "applies_to": ["python"],
-      "severity": "high",
-      "keywords": ["eval"],
-      "pattern": "\\beval\\s*\\(",
-      "recommendation": "eval() executes arbitrary Python code. Use ast.literal_eval() for safe parsing.",
-      "source": "CodeFlow / Bandit B307"
-    },
-    {
-      "id": "VZS031",
-      "name": "Python exec()",
-      "applies_to": ["python"],
-      "severity": "high",
-      "keywords": ["exec"],
-      "pattern": "\\bexec\\s*\\(",
-      "recommendation": "exec() executes arbitrary Python code. This is almost always a security risk.",
-      "source": "CodeFlow / Bandit B102"
-    },
-    {
-      "id": "VZS032",
-      "name": "Pickle Deserialization",
-      "applies_to": ["python"],
-      "severity": "high",
-      "keywords": ["pickle"],
-      "pattern": "(?:\\bpickle\\.load|\\bunpickle\\b|\\bcPickle\\.load)",
-      "recommendation": "pickle.load() can execute arbitrary code from untrusted data. Use JSON or safe alternatives.",
-      "source": "CodeFlow / Bandit B301"
-    },
-    {
-      "id": "VZS033",
-      "name": "Shell Injection Risk",
-      "applies_to": ["python"],
-      "severity": "high",
-      "keywords": ["subprocess", "shell=true"],
-      "pattern": "subprocess\\.\\w+\\([^)]*shell\\s*=\\s*True",
-      "recommendation": "subprocess with shell=True is vulnerable to command injection. Use shell=False with a list of args.",
-      "source": "CodeFlow / Bandit B602"
-    },
-    {
-      "id": "VZS034",
-      "name": "OS Command Execution",
-      "applies_to": ["python"],
-      "severity": "high",
-      "keywords": ["os.system", "os.popen"],
-      "pattern": "\\bos\\.(?:system|popen)\\s*\\(",
-      "recommendation": "os.system()/os.popen() are vulnerable to command injection. Use subprocess with shell=False.",
-      "source": "CodeFlow / Bandit B605"
-    },
-    {
-      "id": "VZS035",
-      "name": "Dynamic Import",
-      "applies_to": ["python"],
-      "severity": "medium",
-      "keywords": ["__import__"],
-      "pattern": "__import__\\s*\\(",
-      "recommendation": "__import__() with user input can load arbitrary modules. Validate module names against an allowlist.",
-      "source": "CodeFlow"
-    },
-    {
-      "id": "VZS036",
-      "name": "Bare Except Clauses",
-      "applies_to": ["python"],
-      "severity": "medium",
-      "keywords": ["except"],
-      "pattern": "\\bexcept\\s*:",
-      "count_min": 3,
-      "skip_in_tests": true,
-      "recommendation": "Multiple bare except: clauses found. These catch all exceptions including SystemExit and KeyboardInterrupt.",
-      "source": "CodeFlow / Bandit B110"
-    },
-    {
-      "id": "VZS037",
-      "name": "Debug Mode Enabled",
-      "applies_to": ["python"],
-      "severity": "medium",
-      "keywords": ["debug"],
-      "pattern": "\\bDEBUG\\s*=\\s*True\\b",
-      "recommendation": "DEBUG = True found. Ensure this is disabled in production.",
-      "source": "CodeFlow"
-    },
-    {
-      "id": "VZS038",
-      "name": "Assert in Production",
-      "applies_to": ["python"],
-      "severity": "low",
-      "keywords": ["assert "],
-      "pattern": "^\\s*assert\\s+",
-      "count_min": 6,
-      "skip_in_tests": true,
-      "recommendation": "Multiple assert statements found. Assertions are stripped with python -O. Use proper validation.",
-      "source": "CodeFlow / Bandit B101"
-    },
-    {
-      "id": "VZS039",
-      "name": "HTTP Request Without Timeout",
-      "applies_to": ["python"],
-      "severity": "medium",
-      "keywords": ["requests."],
-      "custom_handler": "python_requests_no_timeout",
-      "recommendation": "requests calls without a timeout will hang forever on a dead socket. Add timeout= argument.",
-      "source": "Bandit B113"
-    }
-  ]
+﻿{
+    "schema_rev":  1,
+    "rules":  [
+                  {
+                      "id":  "VZS030",
+                      "name":  "Python eval()",
+                      "applies_to":  [
+                                         "python"
+                                     ],
+                      "severity":  "high",
+                      "keywords":  [
+                                       "eval"
+                                   ],
+                      "pattern":  "\\beval\\s*\\(",
+                      "recommendation":  "eval() executes arbitrary Python code. Use ast.literal_eval() for safe parsing."
+                  },
+                  {
+                      "id":  "VZS031",
+                      "name":  "Python exec()",
+                      "applies_to":  [
+                                         "python"
+                                     ],
+                      "severity":  "high",
+                      "keywords":  [
+                                       "exec"
+                                   ],
+                      "pattern":  "\\bexec\\s*\\(",
+                      "recommendation":  "exec() executes arbitrary Python code. This is almost always a security risk."
+                  },
+                  {
+                      "id":  "VZS032",
+                      "name":  "Pickle Deserialization",
+                      "applies_to":  [
+                                         "python"
+                                     ],
+                      "severity":  "high",
+                      "keywords":  [
+                                       "pickle"
+                                   ],
+                      "pattern":  "(?:\\bpickle\\.load|\\bunpickle\\b|\\bcPickle\\.load)",
+                      "recommendation":  "pickle.load() can execute arbitrary code from untrusted data. Use JSON or safe alternatives."
+                  },
+                  {
+                      "id":  "VZS033",
+                      "name":  "Shell Injection Risk",
+                      "applies_to":  [
+                                         "python"
+                                     ],
+                      "severity":  "high",
+                      "keywords":  [
+                                       "subprocess",
+                                       "shell=true"
+                                   ],
+                      "pattern":  "subprocess\\.\\w+\\([^)]*shell\\s*=\\s*True",
+                      "recommendation":  "subprocess with shell=True is vulnerable to command injection. Use shell=False with a list of args."
+                  },
+                  {
+                      "id":  "VZS034",
+                      "name":  "OS Command Execution",
+                      "applies_to":  [
+                                         "python"
+                                     ],
+                      "severity":  "high",
+                      "keywords":  [
+                                       "os.system",
+                                       "os.popen"
+                                   ],
+                      "pattern":  "\\bos\\.(?:system|popen)\\s*\\(",
+                      "recommendation":  "os.system()/os.popen() are vulnerable to command injection. Use subprocess with shell=False."
+                  },
+                  {
+                      "id":  "VZS035",
+                      "name":  "Dynamic Import",
+                      "applies_to":  [
+                                         "python"
+                                     ],
+                      "severity":  "medium",
+                      "keywords":  [
+                                       "__import__"
+                                   ],
+                      "pattern":  "__import__\\s*\\(",
+                      "recommendation":  "__import__() with user input can load arbitrary modules. Validate module names against an allowlist."
+                  },
+                  {
+                      "id":  "VZS036",
+                      "name":  "Bare Except Clauses",
+                      "applies_to":  [
+                                         "python"
+                                     ],
+                      "severity":  "medium",
+                      "keywords":  [
+                                       "except"
+                                   ],
+                      "pattern":  "\\bexcept\\s*:",
+                      "count_min":  3,
+                      "skip_in_tests":  true,
+                      "recommendation":  "Multiple bare except: clauses found. These catch all exceptions including SystemExit and KeyboardInterrupt."
+                  },
+                  {
+                      "id":  "VZS037",
+                      "name":  "Debug Mode Enabled",
+                      "applies_to":  [
+                                         "python"
+                                     ],
+                      "severity":  "medium",
+                      "keywords":  [
+                                       "debug"
+                                   ],
+                      "pattern":  "\\bDEBUG\\s*=\\s*True\\b",
+                      "recommendation":  "DEBUG = True found. Ensure this is disabled in production."
+                  },
+                  {
+                      "id":  "VZS038",
+                      "name":  "Assert in Production",
+                      "applies_to":  [
+                                         "python"
+                                     ],
+                      "severity":  "low",
+                      "keywords":  [
+                                       "assert "
+                                   ],
+                      "pattern":  "^\\s*assert\\s+",
+                      "count_min":  6,
+                      "skip_in_tests":  true,
+                      "recommendation":  "Multiple assert statements found. Assertions are stripped with python -O. Use proper validation."
+                  },
+                  {
+                      "id":  "VZS039",
+                      "name":  "HTTP Request Without Timeout",
+                      "applies_to":  [
+                                         "python"
+                                     ],
+                      "severity":  "medium",
+                      "keywords":  [
+                                       "requests."
+                                   ],
+                      "custom_handler":  "python_requests_no_timeout",
+                      "recommendation":  "requests calls without a timeout will hang forever on a dead socket. Add timeout= argument."
+                  },
+        {
+            "id": "VZS071",
+            "name": "Insecure Randomness For Security",
+            "applies_to": ["python"],
+            "severity": "medium",
+            "keywords": ["random."],
+            "pattern": "(?i)\\b(?:token|secret|password|passwd|salt|nonce|csrf|reset_key|api_key|session_id)\\b[^\\n]{0,40}=\\s*random\\.(?:random|randint|randrange|choice|choices|getrandbits|sample|uniform)\\s*\\(",
+            "recommendation": "random is not cryptographically secure. Use secrets.token_urlsafe() or secrets.choice() for tokens, salts, and IDs."
+        },
+        {
+            "id": "VZS072",
+            "name": "Unsafe yaml.load",
+            "applies_to": ["python"],
+            "severity": "high",
+            "keywords": ["yaml.load"],
+            "pattern": "\\byaml\\.load\\s*\\((?![^)]*Loader\\s*=\\s*(?:yaml\\.)?(?:Safe|CSafe)Loader)",
+            "recommendation": "yaml.load without SafeLoader can execute arbitrary objects. Use yaml.safe_load() or pass Loader=SafeLoader."
+        },
+        {
+            "id": "VZS073",
+            "name": "XML Parser Vulnerable To XXE",
+            "applies_to": ["python"],
+            "severity": "high",
+            "keywords": ["xml.etree", "xml.sax", "xml.dom", "lxml.etree"],
+            "custom_handler": "python_xml_unsafe_parse",
+            "recommendation": "stdlib and lxml XML parsers are vulnerable to XXE and billion-laughs. Use defusedxml.ElementTree instead."
+        },
+        {
+            "id": "VZS074",
+            "name": "Flask Debug Mode Enabled",
+            "applies_to": ["python"],
+            "severity": "medium",
+            "keywords": ["app.run", "debug=true"],
+            "pattern": "\\.run\\s*\\([^)]*\\bdebug\\s*=\\s*True",
+            "recommendation": "Flask debug mode exposes the Werkzeug console — remote code execution if reachable. Disable in any deployed environment."
+        },
+        {
+            "id": "VZS075",
+            "name": "Django Debug Mode Enabled",
+            "applies_to": ["python"],
+            "severity": "medium",
+            "keywords": ["debug"],
+            "pattern": "(?m)^\\s*DEBUG\\s*=\\s*True\\s*$",
+            "recommendation": "Django DEBUG=True leaks stack traces and settings on error pages. Gate via environment variable in production."
+        },
+        {
+            "id": "VZS076",
+            "name": "Insecure Temp File (mktemp)",
+            "applies_to": ["python"],
+            "severity": "medium",
+            "keywords": ["mktemp"],
+            "pattern": "\\btempfile\\.mktemp\\s*\\(",
+            "recommendation": "tempfile.mktemp is race-prone. Use NamedTemporaryFile or mkstemp which return an open file descriptor atomically."
+        },
+        {
+            "id": "VZS077",
+            "name": "Paramiko Auto-Add Host Key",
+            "applies_to": ["python"],
+            "severity": "high",
+            "keywords": ["autoaddpolicy"],
+            "pattern": "\\b(?:AutoAddPolicy|WarningPolicy)\\s*\\(\\s*\\)",
+            "recommendation": "AutoAddPolicy trusts any SSH host key. Use load_system_host_keys() with RejectPolicy and pin known hosts."
+        },
+        {
+            "id": "VZS078",
+            "name": "ECB Cipher Mode",
+            "applies_to": ["python"],
+            "severity": "high",
+            "keywords": ["mode_ecb"],
+            "pattern": "\\b(?:AES|DES|DES3|Blowfish|ARC2|CAST)\\.MODE_ECB\\b",
+            "recommendation": "ECB leaks plaintext structure. Use AES-GCM or AES-CBC with a random IV and a separate MAC."
+        },
+        {
+            "id": "VZS079",
+            "name": "Unsafe Deserialization",
+            "applies_to": ["python"],
+            "severity": "medium",
+            "keywords": ["marshal.load", "shelve.open", "dill.load", "jsonpickle"],
+            "pattern": "\\b(?:marshal\\.loads?|shelve\\.open|dill\\.loads?|jsonpickle\\.decode)\\s*\\(",
+            "recommendation": "marshal, shelve, dill and jsonpickle can deserialize attacker-controlled objects. Use json or msgpack for untrusted input."
+        },
+        {
+            "id": "VZS080",
+            "name": "SSL Context With Verification Disabled",
+            "applies_to": ["python"],
+            "severity": "high",
+            "keywords": ["cert_none", "_create_unverified_context"],
+            "pattern": "(?:ssl\\.CERT_NONE\\b|ssl\\._create_unverified_context\\s*\\(|verify_mode\\s*=\\s*ssl\\.CERT_NONE\\b)",
+            "recommendation": "ssl.CERT_NONE disables certificate verification. Use ssl.create_default_context() and keep CERT_REQUIRED."
+        }
+              ]
 }

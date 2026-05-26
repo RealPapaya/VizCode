@@ -1,37 +1,163 @@
-{
-  "schema_rev": 1,
-  "rules": [
-    {
-      "id": "VZS020",
-      "name": "SQL Injection Risk",
-      "applies_to": ["python", "javascript", "typescript", "java", "csharp", "php"],
-      "severity": "high",
-      "keywords": ["query(", "execute(", "rawquery", "raw_sql"],
-      "pattern": "(?:query|execute|rawQuery|raw_sql)\\s*\\(\\s*['\"`][^'\"`]*(?:\\s*\\+|\\$\\{)[^'\"`]*(?:SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)",
-      "recommendation": "String concatenation in SQL queries. Use parameterized queries instead.",
-      "source": "CodeFlow"
-    },
-    {
-      "id": "VZS022",
-      "name": "XSS via dangerouslySetInnerHTML",
-      "applies_to": ["javascript", "typescript"],
-      "severity": "high",
-      "keywords": ["dangerouslysetinnerhtml"],
-      "pattern": "\\bdangerouslySetInnerHTML\\b",
-      "recommendation": "React's dangerouslySetInnerHTML bypasses XSS protection. Sanitize HTML before injecting.",
-      "source": "CodeFlow / njsscan"
-    },
-    {
-      "id": "VZS023",
-      "name": "JWT Token Literal",
-      "applies_to": ["*"],
-      "severity": "high",
-      "keywords": ["eyj"],
-      "pattern": "\\b(eyJ[A-Za-z0-9_\\-]{10,}\\.eyJ[A-Za-z0-9_\\-]{10,}\\.[A-Za-z0-9_\\-]{10,})\\b",
-      "entropy_capture_group": 1,
-      "entropy_min": 3.5,
-      "recommendation": "JWT token literal in source. Store tokens server-side and never commit them.",
-      "source": "Gitleaks jwt"
-    }
-  ]
+﻿{
+    "schema_rev":  1,
+    "rules":  [
+                  {
+                      "id":  "VZS020",
+                      "name":  "SQL Injection Risk",
+                      "applies_to":  [
+                                         "python",
+                                         "javascript",
+                                         "typescript",
+                                         "java",
+                                         "csharp",
+                                         "php"
+                                     ],
+                      "severity":  "high",
+                      "keywords":  [
+                                       "query(",
+                                       "execute(",
+                                       "rawquery",
+                                       "raw_sql"
+                                   ],
+                      "pattern":  "(?:query|execute|rawQuery|raw_sql)\\s*\\(\\s*[\u0027\"`][^\u0027\"`]*(?:\\s*\\+|\\$\\{)[^\u0027\"`]*(?:SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)",
+                      "recommendation":  "String concatenation in SQL queries. Use parameterized queries instead."
+                  },
+                  {
+                      "id":  "VZS022",
+                      "name":  "XSS via dangerouslySetInnerHTML",
+                      "applies_to":  [
+                                         "javascript",
+                                         "typescript"
+                                     ],
+                      "severity":  "high",
+                      "keywords":  [
+                                       "dangerouslysetinnerhtml"
+                                   ],
+                      "pattern":  "\\bdangerouslySetInnerHTML\\b",
+                      "recommendation":  "React\u0027s dangerouslySetInnerHTML bypasses XSS protection. Sanitize HTML before injecting."
+                  },
+                  {
+                      "id":  "VZS023",
+                      "name":  "JWT Token Literal",
+                      "applies_to":  [
+                                         "*"
+                                     ],
+                      "severity":  "high",
+                      "keywords":  [
+                                       "eyj"
+                                   ],
+                      "pattern":  "\\b(eyJ[A-Za-z0-9_\\-]{10,}\\.eyJ[A-Za-z0-9_\\-]{10,}\\.[A-Za-z0-9_\\-]{10,})\\b",
+                      "entropy_capture_group":  1,
+                      "entropy_min":  3.5,
+                      "recommendation":  "JWT token literal in source. Store tokens server-side and never commit them."
+                  },
+        {
+            "id": "VZS081",
+            "name": "document.write Usage",
+            "applies_to": ["javascript", "typescript", "html"],
+            "severity": "medium",
+            "keywords": ["document.write"],
+            "pattern": "\\bdocument\\.write(?:ln)?\\s*\\(",
+            "recommendation": "document.write is an XSS sink that also blocks the parser. Build DOM nodes with createElement / textContent instead."
+        },
+        {
+            "id": "VZS082",
+            "name": "innerHTML Sink",
+            "applies_to": ["javascript", "typescript"],
+            "severity": "medium",
+            "keywords": ["innerhtml", "outerhtml", "insertadjacenthtml"],
+            "pattern": "\\.(?:innerHTML|outerHTML)\\s*(?:\\+=|=)\\s*(?![`'\"]<[^`'\"<>]{0,200}>[`'\"]\\s*[;)])|\\.insertAdjacentHTML\\s*\\(",
+            "recommendation": "Assigning to innerHTML with variable content is an XSS sink. Use textContent or sanitize via DOMPurify first."
+        },
+        {
+            "id": "VZS083",
+            "name": "Token Stored In localStorage",
+            "applies_to": ["javascript", "typescript"],
+            "severity": "medium",
+            "keywords": ["localstorage", "sessionstorage"],
+            "pattern": "(?:localStorage|sessionStorage)\\.setItem\\s*\\(\\s*['\"`](?:[A-Za-z0-9_\\-]*?(?:token|jwt|auth|secret|api[_-]?key|refresh|session)[A-Za-z0-9_\\-]*?)['\"`]",
+            "recommendation": "Storing auth tokens in localStorage exposes them to any XSS payload. Use an httpOnly cookie with SameSite."
+        },
+        {
+            "id": "VZS084",
+            "name": "Math.random For Security",
+            "applies_to": ["javascript", "typescript"],
+            "severity": "medium",
+            "keywords": ["math.random"],
+            "pattern": "(?i)\\b(?:token|secret|password|passwd|salt|nonce|csrf|reset|sessionid|otp)\\b[^\\n]{0,80}=\\s*[^;\\n]{0,80}Math\\.random\\s*\\(",
+            "recommendation": "Math.random is not cryptographically secure. Use crypto.getRandomValues or the Web Crypto API for security tokens."
+        },
+        {
+            "id": "VZS085",
+            "name": "Deprecated crypto.createCipher",
+            "applies_to": ["javascript", "typescript"],
+            "severity": "high",
+            "keywords": ["createcipher", "createdecipher"],
+            "pattern": "\\bcrypto\\.create(?:Cipher|Decipher)\\s*\\(",
+            "recommendation": "crypto.createCipher derives a key from a password with MD5. Use createCipheriv with a random 12-byte IV and AES-GCM."
+        },
+        {
+            "id": "VZS086",
+            "name": "String Argument To Timer Function",
+            "applies_to": ["javascript", "typescript", "html"],
+            "severity": "medium",
+            "keywords": ["settimeout", "setinterval"],
+            "custom_handler": "js_string_timer_call",
+            "recommendation": "Passing a string to setTimeout / setInterval routes through eval. Pass a function or arrow expression instead."
+        },
+        {
+            "id": "VZS087",
+            "name": "postMessage Wildcard Target Origin",
+            "applies_to": ["javascript", "typescript"],
+            "severity": "medium",
+            "keywords": ["postmessage"],
+            "pattern": "\\.postMessage\\s*\\([^,)]+,\\s*['\"`]\\*['\"`]",
+            "recommendation": "postMessage with '*' target origin lets any frame receive the payload. Pin to a concrete origin."
+        },
+        {
+            "id": "VZS088",
+            "name": "Node TLS Verification Disabled",
+            "applies_to": ["javascript", "typescript"],
+            "severity": "high",
+            "keywords": ["node_tls_reject_unauthorized"],
+            "pattern": "NODE_TLS_REJECT_UNAUTHORIZED['\"]?\\s*[\\]:=]\\s*['\"]0['\"]",
+            "recommendation": "Setting NODE_TLS_REJECT_UNAUTHORIZED=0 disables certificate validation globally. Fix the certificate chain instead."
+        },
+        {
+            "id": "VZS089",
+            "name": "Framework Sanitizer Bypass",
+            "applies_to": ["javascript", "typescript", "html"],
+            "severity": "high",
+            "keywords": ["v-html", "bypasssecuritytrust", "ng-bind-html"],
+            "pattern": "(?:\\sv-html\\s*=|\\bbypassSecurityTrust(?:Html|Script|Style|Url|ResourceUrl)\\s*\\(|\\sng-bind-html\\s*=)",
+            "recommendation": "Vue v-html / Angular bypassSecurityTrust render unsanitized HTML. Pass content through DOMPurify before binding."
+        },
+        {
+            "id": "VZS090",
+            "name": "CORS Wildcard Origin",
+            "applies_to": ["javascript", "typescript"],
+            "severity": "medium",
+            "keywords": ["cors", "access-control-allow-origin"],
+            "pattern": "(?:cors\\s*\\(\\s*\\{[^}]*origin\\s*:\\s*['\"`]\\*['\"`]|['\"]Access-Control-Allow-Origin['\"]\\s*[,:]\\s*['\"`]\\*['\"`])",
+            "recommendation": "CORS wildcard origin lets any site read responses. Echo only allowed origins from a server-side allowlist."
+        },
+        {
+            "id": "VZS091",
+            "name": "jQuery .html With Variable",
+            "applies_to": ["javascript", "typescript"],
+            "severity": "medium",
+            "keywords": [".html("],
+            "pattern": "\\$\\([^)]+\\)\\.html\\s*\\(\\s*[A-Za-z_$][\\w$.]*\\s*\\)",
+            "recommendation": "jQuery .html with a variable is an XSS sink. Use .text() or sanitize with DOMPurify before .html()."
+        },
+        {
+            "id": "VZS092",
+            "name": "javascript: URL Scheme",
+            "applies_to": ["javascript", "typescript", "html"],
+            "severity": "medium",
+            "keywords": ["javascript:"],
+            "pattern": "(?:href|src|action|formaction)\\s*=\\s*['\"`]\\s*javascript:",
+            "recommendation": "javascript: URLs execute as script. Bind a click handler instead, or validate that hrefs start with https://."
+        }
+              ]
 }

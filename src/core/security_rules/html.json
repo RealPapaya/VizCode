@@ -1,0 +1,33 @@
+{
+    "schema_rev": 1,
+    "rules": [
+        {
+            "id": "VZS119",
+            "name": "target=_blank Without rel=noopener",
+            "applies_to": ["html"],
+            "severity": "medium",
+            "keywords": ["target=\"_blank\"", "target='_blank'"],
+            "pattern": "<a\\b[^>]*\\btarget\\s*=\\s*['\"]_blank['\"](?![^>]*\\brel\\s*=\\s*['\"][^'\"]*\\bnoopener\\b)",
+            "count_min": 1,
+            "recommendation": "Links opening in a new tab need rel=\"noopener noreferrer\" so the target page cannot manipulate window.opener."
+        },
+        {
+            "id": "VZS120",
+            "name": "External Script Without Subresource Integrity",
+            "applies_to": ["html"],
+            "severity": "medium",
+            "keywords": ["<script"],
+            "pattern": "<script\\b[^>]*\\bsrc\\s*=\\s*['\"]https?://(?![^>]*\\bintegrity\\s*=)",
+            "recommendation": "Third-party script loaded without integrity=\"sha384-...\" trusts the CDN entirely. Add a SubResource Integrity hash."
+        },
+        {
+            "id": "VZS121",
+            "name": "Form Submitted Over HTTP",
+            "applies_to": ["html"],
+            "severity": "medium",
+            "keywords": ["<form"],
+            "pattern": "<form\\b[^>]*\\baction\\s*=\\s*['\"]http://",
+            "recommendation": "Form posts over plain HTTP leak credentials on the wire. Use https:// or a same-origin path."
+        }
+    ]
+}

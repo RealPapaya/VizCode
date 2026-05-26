@@ -2,13 +2,12 @@
 """
 core/security_scanner.py — VIZCODE regex-based security scanner.
 
-Pure-function module modelled on code_health.py: callers load rules once,
-pre-compile them, then call scan_file(src, ext, rel, rules) per file.
+Pure-function module: callers load rules once, pre-compile them, then call
+scan_file(src, ext, rel, rules) per file. Zero external dependencies.
 
-Zero external dependencies. Rules live in src/core/security_rules/*.json
-in a DevSkim-inspired schema. Secret-detection rules apply a three-stage
-filter (keyword substring pre-check → regex → Shannon entropy + allowlist)
-to keep false positives low — modelled on Gitleaks.
+Rules live in src/core/security_rules/*.json. Secret-detection rules apply
+a three-stage filter — keyword substring pre-check → regex → Shannon entropy
+plus allowlist — to keep false positives low.
 
 Per-scan history is appended to <project>/.vizcode/security_history.json
 so the dashboard widget can render a trend sparkline across runs.
@@ -27,18 +26,28 @@ _HISTORY_FILENAME = "security_history.json"
 _HISTORY_CAP      = 50
 
 EXT_TO_LANG = {
-    '.py':   'python',     '.pyw':  'python',     '.pyi':  'python',
-    '.js':   'javascript', '.mjs':  'javascript', '.cjs':  'javascript',
-    '.jsx':  'javascript',
-    '.ts':   'typescript', '.tsx':  'typescript',
-    '.go':   'go',
-    '.java': 'java',
-    '.cs':   'csharp',
-    '.php':  'php',
-    '.rb':   'ruby',
-    '.html': 'html',       '.htm':  'html',
-    '.vb':   'vba',        '.vba':  'vba',        '.bas':  'vba',
-    '.cls':  'vba',        '.frm':  'vba',
+    '.py':         'python',     '.pyw':  'python',     '.pyi':  'python',
+    '.js':         'javascript', '.mjs':  'javascript', '.cjs':  'javascript',
+    '.jsx':        'javascript',
+    '.ts':         'typescript', '.tsx':  'typescript',
+    '.go':         'go',
+    '.java':       'java',
+    '.cs':         'csharp',
+    '.php':        'php',
+    '.rb':         'ruby',
+    '.html':       'html',       '.htm':  'html',
+    '.vb':         'vba',        '.vba':  'vba',        '.bas':  'vba',
+    '.cls':        'vba',        '.frm':  'vba',
+    '.yml':        'yaml',       '.yaml': 'yaml',
+    '.tf':         'terraform',  '.tfvars': 'terraform',
+    '.dockerfile': 'dockerfile',
+}
+
+# Filename-based detection for files without a meaningful extension (Dockerfile).
+# Matched on lower-cased basename after the extension lookup misses.
+_FILENAME_TO_LANG = {
+    'dockerfile':    'dockerfile',
+    'containerfile': 'dockerfile',
 }
 
 SEVERITY_RANK = {'high': 3, 'medium': 2, 'low': 1}
@@ -69,7 +78,8 @@ def load_rules(rules_dir: Path) -> list[dict]:
         return rules
     for fp in sorted(rules_dir.glob('*.json')):
         try:
-            data = json.loads(fp.read_text(encoding='utf-8'))
+            # utf-8-sig tolerates an optional BOM (e.g. files re-saved by PowerShell).
+            data = json.loads(fp.read_text(encoding='utf-8-sig'))
         except Exception:
             continue
         if not isinstance(data, dict):
@@ -119,7 +129,7 @@ def scan_file(src: str, ext: str, rel: str, compiled_rules: list[dict]) -> list[
     Issue schema::
 
         {rule_id, severity, title, file, path, line, desc,
-         code, recommendation, source}
+         code, recommendation}
 
     Silent-fail per rule: a rule that throws will not abort the whole scan.
     """
@@ -128,7 +138,7 @@ def scan_file(src: str, ext: str, rel: str, compiled_rules: list[dict]) -> list[
     if _should_skip(rel, src):
         return []
 
-    lang     = EXT_TO_LANG.get((ext or '').lower(), 'text')
+    lang     = _detect_lang(rel, ext)
     is_test  = _is_test_file(rel)
     lines    = src.split('\n')
     src_low  = src.lower()
@@ -177,7 +187,6 @@ def scan_file(src: str, ext: str, rel: str, compiled_rules: list[dict]) -> list[
                     'desc':           f"{len(hits)} occurrences. " + rule.get('recommendation', ''),
                     'code':           '',
                     'recommendation': rule.get('recommendation', ''),
-                    'source':         rule.get('source', ''),
                 })
                 continue
 
@@ -192,7 +201,6 @@ def scan_file(src: str, ext: str, rel: str, compiled_rules: list[dict]) -> list[
                     'desc':           rule.get('recommendation', ''),
                     'code':           hit.get('code', ''),
                     'recommendation': rule.get('recommendation', ''),
-                    'source':         rule.get('source', ''),
                 })
         except Exception:
             continue
@@ -236,6 +244,9 @@ def _should_skip(rel: str, src: str) -> bool:
     rl = rel.lower().replace('\\', '/')
     if any(rl.endswith(s) for s in _SKIP_SUFFIX):
         return True
+    # Terraform state always contains real credentials post-apply — never report.
+    if rl.endswith('.tfstate') or rl.endswith('.tfstate.backup'):
+        return True
     if '/node_modules/' in rl or '/.vizcode/' in rl or '/vendor/' in rl or '/__pycache__/' in rl:
         return True
     if '/security_rules/' in rl:
@@ -250,6 +261,25 @@ def _should_skip(rel: str, src: str) -> bool:
         if avg > _MINIFIED_AVG_LINE_LEN:
             return True
     return False
+
+
+def _detect_lang(rel: str, ext: str) -> str:
+    """Map *rel*/(ext) to a language tag understood by ``applies_to`` filters.
+
+    Extension lookup wins first. Falls back to filename-based detection for
+    files without a useful extension (Dockerfile, Containerfile, *.dockerfile).
+    Unknown files become ``'text'`` and only match ``applies_to: ['*']`` rules.
+    """
+    ext_low = (ext or '').lower()
+    lang    = EXT_TO_LANG.get(ext_low)
+    if lang:
+        return lang
+    base = rel.replace('\\', '/').rsplit('/', 1)[-1].lower()
+    if base in _FILENAME_TO_LANG:
+        return _FILENAME_TO_LANG[base]
+    if base.endswith('.dockerfile'):
+        return 'dockerfile'
+    return 'text'
 
 
 def _is_test_file(rel: str) -> bool:
@@ -304,12 +334,140 @@ def _python_requests_no_timeout(src: str, lines: list[str]) -> list[dict]:
     return hits
 
 
+def _python_xml_unsafe_parse(src: str, lines: list[str]) -> list[dict]:
+    """Flag stdlib/lxml XML parsing calls when ``defusedxml`` is absent.
+
+    XXE & billion-laughs attacks ride on ``xml.etree`` / ``xml.sax`` /
+    ``xml.dom.minidom`` / ``lxml.etree``. If the file already pulls in
+    ``defusedxml`` we assume the author swapped to a safe parser elsewhere
+    and skip the report.
+    """
+    if 'defusedxml' in src:
+        return []
+    hits: list[dict] = []
+    rx = re.compile(
+        r'\b(?:'
+        r'xml\.etree\.ElementTree\.(?:parse|fromstring|XML|iterparse)'
+        r'|ElementTree\.(?:parse|fromstring|XML|iterparse)'
+        r'|xml\.sax\.(?:parse|parseString|make_parser)'
+        r'|xml\.dom\.minidom\.parse(?:String)?'
+        r'|xml\.dom\.pulldom\.parse(?:String)?'
+        r'|lxml\.etree\.(?:parse|fromstring|XML)'
+        r')\s*\('
+    )
+    for m in rx.finditer(src):
+        line_no = src.count('\n', 0, m.start()) + 1
+        code    = lines[line_no - 1].strip()[:80] if 0 < line_no <= len(lines) else ''
+        hits.append({'line': line_no, 'code': code})
+    return hits
+
+
+def _js_string_timer_call(src: str, lines: list[str]) -> list[dict]:
+    """Flag ``setTimeout``/``setInterval`` invoked with a string-literal body.
+
+    Passing a string to a timer routes through the same machinery as ``eval``.
+    A function-reference or arrow callback is the safe form.
+    """
+    hits: list[dict] = []
+    rx = re.compile(r'\b(?:setTimeout|setInterval)\s*\(\s*[\'"`]')
+    for m in rx.finditer(src):
+        line_no = src.count('\n', 0, m.start()) + 1
+        code    = lines[line_no - 1].strip()[:80] if 0 < line_no <= len(lines) else ''
+        hits.append({'line': line_no, 'code': code})
+    return hits
+
+
+def _dockerfile_missing_user(src: str, lines: list[str]) -> list[dict]:
+    """Flag Dockerfiles whose effective user is root.
+
+    Emits at most one hit per file: either ``(no USER directive)`` at line 1
+    or the offending ``USER root`` / ``USER 0`` line.
+    """
+    user_hits: list[tuple[int, str]] = []
+    for i, ln in enumerate(lines, 1):
+        stripped = ln.lstrip()
+        if not stripped or stripped.startswith('#'):
+            continue
+        m = re.match(r'USER\s+(\S+)', stripped, re.IGNORECASE)
+        if m:
+            user_hits.append((i, m.group(1)))
+    if not user_hits:
+        # Only flag if the file actually looks like a Dockerfile body.
+        if re.search(r'(?m)^\s*FROM\s+\S+', src, re.IGNORECASE):
+            return [{'line': 1, 'code': '(no USER directive — container runs as root)'}]
+        return []
+    last_line, last_user = user_hits[-1]
+    if last_user.lower() in ('root', '0', '0:0'):
+        code = lines[last_line - 1].strip()[:80]
+        return [{'line': last_line, 'code': code}]
+    return []
+
+
+def _dockerfile_apt_no_cleanup(src: str, lines: list[str]) -> list[dict]:
+    """Flag ``apt-get install`` RUN blocks that leave package lists behind.
+
+    A clean RUN block either purges ``/var/lib/apt/lists`` afterwards or uses
+    ``--no-install-recommends``; everything else bloats image size and ships
+    stale package metadata.
+    """
+    hits: list[dict] = []
+    n = len(lines)
+    i = 0
+    while i < n:
+        ln = lines[i].rstrip()
+        stripped = ln.lstrip()
+        if re.match(r'RUN\s', stripped, re.IGNORECASE):
+            start_line = i + 1
+            buf        = [stripped]
+            while buf[-1].rstrip().endswith('\\') and i + 1 < n:
+                i += 1
+                buf.append(lines[i].rstrip())
+            combined = ' '.join(seg.rstrip('\\').strip() for seg in buf).lower()
+            if 'apt-get install' in combined or re.search(r'\bapt install\b', combined):
+                if ('rm -rf /var/lib/apt/lists' not in combined
+                        and '--no-install-recommends' not in combined):
+                    code = lines[start_line - 1].strip()[:80]
+                    hits.append({'line': start_line, 'code': code})
+        i += 1
+    return hits
+
+
+def _iam_policy_action_wildcard(src: str, lines: list[str]) -> list[dict]:
+    """Flag IAM-style policies that allow ``Action: '*'`` on ``Resource: '*'``.
+
+    Works for both JSON (AWS / GCP) and YAML (k8s ClusterRole, CFN/SAM)
+    without parsing the structure. We only emit hits when both wildcards
+    coexist in the same file — either alone is too noisy to surface.
+    """
+    rx_action   = re.compile(r'''["']?Action["']?\s*[:=]\s*\[?\s*["']\*["']''')
+    rx_resource = re.compile(r'''["']?Resource["']?\s*[:=]\s*\[?\s*["']\*["']''')
+    rx_verbs    = re.compile(r'''["']?verbs["']?\s*:\s*\[\s*["']\*["']''')
+    has_resource = bool(rx_resource.search(src))
+    has_verbs    = bool(rx_verbs.search(src))
+    action_hits  = list(rx_action.finditer(src))
+    if not action_hits and not has_verbs:
+        return []
+    if action_hits and not has_resource:
+        return []
+    hits: list[dict] = []
+    for m in (action_hits or list(rx_verbs.finditer(src))):
+        line_no = src.count('\n', 0, m.start()) + 1
+        code    = lines[line_no - 1].strip()[:80] if 0 < line_no <= len(lines) else ''
+        hits.append({'line': line_no, 'code': code})
+    return hits
+
+
 def _noop_handler(src: str, lines: list[str]) -> list[dict]:
     return []
 
 
 _RULE_HANDLERS = {
     'python_requests_no_timeout': _python_requests_no_timeout,
+    'python_xml_unsafe_parse':    _python_xml_unsafe_parse,
+    'js_string_timer_call':       _js_string_timer_call,
+    'dockerfile_missing_user':    _dockerfile_missing_user,
+    'dockerfile_apt_no_cleanup':  _dockerfile_apt_no_cleanup,
+    'iam_policy_action_wildcard': _iam_policy_action_wildcard,
 }
 
 
