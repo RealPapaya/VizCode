@@ -220,6 +220,34 @@ class TestGitIgnoreFiltering:
         assert 'nested/drop.js' not in paths
         assert graph['stats']['ignored_files'] == 2
 
+    def test_tracked_files_matching_gitignore_are_still_analyzed(self, tmp_path):
+        _init_git_repo(tmp_path)
+        _write(tmp_path / '.gitignore', '*.py\n')
+        _write(tmp_path / 'tracked.py', 'def tracked():\n    return 1\n')
+        subprocess.run(
+            ['git', 'add', '-f', '.gitignore', 'tracked.py'],
+            cwd=tmp_path,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+        )
+
+        graph = build_graph(str(tmp_path))
+
+        assert 'tracked.py' in _all_dashboard_paths(graph)
+        assert graph['stats']['files'] == 1
+
+    def test_parent_ignored_analysis_root_does_not_hide_project(self, tmp_path):
+        _init_git_repo(tmp_path)
+        _write(tmp_path / '.gitignore', 'sample/\n')
+        _write(tmp_path / 'sample' / 'main.py', 'def main():\n    return 1\n')
+
+        graph = build_graph(str(tmp_path / 'sample'))
+
+        assert 'main.py' in _all_dashboard_paths(graph)
+        assert graph['stats']['files'] == 1
+        assert graph['stats']['ignore_filter_enabled'] is False
+
     def test_non_git_directory_uses_fallback_filter(self, tmp_path):
         _write(tmp_path / '.gitignore', 'ignored.py\n')
         _write(tmp_path / 'kept.py', 'def kept():\n    return 1\n')

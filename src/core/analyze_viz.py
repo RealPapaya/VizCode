@@ -737,7 +737,7 @@ class _GitIgnoreFilter:
         payload = ('\0'.join(normalized) + '\0').encode('utf-8', errors='surrogateescape')
         try:
             proc = subprocess.run(
-                ['git', 'check-ignore', '--no-index', '-z', '-v', '--stdin'],
+                ['git', 'check-ignore', '-z', '-v', '--stdin'],
                 cwd=self.root,
                 input=payload,
                 stdout=subprocess.PIPE,
@@ -772,6 +772,20 @@ def _build_git_ignore_filter(root: str) -> _GitIgnoreFilter:
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return _GitIgnoreFilter(root, enabled=False)
     if proc.returncode != 0 or proc.stdout.decode('utf-8', errors='replace').strip() != 'true':
+        return _GitIgnoreFilter(root, enabled=False)
+    try:
+        root_proc = subprocess.run(
+            ['git', 'check-ignore', '-q', '.'],
+            cwd=root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return _GitIgnoreFilter(root, enabled=False)
+    if root_proc.returncode == 0:
+        return _GitIgnoreFilter(root, enabled=False)
+    if root_proc.returncode not in (0, 1):
         return _GitIgnoreFilter(root, enabled=False)
     return _GitIgnoreFilter(root, enabled=True)
 
