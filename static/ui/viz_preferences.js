@@ -221,7 +221,7 @@ const ZH_TW_UI_FONT = "'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', 'Hei
 
 function _uiFontForLang(font, lang) {
     return (lang || '').toLowerCase() === 'zh-tw'
-        ? `${ZH_TW_UI_FONT}, ${DEFAULT_UI_FONT}`
+        ? `${font}, ${ZH_TW_UI_FONT}, ${DEFAULT_UI_FONT}`
         : `${font}, ${DEFAULT_UI_FONT}`;
 }
 
