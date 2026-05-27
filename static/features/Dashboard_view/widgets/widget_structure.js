@@ -102,16 +102,27 @@ function _dashRenderStructure(container, stats, options) {
     const treemapStyle = isDetail
         ? ''
         : 'flex:0 0 auto;max-height:35%;overflow:hidden;';
+    const typeCount = Object.keys(stats.type_counts || {}).length;
+    const extCount = Object.keys(stats.language_distribution || {}).length;
+    const moduleCount = (window.DATA && DATA.modules || []).length;
     const layoutOpen = isDetail
         ? ''
-        : `<div class="dash-structure-layout" style="${layoutStyle}">`;
-    const layoutClose = isDetail ? '' : '</div>';
+        : `<div class="dash-arch-panel dash-structure-panel">
+  <div class="dash-arch-panel-header">
+    <div class="dash-arch-panel-title-block">
+      <div class="dash-arch-panel-title">${_dashEscape(_dashT('dashStructureFileTypes'))}</div>
+      <div class="dash-arch-panel-sub">${_dashFmtNum(typeCount)} types &middot; ${_dashFmtNum(extCount)} extensions &middot; ${_dashFmtNum(moduleCount)} modules</div>
+    </div>
+  </div>
+  <div class="dash-arch-panel-body">
+    <div class="dash-structure-layout" style="${layoutStyle}">`;
+    const layoutClose = isDetail ? '' : '</div></div></div>';
 
     if (isDetail) {
         const typeRows = Object.entries(stats.type_counts || {}).sort((a, b) => b[1] - a[1]);
         const langRows = Object.entries(stats.language_distribution || {}).sort((a, b) => b[1] - a[1]);
-        const typeCount = typeRows.length;
-        const extCount = langRows.length;
+        const detailTypeCount = typeRows.length;
+        const detailExtCount = langRows.length;
         const files = stats.files || _dashAllFiles().length;
         const modules = (DATA.modules || []).length;
         const topTypeRows = typeRows.slice(0, 12);
@@ -127,10 +138,10 @@ function _dashRenderStructure(container, stats, options) {
       <div class="dash-filetypes-detail__eyebrow">Codebase file types</div>
       <h2 class="dash-filetypes-detail__title">${_dashEscape(_dashT('dashStructureFileTypes'))}</h2>
       <div class="dash-filetypes-detail__primary">
-        <span class="dash-filetypes-detail__primary-value">${_dashFmtExactNum(typeCount)}</span>
+        <span class="dash-filetypes-detail__primary-value">${_dashFmtExactNum(detailTypeCount)}</span>
         <span class="dash-filetypes-detail__primary-suffix">types</span>
       </div>
-      <p class="dash-filetypes-detail__summary">${_dashFmtExactNum(files)} files across ${_dashFmtExactNum(extCount)} extensions and ${_dashFmtExactNum(modules)} modules.</p>
+      <p class="dash-filetypes-detail__summary">${_dashFmtExactNum(files)} files across ${_dashFmtExactNum(detailExtCount)} extensions and ${_dashFmtExactNum(modules)} modules.</p>
     </div>
     <div class="dash-filetypes-detail__hero-visual">${heroVisual}</div>
   </section>

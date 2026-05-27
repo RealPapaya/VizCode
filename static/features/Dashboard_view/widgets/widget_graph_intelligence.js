@@ -3,25 +3,64 @@
 
 function _dashRenderGraphIntelligence(container, stats) {
     if (!container) return;
+    const hotspots = stats.hotspot_nodes || [];
+    const surprising = stats.surprising_connections || [];
 
     container.innerHTML = `
-<div style="height:100%;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);overflow:hidden;">
-  <div class="dash-card" style="display:flex;flex-direction:column;overflow:hidden;min-height:0;">
-    <div class="dash-card-title">
-      <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashGraphHotspots'))}
+<div class="dash-arch-panel dash-graph-intelligence-panel">
+  <div class="dash-arch-panel-header">
+    <div class="dash-arch-panel-title-block">
+      <div class="dash-arch-panel-title">${_dashEscape(_dashT('dashGraphHotspots'))}</div>
+      <div class="dash-arch-panel-sub">${_dashFmtNum(hotspots.length)} hotspot nodes &middot; ${_dashFmtNum(surprising.length)} surprising connections</div>
     </div>
-    <div class="dash-list" id="dash-graph-hotspots" style="flex:1;overflow:hidden;"></div>
   </div>
-  <div class="dash-card" style="display:flex;flex-direction:column;overflow:hidden;min-height:0;">
-    <div class="dash-card-title">
-      <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashGraphSurprising'))}
+  <div class="dash-arch-panel-body">
+    <div class="dash-graph-intel-grid">
+      <section class="dash-graph-intel-section">
+        <div class="dash-graph-intel-section-title">
+          ${_dashEscape(_dashT('dashGraphHotspots'))}
+        </div>
+        <div class="dash-graph-hotspot-list" id="dash-graph-hotspots"></div>
+      </section>
+      <section class="dash-graph-intel-section">
+        <div class="dash-graph-intel-section-title">
+          ${_dashEscape(_dashT('dashGraphSurprising'))}
+        </div>
+        <div class="dash-graph-link-list" id="dash-graph-surprising"></div>
+      </section>
     </div>
-    <div class="dash-list" id="dash-graph-surprising" style="flex:1;overflow:hidden;"></div>
   </div>
 </div>`;
 
-    _dashRenderHotspots(stats.hotspot_nodes || [], container);
-    _dashRenderSurprising(stats.surprising_connections || [], container);
+    _dashRenderHotspotsLarge(hotspots, container);
+    _dashRenderSurprising(surprising, container);
+}
+
+function _dashRenderHotspotsLarge(items, root) {
+    const el = (root || document).querySelector('#dash-graph-hotspots');
+    if (!el) return;
+    if (!items.length) {
+        el.innerHTML = `<div class="dash-empty">${_dashEscape(_dashT('dashGraphHotspotsEmpty'))}</div>`;
+        return;
+    }
+    const max = items[0]?.degree || 1;
+    el.innerHTML = items.map((item, i) => {
+        const file = String(item.file || '').replace(/\\/g, '/');
+        const fileShort = file.split('/').pop();
+        const fileJSON = JSON.stringify(item.file || '').replace(/"/g, '&quot;');
+        const pct = Math.max(4, Math.round((item.degree || 0) / max * 100));
+        return `
+<div class="dash-graph-hotspot-row" data-clickable="true" title="${_dashEscape(file)}"
+     onclick="_dashDrill(${fileJSON}, null)">
+  <span class="dash-graph-hotspot-rank">${String(i + 1).padStart(2, '0')}</span>
+  <div class="dash-graph-hotspot-main">
+    <div class="dash-graph-hotspot-name">${_dashEscape(item.label || fileShort || '')}</div>
+    <div class="dash-graph-hotspot-file">${_dashEscape(fileShort || file)}</div>
+    <div class="dash-graph-hotspot-meter"><i style="width:${pct}%"></i></div>
+  </div>
+  <span class="dash-graph-hotspot-degree">${_dashEscape(item.degree ?? 0)}</span>
+</div>`;
+    }).join('');
 }
 
 function _dashRenderHotspots(items, root) {
@@ -34,7 +73,7 @@ function _dashRenderHotspots(items, root) {
     const max = items[0]?.degree || 1;
     el.innerHTML = items.map((item, i) => {
         const fileShort = String(item.file || '').replace(/\\/g, '/').split('/').pop();
-        const fileJSON = JSON.stringify(item.file).replace(/"/g, '&quot;');
+        const fileJSON = JSON.stringify(item.file || '').replace(/"/g, '&quot;');
         return `
 <div class="dash-list-row" data-clickable="true"
      onclick="_dashDrill(${fileJSON}, null)">
@@ -56,16 +95,17 @@ function _dashRenderSurprising(items, root) {
     el.innerHTML = items.map(item => {
         const srcShort = String(item.source || '').split('/').pop();
         const tgtShort = String(item.target || '').split('/').pop();
+        const title = `${srcShort} -> ${tgtShort}`;
         return `
-<div class="dash-list-row dash-list-row--stacked" data-clickable="true"
+<div class="dash-graph-link-row" data-clickable="true" title="${_dashEscape(title)}"
      onclick="_dashOpenFileGroupDrilldown('Surprising connection', [${_dashJson(item.source)}, ${_dashJson(item.target)}])">
-  <div class="dash-graph-pair">
+  <div class="dash-graph-link-head">
     <span class="dash-graph-node">${_dashEscape(srcShort)}</span>
     <span class="dash-graph-arrow">&rarr;</span>
     <span class="dash-graph-node">${_dashEscape(tgtShort)}</span>
-    <span class="dash-graph-score">score ${item.score}</span>
+    <span class="dash-graph-score">${_dashEscape(item.score ?? '')}</span>
   </div>
-  <div class="dash-graph-reason">${_dashEscape(item.reason)}</div>
+  <div class="dash-graph-reason">${_dashEscape(item.reason || '')}</div>
 </div>`;
     }).join('');
 }

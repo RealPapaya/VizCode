@@ -73,6 +73,8 @@ function _dashFunctionsByFile(filePath) {
         .map(s => ({
             file: rel,
             name: s.name || '?',
+            line: s.line || 0,
+            end_line: s.end_line || s.line || 0,
             lines: (s.end_line && s.line) ? Math.max(0, s.end_line - s.line + 1) : 0,
             complexity: s.complexity,
             value: s.complexity != null ? `cx ${s.complexity}` : '',
@@ -82,6 +84,8 @@ function _dashFunctionsByFile(filePath) {
     return funcs.map(fn => ({
         file: rel,
         name: fn.name || fn.label || '?',
+        line: fn.line || 0,
+        end_line: fn.end_line || fn.line || 0,
         lines: fn.lines || 0,
         complexity: fn.complexity,
     }));
@@ -89,12 +93,27 @@ function _dashFunctionsByFile(filePath) {
 
 function _dashAllFunctions() {
     const out = [];
+    const symRows = Object.values((window.DATA && DATA.symbol_index) || {})
+        .filter(s => s && s.file && (s.kind === 'function' || s.kind === 'method'));
+    if (symRows.length) {
+        symRows.forEach(s => out.push({
+            file: String(s.file).replace(/\\/g, '/'),
+            name: s.name || '?',
+            line: s.line || 0,
+            end_line: s.end_line || s.line || 0,
+            lines: (s.end_line && s.line) ? Math.max(0, s.end_line - s.line + 1) : 0,
+            complexity: s.complexity,
+        }));
+        return out;
+    }
     for (const f of _dashAllFiles()) {
         const rel = f.path || '';
         const defs = DATA.funcs_by_file?.[rel] || f.functions || [];
         defs.forEach(fn => out.push({
             file: rel,
             name: fn.name || fn.label || '?',
+            line: fn.line || 0,
+            end_line: fn.end_line || fn.line || 0,
             lines: fn.lines || 0,
             complexity: fn.complexity,
         }));
@@ -151,36 +170,109 @@ function _dashMiniPills(items, options) {
     }).join('')}</div>`;
 }
 
-function _dashGoToGraphFile(filePath, funcName, line) {
-    if (!filePath) return;
+function _dashFindFunctionSymbol(filePath, funcName) {
+    if (!window.DATA || !filePath || !funcName) return null;
+    const rel = String(filePath).replace(/\\/g, '/');
+    const name = String(funcName);
+    return Object.values(DATA.symbol_index || {}).find(s =>
+        s && s.file === rel && s.name === name && (s.kind === 'function' || s.kind === 'method')
+    ) || null;
+}
+
+function _dashResolvedLine(filePath, funcName, line) {
+    const explicit = Number(line) > 0 ? Number(line) : 0;
+    if (explicit) return explicit;
+    const sym = _dashFindFunctionSymbol(filePath, funcName);
+    return Number(sym?.line) > 0 ? Number(sym.line) : 0;
+}
+
+function _dashForceGraphMode() {
     if (typeof _dashCloseGroupDrilldown === 'function') _dashCloseGroupDrilldown();
     if (typeof _dashCloseDrilldown === 'function') _dashCloseDrilldown();
     if (typeof closeDashboard === 'function') closeDashboard();
+    if (window.state && state.galaxyActive && typeof closeGalaxy === 'function') closeGalaxy();
+    if (window._sv && window._sv.active) {
+        if (typeof symViewClose === 'function') symViewClose();
+        else if (typeof svHideSvView === 'function') svHideSvView();
+    }
+    if (typeof syncTopbarModeButtons === 'function') syncTopbarModeButtons();
+}
 
-    const rel = String(filePath).replace(/\\/g, '/');
-    const modId = _dashFindModule(rel);
-    const lineNo = Number(line) > 0 ? Number(line) : 0;
-    const needsFile = !!(funcName || lineNo);
+function _dashFocusCodePanel(filePath, funcName, lineNo) {
+    if (!filePath) return;
+    if (typeof codeState !== 'undefined') codeState.userClosed = false;
 
-    const afterFileOpen = () => {
+    const jumpLine = () => {
         if (lineNo && typeof jumpToLine === 'function') {
-            setTimeout(() => jumpToLine(lineNo), 260);
+            setTimeout(() => jumpToLine(lineNo), 140);
         }
     };
 
-    if (modId && typeof drillToModule === 'function') {
-        drillToModule(modId, { focusFile: rel });
-        if (needsFile && typeof drillToFile === 'function') {
-            setTimeout(() => { drillToFile(rel); afterFileOpen(); }, 220);
+    if (typeof loadFileInPanel === 'function') {
+        const result = loadFileInPanel(filePath, funcName || null);
+        if (result && typeof result.then === 'function') {
+            result.then(jumpLine).catch(jumpLine);
+        } else {
+            jumpLine();
         }
-    } else if (needsFile && typeof drillToFile === 'function') {
-        drillToFile(rel);
-        afterFileOpen();
+        return;
+    }
+
+    if (funcName && typeof _syncCodePanel === 'function') {
+        _syncCodePanel(filePath, funcName);
+        jumpLine();
     }
 }
 
-function _dashDrill(filePath, funcName) {
-    _dashGoToGraphFile(filePath, funcName);
+function _dashFocusL2Node(filePath, funcName, lineNo) {
+    const funcs = (window.DATA && DATA.funcs_by_file && DATA.funcs_by_file[filePath]) || [];
+    const idx = funcs.findIndex(f => (f.label || f.name) === funcName);
+    if (idx >= 0) {
+        l2State.activeFuncIdx = idx;
+        if (typeof focusL2Func === 'function') {
+            setTimeout(() => focusL2Func(filePath, idx, { center: true, openCodePanel: false }), 360);
+        }
+    }
+    _dashFocusCodePanel(filePath, funcName, lineNo);
+}
+
+function _dashGoToGraphFile(filePath, funcName, line) {
+    if (!filePath) return;
+    const rel = String(filePath).replace(/\\/g, '/');
+    const modId = _dashFindModule(rel);
+    const fnName = funcName ? String(funcName) : '';
+    const lineNo = _dashResolvedLine(rel, fnName, line);
+
+    _dashForceGraphMode();
+
+    if (modId && typeof drillToModule === 'function') {
+        drillToModule(modId, { focusFile: rel });
+        if (fnName) {
+            setTimeout(() => {
+                if (typeof openL2File === 'function') {
+                    document.getElementById('cy')?.classList.add('l2-view');
+                    if (typeof setL1ToolbarVisible === 'function') setL1ToolbarVisible(false);
+                    if (window.updateFilterTabEnabled) updateFilterTabEnabled();
+                    const ftWrap = document.getElementById('ft-filter');
+                    if (ftWrap) ftWrap.style.display = 'none';
+                    openL2File(rel, { newSession: true, pushHistory: true, focusFunc: fnName });
+                    if (typeof updateCallGraphBtn === 'function') updateCallGraphBtn(rel);
+                    _dashFocusL2Node(rel, fnName, lineNo);
+                } else if (typeof drillToFile === 'function') {
+                    drillToFile(rel);
+                    _dashFocusCodePanel(rel, fnName, lineNo);
+                }
+            }, 220);
+        } else {
+            _dashFocusCodePanel(rel, null, lineNo);
+        }
+    } else {
+        _dashFocusCodePanel(rel, fnName || null, lineNo);
+    }
+}
+
+function _dashDrill(filePath, funcName, line) {
+    _dashGoToGraphFile(filePath, funcName, line);
 }
 
 function _dashNormalizeFileList(files) {
@@ -206,6 +298,8 @@ function _dashOpenFunctionGroupDrilldown(title, functions, options) {
     const rows = (functions || []).filter(fn => fn && fn.file).map(fn => ({
         file: String(fn.file).replace(/\\/g, '/'),
         name: fn.name || fn.label || '?',
+        line: fn.line || 0,
+        end_line: fn.end_line || fn.line || 0,
         value: fn.value ?? fn.lines ?? fn.complexity ?? '',
         meta: fn.meta || '',
     }));
@@ -225,10 +319,11 @@ function _dashOpenGroupDrilldown(title, rows, kind, options) {
         const file = row.path || row.file || '';
         const short = String(file).split('/').pop();
         if (kind === 'function') {
+            const lineNo = _dashResolvedLine(file, row.name || '', row.line);
             return `<div class="dash-list-row" data-clickable="true" data-tip="${_dashEscape(file)}"
-     onclick="_dashGoToGraphFile(${_dashJson(file)}, ${_dashJson(row.name || '')})">
+     onclick="_dashGoToGraphFile(${_dashJson(file)}, ${_dashJson(row.name || '')}, ${lineNo || 'null'})">
   <span class="dash-list-rank">${i + 1}</span>
-  <span class="dash-list-name">${_dashEscape(row.name || '?')}<span class="dash-list-meta">${_dashEscape(short)}${row.meta ? ' · ' + _dashEscape(row.meta) : ''}</span></span>
+  <span class="dash-list-name">${_dashEscape(row.name || '?')}<span class="dash-list-meta">${_dashEscape(short + (lineNo ? ':' + lineNo : ''))}${row.meta ? ' · ' + _dashEscape(row.meta) : ''}</span></span>
   <span class="dash-list-val">${_dashEscape(row.value)}</span>
 </div>`;
         }
@@ -332,9 +427,11 @@ function _dashSettingsBindReorder(list, onReorder) {
 function _dashFindModule(fileRel) {
     if (!window.DATA) return null;
     const norm = String(fileRel).replace(/\\/g, '/');
-    for (const [modId, files] of Object.entries(DATA.files_by_module || {})) {
-        if ((files || []).some(f => (f.path || '').replace(/\\/g, '/') === norm)) {
-            return modId;
+    for (const bucket of [DATA.files_by_module || {}, DATA.other_files_by_module || {}]) {
+        for (const [modId, files] of Object.entries(bucket)) {
+            if ((files || []).some(f => (f.path || '').replace(/\\/g, '/') === norm)) {
+                return modId;
+            }
         }
     }
     return null;

@@ -218,7 +218,9 @@ function _dashBfStart(mode, btn) {
             _dashBfState.token    = data.token;
             _dashBfState.mode     = mode;
             _dashBfState.finished = false;
-            const panel = document.getElementById('dash-detail-body');
+            const panel = typeof _dashGetDetailBody === 'function'
+                ? _dashGetDetailBody()
+                : document.getElementById('dash-detail-body');
             const bfEl  = panel && panel.querySelector('#dash-ht-bf-panel');
             if (bfEl) _dashBfShowProgress(bfEl, panel);
         })
@@ -307,7 +309,8 @@ function _dashBfShowDone(count, bfEl, detailContainer) {
 function _dashBfRefresh(btn) {
     if (btn) btn.disabled = true;
     const history = (typeof DATA !== 'undefined' && DATA.stats && DATA.stats.health_history) || [];
-    const body = document.getElementById('dash-detail-report-details') || document.getElementById('dash-detail-body');
+    const body = document.getElementById('dash-detail-report-details')
+        || (typeof _dashGetDetailBody === 'function' ? _dashGetDetailBody() : document.getElementById('dash-detail-body'));
     if (body) _dashRenderHealthDetail(body, history);
 }
 

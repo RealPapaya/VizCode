@@ -17,9 +17,8 @@ const _DASH_DEFAULT_LAYOUT = [
     { id: 'kpi_lines',     col: 4, row: 0, w: 2, h: 1 },
     { id: 'code_health',    col: 0, row: 1, w: 2, h: 2 },
     { id: 'tech_debt',      col: 2, row: 1, w: 2, h: 1 },
-    { id: 'complexity',     col: 4, row: 1, w: 2, h: 1 },
-    { id: 'most_complex',   col: 2, row: 2, w: 3, h: 1 },
-    { id: 'duplication',    col: 5, row: 2, w: 1, h: 1 },
+    { id: 'complexity',     col: 4, row: 1, w: 2, h: 2 },
+    { id: 'duplication',    col: 2, row: 2, w: 2, h: 1 },
 ];
 
 // Optional widgets (not in default layout; available via + Add Widget)

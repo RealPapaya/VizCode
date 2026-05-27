@@ -34,32 +34,52 @@ _dashRegisterWidget({
         const funcs     = stats.functions   || 0;
         const loc       = stats.loc_total   || 0;
         const code      = stats.loc_code    || 0;
+        const comment   = stats.loc_comment || 0;
+        const blank     = stats.loc_blank   || 0;
         const codePct   = loc ? Math.round((code / loc) * 100) : 0;
+        const cmtPct    = loc ? Math.round((comment / loc) * 100) : 0;
+        const blkPct    = loc ? Math.round((blank / loc) * 100) : 0;
         const extCount  = _overviewExtCount();
         const calls     = stats.calls       || 0;
         const modules   = (window.DATA && DATA.modules || []).length;
+        const topExts   = _overviewTopExts(size === 'L' ? 7 : 3);
 
         if (size === 'S') {
-            const sCells = [
-                { label: 'Files',     value: _dashFmtNum(files) },
-                { label: 'Functions', value: _dashFmtNum(funcs) },
-                { label: 'LOC',       value: _dashFmtNum(loc) },
-                { label: 'Types',     value: _dashFmtNum(extCount) },
+            const sStats = [
+                { label: 'Fns',   value: _dashFmtNum(funcs),   color: _dashAccentStop(1) },
+                { label: 'LOC',   value: _dashFmtNum(loc),     color: _dashAccentStop(2) },
+                { label: 'Types', value: _dashFmtNum(extCount), color: _dashAccentStop(3) },
             ];
-            const sCellHTML = sCells.map(c => `
-<div class="dash-overview-s-cell">
-  <div class="dash-overview-s-label">${c.label}</div>
-  <div class="dash-overview-s-value">${c.value}</div>
+            const sStatsHTML = sStats.map(c => `
+<div class="dash-overview-s-stat" style="--dash-overview-s-accent:${c.color}">
+  <span class="dash-overview-s-stat-label">${c.label}</span>
+  <span class="dash-overview-s-stat-value">${c.value}</span>
 </div>`).join('');
+            const sExtRows = topExts.map(([ext, cnt], i) => `
+<span class="dash-overview-s-type" style="--dash-overview-s-accent:${_dashAccentStop(i)}">
+  <i></i><span>.${_dashEscape(ext)}</span><b>${cnt}</b>
+</span>`).join('');
             container.innerHTML = `
 <div class="dash-overview-s">
-  <div class="dash-widget-title">Overview</div>
-  <div class="dash-overview-s-grid">${sCellHTML}</div>
+  <div class="dash-overview-s-head">
+    <div class="dash-widget-title">Overview</div>
+    <div class="dash-overview-s-context">${modules ? `${_dashFmtNum(modules)} modules` : 'snapshot'}</div>
+  </div>
+  <div class="dash-overview-s-hero">
+    <span class="dash-overview-s-hero-label">Files</span>
+    <strong class="dash-overview-s-hero-value">${_dashFmtNum(files)}</strong>
+  </div>
+  <div class="dash-overview-s-stats">${sStatsHTML}</div>
+  <div class="dash-overview-s-loc" aria-label="Line composition">
+    <span style="width:${codePct}%;background:${_dashAccentStop(0)}" title="Code ${codePct}%"></span>
+    <span style="width:${cmtPct}%;background:${_dashAccentStop(1)}" title="Comments ${cmtPct}%"></span>
+    <span style="width:${blkPct}%;background:var(--border)" title="Blank ${blkPct}%"></span>
+  </div>
+  <div class="dash-overview-s-types">${sExtRows || '<span class="dash-kpi-empty">No data</span>'}</div>
 </div>`;
             return;
         }
 
-        const topExts = _overviewTopExts(size === 'L' ? 7 : 3);
         const maxExt  = topExts.length ? topExts[0][1] : 1;
         const colors  = _dashColorScale(topExts.length);
         const extRows = topExts.map(([ext, cnt], i) => `

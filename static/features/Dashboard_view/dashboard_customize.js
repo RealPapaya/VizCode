@@ -436,7 +436,6 @@ const _DASH_AWP_CATEGORIES = [
             { id: 'code_health',   desc: 'Comprehensive health score with gauge, breakdown metrics, and trend tracking.' },
             { id: 'tech_debt',     desc: 'Estimated remediation time by debt category.' },
             { id: 'complexity',    desc: 'Average and peak cyclomatic complexity.' },
-            { id: 'most_complex',  desc: 'Functions and methods with the highest complexity scores.' },
             { id: 'duplication',   desc: 'Code duplication percentage and clones.' },
         ],
     },

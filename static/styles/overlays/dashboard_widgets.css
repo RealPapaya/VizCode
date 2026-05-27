@@ -610,55 +610,180 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     min-height: 0;
 }
 
-/* S size: balanced 2x2 mini-grid (no dominant stat) */
+/* S size: compact snapshot with one lead metric and supporting context */
 .dash-overview-s {
     height: 100%;
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
+    gap: 7px;
     box-sizing: border-box;
     overflow: hidden;
 }
 
-.dash-overview-s-grid {
-    flex: 1;
-    min-height: 0;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr 1fr;
-    gap: 4px;
-}
-
-.dash-overview-s-cell {
+.dash-overview-s-head {
     display: flex;
-    flex-direction: column;
-    justify-content: center;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     min-width: 0;
-    min-height: 0;
+    flex: 0 0 auto;
 }
 
-.dash-overview-s-label {
+.dash-overview-s-head .dash-widget-title {
+    margin-bottom: 0;
+}
+
+.dash-overview-s-context {
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 600;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dash-overview-s-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 8px;
+    min-height: 32px;
+    padding: 8px 9px 7px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--accent) 5%, transparent);
+    min-width: 0;
+    flex: 0 0 auto;
+}
+
+.dash-overview-s-hero-label {
+    align-self: center;
     font-size: 9px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--muted);
-    line-height: 1.1;
+    line-height: 1;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.dash-overview-s-value {
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1.15;
+.dash-overview-s-hero-value {
     color: var(--text);
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 0.9;
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+
+.dash-overview-s-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+    flex: 0 0 auto;
+}
+
+.dash-overview-s-stat {
+    min-width: 0;
+    padding: 5px 6px;
+    border: 1px solid color-mix(in srgb, var(--dash-overview-s-accent) 34%, var(--border));
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--dash-overview-s-accent) 8%, transparent);
+}
+
+.dash-overview-s-stat-label,
+.dash-overview-s-stat-value {
+    display: block;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.dash-overview-s-stat-label {
+    color: var(--muted);
+    font-size: 8px;
+    font-weight: 700;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.dash-overview-s-stat-value {
+    color: var(--text);
+    margin-top: 3px;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+}
+
+.dash-overview-s-loc {
+    display: flex;
+    flex: 0 0 7px;
+    min-height: 7px;
+    border-radius: 4px;
+    background: var(--border);
+    overflow: hidden;
+}
+
+.dash-overview-s-loc span {
+    min-width: 2px;
+    height: 100%;
+}
+
+.dash-overview-s-types {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-end;
+    gap: 4px;
+    overflow: hidden;
+}
+
+.dash-overview-s-type {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    min-width: 0;
+    height: 18px;
+    padding: 0 5px;
+    border: 1px solid color-mix(in srgb, var(--dash-overview-s-accent) 34%, var(--border));
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--dash-overview-s-accent) 8%, transparent);
+    color: var(--text);
+    font-size: 10px;
+    line-height: 1;
+}
+
+.dash-overview-s-type i {
+    width: 5px;
+    height: 5px;
+    border-radius: 2px;
+    background: var(--dash-overview-s-accent);
+    flex: 0 0 auto;
+}
+
+.dash-overview-s-type span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-overview-s-type b {
+    color: var(--accent);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    flex: 0 0 auto;
 }
 /* S body: content block centred with compact contextual pills */
 .dash-kpi-s {

@@ -554,7 +554,6 @@ def build_html(data: dict, job_id: str = None) -> str:
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_tech_debt.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_complexity.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_duplication.js',
-        base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_most_complex.js',
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_dead_code.js',
         # ── Optional widgets (available via + Add Widget) ─────────────────────
         base / 'features' / 'Dashboard_view' / 'widgets' / 'widget_coupling.js',

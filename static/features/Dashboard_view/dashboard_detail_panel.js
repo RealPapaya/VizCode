@@ -5,9 +5,11 @@
 
 let _dashDetailEscBound = false;
 let _dashDetailOpen     = false;
+let _dashDetailSeq      = 0;
+let _dashDetailCurrent  = null;
 
 function _dashOpenDetailPanel(widgetId, originRect) {
-    if (_dashDetailOpen) {
+    if (_dashDetailOpen || document.getElementById('dash-detail-panel') || document.getElementById('dash-detail-backdrop')) {
         // Destroy charts and remove old DOM, then open the new panel next frame
         // so Chart.js ResizeObserver callbacks fire before the canvas nodes vanish.
         _dashCloseDetailPanel(true);
@@ -55,14 +57,17 @@ function _dashOpenDetailPanel(widgetId, originRect) {
     document.body.appendChild(backdrop);
     document.body.appendChild(panel);
 
-    const body = document.getElementById('dash-detail-body');
+    const token = ++_dashDetailSeq;
+    _dashDetailCurrent = { backdrop, panel, token };
+    const body = panel.querySelector('#dash-detail-body');
 
     // Defer renderDetail one frame so the panel's layout (and the canvas's
     // offsetWidth/offsetHeight) is fully resolved before Chart.js captures
     // size. Without this, charts can be created at 0x0 right after navigation
     // (e.g. graph→dashboard) and never recover when no follow-up resize fires.
     requestAnimationFrame(() => {
-        if (body && typeof widget.renderDetail === 'function') {
+        if (_dashDetailCurrent?.token !== token || !panel.isConnected || !body?.isConnected) return;
+        if (typeof widget.renderDetail === 'function') {
             try {
                 widget.renderDetail(body, DATA.stats);
             } catch (err) {
@@ -91,6 +96,13 @@ function _dashOpenDetailPanel(widgetId, originRect) {
         document.addEventListener('keydown', _dashDetailKeyHandler);
         _dashDetailEscBound = true;
     }
+}
+
+function _dashGetDetailBody() {
+    if (_dashDetailCurrent?.panel?.isConnected) {
+        return _dashDetailCurrent.panel.querySelector('#dash-detail-body');
+    }
+    return document.getElementById('dash-detail-body');
 }
 
 function _dashDetailHeroHTML(widgetId, widget, stats) {
@@ -311,21 +323,20 @@ function _dashDetailReportModel(widgetId, widget, stats) {
         });
     }
 
-    if (widgetId === 'complexity' || widgetId === 'most_complex') {
+    if (widgetId === 'complexity') {
         const top = (stats.complexity_top_offenders || [])[0] || {};
         const topScore = top.complexity || top.score || 0;
         return Object.assign(base, {
-            title: widgetId === 'complexity' ? (_dashT('dashComplexityTitle') || 'Complexity') : 'Most Complex',
+            title: _dashT('dashComplexityTitle') || 'Complexity',
             eyebrow: 'Complexity risk',
-            value: widgetId === 'complexity' ? Number(stats.avg_complexity || 0).toFixed(1) : fmt(topScore),
-            suffix: widgetId === 'complexity' ? 'avg' : 'top score',
+            value: Number(stats.avg_complexity || 0).toFixed(1),
+            suffix: 'avg',
             summary: top.name ? `Highest offender: ${top.name} in ${String(top.file || '').split('/').pop()}.` : 'No complexity offenders were reported.',
             metrics: [
                 { label: 'Offenders', value: fmt((stats.complexity_top_offenders || []).length), raw: (stats.complexity_top_offenders || []).length },
                 { label: 'Average', value: Number(stats.avg_complexity || 0).toFixed(1), raw: stats.avg_complexity || 0 },
                 { label: 'Top score', value: fmt(topScore), raw: topScore },
             ],
-            reverse: widgetId === 'most_complex',
         });
     }
 
@@ -605,17 +616,20 @@ function _dashDetailReportModel(widgetId, widget, stats) {
 }
 
 function _dashCloseDetailPanel(immediate) {
-    const backdrop = document.getElementById('dash-detail-backdrop');
-    const panel    = document.getElementById('dash-detail-panel');
+    const current  = _dashDetailCurrent;
+    const backdrop = current?.backdrop || document.getElementById('dash-detail-backdrop');
+    const panel    = current?.panel || document.getElementById('dash-detail-panel');
     if (!backdrop && !panel) return;
 
     _dashDetailOpen = false;
+    _dashDetailSeq += 1;
+    if (_dashDetailCurrent === current) _dashDetailCurrent = null;
     if (typeof _dashHideChartTooltip === 'function') _dashHideChartTooltip();
 
     // Destroy Chart.js instances while the canvas nodes are still in the DOM.
     // This lets any pending ResizeObserver callbacks fire against an already-
     // destroyed chart rather than a live one attached to a detached node.
-    const body = document.getElementById('dash-detail-body');
+    const body = panel?.querySelector('#dash-detail-body');
     if (body) {
         body.querySelectorAll('canvas').forEach(canvas => {
             if (canvas.id && _dashCharts && _dashCharts[canvas.id]) {

@@ -226,3 +226,224 @@
     font-size: 10px;
 }
 
+/* Graph intelligence large card */
+.dash-graph-intelligence-panel {
+    gap: var(--space-3);
+}
+
+.dash-graph-intel-grid {
+    height: 100%;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: var(--space-3);
+    overflow: hidden;
+}
+
+.dash-graph-intel-section {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid color-mix(in srgb, var(--accent) 12%, transparent);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--accent) 3%, var(--surface-elevated));
+    overflow: hidden;
+}
+
+.dash-graph-intel-section-title {
+    flex: 0 0 auto;
+    min-width: 0;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    line-height: 1.35;
+    text-transform: uppercase;
+}
+
+.dash-graph-hotspot-list,
+.dash-graph-link-list {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 2px;
+    scrollbar-width: thin;
+    scrollbar-color:
+        color-mix(in srgb, var(--accent) 72%, var(--border))
+        color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.dash-graph-hotspot-list::-webkit-scrollbar,
+.dash-graph-link-list::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.dash-graph-hotspot-list::-webkit-scrollbar-track,
+.dash-graph-link-list::-webkit-scrollbar-track {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.dash-graph-hotspot-list::-webkit-scrollbar-thumb,
+.dash-graph-link-list::-webkit-scrollbar-thumb {
+    border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--surface-elevated));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 72%, var(--border));
+}
+
+.dash-graph-hotspot-list::-webkit-scrollbar-thumb:hover,
+.dash-graph-link-list::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
+}
+
+.dash-graph-hotspot-row,
+.dash-graph-link-row {
+    min-width: 0;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: var(--panel2);
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.dash-graph-hotspot-row:hover,
+.dash-graph-link-row:hover {
+    background: color-mix(in srgb, var(--accent) 10%, var(--panel2));
+    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.dash-graph-hotspot-row {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr) minmax(24px, auto);
+    align-items: center;
+    gap: 8px;
+    padding: 7px 8px;
+}
+
+.dash-graph-hotspot-rank,
+.dash-graph-hotspot-degree,
+.dash-graph-score {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-graph-hotspot-rank {
+    color: color-mix(in srgb, var(--muted) 72%, transparent);
+    font-size: 10px;
+    font-weight: 700;
+    text-align: right;
+}
+
+.dash-graph-hotspot-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.dash-graph-hotspot-name,
+.dash-graph-hotspot-file,
+.dash-graph-node,
+.dash-graph-reason {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-graph-hotspot-name {
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.dash-graph-hotspot-file {
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1.2;
+}
+
+.dash-graph-hotspot-meter {
+    height: 3px;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--accent) 13%, transparent);
+    overflow: hidden;
+}
+
+.dash-graph-hotspot-meter i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent);
+}
+
+.dash-graph-hotspot-degree {
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    text-align: right;
+}
+
+.dash-graph-link-row {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 8px 10px;
+}
+
+.dash-graph-link-head {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+}
+
+.dash-graph-link-head .dash-graph-node {
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.dash-graph-link-head .dash-graph-arrow {
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.dash-graph-link-head .dash-graph-score {
+    min-width: 22px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 700;
+    text-align: center;
+}
+
+.dash-graph-link-row .dash-graph-reason {
+    width: 100%;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+@media (max-width: 980px) {
+    .dash-graph-intel-grid {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    }
+}
+
