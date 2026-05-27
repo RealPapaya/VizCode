@@ -3753,6 +3753,299 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     }
 }
 
+/* ── Circular Dependencies detail panel ── */
+.dash-kpi-detail--circular .dash-kpi-detail-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dash-circ-detail-sev {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 160px;
+}
+
+.dash-circ-detail-sev__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.dash-circ-detail-sev__value {
+    font-size: 18px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    min-width: 28px;
+    text-align: right;
+}
+
+.dash-circ-detail-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 520px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.dash-circ-card-detail {
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--muted);
+    border-radius: 6px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--surface-elevated);
+    transition: border-color 0.15s;
+}
+.dash-circ-card-detail.sev-critical { border-left-color: #d35454; }
+.dash-circ-card-detail.sev-warn     { border-left-color: var(--status-warn); }
+.dash-circ-card-detail.sev-info     { border-left-color: color-mix(in srgb, var(--muted) 70%, transparent); }
+.dash-circ-card-detail:hover {
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
+.dash-circ-card-detail__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.dash-circ-card-detail__len {
+    font-size: 11px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    color: var(--muted);
+    margin-left: auto;
+}
+
+/* Graph jump icon button — small ↗ in top-right of card head */
+.dash-circ-graph-btn {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.dash-circ-graph-btn:hover {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* Expand/collapse +/- icon button */
+.dash-circ-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.12s, border-color 0.12s, background 0.12s;
+    align-self: flex-start;
+    margin-top: 2px;
+}
+.dash-circ-toggle-btn:hover {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.dash-circ-flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 0;
+}
+
+.dash-circ-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface-elevated) 80%, var(--panel));
+    color: var(--text);
+    font-size: 11px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    cursor: pointer;
+    white-space: nowrap;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    user-select: none;
+}
+.dash-circ-chip:hover {
+    background: color-mix(in srgb, var(--accent) 14%, var(--surface-elevated));
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+    color: var(--accent);
+}
+
+.dash-circ-arrow {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 7px solid var(--muted);
+    opacity: 0.45;
+    flex-shrink: 0;
+}
+
+.dash-circ-more {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
+    color: var(--muted);
+    font-size: 11px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    cursor: pointer;
+    transition: color 0.12s, border-color 0.12s;
+}
+.dash-circ-more:hover { color: var(--accent); border-color: var(--accent); }
+
+.dash-circ-return {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 5px;
+    font-size: 13px;
+    color: var(--muted);
+    opacity: 0.55;
+    cursor: default;
+    user-select: none;
+}
+
+.dash-circ-card-detail.sev-critical .dash-circ-chip {
+    border-color: color-mix(in srgb, #d35454 28%, var(--border));
+}
+.dash-circ-card-detail.sev-critical .dash-circ-arrow {
+    border-left-color: #d35454;
+    opacity: 0.35;
+}
+.dash-circ-card-detail.sev-warn .dash-circ-chip {
+    border-color: color-mix(in srgb, var(--status-warn) 22%, var(--border));
+}
+.dash-circ-card-detail.sev-warn .dash-circ-arrow {
+    border-left-color: var(--status-warn);
+    opacity: 0.35;
+}
+
+/* Duplication detail panel */
+.dash-kpi-detail--duplication .dash-kpi-detail-row {
+    grid-template-columns: 24px minmax(0, 1fr) minmax(36px, auto);
+}
+.dash-dup-detail-gauge {
+    width: 100%;
+    padding: 4px 0;
+}
+.dash-dup-detail-gauge__bar-wrap {
+    height: 12px;
+    background: var(--surface-elevated);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+.dash-dup-detail-gauge__bar {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.5s ease-out;
+    min-width: 4px;
+}
+.dash-dup-detail-gauge__labels {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.dash-dup-detail-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    max-height: 480px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+.dash-dup-detail-meta {
+    display: block;
+    font-size: 10px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    margin-top: 1px;
+}
+
+/* Architecture Issues detail panel */
+.dash-kpi-detail--issues .dash-kpi-detail-row {
+    grid-template-columns: 24px minmax(0, 1fr) minmax(72px, auto);
+}
+.dash-issues-detail-status {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 4px 0;
+    min-width: 140px;
+}
+.dash-issues-detail-status__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.dash-issues-detail-status__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    opacity: 0.9;
+}
+.dash-issues-detail-status__label {
+    flex: 1;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.dash-issues-detail-status__value {
+    font-size: 16px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    min-width: 28px;
+    text-align: right;
+}
+
+@media (max-width: 900px) {
+    .dash-dup-detail-list {
+        max-height: 320px;
+    }
+}
+
 /* File Types detail panel */
 .dash-filetypes-detail,
 .dash-code-health-detail-panel {

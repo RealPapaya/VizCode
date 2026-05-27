@@ -141,6 +141,125 @@ _dashRegisterWidget({
   },
 
   renderDetail(container, stats) {
-    _dashRenderIssuesOverview(container, stats, { layout: 'row', detail: true });
-  },
+        // ── data ─────────────────────────────────────────────────────────────
+        const t           = _dashOvTilesData(stats);
+        const circular    = stats.circular_dependencies || 0;
+        const cycles      = stats.top_circular_deps || [];
+        const deadFuncs   = stats.uncalled_functions || 0;
+        const unimp       = stats.unimported_files || 0;
+        const unimpPaths  = stats.unimported_file_paths || [];
+        const entry       = stats.entry_points || 0;
+        const iso         = stats.isolated_files || 0;
+        const isoPaths    = stats.isolated_file_paths || [];
+        const deadSymbols = stats.dead_code_symbols || [];
+
+        // ── hero visual: status indicator row ────────────────────────────────
+        const heroVisual = `
+<div class="dash-issues-detail-status">
+    ${[
+        { label: 'Circular', value: circular, color: t.circular.color, tier: t.circular.tier },
+        { label: 'Dead code', value: deadFuncs, color: t.dead.color, tier: t.dead.tier },
+        { label: 'Entry pts', value: entry, color: t.entry.color, tier: t.entry.tier },
+    ].map(s => `
+    <div class="dash-issues-detail-status__item">
+        <span class="dash-issues-detail-status__dot" style="background:${s.color}"></span>
+        <span class="dash-issues-detail-status__label">${_dashEscape(s.label)}</span>
+        <span class="dash-issues-detail-status__value" style="color:${s.color}">${_dashFmtNum(s.value)}</span>
+    </div>`).join('')}
+</div>`;
+
+        // ── summary ───────────────────────────────────────────────────────────
+        const summaryParts = [];
+        if (circular > 0) summaryParts.push(`${circular} circular dep${circular !== 1 ? 's' : ''}`);
+        if (deadFuncs > 0) summaryParts.push(`${deadFuncs} dead function${deadFuncs !== 1 ? 's' : ''}`);
+        if (unimp > 0)     summaryParts.push(`${unimp} unimported file${unimp !== 1 ? 's' : ''}`);
+        const summaryText  = summaryParts.length
+            ? summaryParts.join(', ') + ' detected.'
+            : 'No architecture issues detected.';
+
+        // ── circular dep cycle rows ───────────────────────────────────────────
+        const cycleRows = cycles.slice(0, 10).map((cycle, i) => {
+            const files = (cycle || []).map(f => String(f).replace(/\\/g, '/'));
+            const label = files.map(f => f.split('/').pop()).join(' → ');
+            return `<div class="dash-kpi-detail-row" data-clickable="true"
+                onclick="_dashOpenFileGroupDrilldown(${_dashJson('Cycle ' + (i + 1))}, ${_dashJson(files.map(f => ({ file: f })))})">
+                <span class="dash-kpi-detail-row__rank">${i + 1}</span>
+                <span class="dash-kpi-detail-row__name">${_dashEscape(label)}</span>
+                <span class="dash-kpi-detail-row__value">${files.length} files</span>
+            </div>`;
+        }).join('') || `<div class="dash-empty">No circular dependencies</div>`;
+
+        // ── dead code rows ────────────────────────────────────────────────────
+        // Group dead symbols by file, show top files
+        const deadByFile = new Map();
+        deadSymbols.forEach(s => {
+            const f = String(s.file || '').replace(/\\/g, '/');
+            if (!f) return;
+            if (!deadByFile.has(f)) deadByFile.set(f, []);
+            deadByFile.get(f).push(s);
+        });
+        const deadFilesSorted = [...deadByFile.entries()].sort((a, b) => b[1].length - a[1].length);
+        const deadRows = deadFilesSorted.slice(0, 10).map(([file, syms], i) => {
+            const short = file.split('/').pop();
+            return `<div class="dash-kpi-detail-row" data-clickable="true"
+                title="${_dashEscape(file)}"
+                onclick="_dashOpenFunctionGroupDrilldown(${_dashJson('Dead code in ' + short)}, ${_dashJson(syms.map(s => ({ file: s.file, name: s.name, value: 'unused' })))})">
+                <span class="dash-kpi-detail-row__rank">${i + 1}</span>
+                <span class="dash-kpi-detail-row__name">${_dashEscape(short)}</span>
+                <span class="dash-kpi-detail-row__value">${syms.length} unused</span>
+            </div>`;
+        }).join('');
+
+        const unimpRows = unimpPaths.slice(0, 10).map((file, i) => {
+            const short = String(file).split('/').pop();
+            return `<div class="dash-kpi-detail-row" data-clickable="true"
+                title="${_dashEscape(file)}"
+                onclick="_dashGoToGraphFile(${_dashJson(file)}, null)">
+                <span class="dash-kpi-detail-row__rank">${i + 1}</span>
+                <span class="dash-kpi-detail-row__name">${_dashEscape(short)}<span style="display:block;font-size:10px;color:var(--muted)">${_dashEscape(file)}</span></span>
+                <span class="dash-kpi-detail-row__value">unimported</span>
+            </div>`;
+        }).join('');
+
+        const deadSection = (deadRows || unimpRows)
+            ? (deadRows || '') + (unimpRows || '')
+            : `<div class="dash-empty">No dead code detected</div>`;
+
+        // ── render ────────────────────────────────────────────────────────────
+        container.innerHTML = `
+<div class="dash-kpi-detail dash-kpi-detail--issues">
+  <section class="dash-kpi-detail__hero">
+    <div class="dash-kpi-detail__hero-copy">
+      <div class="dash-kpi-detail__eyebrow">Architecture health</div>
+      <h2 class="dash-kpi-detail__title">Architecture Issues</h2>
+      <div class="dash-kpi-detail__primary">
+        <span class="dash-kpi-detail__primary-value" style="color:${t.circular.color}">${_dashFmtNum(circular)}</span>
+        <span class="dash-kpi-detail__primary-suffix">circular</span>
+      </div>
+      <p class="dash-kpi-detail__summary">${_dashEscape(summaryText)}</p>
+    </div>
+    <div class="dash-kpi-detail__hero-visual">${heroVisual}</div>
+  </section>
+  <div class="dash-kpi-detail__sections">
+${_dashKpiDetailSectionHTML({
+    title: 'Overview',
+    body: _dashKpiDetailStatsHTML([
+        { value: `${circular}`,  label: 'circular deps',   color: t.circular.color },
+        { value: `${deadFuncs}`, label: 'dead functions',  color: t.dead.color },
+        { value: `${unimp}`,     label: 'unimported files' },
+        { value: `${entry}`,     label: 'entry points',    color: t.entry.color },
+        { value: `${iso}`,       label: 'isolated files' },
+    ]),
+})}
+${circular > 0 ? _dashKpiDetailSectionHTML({
+    title: 'Circular Dependencies',
+    body: cycleRows,
+}) : ''}
+${(deadFuncs > 0 || unimp > 0) ? _dashKpiDetailSectionHTML({
+    title: 'Dead Code & Unimported',
+    body: deadSection,
+}) : ''}
+  </div>
+</div>`;
+    },
 });

@@ -71,6 +71,82 @@ function _dashCircToggle(idx) {
 }
 window._dashCircToggle = _dashCircToggle;
 
+// ── Detail panel: chip-flow chain ─────────────────────────────────────────────
+function _dashCircChainFlowHTML(cycle, expanded, idx) {
+  const total   = cycle.length;
+  const visible = expanded ? cycle : cycle.slice(0, 4);
+  const first   = String(cycle[0] || '').split('/').pop();
+  const parts   = [];
+  visible.forEach((file, i) => {
+    const short    = String(file).split('/').pop();
+    const fileJson = _dashJson(file);
+    parts.push(
+      `<span class="dash-circ-chip" title="${_dashEscape(file)}"` +
+      ` onclick="event.stopPropagation();_dashGoToGraphFile(${fileJson},null)">${_dashEscape(short)}</span>`
+    );
+    if (i < visible.length - 1) {
+      parts.push('<span class="dash-circ-arrow" aria-hidden="true"></span>');
+    }
+  });
+  if (!expanded && total > visible.length) {
+    parts.push('<span class="dash-circ-arrow" aria-hidden="true"></span>');
+    parts.push(
+      `<span class="dash-circ-more"` +
+      ` onclick="event.stopPropagation();_dashCircDetailToggle(${idx})">+${total - visible.length} more</span>`
+    );
+  }
+  parts.push(
+    `<span class="dash-circ-return" title="loops back to ${_dashEscape(first)}">\u21a9</span>`
+  );
+  return parts.join('');
+}
+
+function _dashCircCardDetail(cycle, idx) {
+  const len      = cycle.length;
+  const sev      = _dashCircSeverity(len);
+  const cycleJson = _dashJson(cycle);
+  const titleJson = _dashJson(`Circular #${idx + 1} (${len} files)`);
+  const sevLabel  = _dashT(sev.labelKey);
+  const expandBtn = len > 4
+    ? `<button class="dash-circ-toggle-btn" data-circ-d-toggle="${idx}" title="${_dashEscape(_dashT('dashIssuesExpandChain'))}"
+          onclick="event.stopPropagation();_dashCircDetailToggle(${idx})">+</button>`
+    : '';
+  return `
+<div class="dash-circ-card-detail sev-${sev.tier}" id="dash-circ-d-${idx}">
+  <div class="dash-circ-card-detail__head">
+    <span class="dash-list-rank">${idx + 1}</span>
+    <span class="dash-sev-pill dash-sev-bg-${sev.tier}">
+      <span class="dash-sev-dot dash-sev-${sev.tier}"></span>${_dashEscape(sevLabel)}
+    </span>
+    <span class="dash-circ-card-detail__len">${len} files</span>
+    <button class="dash-circ-graph-btn" title="${_dashEscape(_dashT('dashIssuesViewInGraph'))}"
+          onclick="event.stopPropagation();_dashOpenFileGroupDrilldown(${titleJson},${cycleJson})">&#x2197;</button>
+  </div>
+  <div class="dash-circ-chain-wrap" data-circ-d-idx="${idx}" data-expanded="0">
+    <div class="dash-circ-flow">${_dashCircChainFlowHTML(cycle, false, idx)}</div>
+  </div>
+  ${expandBtn}
+</div>`;
+}
+
+function _dashCircDetailToggle(idx) {
+  const stats  = (window.DATA && window.DATA.stats) || {};
+  const cycles = stats.top_circular_deps || [];
+  const cycle  = cycles[idx];
+  if (!cycle) return;
+  const wrap   = document.querySelector(`.dash-circ-chain-wrap[data-circ-d-idx="${idx}"]`);
+  const toggle = document.querySelector(`[data-circ-d-toggle="${idx}"]`);
+  if (!wrap) return;
+  const expanded = wrap.getAttribute('data-expanded') === '1';
+  const next     = !expanded;
+  wrap.setAttribute('data-expanded', next ? '1' : '0');
+  const flow = wrap.querySelector('.dash-circ-flow');
+  if (flow) flow.innerHTML = _dashCircChainFlowHTML(cycle, next, idx);
+  if (toggle) toggle.textContent = next ? '\u2212' : '+';
+}
+window._dashCircDetailToggle = _dashCircDetailToggle;
+
+
 function _dashCircStatusColor(count) {
   return count > 0 ? 'var(--status-warn)' : 'var(--status-good)';
 }
@@ -78,7 +154,6 @@ function _dashCircStatusColor(count) {
 // ── L / detail layout with prominent panel header ──
 function _dashRenderCircularDeps(container, stats, opts) {
   if (!container) return;
-  const isDetail = !!(opts && opts.detail);
   const cycles = stats.top_circular_deps || [];
   const count = stats.circular_dependencies || 0;
   const color = _dashCircStatusColor(count);
@@ -91,15 +166,6 @@ function _dashRenderCircularDeps(container, stats, opts) {
     ? cycles.map((c, i) => _dashCircCard(c, i)).join('')
     : `<div class="dash-empty">✅ ${_dashEscape(_dashT('dashIssuesNoCycles'))}</div>`;
 
-  if (isDetail) {
-    container.innerHTML = _dashReportSection({
-      title: _dashT('dashCircularDepsTitle'),
-      subtitle: `${count} ${_dashT('dashCircularDepsSub')}`,
-      accent: color,
-      body: _dashReportList(cyclesHTML, { className: 'dash-arch-cycles-list' }),
-    });
-    return;
-  }
 
   container.innerHTML = `
 <div class="dash-arch-panel">
@@ -184,5 +250,66 @@ _dashRegisterWidget({
     _dashRenderCircularDeps(container, stats);
   },
 
-  renderDetail(container, stats) { _dashRenderCircularDeps(container, stats, { detail: true }); },
+  renderDetail(container, stats) {
+    const cycles      = stats.top_circular_deps || [];
+    const count       = stats.circular_dependencies || 0;
+    const color       = _dashCircStatusColor(count);
+    const sevCounts   = { critical: 0, warn: 0, info: 0 };
+    cycles.forEach(c => { sevCounts[_dashCircSeverity(c.length).tier]++; });
+    const affectedFiles = new Set(cycles.flat()).size;
+
+    const heroVisual = `
+<div class="dash-circ-detail-sev">
+  ${[
+    { tier: 'critical', label: _dashT('dashIssuesSevCritical'), color: '#d35454' },
+    { tier: 'warn',     label: _dashT('dashIssuesSevWarn'),     color: 'var(--status-warn)' },
+    { tier: 'info',     label: _dashT('dashIssuesSevInfo'),     color: 'var(--muted)' },
+  ].map(s => `
+  <div class="dash-circ-detail-sev__item">
+    <span class="dash-sev-pill dash-sev-bg-${s.tier}">
+      <span class="dash-sev-dot dash-sev-${s.tier}"></span>${_dashEscape(s.label)}
+    </span>
+    <span class="dash-circ-detail-sev__value" style="color:${s.color}">${sevCounts[s.tier]}</span>
+  </div>`).join('')}
+</div>`;
+
+    const summaryText = count === 0
+      ? 'No circular dependencies detected.'
+      : `${count} cycle${count !== 1 ? 's' : ''} detected across ${affectedFiles} file${affectedFiles !== 1 ? 's' : ''}.`;
+
+    const cyclesHTML = cycles.length
+      ? cycles.map((c, i) => _dashCircCardDetail(c, i)).join('')
+      : `<div class="dash-empty">\u2705 ${_dashEscape(_dashT('dashIssuesNoCycles'))}</div>`;
+
+    container.innerHTML = `
+<div class="dash-kpi-detail dash-kpi-detail--circular">
+  <section class="dash-kpi-detail__hero">
+    <div class="dash-kpi-detail__hero-copy">
+      <div class="dash-kpi-detail__eyebrow">Dependency risk</div>
+      <h2 class="dash-kpi-detail__title">${_dashEscape(_dashT('dashCircularDepsTitle'))}</h2>
+      <div class="dash-kpi-detail__primary">
+        <span class="dash-kpi-detail__primary-value" style="color:${color}">${_dashFmtNum(count)}</span>
+        <span class="dash-kpi-detail__primary-suffix">cycles</span>
+      </div>
+      <p class="dash-kpi-detail__summary">${_dashEscape(summaryText)}</p>
+    </div>
+    <div class="dash-kpi-detail__hero-visual">${heroVisual}</div>
+  </section>
+  <div class="dash-kpi-detail__sections">
+${_dashKpiDetailSectionHTML({
+    title: 'Snapshot',
+    body: _dashKpiDetailStatsHTML([
+      { value: String(count),              label: 'total cycles',  color },
+      { value: String(affectedFiles),      label: 'files affected' },
+      { value: String(sevCounts.critical), label: 'critical', color: sevCounts.critical > 0 ? '#d35454' : undefined },
+      { value: String(sevCounts.warn),     label: 'warning',  color: sevCounts.warn > 0 ? 'var(--status-warn)' : undefined },
+    ]),
+})}
+${_dashKpiDetailSectionHTML({
+    title: count > 0 ? `All Cycles (${count})` : 'Cycles',
+    body: `<div class="dash-circ-detail-list">${cyclesHTML}</div>`,
+})}
+  </div>
+</div>`;
+  },
 });

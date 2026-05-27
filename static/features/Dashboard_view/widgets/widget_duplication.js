@@ -83,39 +83,82 @@ _dashRegisterWidget({
   },
 
   renderDetail(container, stats) {
-    const pct = Number(stats.duplication_percent || 0);
-    const blocks = stats.duplication_blocks || [];
-    const color = pct < 5 ? 'var(--status-good)'
-      : pct < 15 ? 'var(--status-warn)'
-        : 'var(--status-bad)';
-    const fillPct = Math.max(0, Math.min(100, pct));
+        // ── data ─────────────────────────────────────────────────────────────
+        const pct    = Number(stats.duplication_percent || 0);
+        const blocks = stats.duplication_blocks || [];
+        const color  = pct < 5  ? 'var(--status-good)'
+                     : pct < 15 ? 'var(--status-warn)'
+                     :             'var(--status-bad)';
+        const label  = pct < 5 ? 'clean' : pct < 15 ? 'moderate' : 'high';
+        const fillPct = Math.max(0, Math.min(100, pct));
 
-    const blocksHTML = blocks.map((blk, i) => {
-      const occurrences = blk.occurrences || [];
-      const first = occurrences[0] || {};
-      const firstFile = String(first.file || '').split('/').pop();
-      const fileJSON = JSON.stringify(first.file || '').replace(/"/g, '&quot;');
-      return `<div class="dash-dup-row" data-clickable="true" onclick="_dashDrill(${fileJSON}, null)">
-              <div class="dash-dup-row-head">
-                <span class="dash-list-rank">${i + 1}</span>
-                <span class="dash-dup-row-name">${_dashEscape(firstFile)}<span class="dash-dup-row-line">:${first.line || '?'}</span></span>
-                <span class="dash-dup-row-count">${occurrences.length}× duplicated</span>
-              </div>
-              <div class="dash-dup-row-sample">${_dashEscape(blk.sample || '')}</div>
-            </div>`;
-    }).join('') || `<div class="dash-empty">✅ ${_dashEscape(_dashT('dashDuplicationNone'))}</div>`;
+        // Collect unique affected files across all blocks
+        const affectedFiles = new Set();
+        blocks.forEach(blk => (blk.occurrences || []).forEach(o => { if (o.file) affectedFiles.add(o.file); }));
 
-    const summary = `
-  <div class="dash-dup-body">
-    <div class="dash-dup-gauge">
-      <div class="dash-dup-pct" style="color:${color}">${pct.toFixed(1)}<span style="font-size:18px">%</span></div>
-      <div class="dash-dup-pct-track"><div class="dash-dup-pct-fill" style="width:${fillPct}%;background:${color}"></div></div>
-      <div class="dash-dup-sub">${_dashEscape(_dashT('dashDuplicationSub'))}</div>
+        // ── hero visual: gauge bar ────────────────────────────────────────────
+        const heroVisual = `
+<div class="dash-dup-detail-gauge">
+    <div class="dash-dup-detail-gauge__bar-wrap">
+        <div class="dash-dup-detail-gauge__bar" style="width:${fillPct}%;background:${color}"></div>
     </div>
-  </div>`;
+    <div class="dash-dup-detail-gauge__labels">
+        <span style="color:var(--muted);font-size:10px">0%</span>
+        <span style="color:${color};font-weight:600;font-size:11px">${label}</span>
+        <span style="color:var(--muted);font-size:10px">100%</span>
+    </div>
+</div>`;
 
-    container.innerHTML = `
-${_dashReportSection({ title: _dashT('dashDuplicationTitle'), accent: color, body: summary })}
-${_dashReportSection({ title: 'Duplicated Blocks', body: _dashReportList(blocksHTML, { className: 'dash-dup-list' }) })}`;
-  },
+        // ── block rows ────────────────────────────────────────────────────────
+        const blockRows = blocks.map((blk, i) => {
+            const occ = blk.occurrences || [];
+            const first = occ[0] || {};
+            const fileShort = String(first.file || '').split('/').pop();
+            const allFiles  = [...new Set(occ.map(o => o.file).filter(Boolean))];
+            return `<div class="dash-kpi-detail-row dash-dup-detail-block-row" data-clickable="true"
+                title="${_dashEscape(first.file || '')}"
+                onclick="_dashOpenFileGroupDrilldown(${_dashJson('Duplication block ' + (i + 1))}, ${_dashJson(allFiles.map(f => ({ file: f })))})">
+                <span class="dash-kpi-detail-row__rank">${i + 1}</span>
+                <span class="dash-kpi-detail-row__name">
+                    ${_dashEscape(fileShort)}<span class="dash-dup-detail-meta">:${first.line || '?'} · ${_dashEscape(blk.sample ? blk.sample.trim().slice(0, 60) : '')}</span>
+                </span>
+                <span class="dash-kpi-detail-row__value">${occ.length}×</span>
+            </div>`;
+        }).join('') || `<div class="dash-empty">✅ ${_dashEscape(_dashT('dashDuplicationNone'))}</div>`;
+
+        // ── render ────────────────────────────────────────────────────────────
+        const summaryText = blocks.length
+            ? `${blocks.length} duplicated block${blocks.length !== 1 ? 's' : ''} detected across ${affectedFiles.size} file${affectedFiles.size !== 1 ? 's' : ''}. ${label.charAt(0).toUpperCase() + label.slice(1)} duplication level.`
+            : `No duplicated blocks detected. Codebase is clean.`;
+
+        container.innerHTML = `
+<div class="dash-kpi-detail dash-kpi-detail--duplication">
+  <section class="dash-kpi-detail__hero">
+    <div class="dash-kpi-detail__hero-copy">
+      <div class="dash-kpi-detail__eyebrow">Code duplication</div>
+      <h2 class="dash-kpi-detail__title">Duplication Analysis</h2>
+      <div class="dash-kpi-detail__primary">
+        <span class="dash-kpi-detail__primary-value" style="color:${color}">${pct.toFixed(1)}</span>
+        <span class="dash-kpi-detail__primary-suffix">%</span>
+      </div>
+      <p class="dash-kpi-detail__summary">${_dashEscape(summaryText)}</p>
+    </div>
+    <div class="dash-kpi-detail__hero-visual">${heroVisual}</div>
+  </section>
+  <div class="dash-kpi-detail__sections">
+${_dashKpiDetailSectionHTML({
+    title: 'Snapshot',
+    body: _dashKpiDetailStatsHTML([
+        { value: `${pct.toFixed(1)}%`, label: 'duplication', color },
+        { value: `${blocks.length}`,   label: 'blocks' },
+        { value: `${affectedFiles.size}`, label: 'files affected' },
+    ]),
+})}
+${_dashKpiDetailSectionHTML({
+    title: 'Duplicated Blocks',
+    body: `<div class="dash-dup-detail-list">${blockRows}</div>`,
+})}
+  </div>
+</div>`;
+    },
 });
