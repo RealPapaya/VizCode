@@ -185,14 +185,13 @@ function _dashSecRenderDetail(container, f) {
 
     const canvasId  = 'dash-chart-sec-trend';
     const chartHtml = trend.length >= 2 ? `
-<div class="dash-detail-chart dash-detail-chart--sm" style="position:relative">
+<div class="dash-report-chart dash-report-chart--sm" style="position:relative">
   <canvas id="${canvasId}" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
 </div>` : `
 <div class="dash-empty" style="font-size:0.75rem;opacity:0.5;padding:6px 0">${_dashEscape(_dashT('dashSecurityTrendEmpty'))}</div>`;
 
     container.innerHTML = `
-<div class="dash-detail-section dash-detail-natural">
-  <div class="dash-card dash-detail-section">
+<div class="dash-report-section">
     <div class="dash-detail-stat-row">
       <div>
         <span style="font-size:2rem;font-weight:700;color:${color}">${f.score.toFixed(1)}</span>
@@ -210,18 +209,17 @@ function _dashSecRenderDetail(container, f) {
       </div>
     </div>
     <div style="margin-top:10px">${chartHtml}</div>
-  </div>
+</div>
 
-  <div class="dash-grid dash-detail-grid dash-detail-grid-2">
-    <div class="dash-card dash-detail-section">
-      <div class="dash-card-title"><span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashSecurityByRule'))}</div>
-      <div class="dash-list dash-detail-flow-list">${ruleRows || '<div class="dash-empty" style="opacity:0.4;font-size:0.75rem;text-align:center;padding:10px">—</div>'}</div>
+<div class="dash-report-grid dash-report-grid--2">
+    <div class="dash-report-section">
+      <div class="dash-report-section-title">${_dashEscape(_dashT('dashSecurityByRule'))}</div>
+      <div class="dash-report-list">${ruleRows || '<div class="dash-empty" style="opacity:0.4;font-size:0.75rem;text-align:center;padding:10px">??/div>'}</div>
     </div>
-    <div class="dash-card dash-detail-section">
-      <div class="dash-card-title"><span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashSecurityAllIssues'))}</div>
-      <div class="dash-list dash-detail-flow-list">${issueList || '<div class="dash-empty" style="opacity:0.4;font-size:0.75rem;text-align:center;padding:10px">' + _dashEscape(_dashT('dashSecurityClean')) + '</div>'}</div>
+    <div class="dash-report-section">
+      <div class="dash-report-section-title">${_dashEscape(_dashT('dashSecurityAllIssues'))}</div>
+      <div class="dash-report-list">${issueList || '<div class="dash-empty" style="opacity:0.4;font-size:0.75rem;text-align:center;padding:10px">' + _dashEscape(_dashT('dashSecurityClean')) + '</div>'}</div>
     </div>
-  </div>
 </div>`;
 
     if (trend.length >= 2 && typeof Chart !== 'undefined') {

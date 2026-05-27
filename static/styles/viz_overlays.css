@@ -2051,11 +2051,20 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 
 
 
+.dash-detail-report-panel {
+    --dash-report-body-padding-x: clamp(16px, 2.2vw, 24px);
+    --dash-report-body-padding-y: clamp(16px, 2.2vw, 24px);
+    --dash-report-section-gap: clamp(22px, 2.6vw, 32px);
+    --dash-report-divider-inset: clamp(4px, 1vw, 10px);
+    --dash-report-divider-color: color-mix(in srgb, var(--border) 72%, transparent);
+    --dash-report-head-padding-x: var(--space-5);
+}
+
 .dash-detail-head {
 
     flex-shrink: 0;
 
-    padding: var(--space-3) var(--space-5);
+    padding: var(--space-3) var(--dash-report-head-padding-x, var(--space-5));
 
     border-bottom: 0;
     position: relative;
@@ -2179,17 +2188,17 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 .dash-detail-head::after {
     content: "";
     position: absolute;
-    left: var(--space-5);
-    right: var(--space-5);
+    left: var(--dash-report-head-padding-x, var(--space-5));
+    right: var(--dash-report-head-padding-x, var(--space-5));
     bottom: 0;
     height: 1px;
-    background: var(--border);
+    background: var(--dash-report-divider-color, var(--border));
 }
 
 .dash-report-body {
     background: var(--surface-card);
-    gap: clamp(18px, 2.2vw, 26px);
-    padding: clamp(16px, 2.2vw, 24px);
+    gap: var(--dash-report-section-gap);
+    padding: var(--dash-report-body-padding-y) var(--dash-report-body-padding-x);
     box-sizing: border-box;
 }
 
@@ -2206,7 +2215,7 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     gap: clamp(14px, 2vw, 24px);
     align-items: stretch;
     min-height: 0;
-    padding: 0 0 clamp(18px, 2.2vw, 24px);
+    padding: 0 0 var(--dash-report-section-gap);
     border: 0;
     border-radius: 0;
     background: transparent;
@@ -2218,11 +2227,11 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 .dash-report-hero::after {
     content: "";
     position: absolute;
-    left: clamp(4px, 1vw, 10px);
-    right: clamp(4px, 1vw, 10px);
+    left: var(--dash-report-divider-inset);
+    right: var(--dash-report-divider-inset);
     bottom: 0;
     height: 1px;
-    background: color-mix(in srgb, var(--border) 78%, transparent);
+    background: var(--dash-report-divider-color);
 }
 
 .dash-report-hero--reverse .dash-report-hero-copy { order: 2; }
@@ -2411,7 +2420,7 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 .dash-report-details {
     display: flex;
     flex-direction: column;
-    gap: clamp(18px, 2.2vw, 26px);
+    gap: 0;
     min-height: 0;
     padding: 0 0 clamp(8px, 1.5vw, 14px);
     box-sizing: border-box;
@@ -2424,100 +2433,73 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 }
 
 .dash-report-details > * + * {
-    padding-top: clamp(16px, 2vw, 22px);
+    margin-top: var(--dash-report-section-gap);
 }
 
 .dash-report-details > * + *::before {
     content: "";
     position: absolute;
-    left: clamp(4px, 1vw, 10px);
-    right: clamp(4px, 1vw, 10px);
+    left: var(--dash-report-divider-inset);
+    right: var(--dash-report-divider-inset);
     top: 0;
     height: 1px;
-    background: color-mix(in srgb, var(--border) 72%, transparent);
+    background: var(--dash-report-divider-color);
 }
 
-.dash-report-details > .dash-card,
-.dash-report-details > .dash-arch-panel,
-.dash-report-details > .dash-detail-section,
-.dash-report-details .dash-detail-section {
-    background: transparent;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
+.dash-report-details > * + * {
+    padding-top: var(--dash-report-section-gap);
+}
+
+.dash-report-section {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(10px, 1.4vw, 16px);
+    min-width: 0;
     overflow: visible;
-    padding: 0;
-    min-width: 0;
-    min-height: 0;
-    height: auto;
-    max-height: none;
 }
 
-.dash-report-details > .dash-card:hover,
-.dash-report-details > .dash-detail-section:hover {
-    transform: none;
-    border-color: transparent;
-    box-shadow: none;
-}
-
-.dash-report-details .dash-card-title {
-    min-width: 0;
-    flex-wrap: wrap;
-    row-gap: 6px;
-}
-
-.dash-report-details > .dash-arch-panel .dash-arch-panel-header,
-.dash-detail-section > .dash-arch-panel-header {
-    position: relative;
-    border-bottom: 0;
-    padding: 2px 0 12px;
-}
-
-.dash-report-details > .dash-arch-panel .dash-arch-panel-header::after,
-.dash-detail-section > .dash-arch-panel-header::after {
-    content: "";
-    position: absolute;
-    left: 4px;
-    right: 4px;
-    bottom: 0;
-    height: 1px;
-    background: color-mix(in srgb, var(--border) 64%, transparent);
-}
-
-.dash-report-details .dash-detail-metrics {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-    gap: clamp(10px, 1.5vw, 16px);
-    align-items: stretch;
-    border-bottom: 0;
-    padding: 0;
-    min-width: 0;
-}
-
-.dash-report-details .dash-detail-metric {
+.dash-report-section-head {
+    display: flex;
     align-items: baseline;
-    border: 0;
-    border-radius: 0;
-    padding: 0;
+    justify-content: space-between;
+    gap: 10px;
     min-width: 0;
 }
 
-.dash-detail-section {
+.dash-report-section-title {
+    color: var(--text);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    line-height: 1.35;
+    min-width: 0;
+}
+
+.dash-report-section-title::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 8px;
+    border-radius: 50%;
+    background: var(--dash-report-accent, var(--accent));
+    vertical-align: 1px;
+}
+
+.dash-report-section-subtitle {
+    color: var(--muted);
+    font-size: var(--text-xs);
+    line-height: 1.4;
+    min-width: 0;
+}
+
+.dash-report-section-body {
     display: flex;
     flex-direction: column;
     gap: clamp(10px, 1.4vw, 16px);
     min-width: 0;
 }
 
-.dash-detail-natural {
-    height: auto;
-    max-height: none;
-    min-height: 0;
-    overflow: visible;
-}
-
-.dash-detail-grid,
-.dash-report-details .dash-detail-grid {
+.dash-report-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
     gap: clamp(14px, 1.8vw, 22px);
@@ -2525,27 +2507,29 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     align-items: start;
 }
 
-.dash-detail-grid-2 {
+.dash-report-grid--2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.dash-detail-chart {
+.dash-report-chart {
     position: relative;
     min-height: 220px;
     min-width: 0;
 }
 
-.dash-detail-chart--sm { min-height: 180px; }
-.dash-detail-chart--md { min-height: 240px; }
-.dash-detail-chart--lg { min-height: 340px; }
+.dash-report-chart--sm { min-height: 180px; }
+.dash-report-chart--md { min-height: 240px; }
+.dash-report-chart--lg { min-height: 340px; }
 
-.dash-detail-chart canvas {
+.dash-report-chart canvas {
     width: 100% !important;
     height: 100% !important;
 }
 
-.dash-detail-flow-list,
-.dash-report-details .dash-detail-flow-list {
+.dash-report-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
     height: auto;
     max-height: none;
     overflow: visible;
@@ -2553,14 +2537,39 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     padding-right: 0;
 }
 
-.dash-detail-flow-list .dash-list-row,
-.dash-detail-wrap-rows .dash-list-row {
+.dash-report-list .dash-list-row {
     min-width: 0;
 }
 
-.dash-detail-flow-list .dash-list-name,
-.dash-detail-wrap-rows .dash-list-name {
+.dash-report-list .dash-list-name {
     min-width: 0;
+}
+
+.dash-report-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: clamp(10px, 1.5vw, 16px);
+    align-items: stretch;
+    min-width: 0;
+}
+
+.dash-report-stat {
+    min-width: 0;
+}
+
+.dash-report-stat-value {
+    display: block;
+    color: var(--text);
+    font-size: clamp(22px, 3vw, 32px);
+    font-weight: 700;
+    line-height: 1;
+}
+
+.dash-report-stat small {
+    display: block;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: var(--text-xs);
 }
 
 .dash-detail-bar-rows,
@@ -2611,13 +2620,6 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     gap: var(--space-2);
 }
 
-.dash-report-details > .dash-arch-panel .dash-arch-panel-body,
-.dash-detail-section > .dash-arch-panel-body {
-    height: auto;
-    max-height: none;
-    overflow: visible;
-}
-
 .dash-report-details--structure .dash-structure-treemap-card {
     min-height: 220px;
 }
@@ -2647,7 +2649,7 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 .dash-report-body--kpi_functions .dash-report-metrics,
 .dash-report-body--structure .dash-report-metrics {
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    margin-top: 2px;
+    margin-top: clamp(14px, 1.6vw, 22px);
 }
 
 .dash-codebase-function-detail {
@@ -2659,30 +2661,6 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 
 .dash-codebase-function-metrics {
     margin-bottom: 0;
-}
-
-.dash-report-details--overview .dash-detail-metrics .dash-detail-metric,
-.dash-codebase-function-metrics .dash-detail-metric,
-.dash-detail-body .dash-structure-layout--detail > .dash-detail-metrics .dash-detail-metric {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 5px;
-}
-
-.dash-codebase-detail-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
-    gap: clamp(14px, 1.8vw, 22px);
-    align-items: stretch;
-    min-width: 0;
-}
-
-.dash-codebase-detail-grid > .dash-detail-section {
-    min-height: 0;
-}
-
-.dash-codebase-detail-grid--functions .dash-detail-chart {
-    min-height: 300px;
 }
 
 .dash-codebase-function-list .dash-list-row {
@@ -2781,12 +2759,15 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 
 @media (max-width: 560px) {
     .dash-report-body {
-        padding: 12px;
-        gap: 16px;
+        --dash-report-body-padding-x: 12px;
+        --dash-report-body-padding-y: 12px;
+        --dash-report-section-gap: 16px;
+        --dash-report-divider-inset: 4px;
+        gap: var(--dash-report-section-gap);
     }
 
     .dash-report-hero {
-        padding: 0 0 16px;
+        padding: 0 0 var(--dash-report-section-gap);
         gap: 12px;
     }
 
@@ -2811,8 +2792,8 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
         gap: 8px;
     }
 
-    .dash-detail-grid-2,
-    .dash-detail-grid {
+    .dash-report-grid--2,
+    .dash-report-grid {
         grid-template-columns: minmax(0, 1fr);
     }
 
@@ -3276,11 +3257,6 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     min-height: 0;
 }
 
-.dash-detail-chart-sm {
-    min-height: 180px !important;
-    max-height: 220px;
-}
-
 .dash-detail-breakdown,
 .dash-detail-list {
     min-height: 0;
@@ -3378,7 +3354,7 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
         grid-template-columns: 1fr;
     }
 
-    .dash-detail-chart-sm {
+    .dash-report-chart--sm {
         min-height: 170px !important;
         max-height: none;
     }
@@ -3388,48 +3364,35 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     }
 }
 
-.dash-detail-body .dash-structure-layout--detail {
-    min-height: 0;
-    gap: clamp(14px, 1.8vw, 22px);
-}
-
-.dash-detail-body .dash-structure-layout--detail .dash-structure-chart-grid {
+.dash-report-details--structure .dash-structure-chart-grid {
     flex: 0 0 auto;
     align-items: stretch;
 }
 
-.dash-detail-body .dash-structure-layout--detail .dash-structure-chart-wrap {
+.dash-report-details--structure .dash-structure-chart-wrap {
     min-height: 260px !important;
 }
 
-.dash-detail-body .dash-structure-layout--detail .dash-structure-chart-grid > .dash-detail-section {
-    min-height: 320px;
-}
-
-.dash-detail-body .dash-structure-layout--detail .dash-structure-treemap-card {
+.dash-report-details--structure .dash-structure-treemap-card {
     max-height: none;
     min-height: 260px;
 }
 
-.dash-detail-body .dash-structure-layout--detail .dash-treemap {
+.dash-report-details--structure .dash-treemap {
     min-height: 210px;
 }
 
 @media (max-width: 860px) {
-    .dash-detail-body .dash-structure-layout--detail .dash-structure-chart-grid {
+    .dash-report-details--structure .dash-structure-chart-grid {
         grid-template-columns: 1fr;
         flex: 0 0 auto;
     }
 
-    .dash-report-details .dash-detail-grid-2,
-    .dash-report-details .dash-detail-split,
+    .dash-detail-split,
     .dash-report-details .dash-commit-activity-detail,
-    .dash-report-details .dash-structure-chart-grid {
+    .dash-report-details .dash-structure-chart-grid,
+    .dash-report-details .dash-report-grid--2 {
         grid-template-columns: minmax(0, 1fr) !important;
-    }
-
-    .dash-codebase-detail-grid {
-        grid-template-columns: minmax(0, 1fr);
     }
 
     .dash-codebase-function-list .dash-list-row {
@@ -3448,7 +3411,7 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
         display: flex;
         flex-direction: column;
         gap: 16px;
-        padding-bottom: 34px;
+        padding-bottom: var(--dash-report-section-gap);
     }
 
     .dash-report-body--overview .dash-report-hero-copy,
@@ -3492,44 +3455,6 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     .dash-report-body--structure .dash-report-hero-visual {
         display: none;
     }
-}
-
-
-/* -- Detail panel summary metrics (e.g. 163 files / 14 extensions) -- */
-
-.dash-detail-metrics {
-    display: flex;
-    align-items: baseline;
-    gap: var(--space-5);
-    padding: var(--space-2) 0 var(--space-3);
-    border-bottom: 1px solid var(--border);
-    margin-bottom: var(--space-2);
-    flex-shrink: 0;
-}
-
-.dash-detail-metric {
-    display: flex;
-    align-items: baseline;
-    gap: 4px;
-    min-width: 0;
-}
-
-.dash-detail-metric span {
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--text);
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
-}
-
-.dash-detail-metric small {
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--muted);
-    white-space: nowrap;
-    text-transform: lowercase;
-    letter-spacing: 0;
 }
 
 
@@ -4411,7 +4336,3 @@ body.dash-customize .dash-widget-remove-btn {
 
 /* Tighten dash-arch-bottom-grid behaviour inside new panel framework */
 .dash-arch-panel .dash-arch-bottom-grid { flex: 1; min-height: 0; }
-
-
-
-

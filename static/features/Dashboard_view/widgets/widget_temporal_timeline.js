@@ -30,13 +30,21 @@ function _dashRenderTemporalTimeline(container, stats, scope) {
     const buckets = stats.churn_timeline || [];
     const key = _dashTimelineKey(scope);
     const isDetail = String(scope || '').includes('detail');
+    const isReport = container.classList.contains('dash-report-section');
 
-    container.innerHTML = `
+    container.innerHTML = isReport ? `
+<div class="dash-report-section-head">
+  <div class="dash-report-section-title">${_dashEscape(_dashT('dashTemporalChurn'))}</div>
+  <div class="dash-report-section-subtitle">${_dashChartToggleHTML(key, _DASH_TIMELINE_TYPES, _DASH_TIMELINE_DEFAULT)}</div>
+</div>
+<div class="dash-report-section-body">
+  ${_dashReportChart(`<canvas id="${_dashTimelineId(scope)}"></canvas>`, { size: isDetail ? 'lg' : 'md' })}
+</div>` : `
 <div class="dash-card-title">
   <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashTemporalChurn'))}
   ${_dashChartToggleHTML(key, _DASH_TIMELINE_TYPES, _DASH_TIMELINE_DEFAULT)}
 </div>
-<div class="dash-chart-wrap dash-timeline-chart-wrap${isDetail ? ' dash-detail-chart dash-detail-chart--lg' : ''}"><canvas id="${_dashTimelineId(scope)}"></canvas></div>`;
+<div class="dash-chart-wrap dash-timeline-chart-wrap"><canvas id="${_dashTimelineId(scope)}"></canvas></div>`;
 
     if (!buckets.length) {
         const wrap = container.querySelector('.dash-chart-wrap');
@@ -164,6 +172,7 @@ _dashRegisterWidget({
         _dashRenderChurnTimelineWidget(container, size, stats, 'widget');
     },
     renderDetail(container, stats) {
-        _dashRenderChurnTimelineWidget(container, 'L', stats, 'detail');
+        container.innerHTML = `<section class="dash-report-section" id="dash-churn-timeline-report"></section>`;
+        _dashRenderChurnTimelineWidget(container.querySelector('#dash-churn-timeline-report'), 'L', stats, 'detail');
     },
 });

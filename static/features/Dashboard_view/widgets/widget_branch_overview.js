@@ -49,7 +49,10 @@ function _dashBranchLoad(container, stats, onData) {
 }
 
 function _dashBranchShowError(container, msg) {
-    const body = container.querySelector('.dash-bf-body') || container;
+    const body = container.querySelector('.dash-bf-body')
+        || container.querySelector('#dash-branch-list-l')
+        || container.querySelector('#dash-branch-diff-panel')
+        || container;
     body.innerHTML = `<div class="dash-empty">${_dashEscape(msg)}</div>`;
 }
 
@@ -93,14 +96,30 @@ function _dashBranchRowCompact(b, base) {
 
 function _dashRenderBranchLarge(container, stats, branchData, opts) {
     const isDetail = !!(opts && opts.detail);
+    if (isDetail) {
+        container.innerHTML = _dashReportSection({
+            title: _dashT('dashBranchOverviewTitle'),
+            body: _dashReportGrid([
+                _dashReportSection({
+                    title: _dashT('dashBranchOverviewTitle'),
+                    body: _dashReportList('', { id: 'dash-branch-list-l' }),
+                }),
+                _dashReportSection({
+                    title: 'Branch Diff',
+                    body: `<div id="dash-branch-diff-panel" class="dash-report-list" style="font-size:0.78rem"></div>`,
+                }),
+            ], { columns: 2 }),
+        });
+    } else {
     container.innerHTML = `
 <div class="dash-card-title">
   <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashBranchOverviewTitle'))}
 </div>
-<div class="dash-bf-body${isDetail ? ' dash-detail-grid dash-detail-grid-2' : ''}" style="${isDetail ? '' : 'display:flex;'}gap:0.75rem;flex:1;min-height:0;${isDetail ? '' : 'overflow:hidden'}">
-  <div id="dash-branch-list-l" class="dash-list${isDetail ? ' dash-detail-flow-list' : ''}" style="${isDetail ? '' : 'flex:0 0 44%;overflow-y:auto;border-right:1px solid var(--panel-border-color);padding-right:0.5rem'}"></div>
-  <div id="dash-branch-diff-panel" class="${isDetail ? 'dash-detail-flow-list' : ''}" style="${isDetail ? '' : 'flex:1;overflow-y:auto;'}font-size:0.78rem"></div>
+<div class="dash-bf-body" style="display:flex;gap:0.75rem;flex:1;min-height:0;overflow:hidden">
+  <div id="dash-branch-list-l" class="dash-list" style="flex:0 0 44%;overflow-y:auto;border-right:1px solid var(--panel-border-color);padding-right:0.5rem"></div>
+  <div id="dash-branch-diff-panel" class="" style="flex:1;overflow-y:auto;font-size:0.78rem"></div>
 </div>`;
+    }
 
     _dashBranchLoad(container, stats, data => {
         const listEl = container.querySelector('#dash-branch-list-l');

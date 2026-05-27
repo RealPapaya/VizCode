@@ -72,32 +72,65 @@ function _dashRenderStructure(container, stats, options) {
     const treemapStyle = isDetail
         ? ''
         : 'flex:0 0 auto;max-height:35%;overflow:hidden;';
+    const layoutOpen = isDetail
+        ? ''
+        : `<div class="dash-structure-layout" style="${layoutStyle}">`;
+    const layoutClose = isDetail ? '' : '</div>';
+
+    if (isDetail) {
+        container.innerHTML = `
+${_dashReportGrid([
+  _dashReportSection({
+    title: _dashT('dashStructureFileTypes'),
+    subtitle: _dashChartToggleHTML(keys.typesKey, _DASH_TYPES_TYPES, _DASH_TYPES_DEFAULT),
+    body: _dashReportChart(`<canvas id="${keys.typesId}"></canvas>`, { size: 'md' }),
+  }),
+  _dashReportSection({
+    title: _dashT('dashStructureLangDist'),
+    subtitle: _dashChartToggleHTML(keys.langKey, _DASH_LANG_TYPES, _DASH_LANG_DEFAULT),
+    body: _dashReportChart(`<canvas id="${keys.langId}"></canvas>`, { size: 'md' }),
+  }),
+], { columns: 2 })}
+${_dashReportSection({
+  title: _dashT('dashStructureTreemap'),
+  className: 'dash-structure-treemap-card',
+  body: `<div class="dash-treemap" id="${keys.treemapId}"></div>`,
+})}`;
+
+        _dashRegisterChartSwitch(keys.typesKey, () => _dashChartFileTypes(stats, scope));
+        _dashRegisterChartSwitch(keys.langKey,  () => _dashChartLanguageDist(stats, scope));
+
+        _dashChartFileTypes(stats, scope);
+        _dashChartLanguageDist(stats, scope);
+        _dashBuildTreemap(scope);
+        return;
+    }
 
     container.innerHTML = `
-<div class="dash-structure-layout${isDetail ? ' dash-structure-layout--detail dash-detail-section dash-detail-natural' : ''}" style="${layoutStyle}">
-  <div class="dash-grid dash-grid-2 dash-structure-chart-grid${isDetail ? ' dash-detail-grid dash-detail-grid-2' : ''}" style="${chartGridStyle}">
-    <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" style="${chartCardStyle}">
+${layoutOpen}
+  <div class="dash-grid dash-grid-2 dash-structure-chart-grid" style="${chartGridStyle}">
+    <div class="dash-card" style="${chartCardStyle}">
       <div class="dash-card-title">
         <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureFileTypes'))}
         ${_dashChartToggleHTML(keys.typesKey, _DASH_TYPES_TYPES, _DASH_TYPES_DEFAULT)}
       </div>
-      <div class="dash-chart-wrap dash-structure-chart-wrap${isDetail ? ' dash-detail-chart dash-detail-chart--md' : ''}" style="${chartWrapStyle}"><canvas id="${keys.typesId}"></canvas></div>
+      <div class="dash-chart-wrap dash-structure-chart-wrap" style="${chartWrapStyle}"><canvas id="${keys.typesId}"></canvas></div>
     </div>
-    <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" style="${chartCardStyle}">
+    <div class="dash-card" style="${chartCardStyle}">
       <div class="dash-card-title">
         <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureLangDist'))}
         ${_dashChartToggleHTML(keys.langKey, _DASH_LANG_TYPES, _DASH_LANG_DEFAULT)}
       </div>
-      <div class="dash-chart-wrap dash-structure-chart-wrap${isDetail ? ' dash-detail-chart dash-detail-chart--md' : ''}" style="${chartWrapStyle}"><canvas id="${keys.langId}"></canvas></div>
+      <div class="dash-chart-wrap dash-structure-chart-wrap" style="${chartWrapStyle}"><canvas id="${keys.langId}"></canvas></div>
     </div>
   </div>
-  <div class="dash-card dash-structure-treemap-card${isDetail ? ' dash-detail-section dash-detail-natural' : ''}" style="${treemapStyle}">
+  <div class="dash-card dash-structure-treemap-card" style="${treemapStyle}">
     <div class="dash-card-title">
       <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashStructureTreemap'))}
     </div>
     <div class="dash-treemap" id="${keys.treemapId}"></div>
   </div>
-</div>`;
+${layoutClose}`;
 
     _dashRegisterChartSwitch(keys.typesKey, () => _dashChartFileTypes(stats, scope));
     _dashRegisterChartSwitch(keys.langKey,  () => _dashChartLanguageDist(stats, scope));

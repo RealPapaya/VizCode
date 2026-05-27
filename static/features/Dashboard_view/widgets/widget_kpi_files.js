@@ -119,26 +119,21 @@ _dashRegisterWidget({
         </div>`;
     }).join('');
 
-    container.innerHTML = `
-<div class="dash-card dash-detail-section">
-  <div class="dash-card-title">
-    <span class="dash-card-title-dot"></span>File Types
-    ${_dashChartToggleHTML(chartKey, chartTypes, 'doughnut')}
-  </div>
-  <div class="dash-detail-metrics">
-    <div class="dash-detail-metric"><span>${_dashFmtExactNum(stats.files || _dashAllFiles().length)}</span><small>files</small></div>
-    <div class="dash-detail-metric"><span>${_dashFmtExactNum(langs.length)}</span><small>extensions</small></div>
-    <div class="dash-detail-metric"><span>${_dashFmtExactNum((DATA.modules || []).length)}</span><small>modules</small></div>
-  </div>
+    container.innerHTML = _dashReportSection({
+      title: 'File Types',
+      subtitle: _dashChartToggleHTML(chartKey, chartTypes, 'doughnut'),
+      body: `
+  ${_dashReportStats([
+    { value: _dashFmtExactNum(stats.files || _dashAllFiles().length), label: 'files' },
+    { value: _dashFmtExactNum(langs.length), label: 'extensions' },
+    { value: _dashFmtExactNum((DATA.modules || []).length), label: 'modules' },
+  ])}
   <div class="dash-detail-split">
-    <div class="dash-chart-wrap dash-detail-chart dash-detail-chart--sm dash-detail-chart-sm">
-      <canvas id="${canvasId}"></canvas>
-    </div>
-    <div class="dash-list dash-detail-list dash-detail-flow-list">
-      ${breakdownRows}
-    </div>
+    ${_dashReportChart(`<canvas id="${canvasId}"></canvas>`, { size: 'sm' })}
+    ${_dashReportList(breakdownRows)}
   </div>
-</div>`;
+`,
+    });
 
     function renderChart() {
       const canvas = document.getElementById(canvasId);

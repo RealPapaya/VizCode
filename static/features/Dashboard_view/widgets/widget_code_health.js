@@ -147,16 +147,13 @@ _dashRegisterWidget({
 </div>`;
         }).join('');
 
-        container.innerHTML = `
-<div class="dash-card dash-health-report-breakdown dash-detail-section">
-  <div class="dash-card-title">
-    <span class="dash-card-title-dot" style="background:${color}"></span>Health Breakdown
-    <span class="dash-card-sub" style="color:${color}">${_dashEscape(_dashT(statusKey))} ${score.toFixed(1)} / 10</span>
-  </div>
-  <div class="dash-list dash-detail-flow-list dash-detail-wrap-rows" style="padding-top:8px;">
-    ${rows}
-  </div>
-</div>`;
+        container.innerHTML = _dashReportSection({
+            title: 'Health Breakdown',
+            subtitle: `${_dashT(statusKey)} ${score.toFixed(1)} / 10`,
+            accent: color,
+            className: 'dash-health-report-breakdown',
+            body: _dashReportList(rows, { className: 'dash-detail-wrap-rows' }),
+        });
     },
 
 });

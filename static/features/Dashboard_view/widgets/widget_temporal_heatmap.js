@@ -25,7 +25,12 @@ function _dashRenderTemporalHeatmap(container, stats) {
     if (!container) return;
 
     const rows = stats.commit_activity_daily || [];
-    container.innerHTML = `
+    const isReport = container.classList.contains('dash-report-section');
+    container.innerHTML = isReport ? `
+<div class="dash-report-section-head">
+  <div class="dash-report-section-title">${_dashEscape(_dashT('dashTemporalHeatmap'))}</div>
+</div>
+<div class="dash-report-section-body"><div class="dash-temporal-heatmap-body" id="dash-temporal-heatmap-body"></div></div>` : `
 <div class="dash-card-title">
   <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashTemporalHeatmap'))}
 </div>
@@ -328,9 +333,10 @@ function _dashHeatmapAppendChurnFiles(container, stats) {
     const max = rows[0].commits || 1;
     const wrap = document.createElement('div');
     wrap.className = 'dash-commit-activity-files';
+    const isReport = container.classList.contains('dash-report-section');
     wrap.innerHTML = `
-<div class="dash-card-title"><span class="dash-card-title-dot"></span>Most Changed Files</div>
-<div class="dash-list">
+${isReport ? '<div class="dash-report-section-title">Most Changed Files</div>' : '<div class="dash-card-title"><span class="dash-card-title-dot"></span>Most Changed Files</div>'}
+<div class="${isReport ? 'dash-report-list' : 'dash-list'}">
 ${rows.map((row, i) => {
         const file = String(row.file || '');
         const short = file.split('/').pop();
@@ -388,9 +394,9 @@ _dashRegisterWidget({
 
     renderDetail(container, stats) {
         container.innerHTML = `
-<div class="dash-commit-activity-detail">
-  <div class="dash-card dash-detail-section dash-commit-activity-detail-main"></div>
-  <div class="dash-detail-section dash-commit-activity-detail-side"></div>
+<div class="dash-report-grid dash-report-grid--2 dash-commit-activity-detail">
+  <section class="dash-report-section dash-commit-activity-detail-main"></section>
+  <section class="dash-report-section dash-commit-activity-detail-side"></section>
 </div>`;
         const main = container.querySelector('.dash-commit-activity-detail-main');
         const side = container.querySelector('.dash-commit-activity-detail-side');

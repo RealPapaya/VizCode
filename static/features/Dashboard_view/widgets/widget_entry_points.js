@@ -27,8 +27,30 @@ function _dashRenderEntryPoints(container, stats, opts) {
   const entryCount = stats.entry_points || entries.length;
   const isoCount = stats.isolated_files || isolated.length;
 
+  if (isDetail) {
+    container.innerHTML = `
+${_dashReportSection({
+  title: _dashT('dashEntryPointsTitle'),
+  subtitle: _dashT('dashEntryPointsSub'),
+  accent: 'var(--status-good)',
+  body: _dashReportGrid([
+    _dashReportSection({
+      title: _dashT('dashIssuesEntry'),
+      subtitle: `${_dashFmtNum(entryCount)} files`,
+      body: _dashReportList(_dashEntryRows(entries, 0)),
+    }),
+    _dashReportSection({
+      title: _dashT('dashEntryPointsIsolated'),
+      subtitle: `${_dashFmtNum(isoCount)} files`,
+      body: _dashReportList(_dashEntryRows(isolated, 0)),
+    }),
+  ], { columns: 2 }),
+})}`;
+    return;
+  }
+
   container.innerHTML = `
-<div class="dash-arch-panel${isDetail ? ' dash-detail-section dash-detail-natural' : ''}">
+<div class="dash-arch-panel">
   <div class="dash-arch-panel-header">
     <div class="dash-arch-panel-title-block">
       <div class="dash-arch-panel-title">
@@ -49,18 +71,18 @@ function _dashRenderEntryPoints(container, stats, opts) {
     </div>
   </div>
   <div class="dash-arch-panel-body">
-    <div class="dash-grid dash-grid-2${isDetail ? ' dash-detail-grid dash-detail-grid-2' : ''}" style="${isDetail ? '' : 'height:100%;min-height:0'}">
-      <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" style="${isDetail ? '' : 'display:flex;flex-direction:column;min-height:0'}">
+    <div class="dash-grid dash-grid-2" style="height:100%;min-height:0">
+      <div class="dash-card" style="display:flex;flex-direction:column;min-height:0">
         <div class="dash-card-title">
           <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashIssuesEntry'))}
         </div>
-        <div class="dash-list${isDetail ? ' dash-detail-flow-list' : ''}" style="${isDetail ? '' : 'flex:1;overflow-y:auto;min-height:0;padding-right:4px'}">${_dashEntryRows(entries, 0)}</div>
+        <div class="dash-list" style="flex:1;overflow-y:auto;min-height:0;padding-right:4px">${_dashEntryRows(entries, 0)}</div>
       </div>
-      <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" style="${isDetail ? '' : 'display:flex;flex-direction:column;min-height:0'}">
+      <div class="dash-card" style="display:flex;flex-direction:column;min-height:0">
         <div class="dash-card-title">
           <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashEntryPointsIsolated'))}
         </div>
-        <div class="dash-list${isDetail ? ' dash-detail-flow-list' : ''}" style="${isDetail ? '' : 'flex:1;overflow-y:auto;min-height:0;padding-right:4px'}">${_dashEntryRows(isolated, 0)}</div>
+        <div class="dash-list" style="flex:1;overflow-y:auto;min-height:0;padding-right:4px">${_dashEntryRows(isolated, 0)}</div>
       </div>
     </div>
   </div>

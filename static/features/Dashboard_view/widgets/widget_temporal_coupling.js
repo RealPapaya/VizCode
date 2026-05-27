@@ -5,7 +5,12 @@ function _dashRenderTemporalCoupling(container, stats) {
   if (!container) return;
 
   const items = stats.change_coupling || [];
-  container.innerHTML = `
+  const isReport = container.classList.contains('dash-report-section');
+  container.innerHTML = isReport ? `
+<div class="dash-report-section-head">
+  <div class="dash-report-section-title">${_dashEscape(_dashT('dashTemporalCoupling'))}</div>
+</div>
+<div class="dash-report-section-body"><div class="dash-report-list" id="dash-temporal-coupling-list"></div></div>` : `
 <div class="dash-card-title">
   <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashTemporalCoupling'))}
 </div>

@@ -144,6 +144,50 @@ function _dashReportBarsHTML(items) {
 </div>`;
 }
 
+function _dashReportSection({ title, subtitle, accent, body, className } = {}) {
+    const cls = className ? ` ${className}` : '';
+    const accentStyle = accent ? ` style="--dash-report-accent:${accent}"` : '';
+    const subtitleHTML = subtitle && String(subtitle).includes('<')
+        ? String(subtitle)
+        : (subtitle ? _dashEscape(subtitle) : '');
+    const head = (title || subtitle) ? `
+  <div class="dash-report-section-head">
+    ${title ? `<div class="dash-report-section-title">${_dashEscape(title)}</div>` : ''}
+    ${subtitle ? `<div class="dash-report-section-subtitle">${subtitleHTML}</div>` : ''}
+  </div>` : '';
+    return `
+<section class="dash-report-section${cls}"${accentStyle}>
+  ${head}
+  <div class="dash-report-section-body">${body || ''}</div>
+</section>`;
+}
+
+function _dashReportGrid(items, { columns } = {}) {
+    const cols = columns ? ` dash-report-grid--${columns}` : '';
+    return `<div class="dash-report-grid${cols}">${(items || []).join('')}</div>`;
+}
+
+function _dashReportChart(html, { size } = {}) {
+    const chartSize = size || 'md';
+    return `<div class="dash-chart-wrap dash-report-chart dash-report-chart--${chartSize}">${html || ''}</div>`;
+}
+
+function _dashReportList(html, { className, id } = {}) {
+    const cls = className ? ` ${className}` : '';
+    const idAttr = id ? ` id="${_dashEscape(id)}"` : '';
+    return `<div class="dash-report-list${cls}"${idAttr}>${html || ''}</div>`;
+}
+
+function _dashReportStats(items) {
+    return `<div class="dash-report-stats">${(items || []).map(item => {
+        const color = item.color ? ` style="color:${item.color}"` : '';
+        return `<div class="dash-report-stat">
+  <span class="dash-report-stat-value"${color}>${_dashEscape(String(item.value ?? ''))}</span>
+  <small>${_dashEscape(item.label || '')}</small>
+</div>`;
+    }).join('')}</div>`;
+}
+
 function _dashReportFileExts(limit) {
     const map = new Map();
     for (const files of Object.values((window.DATA || {}).files_by_module || {})) {

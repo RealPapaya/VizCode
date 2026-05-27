@@ -119,7 +119,7 @@ function _dashRenderHealthDetail(container, history) {
 
     // ── Summary strip ────────────────────────────────────────────────────────
     const summaryHtml = score != null ? `
-<div class="dash-card dash-detail-section">
+<section class="dash-report-section">
   <div class="dash-detail-stat-row">
     <div>
       <span style="font-size:2rem;font-weight:700;color:${col}">${score.toFixed(1)}</span>
@@ -142,12 +142,12 @@ function _dashRenderHealthDetail(container, history) {
         </div>`;
     }).join('')}
   </div>
-</div>` : '';
+</section>` : '';
 
     // ── Chart area ───────────────────────────────────────────────────────────
     const canvasId  = 'dash-chart-ht-detail';
     const chartHtml = history.length >= 2 ? `
-<div class="dash-detail-chart dash-detail-chart--lg">
+<div class="dash-report-chart dash-report-chart--lg">
   <canvas id="${canvasId}" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
 </div>` : `
 <div class="dash-empty" style="display:flex;align-items:center;justify-content:center;font-size:0.82rem;opacity:0.5">
@@ -158,11 +158,9 @@ function _dashRenderHealthDetail(container, history) {
     const bfHtml = `<div id="dash-ht-bf-panel" style="flex-shrink:0"></div>`;
 
     container.innerHTML = `
-<div class="dash-detail-section dash-detail-natural">
-  ${summaryHtml}
-  ${chartHtml}
-  ${bfHtml}
-</div>`;
+${summaryHtml}
+${_dashReportSection({ title: _dashT('dashHealthTrendTitle'), body: chartHtml })}
+${_dashReportSection({ title: 'Backfill', body: bfHtml })}`;
 
     // Draw chart
     if (history.length >= 2) {
@@ -199,7 +197,7 @@ function _dashRenderBfPanel(detailContainer) {
 
     // Fresh: auto-kick sampled, show transient label + Full button
     el.innerHTML = `
-<div class="dash-card dash-detail-section" style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+<div class="dash-report-section" style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
   <span style="font-size:0.72rem;opacity:0.45;flex:1;min-width:0">Starting sampled history analysis…</span>
   <button class="dash-btn dash-btn--ghost" onclick="_dashBfRunFull(this)">
     Full <span style="opacity:0.5;font-size:0.68rem">1/day · 90 days</span>
@@ -229,7 +227,7 @@ function _dashBfStart(mode, btn) {
 
 function _dashBfShowProgress(bfEl, detailContainer) {
     bfEl.innerHTML = `
-<div class="dash-card dash-detail-section">
+<div class="dash-report-section">
   <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:8px">
     <div class="dash-spinner" style="width:14px;height:14px;border:2px solid var(--panel-border-color);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0"></div>
     <span style="font-size:0.78rem;font-weight:600">Analyzing git history…</span>
@@ -293,7 +291,7 @@ function _dashBfPoll(bfEl, detailContainer) {
 function _dashBfShowDone(count, bfEl, detailContainer) {
     const showFull = _dashBfState.mode === 'sample';
     bfEl.innerHTML = `
-<div class="dash-card dash-detail-section" style="border:1px solid color-mix(in srgb,var(--status-good) 30%,transparent)">
+<div class="dash-report-section" style="border:1px solid color-mix(in srgb,var(--status-good) 30%,transparent)">
   <div style="font-size:0.78rem;color:var(--status-good);font-weight:600;margin-bottom:8px">
     ✓ Added ${count} historical data point${count !== 1 ? 's' : ''}
   </div>
@@ -323,7 +321,7 @@ function _dashBfRunFull(btn) {
 function _dashBfShowError(msg, bfEl) {
     const el = bfEl || document.querySelector('#dash-ht-bf-panel');
     if (el) el.innerHTML = `
-<div class="dash-card dash-detail-section">
+<div class="dash-report-section">
   <div style="font-size:0.75rem;color:var(--status-bad)">⚠ Backfill failed: ${_dashEscape(msg)}</div>
 </div>`;
 }

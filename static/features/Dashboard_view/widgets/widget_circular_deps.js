@@ -91,8 +91,18 @@ function _dashRenderCircularDeps(container, stats, opts) {
     ? cycles.map((c, i) => _dashCircCard(c, i)).join('')
     : `<div class="dash-empty">✅ ${_dashEscape(_dashT('dashIssuesNoCycles'))}</div>`;
 
+  if (isDetail) {
+    container.innerHTML = _dashReportSection({
+      title: _dashT('dashCircularDepsTitle'),
+      subtitle: `${count} ${_dashT('dashCircularDepsSub')}`,
+      accent: color,
+      body: _dashReportList(cyclesHTML, { className: 'dash-arch-cycles-list' }),
+    });
+    return;
+  }
+
   container.innerHTML = `
-<div class="dash-arch-panel${isDetail ? ' dash-detail-section dash-detail-natural' : ''}">
+<div class="dash-arch-panel">
   <div class="dash-arch-panel-header">
     <div class="dash-arch-panel-title-block">
       <div class="dash-arch-panel-title">
@@ -108,7 +118,7 @@ function _dashRenderCircularDeps(container, stats, opts) {
     </div>
   </div>
   <div class="dash-arch-panel-body">
-    <div class="dash-arch-cycles-list${isDetail ? ' dash-detail-flow-list' : ''}">${cyclesHTML}</div>
+    <div class="dash-arch-cycles-list">${cyclesHTML}</div>
   </div>
 </div>`;
 }

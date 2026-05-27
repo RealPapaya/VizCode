@@ -6,7 +6,12 @@ function _dashRenderTemporalAuthors(container, stats) {
     if (!container) return;
 
     const items = stats.author_activity || [];
-    container.innerHTML = `
+    const isReport = container.classList.contains('dash-report-section');
+    container.innerHTML = isReport ? `
+<div class="dash-report-section-head">
+  <div class="dash-report-section-title">${_dashEscape(_dashT('dashTemporalAuthors'))}</div>
+</div>
+<div class="dash-report-section-body"><div class="dash-report-list" id="dash-temporal-authors-list"></div></div>` : `
 <div class="dash-card-title">
   <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashTemporalAuthors'))}
 </div>

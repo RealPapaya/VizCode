@@ -77,17 +77,7 @@ _dashRegisterWidget({
     const canvasId = 'dash-detail-complex-chart';
     const colors = _dashColorScale(all.length);
 
-    container.innerHTML = `
-<div class="dash-card dash-detail-section">
-  <div class="dash-card-title"><span class="dash-card-title-dot"></span>Distribution <span class="dash-card-sub">avg ${avg.toFixed(1)}</span></div>
-  <div class="dash-chart-wrap dash-detail-chart dash-detail-chart--md">
-    <canvas id="${canvasId}"></canvas>
-  </div>
-</div>
-<div class="dash-card dash-detail-section">
-  <div class="dash-card-title"><span class="dash-card-title-dot"></span>All Offenders</div>
-  <div class="dash-list dash-detail-flow-list dash-detail-wrap-rows">
-    ${all.map((item, i) => {
+    const offenderRows = all.map((item, i) => {
       const val = item.complexity || item.score || 0;
       const max2 = all[0] ? (all[0].complexity || all[0].score || 1) : 1;
       const pct = Math.round((val / max2) * 100);
@@ -100,9 +90,18 @@ _dashRegisterWidget({
           <div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${pct}%;background:${col}"></div></div>
           <span class="dash-list-val">${val}</span>
         </div>`;
-    }).join('') || '<div class="dash-empty">No data</div>'}
-  </div>
-</div>`;
+    }).join('') || '<div class="dash-empty">No data</div>';
+
+    container.innerHTML = `
+${_dashReportSection({
+  title: 'Distribution',
+  subtitle: `avg ${avg.toFixed(1)}`,
+  body: _dashReportChart(`<canvas id="${canvasId}"></canvas>`, { size: 'md' }),
+})}
+${_dashReportSection({
+  title: 'All Offenders',
+  body: _dashReportList(offenderRows, { className: 'dash-detail-wrap-rows' }),
+})}`;
 
     const canvas = document.getElementById(canvasId);
     if (canvas && typeof Chart !== 'undefined' && dist.length) {

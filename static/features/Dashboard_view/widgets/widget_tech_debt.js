@@ -117,21 +117,21 @@ _dashRegisterWidget({
         }).join('');
 
         container.innerHTML = `
-<div class="dash-card dash-detail-section">
-  <div class="dash-card-title"><span class="dash-card-title-dot"></span>Total Estimated Debt</div>
+${_dashReportSection({
+  title: 'Total Estimated Debt',
+  accent: '#DFA745',
+  body: `
   <div style="font-size:var(--text-display);font-weight:700;color:#DFA745;line-height:1;padding:12px 0 4px">
     ${hours.toFixed(1)}<span style="font-size:var(--text-base);color:var(--muted);margin-left:4px">hours</span>
-  </div>
-</div>
-<div class="dash-card dash-detail-section">
-  <div class="dash-card-title"><span class="dash-card-title-dot"></span>By Category</div>
-  <div class="dash-detail-grid dash-detail-grid-2" style="margin-top:8px;">
-    <div class="dash-chart-wrap dash-detail-chart dash-detail-chart--sm">
-      <canvas id="${canvasId}"></canvas>
-    </div>
-    <div class="dash-debt-rows dash-detail-bar-rows">${bars}</div>
-  </div>
-</div>`;
+  </div>`,
+})}
+${_dashReportSection({
+  title: 'By Category',
+  body: _dashReportGrid([
+    _dashReportChart(`<canvas id="${canvasId}"></canvas>`, { size: 'sm' }),
+    `<div class="dash-debt-rows dash-detail-bar-rows">${bars}</div>`,
+  ], { columns: 2 }),
+})}`;
 
         const canvas = document.getElementById(canvasId);
         if (canvas && typeof Chart !== 'undefined') {

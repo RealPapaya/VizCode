@@ -5,7 +5,12 @@ function _dashRenderTemporalHotspot(container, stats) {
     if (!container) return;
 
     const items = stats.hotspot_files || [];
-    container.innerHTML = `
+    const isReport = container.classList.contains('dash-report-section');
+    container.innerHTML = isReport ? `
+<div class="dash-report-section-head">
+  <div class="dash-report-section-title">${_dashEscape(_dashT('dashTemporalHotspot'))}</div>
+</div>
+<div class="dash-report-section-body"><div class="dash-report-list" id="dash-temporal-hotspot-list"></div></div>` : `
 <div class="dash-card-title">
   <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashTemporalHotspot'))}
 </div>

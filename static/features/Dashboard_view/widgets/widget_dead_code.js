@@ -110,10 +110,8 @@ _dashRegisterWidget({
         });
         const fileEntries = [...byFile.entries()].sort((a, b) => b[1].length - a[1].length);
 
-        container.innerHTML = `
-<div class="dash-card dash-detail-section">
-  <div class="dash-card-title"><span class="dash-card-title-dot" style="background:${color}"></span>Summary</div>
-  <div class="dash-detail-stat-row" style="padding:12px 0;">
+        const summary = `
+  <div class="dash-detail-stat-row">
     <div>
       <div style="font-size:var(--text-display);font-weight:700;color:${color};line-height:1">${_dashFmtNum(count)}</div>
       <div style="font-size:var(--text-xs);color:var(--muted);margin-top:4px">unused symbols</div>
@@ -122,12 +120,8 @@ _dashRegisterWidget({
       <div style="font-size:var(--text-display);font-weight:700;color:${color};line-height:1">${pct}%</div>
       <div style="font-size:var(--text-xs);color:var(--muted);margin-top:4px">of all functions</div>
     </div>
-  </div>
-</div>
-<div class="dash-card dash-detail-section">
-  <div class="dash-card-title"><span class="dash-card-title-dot"></span>Dead Symbols by File</div>
-  <div class="dash-list dash-detail-flow-list">
-    ${fileEntries.map(([file, syms]) => {
+  </div>`;
+        const fileRows = fileEntries.map(([file, syms]) => {
         const shortFile = file.split('/').pop();
         return `<div style="margin-bottom:8px;">
           <div style="font-size:var(--text-xs);color:var(--muted);margin-bottom:3px;cursor:pointer;" title="${_dashEscape(file)}"
@@ -136,8 +130,10 @@ _dashRegisterWidget({
             ${syms.map(s => `<span data-clickable="true" onclick="_dashGoToGraphFile(${_dashJson(s.file)}, ${_dashJson(s.name || '')})" style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--surface-elevated);color:${color};cursor:pointer">${_dashEscape(s.name || s)}</span>`).join('')}
           </div>
         </div>`;
-    }).join('') || '<div class="dash-empty">No dead code detected</div>'}
-  </div>
-</div>`;
+    }).join('') || '<div class="dash-empty">No dead code detected</div>';
+
+        container.innerHTML = `
+${_dashReportSection({ title: 'Summary', accent: color, body: summary })}
+${_dashReportSection({ title: 'Dead Symbols by File', body: _dashReportList(fileRows) })}`;
     },
 });

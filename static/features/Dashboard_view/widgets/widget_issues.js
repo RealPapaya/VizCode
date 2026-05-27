@@ -83,8 +83,16 @@ function _dashRenderIssuesOverview(container, stats, opts) {
   const layout = (opts && opts.layout) || 'grid'; // grid | row
   const isDetail = !!(opts && opts.detail);
   const tiles = `${_dashOvTile(t.circular)}${_dashOvTile(t.dead)}${_dashOvTile(t.entry)}`;
+  if (isDetail) {
+    container.innerHTML = _dashReportSection({
+      title: _dashT('dashIssuesOverviewTitle'),
+      subtitle: _dashT('dashIssuesOverviewSub'),
+      body: `<div class="dash-ov-tiles dash-ov-tiles--${layout}">${tiles}</div>`,
+    });
+    return;
+  }
   container.innerHTML = `
-<div class="dash-arch-panel${isDetail ? ' dash-detail-section dash-detail-natural' : ''}">
+<div class="dash-arch-panel">
   <div class="dash-arch-panel-header">
     <div class="dash-arch-panel-title-block">
       <div class="dash-arch-panel-title">${_dashEscape(_dashT('dashIssuesOverviewTitle'))}</div>
@@ -92,7 +100,7 @@ function _dashRenderIssuesOverview(container, stats, opts) {
     </div>
   </div>
   <div class="dash-arch-panel-body">
-    <div class="dash-ov-tiles dash-ov-tiles--${layout}${isDetail ? ' dash-detail-grid' : ''}">${tiles}</div>
+    <div class="dash-ov-tiles dash-ov-tiles--${layout}">${tiles}</div>
   </div>
 </div>`;
 }

@@ -105,22 +105,17 @@ _dashRegisterWidget({
             </div>`;
     }).join('') || `<div class="dash-empty">✅ ${_dashEscape(_dashT('dashDuplicationNone'))}</div>`;
 
-    container.innerHTML = `
-<div class="dash-card dash-detail-section">
-  <div class="dash-card-title">
-    <span class="dash-card-title-dot" style="background:${color}"></span>${_dashEscape(_dashT('dashDuplicationTitle'))}
-  </div>
+    const summary = `
   <div class="dash-dup-body">
     <div class="dash-dup-gauge">
       <div class="dash-dup-pct" style="color:${color}">${pct.toFixed(1)}<span style="font-size:18px">%</span></div>
       <div class="dash-dup-pct-track"><div class="dash-dup-pct-fill" style="width:${fillPct}%;background:${color}"></div></div>
       <div class="dash-dup-sub">${_dashEscape(_dashT('dashDuplicationSub'))}</div>
     </div>
-  </div>
-</div>
-<div class="dash-card dash-detail-section">
-  <div class="dash-card-title"><span class="dash-card-title-dot"></span>Duplicated Blocks</div>
-  <div class="dash-dup-list dash-detail-flow-list" style="margin-top:8px;">${blocksHTML}</div>
-</div>`;
+  </div>`;
+
+    container.innerHTML = `
+${_dashReportSection({ title: _dashT('dashDuplicationTitle'), accent: color, body: summary })}
+${_dashReportSection({ title: 'Duplicated Blocks', body: _dashReportList(blocksHTML, { className: 'dash-dup-list' }) })}`;
   },
 });

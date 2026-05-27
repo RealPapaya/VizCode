@@ -110,7 +110,7 @@ function _dashTemporalShell(stats, scope) {
             return `<button class="dash-temporal-pill${active}" data-days="${d}">${label}</button>`;
         }).join('');
 
-    return `
+    const period = `
 <div class="dash-temporal-period">
   <span class="dash-temporal-period-label">${_dashEscape(_dashT('dashTemporalTitle'))}</span>
   <span class="dash-temporal-period-range">
@@ -120,13 +120,26 @@ function _dashTemporalShell(stats, scope) {
     ${stats.commits_analyzed} ${_dashEscape(_dashT('dashTemporalCommits'))} &middot; ${stats.window_days}d
   </span>
   <span class="dash-temporal-pills">${pills}</span>
-</div>
-<div class="dash-grid dash-grid-2 dash-temporal-grid${isDetail ? ' dash-detail-grid dash-detail-grid-2' : ''}">
-  <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" id="${_dashTemporalId('dash-temporal-hotspot', scope)}"></div>
-  <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" id="${_dashTemporalId('dash-temporal-coupling', scope)}"></div>
-  <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" id="${_dashTemporalId('dash-temporal-heatmap', scope)}"></div>
-  <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" id="${_dashTemporalId('dash-temporal-timeline', scope)}"></div>
-  <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" id="${_dashTemporalId('dash-temporal-authors', scope)}"></div>
+</div>`;
+    if (isDetail) {
+        return `
+${_dashReportSection({ title: _dashT('dashTemporalTitle'), body: period })}
+<div class="dash-report-grid dash-report-grid--2 dash-temporal-grid">
+  <section class="dash-report-section" id="${_dashTemporalId('dash-temporal-hotspot', scope)}"></section>
+  <section class="dash-report-section" id="${_dashTemporalId('dash-temporal-coupling', scope)}"></section>
+  <section class="dash-report-section" id="${_dashTemporalId('dash-temporal-heatmap', scope)}"></section>
+  <section class="dash-report-section" id="${_dashTemporalId('dash-temporal-timeline', scope)}"></section>
+  <section class="dash-report-section" id="${_dashTemporalId('dash-temporal-authors', scope)}"></section>
+</div>`;
+    }
+    return `
+${period}
+<div class="dash-grid dash-grid-2 dash-temporal-grid">
+  <div class="dash-card" id="${_dashTemporalId('dash-temporal-hotspot', scope)}"></div>
+  <div class="dash-card" id="${_dashTemporalId('dash-temporal-coupling', scope)}"></div>
+  <div class="dash-card" id="${_dashTemporalId('dash-temporal-heatmap', scope)}"></div>
+  <div class="dash-card" id="${_dashTemporalId('dash-temporal-timeline', scope)}"></div>
+  <div class="dash-card" id="${_dashTemporalId('dash-temporal-authors', scope)}"></div>
 </div>`;
 }
 

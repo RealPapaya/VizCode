@@ -5,19 +5,35 @@ function _dashRenderGraphIntelligence(container, stats, opts) {
     if (!container) return;
     const isDetail = !!(opts && opts.detail);
 
+    if (isDetail) {
+        container.innerHTML = _dashReportGrid([
+            _dashReportSection({
+                title: _dashT('dashGraphHotspots'),
+                body: _dashReportList('', { id: 'dash-graph-hotspots' }),
+            }),
+            _dashReportSection({
+                title: _dashT('dashGraphSurprising'),
+                body: _dashReportList('', { id: 'dash-graph-surprising' }),
+            }),
+        ], { columns: 2 });
+        _dashRenderHotspots(stats.hotspot_nodes || [], container);
+        _dashRenderSurprising(stats.surprising_connections || [], container);
+        return;
+    }
+
     container.innerHTML = `
-<div class="${isDetail ? 'dash-detail-grid dash-detail-grid-2' : ''}" style="${isDetail ? '' : 'height:100%;'}display:grid;${isDetail ? '' : 'grid-template-columns:1fr 1fr;'}gap:var(--space-3);${isDetail ? '' : 'overflow:hidden;'}">
-  <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" style="${isDetail ? '' : 'display:flex;flex-direction:column;overflow:hidden;min-height:0;'}">
+<div style="height:100%;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);overflow:hidden;">
+  <div class="dash-card" style="display:flex;flex-direction:column;overflow:hidden;min-height:0;">
     <div class="dash-card-title">
       <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashGraphHotspots'))}
     </div>
-    <div class="dash-list${isDetail ? ' dash-detail-flow-list' : ''}" id="dash-graph-hotspots" style="${isDetail ? '' : 'flex:1;overflow:hidden;'}"></div>
+    <div class="dash-list" id="dash-graph-hotspots" style="flex:1;overflow:hidden;"></div>
   </div>
-  <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" style="${isDetail ? '' : 'display:flex;flex-direction:column;overflow:hidden;min-height:0;'}">
+  <div class="dash-card" style="display:flex;flex-direction:column;overflow:hidden;min-height:0;">
     <div class="dash-card-title">
       <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashGraphSurprising'))}
     </div>
-    <div class="dash-list${isDetail ? ' dash-detail-flow-list' : ''}" id="dash-graph-surprising" style="${isDetail ? '' : 'flex:1;overflow:hidden;'}"></div>
+    <div class="dash-list" id="dash-graph-surprising" style="flex:1;overflow:hidden;"></div>
   </div>
 </div>`;
 

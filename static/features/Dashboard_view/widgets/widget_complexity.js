@@ -76,20 +76,7 @@ _dashRegisterWidget({
         const colors = typeof _dashColorScale === 'function' ? _dashColorScale(top.length) : [];
         const max    = top[0]?.complexity || 1;
 
-        container.innerHTML = `
-<div class="dash-card dash-detail-section">
-  <div class="dash-card-title">
-    <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashComplexityTitle'))}
-    <span class="dash-card-sub">avg ${avg.toFixed(1)}</span>
-  </div>
-  <div class="dash-chart-wrap dash-detail-chart dash-detail-chart--md">
-    <canvas id="${canvasId}"></canvas>
-  </div>
-</div>
-<div class="dash-card dash-detail-section">
-  <div class="dash-card-title"><span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashComplexityTopOffenders'))}</div>
-  <div class="dash-list dash-detail-flow-list dash-detail-wrap-rows">
-    ${top.map((sym, i) => {
+        const offenderRows = top.map((sym, i) => {
         const pct = Math.round((sym.complexity / max) * 100);
         const col = colors[i];
         const fileShort = String(sym.file || '').split('/').pop();
@@ -102,9 +89,18 @@ _dashRegisterWidget({
           <div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${pct}%;background:${col}"></div></div>
           <span class="dash-list-val">${sym.complexity}</span>
         </div>`;
-    }).join('') || `<div class="dash-empty">${_dashEscape(_dashT('dashNoData'))}</div>`}
-  </div>
-</div>`;
+    }).join('') || `<div class="dash-empty">${_dashEscape(_dashT('dashNoData'))}</div>`;
+
+        container.innerHTML = `
+${_dashReportSection({
+  title: _dashT('dashComplexityTitle'),
+  subtitle: `avg ${avg.toFixed(1)}`,
+  body: _dashReportChart(`<canvas id="${canvasId}"></canvas>`, { size: 'md' }),
+})}
+${_dashReportSection({
+  title: _dashT('dashComplexityTopOffenders'),
+  body: _dashReportList(offenderRows, { className: 'dash-detail-wrap-rows' }),
+})}`;
 
         const canvas = document.getElementById(canvasId);
         if (canvas && typeof Chart !== 'undefined' && dist.length) {

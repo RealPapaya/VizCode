@@ -114,26 +114,17 @@ _dashRegisterWidget({
         </div>`;
     }).join('');
 
-    container.innerHTML = `
-<div class="dash-codebase-function-detail">
-  <div class="dash-codebase-detail-grid dash-codebase-detail-grid--functions">
-    <div class="dash-card dash-detail-section">
-      <div class="dash-card-title">
-        <span class="dash-card-title-dot"></span>Functions per Module
-        ${_dashChartToggleHTML(chartKey, chartTypes, 'bar')}
-      </div>
-      <div class="dash-chart-wrap dash-detail-chart dash-detail-chart--md">
-        <canvas id="${canvasId}"></canvas>
-      </div>
-    </div>
-    <div class="dash-card dash-detail-section">
-      <div class="dash-card-title"><span class="dash-card-title-dot"></span>Longest Functions</div>
-      <div class="dash-list dash-detail-flow-list dash-codebase-function-list">
-        ${topRows || '<div class="dash-empty">No function data</div>'}
-      </div>
-    </div>
-  </div>
-</div>`;
+    container.innerHTML = _dashReportGrid([
+      _dashReportSection({
+        title: 'Functions per Module',
+        subtitle: _dashChartToggleHTML(chartKey, chartTypes, 'bar'),
+        body: _dashReportChart(`<canvas id="${canvasId}"></canvas>`, { size: 'md' }),
+      }),
+      _dashReportSection({
+        title: 'Longest Functions',
+        body: _dashReportList(topRows || '<div class="dash-empty">No function data</div>', { className: 'dash-codebase-function-list' }),
+      }),
+    ], { columns: 2 });
 
     function renderChart() {
       const canvas = document.getElementById(canvasId);

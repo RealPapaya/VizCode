@@ -94,22 +94,18 @@ _dashRegisterWidget({
             [code, comment, blank]
         );
 
-        container.innerHTML = `
-<div class="dash-card dash-detail-section">
-  <div class="dash-card-title">
-    <span class="dash-card-title-dot"></span>Line Composition
-    ${_dashChartToggleHTML(chartKey, chartTypes, 'doughnut')}
-  </div>
-  <div class="dash-detail-metrics">
-    <div class="dash-detail-metric"><span>${_dashFmtExactNum(total)}</span><small>total lines</small></div>
-    <div class="dash-detail-metric"><span>${_dashFmtExactNum(code)}</span><small>lines of code</small></div>
-    <div class="dash-detail-metric"><span>${_dashFmtExactNum(comment)}</span><small>comment lines</small></div>
-    <div class="dash-detail-metric"><span>${_dashFmtExactNum(blank)}</span><small>blank lines</small></div>
-  </div>
+        container.innerHTML = _dashReportSection({
+          title: 'Line Composition',
+          subtitle: _dashChartToggleHTML(chartKey, chartTypes, 'doughnut'),
+          body: `
+  ${_dashReportStats([
+    { value: _dashFmtExactNum(total), label: 'total lines' },
+    { value: _dashFmtExactNum(code), label: 'lines of code' },
+    { value: _dashFmtExactNum(comment), label: 'comment lines' },
+    { value: _dashFmtExactNum(blank), label: 'blank lines' },
+  ])}
   <div class="dash-detail-split">
-    <div class="dash-chart-wrap dash-detail-chart dash-detail-chart--sm dash-detail-chart-sm">
-      <canvas id="${canvasId}"></canvas>
-    </div>
+    ${_dashReportChart(`<canvas id="${canvasId}"></canvas>`, { size: 'sm' })}
     <div class="dash-detail-breakdown dash-detail-bar-rows">
     <div class="dash-health-row" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with code LOC', _dashAllFiles().filter(f => (f.loc || {}).code > 0), { meta: f => _dashFmtExactNum((f.loc || {}).code || 0) + ' lines of code' })">
       <span class="dash-health-row-label">Code</span>
@@ -134,7 +130,8 @@ _dashRegisterWidget({
     </div>
     </div>
   </div>
-</div>`;
+`,
+        });
 
         function renderChart() {
             const canvas = document.getElementById(canvasId);

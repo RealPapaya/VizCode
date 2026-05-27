@@ -39,8 +39,7 @@ _dashRegisterWidget({
 </div>`;
         }
 
-        container.innerHTML = `
-<div class="dash-card dash-detail-section">
+        const summary = `
   <div class="dash-detail-stat-row">
     <div style="text-align:center">
       <div style="font-size:2.25rem;font-weight:700;color:var(--status-bad);line-height:1">${high.length}</div>
@@ -58,14 +57,16 @@ _dashRegisterWidget({
     </div>
     <div style="flex:1"></div>
     <div style="font-size:0.75rem;opacity:0.4">${items.length} files</div>
-  </div>
-</div>
-<div class="dash-detail-section dash-detail-flow-list">
+  </div>`;
+        const riskBody = `
   ${riskSection(_dashT('dashBusFactorHigh'),   high,   'var(--status-bad)')}
   ${riskSection(_dashT('dashBusFactorMedium'), medium, 'var(--status-warn)')}
   ${riskSection(_dashT('dashBusFactorLow'),    low,    'var(--status-good)')}
   ${!items.length ? `<div class="dash-empty">${_dashEscape(_dashT('dashBusFactorEmpty'))}</div>` : ''}
-</div>`;
+`;
+        container.innerHTML = `
+${_dashReportSection({ title: _dashT('dashBusFactorTitle'), body: summary })}
+${_dashReportSection({ title: 'Ownership Risk Files', body: _dashReportList(riskBody) })}`;
     },
 });
 
