@@ -164,6 +164,70 @@ function _dashRenderChurnTimelineWidget(container, size, stats, suffix) {
     _dashRenderTemporalTimeline(container, stats, _dashTimelineStandaloneScope(container, suffix));
 }
 
+function _dashChurnTimelineTotals(buckets) {
+    return (buckets || []).reduce((acc, row) => {
+        acc.commits += Number(row.commits || 0);
+        acc.additions += Number(row.additions || 0);
+        acc.deletions += Number(row.deletions || 0);
+        return acc;
+    }, { commits: 0, additions: 0, deletions: 0 });
+}
+
+function _dashChurnTimelinePeakWeek(buckets) {
+    return (buckets || []).reduce((best, row) => (
+        Number(row.commits || 0) > Number(best.commits || 0) ? row : best
+    ), {});
+}
+
+function _dashChurnTimelineWeekBarsHTML(buckets) {
+    const rows = (buckets || []).slice(-8);
+    if (!rows.length) return `<div class="dash-empty">${_dashEscape(_dashT('dashTemporalEmpty'))}</div>`;
+    const max = rows.reduce((m, row) => Math.max(m, Number(row.commits || 0)), 1);
+    return `
+<div class="dash-churn-timeline-detail-bars">
+  ${rows.map(row => {
+        const commits = Number(row.commits || 0);
+        const pct = Math.max(4, Math.round((commits / max) * 100));
+        return `<div class="dash-churn-timeline-detail-bars__row">
+    <span>${_dashEscape(row.week_start || '')}</span>
+    <div><i style="width:${pct}%"></i></div>
+    <b>${_dashFmtNum(commits)}</b>
+  </div>`;
+    }).join('')}
+</div>`;
+}
+
+function _dashChurnTimelineFileRowsHTML(stats, limit) {
+    const rows = (stats.file_churn || []).slice(0, limit);
+    if (!rows.length) return '<div class="dash-empty">No changed files</div>';
+    const max = rows.reduce((m, row) => Math.max(m, Number(row.commits || 0)), 1);
+    return rows.map((row, i) => {
+        const file = String(row.file || '');
+        const short = file.split('/').pop() || file;
+        const commits = Number(row.commits || 0);
+        const pct = Math.max(4, Math.round((commits / max) * 100));
+        return `
+  <div class="dash-churn-timeline-detail-file" data-clickable="true" data-tip="${_dashEscape(file)}"
+       onclick="_dashGoToGraphFile(${_dashJson(file)}, null)">
+    <span class="dash-churn-timeline-detail-file__rank">${i + 1}</span>
+    <span class="dash-churn-timeline-detail-file__name">${_dashEscape(short)}<small>${_dashEscape(file)} &middot; +${_dashFmtNum(row.additions || 0)} / -${_dashFmtNum(row.deletions || 0)}</small></span>
+    <div class="dash-churn-timeline-detail-file__track"><i style="width:${pct}%"></i></div>
+    <span class="dash-churn-timeline-detail-file__value">${_dashFmtNum(commits)}</span>
+  </div>`;
+    }).join('');
+}
+
+function _dashChurnTimelineStatsHTML(buckets, totals, peak) {
+    return `
+<div class="dash-churn-timeline-detail-stats">
+  <div><span>${_dashFmtExactNum(totals.commits)}</span><small>Commits</small></div>
+  <div><span>${_dashFmtExactNum(buckets.length)}</span><small>Weeks</small></div>
+  <div><span>+${_dashFmtExactNum(totals.additions)}</span><small>Additions</small></div>
+  <div><span>-${_dashFmtExactNum(totals.deletions)}</span><small>Deletions</small></div>
+  <div><span>${_dashFmtExactNum(peak.commits || 0)}</span><small>Peak week</small></div>
+</div>`;
+}
+
 _dashRegisterWidget({
     id: 'churn_timeline',
     labelKey: 'dashTemporalChurn',
@@ -172,7 +236,62 @@ _dashRegisterWidget({
         _dashRenderChurnTimelineWidget(container, size, stats, 'widget');
     },
     renderDetail(container, stats) {
-        container.innerHTML = `<section class="dash-report-section" id="dash-churn-timeline-report"></section>`;
-        _dashRenderChurnTimelineWidget(container.querySelector('#dash-churn-timeline-report'), 'L', stats, 'detail');
+        const buckets = stats.churn_timeline || [];
+        const totals = _dashChurnTimelineTotals(buckets);
+        const peak = _dashChurnTimelinePeakWeek(buckets);
+        const chartKey = _dashTimelineKey('detail');
+        const chartId = _dashTimelineId('detail');
+        const rangeLabel = [stats.period_start, stats.period_end].filter(Boolean).join(' to ');
+        const summary = buckets.length
+            ? `${_dashFmtExactNum(buckets.length)} weekly buckets${rangeLabel ? ` from ${_dashEscape(rangeLabel)}` : ''}. Peak week ${_dashEscape(peak.week_start || 'n/a')} has ${_dashFmtExactNum(peak.commits || 0)} commits.`
+            : _dashEscape(_dashT('dashTemporalEmpty'));
+
+        container.innerHTML = `
+<div class="dash-churn-timeline-detail">
+  <section class="dash-churn-timeline-detail__hero">
+    <div class="dash-churn-timeline-detail__hero-copy">
+      <div class="dash-churn-timeline-detail__eyebrow">Code churn</div>
+      <h2 class="dash-churn-timeline-detail__title">${_dashEscape(_dashT('dashTemporalChurn'))}</h2>
+      <div class="dash-churn-timeline-detail__primary">
+        <span class="dash-churn-timeline-detail__primary-value">${_dashFmtExactNum(totals.commits || stats.commits_analyzed || 0)}</span>
+        <span class="dash-churn-timeline-detail__primary-suffix">commits</span>
+      </div>
+      <p class="dash-churn-timeline-detail__summary">${summary} Net line movement is +${_dashFmtExactNum(totals.additions)} / -${_dashFmtExactNum(totals.deletions)}.</p>
+    </div>
+    <div class="dash-churn-timeline-detail__hero-visual">${_dashChurnTimelineWeekBarsHTML(buckets)}</div>
+  </section>
+  <div class="dash-churn-timeline-detail__sections">
+    <section class="dash-churn-timeline-detail-section">
+      <div class="dash-churn-timeline-detail-section__head">
+        <div class="dash-churn-timeline-detail-section__title">Weekly Churn</div>
+        <div class="dash-churn-timeline-detail-section__tools">${_dashChartToggleHTML(chartKey, _DASH_TIMELINE_TYPES, _DASH_TIMELINE_DEFAULT)}</div>
+      </div>
+      <div class="dash-churn-timeline-detail-section__body">
+        <div class="dash-chart-wrap dash-churn-timeline-detail-chart">${buckets.length ? `<canvas id="${chartId}"></canvas>` : `<div class="dash-empty">${_dashEscape(_dashT('dashTemporalEmpty'))}</div>`}</div>
+      </div>
+    </section>
+    <section class="dash-churn-timeline-detail-section">
+      <div class="dash-churn-timeline-detail-section__head">
+        <div class="dash-churn-timeline-detail-section__title">Churn Summary</div>
+      </div>
+      <div class="dash-churn-timeline-detail-section__body">${_dashChurnTimelineStatsHTML(buckets, totals, peak)}</div>
+    </section>
+    <section class="dash-churn-timeline-detail-section">
+      <div class="dash-churn-timeline-detail-section__head">
+        <div class="dash-churn-timeline-detail-section__title">Top Churn Files</div>
+      </div>
+      <div class="dash-churn-timeline-detail-section__body">
+        <div class="dash-churn-timeline-detail-files">${_dashChurnTimelineFileRowsHTML(stats, 10)}</div>
+      </div>
+    </section>
+  </div>
+</div>`;
+
+        function renderChart() {
+            if (!buckets.length) return;
+            _dashDrawTimelineChart(buckets, 'detail');
+        }
+        _dashRegisterChartSwitch(chartKey, renderChart);
+        renderChart();
     },
 });

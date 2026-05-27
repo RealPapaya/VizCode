@@ -501,30 +501,6 @@
 .dash-chart-tip-add { color: #A4B55B; }
 .dash-chart-tip-del { color: #E05A5A; }
 
-.dash-commit-activity-detail {
-    display: grid;
-    grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.8fr);
-    gap: var(--space-4);
-    height: auto;
-    min-height: 0;
-}
-
-.dash-commit-activity-detail-main,
-.dash-commit-activity-detail-side {
-    min-height: 0;
-    overflow: visible;
-}
-
-.dash-commit-activity-detail-main {
-    display: flex;
-    flex-direction: column;
-}
-
-.dash-commit-activity-detail-side {
-    display: flex;
-    flex-direction: column;
-}
-
 @media (max-width: 760px) {
     .dash-detail-split {
         grid-template-columns: 1fr;
@@ -533,10 +509,6 @@
     .dash-report-chart--sm {
         min-height: 170px !important;
         max-height: none;
-    }
-
-    .dash-commit-activity-detail {
-        grid-template-columns: 1fr;
     }
 }
 
@@ -565,7 +537,6 @@
     }
 
     .dash-detail-split,
-    .dash-report-details .dash-commit-activity-detail,
     .dash-report-details .dash-structure-chart-grid,
     .dash-report-details .dash-report-grid--2 {
         grid-template-columns: minmax(0, 1fr) !important;
