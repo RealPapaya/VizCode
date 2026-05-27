@@ -103,25 +103,7 @@ _dashRegisterWidget({
     const canvasId = 'dash-detail-functions-chart';
     const chartKey = 'kpi_functions_detail_chart';
     const chartTypes = ['bar', 'doughnut'];
-    container.innerHTML = `
-<div class="dash-card dash-detail-section">
-  <div class="dash-card-title">
-    <span class="dash-card-title-dot"></span>Functions per Module
-    ${_dashChartToggleHTML(chartKey, chartTypes, 'bar')}
-  </div>
-  <div class="dash-detail-metrics">
-    <div class="dash-detail-metric"><span>${_dashFmtExactNum(stats.functions || allFuncs.length)}</span><small>functions</small></div>
-    <div class="dash-detail-metric"><span>${_dashFmtExactNum(stats.calls || 0)}</span><small>calls</small></div>
-    <div class="dash-detail-metric"><span>${_dashFmtExactNum(allModEntries.length)}</span><small>modules with functions</small></div>
-  </div>
-  <div class="dash-chart-wrap dash-detail-chart dash-detail-chart--md">
-    <canvas id="${canvasId}"></canvas>
-  </div>
-</div>
-<div class="dash-card dash-detail-section">
-  <div class="dash-card-title"><span class="dash-card-title-dot"></span>Longest Functions</div>
-  <div class="dash-list dash-detail-flow-list">
-    ${top.map((fn, i) => {
+    const topRows = top.map((fn, i) => {
       const pct = Math.round((fn.lines / max) * 100);
       const col = colors[i];
       return `<div class="dash-list-row" data-clickable="true" onclick="_dashGoToGraphFile(${_dashJson(fn.file)}, ${_dashJson(fn.name)})">
@@ -130,7 +112,26 @@ _dashRegisterWidget({
           <div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${pct}%;background:${col}"></div></div>
           <span class="dash-list-val" title="Function length in source lines">${_dashFmtExactNum(fn.lines)} lines</span>
         </div>`;
-    }).join('')}
+    }).join('');
+
+    container.innerHTML = `
+<div class="dash-codebase-function-detail">
+  <div class="dash-codebase-detail-grid dash-codebase-detail-grid--functions">
+    <div class="dash-card dash-detail-section">
+      <div class="dash-card-title">
+        <span class="dash-card-title-dot"></span>Functions per Module
+        ${_dashChartToggleHTML(chartKey, chartTypes, 'bar')}
+      </div>
+      <div class="dash-chart-wrap dash-detail-chart dash-detail-chart--md">
+        <canvas id="${canvasId}"></canvas>
+      </div>
+    </div>
+    <div class="dash-card dash-detail-section">
+      <div class="dash-card-title"><span class="dash-card-title-dot"></span>Longest Functions</div>
+      <div class="dash-list dash-detail-flow-list dash-codebase-function-list">
+        ${topRows || '<div class="dash-empty">No function data</div>'}
+      </div>
+    </div>
   </div>
 </div>`;
 

@@ -75,12 +75,6 @@ function _dashRenderStructure(container, stats, options) {
 
     container.innerHTML = `
 <div class="dash-structure-layout${isDetail ? ' dash-structure-layout--detail dash-detail-section dash-detail-natural' : ''}" style="${layoutStyle}">
-  ${isDetail ? `<div class="dash-detail-metrics">
-    <div class="dash-detail-metric"><span>${_dashFmtExactNum(stats.files || 0)}</span><small>files</small></div>
-    <div class="dash-detail-metric"><span>${_dashFmtExactNum(stats.modules || 0)}</span><small>modules</small></div>
-    <div class="dash-detail-metric"><span>${_dashFmtExactNum(Object.keys(stats.type_counts || {}).length)}</span><small>file types</small></div>
-    <div class="dash-detail-metric"><span>${_dashFmtExactNum(Object.keys(stats.language_distribution || {}).length)}</span><small>extensions</small></div>
-  </div>` : ''}
   <div class="dash-grid dash-grid-2 dash-structure-chart-grid${isDetail ? ' dash-detail-grid dash-detail-grid-2' : ''}" style="${chartGridStyle}">
     <div class="dash-card${isDetail ? ' dash-detail-section' : ''}" style="${chartCardStyle}">
       <div class="dash-card-title">
@@ -122,6 +116,7 @@ function _dashChartFileTypes(stats, scope) {
     const sorted = Object.entries(tc).sort((a, b) => b[1] - a[1]);
     if (!sorted.length) return;
 
+    const isDetail = scope === 'detail';
     const type = _dashChartCurrentType(keys.typesKey, _DASH_TYPES_DEFAULT);
     const isCircular = (type === 'doughnut' || type === 'pie');
     const rows = isCircular
@@ -161,7 +156,7 @@ function _dashChartFileTypes(stats, scope) {
         indexAxis: type === 'bar' ? 'y' : undefined,
         plugins: {
             legend: isCircular
-                ? { position: 'right', labels: { boxWidth: 10, padding: 12 } }
+                ? { position: isDetail ? 'bottom' : 'right', labels: { boxWidth: 10, padding: isDetail ? 8 : 12 } }
                 : { display: false },
         },
         scales: type === 'bar' ? {
@@ -180,6 +175,7 @@ function _dashChartLanguageDist(stats, scope) {
     const sorted = Object.entries(langs).sort((a, b) => b[1] - a[1]).slice(0, 12);
     if (!sorted.length) return;
 
+    const isDetail = scope === 'detail';
     const type = _dashChartCurrentType(keys.langKey, _DASH_LANG_DEFAULT);
     const isPie = (type === 'pie');
     const rows = isPie
@@ -218,7 +214,7 @@ function _dashChartLanguageDist(stats, scope) {
         },
         plugins: {
             legend: isPie
-                ? { position: 'right', labels: { boxWidth: 10, padding: 10 } }
+                ? { position: isDetail ? 'bottom' : 'right', labels: { boxWidth: 10, padding: isDetail ? 8 : 10 } }
                 : { display: false },
         },
         scales: type === 'bar' ? {

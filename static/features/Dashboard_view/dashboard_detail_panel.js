@@ -40,14 +40,13 @@ function _dashOpenDetailPanel(widgetId, originRect) {
     panel.setAttribute('aria-modal', 'true');
     panel.style.transformOrigin = `${originX}px ${originY}px`;
 
-    const label      = _dashT(widget.labelKey || widget.id) || widget.id;
-    const detailLabel = _dashT(widget.detailLabelKey || '') || label;
+    const label = _dashT(widget.detailLabelKey || widget.labelKey || widget.id) || widget.id;
+    panel.setAttribute('aria-label', `${label} detail`);
 
     panel.innerHTML = `
 <div class="dash-detail-head">
   <div class="dash-detail-head-title">
     <span class="dash-detail-head-label">Detail</span>
-    <span class="dash-detail-head-name">${_dashEscape(detailLabel)}</span>
   </div>
   <button class="dash-detail-close" id="dash-detail-close" type="button" aria-label="Close">×</button>
 </div>
