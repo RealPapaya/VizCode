@@ -1,25 +1,8 @@
 // @module Dashboard_view/widgets/widget_graph_intelligence
 // Graph Intelligence: Hotspot Nodes and Surprising Connections.
 
-function _dashRenderGraphIntelligence(container, stats, opts) {
+function _dashRenderGraphIntelligence(container, stats) {
     if (!container) return;
-    const isDetail = !!(opts && opts.detail);
-
-    if (isDetail) {
-        container.innerHTML = _dashReportGrid([
-            _dashReportSection({
-                title: _dashT('dashGraphHotspots'),
-                body: _dashReportList('', { id: 'dash-graph-hotspots' }),
-            }),
-            _dashReportSection({
-                title: _dashT('dashGraphSurprising'),
-                body: _dashReportList('', { id: 'dash-graph-surprising' }),
-            }),
-        ], { columns: 2 });
-        _dashRenderHotspots(stats.hotspot_nodes || [], container);
-        _dashRenderSurprising(stats.surprising_connections || [], container);
-        return;
-    }
 
     container.innerHTML = `
 <div style="height:100%;display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);overflow:hidden;">
@@ -87,6 +70,100 @@ function _dashRenderSurprising(items, root) {
     }).join('');
 }
 
+
+// ── Detail panel (dash-kpi-detail--graph-intel) ───────────────────────────
+function _dashGraphIntelRenderDetail(container, stats) {
+    if (!container) return;
+    const hotspots   = stats.hotspot_nodes          || [];
+    const surprising = stats.surprising_connections || [];
+    const maxDegree  = hotspots.length ? (hotspots[0].degree || 0) : 0;
+
+    // Hero visual: top-3 pill stack
+    const pillsHTML = hotspots.slice(0, 3).map((item, i) => {
+        const fileShort = String(item.file || '').replace(/\\/g, '/').split('/').pop();
+        const fileJSON  = JSON.stringify(item.file || '').replace(/"/g, '&quot;');
+        return `<div class="dash-graph-intel-pill" data-clickable="true"
+     onclick="_dashDrill(${fileJSON}, null)">
+  <span class="dash-graph-intel-pill__name">${_dashEscape(item.label || '')}</span>
+  <span class="dash-graph-intel-pill__file">${_dashEscape(fileShort)}</span>
+  <span class="dash-graph-intel-pill__badge">${item.degree}</span>
+</div>`;
+    }).join('') || `<div class="dash-empty" style="font-size:11px">${_dashEscape(_dashT('dashGraphHotspotsEmpty'))}</div>`;
+
+    const summaryText = hotspots.length === 0
+        ? 'No hotspot symbols detected.'
+        : `${hotspots.length} hotspot symbol${hotspots.length !== 1 ? 's' : ''}` +
+          (surprising.length > 0 ? ` · ${surprising.length} surprising connection${surprising.length !== 1 ? 's' : ''}.` : '.');
+
+    // Hotspot rows (full list)
+    const max = maxDegree || 1;
+    const hotspotRows = hotspots.length ? hotspots.map((item, i) => {
+        const fileShort = String(item.file || '').replace(/\\/g, '/').split('/').pop();
+        const fileJSON  = JSON.stringify(item.file || '').replace(/"/g, '&quot;');
+        return `<div class="dash-list-row" data-clickable="true"
+     onclick="_dashDrill(${fileJSON}, null)">
+  <span class="dash-list-rank">${i + 1}</span>
+  <span class="dash-list-name">${_dashEscape(item.label || '')}<span class="dash-list-meta">${_dashEscape(fileShort)}</span></span>
+  <div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${Math.round(item.degree / max * 100)}%"></div></div>
+  <span class="dash-list-val">${item.degree}</span>
+</div>`;
+    }).join('') : `<div class="dash-empty">${_dashEscape(_dashT('dashGraphHotspotsEmpty'))}</div>`;
+
+    // Surprising rows (full list)
+    const surprisingRows = surprising.length ? surprising.map(item => {
+        const srcShort = String(item.source || '').split('/').pop();
+        const tgtShort = String(item.target || '').split('/').pop();
+        return `<div class="dash-list-row dash-list-row--stacked" data-clickable="true"
+     onclick="_dashOpenFileGroupDrilldown('Surprising connection', [${_dashJson(item.source)}, ${_dashJson(item.target)}])">
+  <div class="dash-graph-pair">
+    <span class="dash-graph-node">${_dashEscape(srcShort)}</span>
+    <span class="dash-graph-arrow">&rarr;</span>
+    <span class="dash-graph-node">${_dashEscape(tgtShort)}</span>
+    <span class="dash-graph-score">score ${item.score}</span>
+  </div>
+  <div class="dash-graph-reason">${_dashEscape(item.reason || '')}</div>
+</div>`;
+    }).join('') : `<div class="dash-empty">${_dashEscape(_dashT('dashGraphSurprisingEmpty'))}</div>`;
+
+    container.innerHTML = `
+<div class="dash-kpi-detail dash-kpi-detail--graph-intel">
+  <section class="dash-kpi-detail__hero">
+    <div class="dash-kpi-detail__hero-copy">
+      <div class="dash-kpi-detail__eyebrow">Structural coupling signals</div>
+      <h2 class="dash-kpi-detail__title">Graph Intelligence</h2>
+      <div class="dash-kpi-detail__primary">
+        <span class="dash-kpi-detail__primary-value">${hotspots.length}</span>
+        <span class="dash-kpi-detail__primary-suffix">hotspot symbols</span>
+      </div>
+      <p class="dash-kpi-detail__summary">${_dashEscape(summaryText)}</p>
+    </div>
+    <div class="dash-kpi-detail__hero-visual">
+      <div class="dash-graph-intel-pills">${pillsHTML}</div>
+    </div>
+  </section>
+  <div class="dash-kpi-detail__sections">
+${_dashKpiDetailSectionHTML({
+    title: 'Snapshot',
+    body: _dashKpiDetailStatsHTML([
+        { value: String(hotspots.length),   label: 'hotspot symbols' },
+        { value: String(surprising.length), label: 'surprising connections' },
+        { value: String(maxDegree),         label: 'max in-degree' },
+    ]),
+})}
+${_dashKpiDetailGridHTML([
+    _dashKpiDetailSectionHTML({
+        title: `Hotspot Nodes (${hotspots.length})`,
+        body: `<div class="dash-graph-intel-detail-list">${hotspotRows}</div>`,
+    }),
+    _dashKpiDetailSectionHTML({
+        title: `Surprising Connections (${surprising.length})`,
+        body: `<div class="dash-graph-intel-detail-list">${surprisingRows}</div>`,
+    }),
+], { columns: 2 })}
+  </div>
+</div>`;
+}
+
 _dashRegisterWidget({
     id: 'graph_intelligence',
     labelKey: 'dashGraphHotspots',
@@ -129,5 +206,5 @@ _dashRegisterWidget({
         _dashRenderGraphIntelligence(container, stats);
     },
 
-    renderDetail(container, stats) { _dashRenderGraphIntelligence(container, stats, { detail: true }); },
+    renderDetail(container, stats) { _dashGraphIntelRenderDetail(container, stats); },
 });

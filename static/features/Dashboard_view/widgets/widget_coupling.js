@@ -57,31 +57,12 @@ function _dashCouplingLegend() {
 </span>`;
 }
 
-// ── L / detail layout ──
-function _dashRenderCoupling(container, stats, opts) {
+// ── L layout ──
+function _dashRenderCoupling(container, stats) {
   if (!container) return;
-  const isDetail = !!(opts && opts.detail);
   const imported = stats.top_imported_files || [];
   const callers = stats.top_caller_files || [];
   const conc = _dashCouplingConcentration(imported);
-  if (isDetail) {
-    container.innerHTML = `
-${_dashReportSection({
-  title: _dashT('dashCouplingTopImported'),
-  subtitle: `${imported.length} hotspots · ${conc}% ${_dashT('dashCouplingConcentration')}`,
-  body: _dashReportGrid([
-    _dashReportSection({
-      title: _dashT('dashCouplingTopImported'),
-      body: _dashReportList(_dashCouplingRows(imported, _dashT('dashCouplingImports'))),
-    }),
-    _dashReportSection({
-      title: _dashT('dashCouplingTopCallers'),
-      body: _dashReportList(_dashCouplingRows(callers, _dashT('dashCouplingCalls'))),
-    }),
-  ], { columns: 2 }),
-})}`;
-    return;
-  }
   container.innerHTML = `
 <div class="dash-arch-panel">
   <div class="dash-arch-panel-header">
@@ -109,6 +90,85 @@ ${_dashReportSection({
         <div class="dash-list" style="overflow-y:auto;min-height:0;padding-right:4px">${_dashCouplingRows(callers, _dashT('dashCouplingCalls'))}</div>
       </div>
     </div>
+  </div>
+</div>`;
+}
+
+
+// ── Detail panel (dash-kpi-detail--coupling) ─────────────────────────────
+function _dashCouplingRenderDetail(container, stats) {
+  if (!container) return;
+  const imported = stats.top_imported_files || [];
+  const callers  = stats.top_caller_files  || [];
+  const total    = _dashCouplingTotal(imported);
+  const conc     = _dashCouplingConcentration(imported);
+
+  // Concentration bar segments: top1 / top2 / top3 / rest
+  const seg = (idx) => {
+    const it = imported[idx];
+    if (!it || !total) return 0;
+    return Math.round((it.count / total) * 100);
+  };
+  const s1 = seg(0), s2 = seg(1), s3 = seg(2);
+  const sRest = Math.max(0, 100 - s1 - s2 - s3);
+  const concBarHTML = `
+<div class="dash-coupling-detail-conc">
+  <div class="dash-coupling-detail-conc__bar">
+    ${s1 > 0 ? `<div class="dash-coupling-detail-conc__seg dash-coupling-detail-conc__seg--1" style="width:${s1}%" title="${s1}%"></div>` : ''}
+    ${s2 > 0 ? `<div class="dash-coupling-detail-conc__seg dash-coupling-detail-conc__seg--2" style="width:${s2}%" title="${s2}%"></div>` : ''}
+    ${s3 > 0 ? `<div class="dash-coupling-detail-conc__seg dash-coupling-detail-conc__seg--3" style="width:${s3}%" title="${s3}%"></div>` : ''}
+    ${sRest > 0 ? `<div class="dash-coupling-detail-conc__seg dash-coupling-detail-conc__seg--rest" style="width:${sRest}%"></div>` : ''}
+  </div>
+  <div class="dash-coupling-detail-conc__legend">
+    ${imported[0] ? `<span class="dash-coupling-detail-conc__leg-item dash-coupling-detail-conc__leg-item--1">${_dashEscape(String(imported[0].file || '').split('/').pop())} ${s1}%</span>` : ''}
+    ${imported[1] ? `<span class="dash-coupling-detail-conc__leg-item dash-coupling-detail-conc__leg-item--2">${_dashEscape(String(imported[1].file || '').split('/').pop())} ${s2}%</span>` : ''}
+    ${imported[2] ? `<span class="dash-coupling-detail-conc__leg-item dash-coupling-detail-conc__leg-item--3">${_dashEscape(String(imported[2].file || '').split('/').pop())} ${s3}%</span>` : ''}
+    ${sRest > 0 ? `<span class="dash-coupling-detail-conc__leg-item dash-coupling-detail-conc__leg-item--rest">others ${sRest}%</span>` : ''}
+  </div>
+  <div class="dash-coupling-detail-conc__caption">top 3 account for <strong>${conc}%</strong> of all imports</div>
+</div>`;
+
+  const summaryText = imported.length === 0
+    ? 'No dependency hotspots detected.'
+    : `${imported.length} hotspot file${imported.length !== 1 ? 's' : ''} — top 3 account for ${conc}% of all imports.`;
+
+  const importedRows = _dashCouplingRows(imported, _dashT('dashCouplingImports'));
+  const callerRows   = _dashCouplingRows(callers,  _dashT('dashCouplingCalls'));
+
+  container.innerHTML = `
+<div class="dash-kpi-detail dash-kpi-detail--coupling">
+  <section class="dash-kpi-detail__hero">
+    <div class="dash-kpi-detail__hero-copy">
+      <div class="dash-kpi-detail__eyebrow">Dependency coupling risk</div>
+      <h2 class="dash-kpi-detail__title">Most Imported</h2>
+      <div class="dash-kpi-detail__primary">
+        <span class="dash-kpi-detail__primary-value">${imported.length}</span>
+        <span class="dash-kpi-detail__primary-suffix">hotspot files</span>
+      </div>
+      <p class="dash-kpi-detail__summary">${_dashEscape(summaryText)}</p>
+    </div>
+    <div class="dash-kpi-detail__hero-visual">${concBarHTML}</div>
+  </section>
+  <div class="dash-kpi-detail__sections">
+${_dashKpiDetailSectionHTML({
+  title: 'Snapshot',
+  body: _dashKpiDetailStatsHTML([
+    { value: String(imported.length), label: 'hotspot files' },
+    { value: `${conc}%`,              label: 'top-3 concentration' },
+    { value: String(total),           label: 'total imports' },
+    { value: String(callers.length),  label: 'top callers' },
+  ]),
+})}
+${_dashKpiDetailGridHTML([
+  _dashKpiDetailSectionHTML({
+    title: `Most Imported Files (${imported.length})`,
+    body: `<div class="dash-coupling-detail-list">${importedRows}</div>`,
+  }),
+  _dashKpiDetailSectionHTML({
+    title: `Top Caller Files (${callers.length})`,
+    body: `<div class="dash-coupling-detail-list">${callerRows}</div>`,
+  }),
+], { columns: 2 })}
   </div>
 </div>`;
 }
@@ -178,5 +238,5 @@ _dashRegisterWidget({
     _dashRenderCoupling(container, stats);
   },
 
-  renderDetail(container, stats) { _dashRenderCoupling(container, stats, { detail: true }); },
+  renderDetail(container, stats) { _dashCouplingRenderDetail(container, stats); },
 });

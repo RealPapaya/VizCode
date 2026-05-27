@@ -4045,6 +4045,175 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     scrollbar-width: thin;
 }
 
+/* ── Coupling detail panel ────────────────────────────────────────────────── */
+.dash-kpi-detail--coupling .dash-kpi-detail-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* Concentration bar hero visual */
+.dash-coupling-detail-conc {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 200px;
+    max-width: 280px;
+}
+
+.dash-coupling-detail-conc__bar {
+    display: flex;
+    height: 14px;
+    border-radius: 7px;
+    overflow: hidden;
+    gap: 1px;
+    background: var(--surface-elevated);
+}
+
+.dash-coupling-detail-conc__seg {
+    height: 100%;
+    transition: opacity 0.15s;
+}
+.dash-coupling-detail-conc__seg:hover { opacity: 0.8; }
+
+.dash-coupling-detail-conc__seg--1    { background: var(--accent); }
+.dash-coupling-detail-conc__seg--2    { background: color-mix(in srgb, var(--accent) 70%, transparent); }
+.dash-coupling-detail-conc__seg--3    { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+.dash-coupling-detail-conc__seg--rest { background: var(--border); }
+
+.dash-coupling-detail-conc__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+}
+
+.dash-coupling-detail-conc__leg-item {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.dash-coupling-detail-conc__leg-item::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+.dash-coupling-detail-conc__leg-item--1::before    { background: var(--accent); }
+.dash-coupling-detail-conc__leg-item--2::before    { background: color-mix(in srgb, var(--accent) 70%, transparent); }
+.dash-coupling-detail-conc__leg-item--3::before    { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+.dash-coupling-detail-conc__leg-item--rest::before { background: var(--border); }
+
+.dash-coupling-detail-conc__caption {
+    font-size: 11px;
+    color: var(--muted);
+    padding-top: 2px;
+    border-top: 1px solid var(--border);
+}
+.dash-coupling-detail-conc__caption strong {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.dash-coupling-detail-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 480px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+@media (max-width: 700px) {
+    .dash-kpi-detail--coupling .dash-kpi-detail-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .dash-coupling-detail-conc {
+        min-width: 140px;
+    }
+}
+
+/* ── Graph Intelligence detail panel ─────────────────────────────────────── */
+.dash-kpi-detail--graph-intel .dash-kpi-detail-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Hero pill stack */
+.dash-graph-intel-pills {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 180px;
+    max-width: 260px;
+}
+
+.dash-graph-intel-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: color-mix(in srgb, var(--surface-elevated) 80%, transparent);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+.dash-graph-intel-pill:hover {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface-elevated));
+}
+
+.dash-graph-intel-pill__name {
+    font-size: 12px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    color: var(--text);
+    font-weight: 500;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-graph-intel-pill__file {
+    font-size: 10px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 80px;
+}
+
+.dash-graph-intel-pill__badge {
+    font-size: 11px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-weight: 700;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-radius: 4px;
+    padding: 1px 6px;
+    flex-shrink: 0;
+}
+
+.dash-graph-intel-detail-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 480px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+@media (max-width: 700px) {
+    .dash-kpi-detail--graph-intel .dash-kpi-detail-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .dash-graph-intel-pills {
+        min-width: 140px;
+    }
+}
+
 /* Duplication detail panel */
 .dash-kpi-detail--duplication .dash-kpi-detail-row {
     grid-template-columns: 24px minmax(0, 1fr) minmax(36px, auto);
