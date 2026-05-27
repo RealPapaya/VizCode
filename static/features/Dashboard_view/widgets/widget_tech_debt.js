@@ -89,65 +89,182 @@ _dashRegisterWidget({
         }
     },
 
-    renderDetail(container, stats) {
-        const hours     = Number(stats.tech_debt_hours || 0);
-        const breakdown = stats.tech_debt_breakdown || {};
-        const colors    = _dashAccentForSlices(_DASH_DEBT_ORDER.length);
-        const totalMin  = Object.values(breakdown).reduce((a, n) => a + Number(n || 0), 0);
-        const denom     = totalMin || 1;
-        const canvasId  = 'dash-detail-debt-pie';
+        renderDetail(container, stats) {
+        // ── data ─────────────────────────────────────────────────────────────
+        const hours        = Number(stats.tech_debt_hours || 0);
+        const breakdown    = stats.tech_debt_breakdown || {};
+        const colors       = _dashAccentForSlices(_DASH_DEBT_ORDER.length);
+        const totalMin     = Object.values(breakdown).reduce((a, n) => a + Number(n || 0), 0);
+        const denom        = totalMin || 1;
+        const nonZero      = _DASH_DEBT_ORDER.filter(d => Number(breakdown[d.key] || 0) > 0);
+        const canvasId     = 'dash-detail-debt-chart';
+        const chartKey     = 'tech_debt_detail_chart';
+        const HOURS_PER_DAY = 8;
 
+        // ── unit toggle (hours ↔ days) ────────────────────────────────────────
+        let showDays = false;
+        function _fmtVal()    { return showDays ? (hours / HOURS_PER_DAY).toFixed(1) : hours.toFixed(1); }
+        function _fmtSuffix() { return showDays ? 'days' : 'hours'; }
+        function _fmtSummary() {
+            const top = nonZero.slice().sort((a, b) => Number(breakdown[b.key]||0) - Number(breakdown[a.key]||0))[0];
+            return top
+                ? `Largest category: ${_dashT(top.label)}. ${nonZero.length} issue types detected.`
+                : `${nonZero.length} issue types detected.`;
+        }
+
+        // ── chart slice data ──────────────────────────────────────────────────
         const { labels, data, colors: sliceColors } = _dashGroupedSlices(
             _DASH_DEBT_ORDER.map(d => _dashT(d.label)),
             _DASH_DEBT_ORDER.map(d => Number(breakdown[d.key] || 0))
         );
 
-        const bars = _DASH_DEBT_ORDER.map((d, i) => {
+        // ── hero: stacked composition bar ────────────────────────────────────
+        const heroSegments = _DASH_DEBT_ORDER.map((d, i) => ({
+            key: d.key, label: _dashT(d.label),
+            minutes: Number(breakdown[d.key] || 0),
+            pct: Math.round((Number(breakdown[d.key] || 0) / denom) * 100),
+            col: colors[Math.min(i, colors.length - 1)],
+        })).filter(s => s.minutes > 0);
+
+        const heroVisual = `<div class="dash-debt-detail-comp">
+  <div class="dash-debt-detail-comp__stack">${
+    heroSegments.map(s =>
+        `<span style="width:${s.pct}%;background:${s.col}" title="${_dashEscape(s.label)} ${s.pct}%"></span>`
+    ).join('')
+  }</div>
+  <div class="dash-debt-detail-comp__legend">${
+    heroSegments.map(s =>
+        `<button type="button" onclick="_dashOpenFileGroupDrilldown('Tech Debt: ${_dashEscape(s.label)}', _dashDebtCategoryFiles(${_dashJson(s.key)}, DATA.stats))">
+          <i style="background:${s.col}"></i><span>${_dashEscape(s.label)}</span><b>${s.pct}%</b>
+        </button>`
+    ).join('')
+  }</div>
+</div>`;
+
+        // ── category breakdown rows ───────────────────────────────────────────
+        const categoryRows = _DASH_DEBT_ORDER.map((d, i) => {
             const minutes = Number(breakdown[d.key] || 0);
             const pct     = Math.round((minutes / denom) * 100);
             const col     = colors[Math.min(i, colors.length - 1)];
-            return `<div class="dash-debt-row" data-clickable="true"
-              onclick="_dashOpenFileGroupDrilldown('Tech Debt: ${_dashEscape(_dashT(d.label))}', _dashDebtCategoryFiles(${_dashJson(d.key)}, DATA.stats))">
-              <span class="dash-debt-row-label">${_dashEscape(_dashT(d.label))}</span>
-              <div class="dash-debt-row-track">
-                <div class="dash-debt-row-fill" style="width:${pct}%;background:${col}"></div>
-              </div>
-              <span class="dash-debt-row-value">${minutes}m</span>
+            return `<div class="dash-kpi-detail-row" data-clickable="true"
+                onclick="_dashOpenFileGroupDrilldown('Tech Debt: ${_dashEscape(_dashT(d.label))}', _dashDebtCategoryFiles(${_dashJson(d.key)}, DATA.stats))">
+                <span class="dash-kpi-detail-row__rank">${i + 1}</span>
+                <span class="dash-kpi-detail-row__name">${_dashEscape(_dashT(d.label))}</span>
+                <div class="dash-kpi-detail-row__bar-track"><div class="dash-kpi-detail-row__bar-fill" style="width:${pct}%;background:${col}"></div></div>
+                <span class="dash-kpi-detail-row__value">${minutes}m</span>
             </div>`;
         }).join('');
 
-        container.innerHTML = `
-${_dashReportSection({
-  title: 'Total Estimated Debt',
-  accent: '#DFA745',
-  body: `
-  <div style="font-size:var(--text-display);font-weight:700;color:#DFA745;line-height:1;padding:12px 0 4px">
-    ${hours.toFixed(1)}<span style="font-size:var(--text-base);color:var(--muted);margin-left:4px">hours</span>
-  </div>`,
-})}
-${_dashReportSection({
-  title: 'By Category',
-  body: _dashReportGrid([
-    _dashReportChart(`<canvas id="${canvasId}"></canvas>`, { size: 'sm' }),
-    `<div class="dash-debt-rows dash-detail-bar-rows">${bars}</div>`,
-  ], { columns: 2 }),
-})}`;
+        // ── recommended actions ───────────────────────────────────────────────
+        const _REC = {
+            circular:    { action: 'Break up circular imports',          detail: 'Extract shared utilities to break import cycles.' },
+            god:         { action: 'Reduce god files',                   detail: 'Split large central files into smaller focused modules.' },
+            complexity:  { action: 'Refactor high-complexity functions', detail: 'Break down functions with cyclomatic complexity > 10.' },
+            duplication: { action: 'Remove duplicate blocks',            detail: 'Extract repeated code into shared utilities.' },
+            dead:        { action: 'Delete unused symbols',              detail: 'Remove dead functions and unreferenced exports.' },
+        };
+        const recCards = nonZero
+            .slice().sort((a, b) => Number(breakdown[b.key]||0) - Number(breakdown[a.key]||0))
+            .map((d, i) => {
+                const minutes = Number(breakdown[d.key] || 0);
+                const rec     = _REC[d.key] || { action: 'Address this category', detail: '' };
+                const col     = colors[Math.min(_DASH_DEBT_ORDER.findIndex(x => x.key === d.key), colors.length - 1)];
+                return `<div class="dash-debt-detail-rec" data-clickable="true"
+                    onclick="_dashOpenFileGroupDrilldown('Tech Debt: ${_dashEscape(_dashT(d.label))}', _dashDebtCategoryFiles(${_dashJson(d.key)}, DATA.stats))">
+                    <div class="dash-debt-detail-rec__head">
+                        <span class="dash-debt-detail-rec__dot" style="background:${col}"></span>
+                        <span class="dash-debt-detail-rec__cat">${_dashEscape(_dashT(d.label))}</span>
+                        <span class="dash-debt-detail-rec__time">${minutes}m</span>
+                    </div>
+                    <div class="dash-debt-detail-rec__action">${_dashEscape(rec.action)}</div>
+                    <div class="dash-debt-detail-rec__detail">${_dashEscape(rec.detail)}</div>
+                </div>`;
+            }).join('');
 
-        const canvas = document.getElementById(canvasId);
-        if (canvas && typeof Chart !== 'undefined') {
-            _dashMkChart(canvas, 'doughnut', {
+        // ── render ────────────────────────────────────────────────────────────
+        container.innerHTML = `
+<div class="dash-kpi-detail dash-kpi-detail--tech-debt">
+  <section class="dash-kpi-detail__hero">
+    <div class="dash-kpi-detail__hero-copy">
+      <div class="dash-kpi-detail__eyebrow">Technical debt</div>
+      <h2 class="dash-kpi-detail__title">Debt Overview</h2>
+      <div class="dash-kpi-detail__primary">
+        <span class="dash-kpi-detail__primary-value" id="dash-debt-val" style="color:#DFA745">${_fmtVal()}</span>
+        <span class="dash-kpi-detail__primary-suffix" id="dash-debt-suffix">${_fmtSuffix()}</span>
+        <button type="button" class="dash-debt-detail-unit-btn" id="dash-debt-unit-btn">${showDays ? 'Show hours' : 'Show days'}</button>
+      </div>
+      <p class="dash-kpi-detail__summary" id="dash-debt-summary">${_fmtSummary()}</p>
+    </div>
+    <div class="dash-kpi-detail__hero-visual">${heroVisual}</div>
+  </section>
+  <div class="dash-kpi-detail__sections">
+${_dashKpiDetailSectionHTML({
+    title: 'Snapshot',
+    body: _dashKpiDetailStatsHTML([
+        { value: _fmtVal(),      label: _fmtSuffix(),      color: '#DFA745' },
+        { value: `${totalMin}`,  label: 'total minutes' },
+        { value: `${nonZero.length}`, label: 'issue categories' },
+    ]),
+})}
+${_dashKpiDetailGridHTML([
+    _dashKpiDetailSectionHTML({
+        title: 'By Category',
+        subtitle: _dashChartToggleHTML(chartKey, ['doughnut', 'bar'], 'doughnut'),
+        body: _dashKpiDetailChartHTML(`<canvas id="${canvasId}"></canvas>`, { size: 'sm' }),
+    }),
+    _dashKpiDetailSectionHTML({
+        title: 'Category Breakdown',
+        body: _dashKpiDetailListHTML(categoryRows || '<div class="dash-empty">No debt data</div>'),
+    }),
+], { columns: 2 })}
+${_dashKpiDetailSectionHTML({
+    title: 'Recommended Actions',
+    body: `<div class="dash-debt-detail-rec-grid">${recCards || '<div class="dash-empty">No issues detected.</div>'}</div>`,
+})}
+  </div>
+</div>`;
+
+        // ── unit toggle wiring ────────────────────────────────────────────────
+        container.querySelector('#dash-debt-unit-btn')?.addEventListener('click', () => {
+            showDays = !showDays;
+            container.querySelector('#dash-debt-val').textContent     = _fmtVal();
+            container.querySelector('#dash-debt-suffix').textContent  = _fmtSuffix();
+            container.querySelector('#dash-debt-summary').textContent = _fmtSummary();
+            container.querySelector('#dash-debt-unit-btn').textContent = showDays ? 'Show hours' : 'Show days';
+            const statsEl = container.querySelector('.dash-kpi-detail-stats');
+            if (statsEl) statsEl.outerHTML = _dashKpiDetailStatsHTML([
+                { value: _fmtVal(),      label: _fmtSuffix(),      color: '#DFA745' },
+                { value: `${totalMin}`,  label: 'total minutes' },
+                { value: `${nonZero.length}`, label: 'issue categories' },
+            ]);
+        });
+
+        // ── chart ─────────────────────────────────────────────────────────────
+        function renderChart() {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas || typeof Chart === 'undefined') return;
+            const type     = _dashChartCurrentType(chartKey, 'doughnut');
+            const circular = type === 'doughnut' || type === 'pie';
+            _dashMkChart(canvas, type, {
                 labels,
-                datasets: [{ data, backgroundColor: sliceColors, borderWidth: 0 }],
+                datasets: [{ data, backgroundColor: sliceColors, borderWidth: circular ? 0 : 1, borderRadius: circular ? 0 : 5 }],
             }, {
                 responsive: true, maintainAspectRatio: false,
+                indexAxis: type === 'bar' ? 'y' : undefined,
                 onClick: (_evt, elements) => {
                     if (!elements || !elements.length) return;
                     const d = _DASH_DEBT_ORDER[elements[0].index];
                     if (d) _dashOpenFileGroupDrilldown(`Tech Debt: ${_dashT(d.label)}`, _dashDebtCategoryFiles(d.key, DATA.stats));
                 },
-                plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8 } } },
-                cutout: '65%',
+                plugins: { legend: circular ? { position: 'bottom', labels: { boxWidth: 10, padding: 8 } } : { display: false } },
+                cutout: type === 'doughnut' ? '65%' : 0,
+                scales: type === 'bar' ? {
+                    x: { beginAtZero: true, grid: { color: _dashBorderTint(0.6) } },
+                    y: { grid: { display: false }, ticks: { font: { size: 11 } } },
+                } : {},
             });
         }
+        _dashRegisterChartSwitch(chartKey, renderChart);
+        renderChart();
     },
 });

@@ -3262,6 +3262,497 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     }
 }
 
+/* ── Tech Debt detail panel ─────────────────────────────────────────────── */
+.dash-kpi-detail--tech-debt .dash-kpi-detail-row {
+    grid-template-columns: 24px minmax(0, 1fr) minmax(72px, 120px) minmax(44px, auto);
+}
+
+/* Composition bar hero visual */
+.dash-debt-detail-composition {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+}
+
+.dash-debt-detail-composition__stack {
+    display: flex;
+    height: 20px;
+    border-radius: 6px;
+    overflow: hidden;
+    gap: 2px;
+}
+
+.dash-debt-detail-composition__stack span {
+    display: block;
+    min-width: 4px;
+    transition: width 0.4s ease-out;
+}
+
+.dash-debt-detail-composition__legend {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.dash-debt-detail-composition__legend button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 3px 6px;
+    border-radius: 4px;
+    text-align: left;
+    color: var(--text);
+    font-size: var(--text-xs, 11px);
+    transition: background 0.15s;
+}
+
+.dash-debt-detail-composition__legend button:hover {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.dash-debt-detail-composition__legend i {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.dash-debt-detail-composition__legend span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-debt-detail-composition__legend b {
+    font-weight: 600;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Unit toggle button */
+.dash-debt-detail-unit-toggle {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 8px;
+    margin-left: 10px;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+    vertical-align: middle;
+}
+
+.dash-debt-detail-unit-toggle:hover {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* Recommended actions grid */
+.dash-debt-detail-rec-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.dash-debt-detail-rec-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 16px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface-raised, var(--surface)) 60%, transparent);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.dash-debt-detail-rec-card:hover {
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.dash-debt-detail-rec-card__head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.dash-debt-detail-rec-card__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.dash-debt-detail-rec-card__category {
+    flex: 1;
+    font-size: var(--text-xs, 11px);
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-debt-detail-rec-card__time {
+    font-size: var(--text-xs, 11px);
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-debt-detail-rec-card__action {
+    font-size: var(--text-sm, 13px);
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.35;
+}
+
+.dash-debt-detail-rec-card__detail {
+    font-size: var(--text-xs, 11px);
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+/* ── Function Complexity detail panel ───────────────────────────────────── */
+.dash-kpi-detail--complexity .dash-kpi-detail-row {
+    grid-template-columns: 24px minmax(0, 1fr) minmax(72px, 120px) minmax(52px, auto);
+}
+
+/* sub-label inside row name (file path) */
+.dash-kpi-detail-row__meta {
+    display: block;
+    font-size: 10px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-top: 1px;
+}
+
+/* Mini histogram hero visual */
+.dash-complexity-detail-mini-hist {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 80px;
+    padding: 0 4px;
+}
+
+.dash-complexity-detail-mini-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    flex: 1;
+    height: 100%;
+}
+
+.dash-complexity-detail-mini-bar__fill {
+    width: 100%;
+    border-radius: 3px 3px 0 0;
+    min-height: 4px;
+    transition: height 0.4s ease-out;
+}
+
+.dash-complexity-detail-mini-bar__label {
+    font-size: 9px;
+    color: var(--muted);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+/* Scrollable offenders list */
+.dash-complexity-detail-offenders {
+    max-height: 440px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.dash-complexity-detail-offenders::-webkit-scrollbar {
+    width: 4px;
+}
+
+.dash-complexity-detail-offenders::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
+}
+
+@media (max-width: 900px) {
+    .dash-debt-detail-rec-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .dash-kpi-detail--tech-debt .dash-kpi-detail-row,
+    .dash-kpi-detail--complexity .dash-kpi-detail-row {
+        grid-template-columns: 24px minmax(0, 1fr) minmax(48px, auto);
+    }
+
+    .dash-complexity-detail-offenders {
+        max-height: 320px;
+    }
+}
+
+/* ── Tech Debt detail ────────────────────────────────────────────────────── */
+.dash-kpi-detail--tech-debt .dash-kpi-detail-row {
+    grid-template-columns: 24px minmax(0, 1fr) minmax(72px, 120px) minmax(44px, auto);
+}
+
+.dash-debt-detail-comp {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+}
+
+.dash-debt-detail-comp__stack {
+    display: flex;
+    height: 18px;
+    border-radius: 6px;
+    overflow: hidden;
+    gap: 2px;
+}
+
+.dash-debt-detail-comp__stack span {
+    display: block;
+    min-width: 4px;
+    transition: width 0.4s ease-out;
+}
+
+.dash-debt-detail-comp__legend {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.dash-debt-detail-comp__legend button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 3px 6px;
+    border-radius: 4px;
+    color: var(--text);
+    font-size: var(--text-xs, 11px);
+    font-family: inherit;
+    text-align: left;
+    transition: background 0.15s;
+}
+
+.dash-debt-detail-comp__legend button:hover {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.dash-debt-detail-comp__legend i {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.dash-debt-detail-comp__legend span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-debt-detail-comp__legend b {
+    font-weight: 600;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-debt-detail-unit-btn {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 8px;
+    margin-left: 10px;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s;
+    vertical-align: middle;
+}
+
+.dash-debt-detail-unit-btn:hover {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.dash-debt-detail-rec-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+}
+
+.dash-debt-detail-rec {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface-raised, var(--surface)) 60%, transparent);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.dash-debt-detail-rec:hover {
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.dash-debt-detail-rec__head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.dash-debt-detail-rec__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.dash-debt-detail-rec__cat {
+    flex: 1;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-debt-detail-rec__time {
+    font-size: 10px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-debt-detail-rec__action {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.35;
+}
+
+.dash-debt-detail-rec__detail {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+/* ── Complexity detail ───────────────────────────────────────────────────── */
+.dash-kpi-detail--complexity .dash-kpi-detail-row {
+    grid-template-columns: 24px minmax(0, 1fr) minmax(72px, 120px) minmax(52px, auto);
+}
+
+.dash-cyclo-detail-meta {
+    display: block;
+    font-size: 10px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-top: 1px;
+}
+
+.dash-cyclo-detail-hist {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    height: 160px;
+    padding: 0 10px;
+    min-width: 220px;
+}
+
+.dash-cyclo-detail-hist__bar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    flex: 1;
+    height: 100%;
+}
+
+.dash-cyclo-detail-hist__fill {
+    width: 100%;
+    border-radius: 3px 3px 0 0;
+    min-height: 4px;
+    transition: height 0.4s ease-out;
+}
+
+.dash-cyclo-detail-hist__label {
+    font-size: 10px;
+    color: var(--muted);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.dash-cyclo-detail-offenders {
+    max-height: 440px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.dash-cyclo-detail-offenders::-webkit-scrollbar { width: 4px; }
+.dash-cyclo-detail-offenders::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+@media (max-width: 900px) {
+    .dash-debt-detail-rec-grid {
+        grid-template-columns: 1fr;
+    }
+    .dash-kpi-detail--tech-debt .dash-kpi-detail-row,
+    .dash-kpi-detail--complexity .dash-kpi-detail-row {
+        grid-template-columns: 24px minmax(0, 1fr) minmax(48px, auto);
+    }
+    .dash-cyclo-detail-offenders {
+        max-height: 320px;
+    }
+}
+
 /* File Types detail panel */
 .dash-filetypes-detail,
 .dash-code-health-detail-panel {
