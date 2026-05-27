@@ -60,6 +60,7 @@ function _dashOpenDetailPanel(widgetId, originRect) {
     const token = ++_dashDetailSeq;
     _dashDetailCurrent = { backdrop, panel, token };
     const body = panel.querySelector('#dash-detail-body');
+    if (body) body.dataset.dashDetailWidgetId = widgetId;
 
     // Defer renderDetail one frame so the panel's layout (and the canvas's
     // offsetWidth/offsetHeight) is fully resolved before Chart.js captures
@@ -70,6 +71,7 @@ function _dashOpenDetailPanel(widgetId, originRect) {
         if (typeof widget.renderDetail === 'function') {
             try {
                 widget.renderDetail(body, DATA.stats);
+                _dashEnhanceDetailInteractions(body, widgetId, DATA.stats);
             } catch (err) {
                 console.error(`[dashboard] detail for ${widgetId} failed:`, err);
                 body.innerHTML = `<div class="dash-empty">⚠ detail unavailable</div>`;
@@ -196,6 +198,290 @@ function _dashReportStats(items) {
   <small>${_dashEscape(item.label || '')}</small>
 </div>`;
     }).join('')}</div>`;
+}
+
+function _dashEnhanceDetailInteractions(body, widgetId, stats) {
+    if (!body) return;
+    const existingTargets = _dashDetailExistingTargets(body);
+    const candidates = body.querySelectorAll([
+        '.dash-report-metric',
+        '.dash-report-primary',
+        '.dash-report-bar-row',
+        '.dash-report-stat',
+        '.dash-kpi-detail__primary',
+        '.dash-kpi-detail-bars__row',
+        '.dash-kpi-detail-stat',
+        '.dash-code-health-detail-panel__primary',
+        '.dash-code-health-diagnostic__weakest',
+        '.dash-code-health-summary-card',
+        '.dash-entry-detail-hero-stat',
+        '.dash-issues-detail-status__item',
+        '.dash-cyclo-detail-hist__bar',
+        '.dash-coupling-detail-conc__leg-item',
+        '.dash-debt-detail-comp__stack span',
+        '.dash-detail-stat-row > div',
+        '.dash-commit-activity-detail__primary',
+        '.dash-commit-activity-detail-stats > div',
+        '.dash-churn-timeline-detail__primary',
+        '.dash-churn-timeline-detail-stats > div',
+    ].join(','));
+
+    candidates.forEach(el => {
+        if (!el || el.closest('[data-clickable="true"], [onclick], a[href], button')) return;
+        const label = _dashDetailCandidateLabel(el);
+        const value = _dashDetailCandidateValue(el);
+        const proxy = _dashDetailFindExistingTarget(existingTargets, label, value);
+        if (proxy) {
+            _dashMakeDetailElementClickable(el, () => proxy.click(), proxy.title || label);
+            return;
+        }
+        const action = _dashDetailMetricAction(widgetId, label, value, stats || {});
+        if (action) _dashMakeDetailElementClickable(el, action, label);
+    });
+}
+
+function _dashDetailExistingTargets(body) {
+    return [...body.querySelectorAll('[data-clickable="true"], [onclick], a[href], button')].filter(el =>
+        el && !el.closest('.dash-detail-head') && !el.closest('.dash-chart-toggle')
+    ).map(el => ({
+        el,
+        key: _dashDetailNormalize(el.textContent || ''),
+        title: el.getAttribute('title') || el.getAttribute('data-tip') || '',
+        click: () => el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window })),
+    })).filter(t => t.key);
+}
+
+function _dashDetailFindExistingTarget(targets, label, value) {
+    const labelKey = _dashDetailNormalize(label);
+    const valueKey = _dashDetailNormalize(value);
+    const keys = [
+        labelKey,
+        /[^\d\s.+#/\-]/u.test(valueKey) ? valueKey : '',
+        _dashDetailNormalize(`${label || ''} ${value || ''}`),
+    ].filter(Boolean);
+    if (!keys.length) return null;
+    return targets.find(t => keys.some(k => t.key === k || t.key.includes(k) || k.includes(t.key))) || null;
+}
+
+function _dashDetailCandidateLabel(el) {
+    const node = el.querySelector([
+        '.dash-report-metric-label',
+        '.dash-report-primary-suffix',
+        '.dash-report-bar-row span',
+        '.dash-kpi-detail__primary-suffix',
+        '.dash-kpi-detail-bars__label',
+        '.dash-kpi-detail-stat__label',
+        '.dash-code-health-detail-panel__primary-suffix',
+        '.dash-code-health-diagnostic__weakest strong',
+        '.dash-entry-detail-hero-stat__label',
+        '.dash-issues-detail-status__label',
+        '.dash-code-health-summary-card small',
+        '.dash-cyclo-detail-hist__label',
+        '.dash-commit-activity-detail__primary-suffix',
+        '.dash-churn-timeline-detail__primary-suffix',
+        'small',
+    ].join(','));
+    return (node ? node.textContent : el.getAttribute('title') || el.textContent || '').trim();
+}
+
+function _dashDetailCandidateValue(el) {
+    const node = el.querySelector([
+        '.dash-report-metric-value',
+        '.dash-report-primary-value',
+        '.dash-report-bar-row b',
+        '.dash-report-stat-value',
+        '.dash-kpi-detail__primary-value',
+        '.dash-kpi-detail-bars__value',
+        '.dash-kpi-detail-stat__value',
+        '.dash-code-health-detail-panel__primary-value',
+        '.dash-entry-detail-hero-stat__value',
+        '.dash-issues-detail-status__value',
+        '.dash-code-health-summary-card span',
+        '.dash-commit-activity-detail__primary-value',
+        '.dash-churn-timeline-detail__primary-value',
+        'strong',
+        'b',
+    ].join(','));
+    return (node ? node.textContent : '').trim();
+}
+
+function _dashDetailNormalize(text) {
+    return String(text || '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .replace(/[^\p{L}\p{N}.+#/\- ]+/gu, '')
+        .trim();
+}
+
+function _dashMakeDetailElementClickable(el, handler, label) {
+    if (!el || typeof handler !== 'function') return;
+    el.dataset.clickable = 'true';
+    el.setAttribute('role', 'button');
+    el.tabIndex = 0;
+    if (label && !el.getAttribute('title')) el.setAttribute('title', label);
+    el.addEventListener('click', event => {
+        if (event.target.closest('button, a[href], [onclick], [data-clickable="true"]:not([data-dash-enhanced-click])') && event.target !== el) return;
+        event.preventDefault();
+        event.stopPropagation();
+        handler();
+    });
+    el.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        handler();
+    });
+    el.dataset.dashEnhancedClick = 'true';
+}
+
+function _dashDetailMetricAction(widgetId, label, value, stats) {
+    const text = _dashDetailNormalize(`${label || ''} ${value || ''}`);
+    const labelText = _dashDetailNormalize(label);
+    const extMatch = /^\.([a-z0-9_+#-]+)$/i.exec((label || '').trim());
+    if (extMatch && typeof _dashFilesByExt === 'function') {
+        const ext = extMatch[1];
+        return () => _dashOpenFileGroupDrilldown(`.${ext} files`, _dashFilesByExt(ext));
+    }
+
+    if (/^\d+\s*(?:-\s*\d+|\+)$/.test(labelText) && typeof _dashComplexityBucketFunctions === 'function') {
+        return () => _dashOpenFunctionGroupDrilldown(`Complexity ${labelText}`, _dashComplexityBucketFunctions(labelText.replace(/\s+/g, '')));
+    }
+
+    const allFiles = () => typeof _dashAllFiles === 'function' ? _dashAllFiles() : [];
+    const allFunctions = () => {
+        const fromIndex = Object.values((window.DATA && DATA.symbol_index) || {})
+            .filter(sym => sym && (sym.kind === 'function' || sym.kind === 'method'))
+            .map(sym => ({ file: sym.file, name: sym.name, line: sym.line, value: sym.complexity != null ? `cx ${sym.complexity}` : '' }));
+        if (fromIndex.length) return fromIndex;
+        const rows = [];
+        for (const files of Object.values((window.DATA && DATA.files_by_module) || {})) {
+            for (const file of files || []) {
+                for (const fn of file.functions || []) {
+                    rows.push({ file: file.path, name: fn.name, line: fn.line || 0, value: fn.lines != null ? `${fn.lines} lines` : '' });
+                }
+            }
+        }
+        return rows;
+    };
+    const filesFromPaths = paths => (paths || []).filter(Boolean).map(file => ({ file }));
+    const functionRows = rows => (rows || []).filter(r => r && r.file).map(r => ({
+        file: r.file,
+        name: r.name || r.label || '?',
+        line: r.line || 0,
+        value: r.value ?? (r.complexity != null ? `cx ${r.complexity}` : ''),
+    }));
+    const openFiles = (title, rows, options) => () => _dashOpenFileGroupDrilldown(title, rows, options || {});
+    const openFunctions = (title, rows, options) => () => _dashOpenFunctionGroupDrilldown(title, rows, options || {});
+    const fmtExact = typeof _dashFmtExactNum === 'function' ? _dashFmtExactNum : _dashFmtNum;
+
+    if (text.includes('comment')) {
+        return openFiles('Files with comments', allFiles().filter(f => (f.loc || {}).comment > 0), {
+            meta: f => `${fmtExact((f.loc || {}).comment || 0)} lines`,
+        });
+    }
+    if (text.includes('blank')) {
+        return openFiles('Files with blank LOC', allFiles().filter(f => (f.loc || {}).blank > 0), {
+            meta: f => `${fmtExact((f.loc || {}).blank || 0)} lines`,
+        });
+    }
+    if ((text.includes('code') || text.includes('loc') || text.includes('line')) && !text.includes('dead') && !text.includes('health')) {
+        return openFiles('Files with code LOC', allFiles().filter(f => (f.loc || {}).code > 0), {
+            meta: f => `${fmtExact((f.loc || {}).code || 0)} lines`,
+        });
+    }
+
+    if (widgetId === 'complexity') {
+        const rows = functionRows(stats.complexity_top_offenders || []);
+        if (rows.length && (text.includes('offender') || text.includes('average') || text.includes('top score'))) {
+            return openFunctions('Complexity offenders', rows);
+        }
+    }
+
+    if (widgetId === 'dead_code') {
+        const rows = functionRows(stats.dead_code_symbols || []);
+        if (rows.length && (text.includes('unused') || text.includes('dead') || text.includes('affected'))) {
+            return openFunctions('Dead code symbols', rows.map(r => Object.assign({}, r, { value: 'unused' })));
+        }
+        if (text.includes('total function')) return openFunctions('All functions', allFunctions());
+    }
+
+    if (widgetId === 'issues') {
+        if (text.includes('circular')) {
+            return openFiles('Circular dependency files', filesFromPaths([...(new Set((stats.top_circular_deps || []).flat()))]));
+        }
+        if (text.includes('dead')) return openFunctions('Dead code symbols', functionRows(stats.dead_code_symbols || []));
+        if (text.includes('unimported')) return openFiles('Unimported files', filesFromPaths(stats.unimported_file_paths || []));
+        if (text.includes('entry')) return openFiles('Entry points', filesFromPaths(stats.entry_point_files || []));
+        if (text.includes('isolated')) return openFiles('Isolated files', filesFromPaths(stats.isolated_file_paths || []));
+    }
+
+    if (widgetId === 'entry_points') {
+        if (text.includes('entry')) return openFiles('Entry points', filesFromPaths(stats.entry_point_files || []));
+        if (text.includes('isolated')) return openFiles('Isolated files', filesFromPaths(stats.isolated_file_paths || []));
+    }
+
+    if (widgetId === 'coupling') {
+        if (text.includes('caller')) return openFiles('Top caller files', filesFromPaths((stats.top_caller_files || []).map(x => x.file)));
+        if (text.includes('hotspot') || text.includes('import')) return openFiles('Most imported files', filesFromPaths((stats.top_imported_files || []).map(x => x.file)));
+    }
+
+    if (widgetId === 'graph_intelligence') {
+        if (text.includes('surprising')) {
+            return openFiles('Surprising connection files', filesFromPaths((stats.surprising_connections || []).flatMap(x => [x.source, x.target])));
+        }
+        if (text.includes('hotspot') || text.includes('degree')) {
+            return openFiles('Graph hotspot files', filesFromPaths((stats.hotspot_nodes || []).map(x => x.file)));
+        }
+    }
+
+    if (widgetId === 'bus_factor') {
+        if (text.includes('high')) return openFiles('High ownership risk', filesFromPaths((stats.bus_factor_files || []).filter(f => f.risk === 'high').map(f => f.file)));
+        if (text.includes('medium')) return openFiles('Medium ownership risk', filesFromPaths((stats.bus_factor_files || []).filter(f => f.risk === 'medium').map(f => f.file)));
+        if (text.includes('low')) return openFiles('Low ownership risk', filesFromPaths((stats.bus_factor_files || []).filter(f => f.risk === 'low').map(f => f.file)));
+    }
+
+    if (widgetId === 'security') {
+        const findings = stats.security_findings || {};
+        const bySeverity = findings.by_severity || {};
+        if (text.includes('high')) return openFiles('High security findings', bySeverity.high || []);
+        if (text.includes('medium')) return openFiles('Medium security findings', bySeverity.medium || []);
+        if (text.includes('low')) return openFiles('Low security findings', bySeverity.low || []);
+    }
+
+    if (widgetId === 'commit_heatmap' || widgetId === 'churn_timeline' || widgetId === 'temporal') {
+        if (text.includes('commit') || text.includes('file') || text.includes('week') || text.includes('addition') || text.includes('deletion')) {
+            return openFiles('Changed files', stats.file_churn || []);
+        }
+    }
+
+    if (widgetId === 'code_health' && typeof _dashHealthCategoryFiles === 'function') {
+        const categories = [
+            ['complexity', 'Complexity'],
+            ['coupling', 'Coupling'],
+            ['dead_code', 'Dead code'],
+            ['duplication', 'Duplication'],
+        ];
+        const row = categories.find(([key, name]) => text.includes(key.replace('_', ' ')) || text.includes(name.toLowerCase()));
+        if (row) return openFiles(`Code Health: ${row[1]}`, _dashHealthCategoryFiles(row[0], stats));
+    }
+
+    if (widgetId === 'tech_debt' && typeof _dashDebtCategoryFiles === 'function' && typeof _DASH_DEBT_ORDER !== 'undefined') {
+        const row = _DASH_DEBT_ORDER.find(d => text.includes(_dashDetailNormalize(_dashT(d.label))));
+        if (row) return openFiles(`Tech Debt: ${_dashT(row.label)}`, _dashDebtCategoryFiles(row.key, stats));
+    }
+
+    if (widgetId === 'overview' && (text.includes('function') || text.includes('call'))) {
+        return openFunctions('All functions', allFunctions());
+    }
+
+    if ((widgetId === 'overview' || widgetId === 'kpi_files' || widgetId === 'structure') && (text.includes('file') || text.includes('module') || text.includes('extension'))) {
+        return openFiles('All files', allFiles());
+    }
+
+    if (widgetId === 'kpi_functions' && (text.includes('function') || text.includes('call') || text.includes('module') || text.includes('file'))) {
+        return openFunctions('All functions', allFunctions());
+    }
+
+    return null;
 }
 
 function _dashReportFileExts(limit) {
