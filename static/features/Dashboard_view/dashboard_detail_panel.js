@@ -363,7 +363,7 @@ function _dashDetailReportModel(widgetId, widget, stats) {
     }
 
     if (widgetId === 'dead_code') {
-        const count = stats.dead_code_count || 0;
+        const count = stats.uncalled_functions || 0;
         const total = stats.functions || 1;
         const pct = Math.min(100, Math.round((count / total) * 100));
         const color = pct > 20 ? '#c57429' : pct > 5 ? '#DFA745' : '#A4B55B';

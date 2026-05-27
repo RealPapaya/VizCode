@@ -19,7 +19,7 @@ _dashRegisterWidget({
     defaultSize: 'S',
 
     render(container, size, stats) {
-        const count = stats.dead_code_count || 0;
+        const count = stats.uncalled_functions || 0;
         const total = stats.functions || 1;
         const pct   = Math.min(100, Math.round((count / total) * 100));
         const color = pct > 20 ? '#c57429' : pct > 5 ? '#DFA745' : '#A4B55B';
@@ -96,7 +96,7 @@ _dashRegisterWidget({
     },
 
     renderDetail(container, stats) {
-        const count    = stats.dead_code_count || 0;
+        const count    = stats.uncalled_functions || 0;
         const total    = stats.functions || 1;
         const pct      = Math.min(100, Math.round((count / total) * 100));
         const deadList = stats.dead_code_symbols || [];
@@ -108,32 +108,58 @@ _dashRegisterWidget({
             if (!byFile.has(key)) byFile.set(key, []);
             byFile.get(key).push(sym);
         });
-        const fileEntries = [...byFile.entries()].sort((a, b) => b[1].length - a[1].length);
+        const fileEntries   = [...byFile.entries()].sort((a, b) => b[1].length - a[1].length);
+        const affectedFiles = fileEntries.length;
 
-        const summary = `
-  <div class="dash-detail-stat-row">
-    <div>
-      <div style="font-size:var(--text-display);font-weight:700;color:${color};line-height:1">${_dashFmtNum(count)}</div>
-      <div style="font-size:var(--text-xs);color:var(--muted);margin-top:4px">unused symbols</div>
-    </div>
-    <div>
-      <div style="font-size:var(--text-display);font-weight:700;color:${color};line-height:1">${pct}%</div>
-      <div style="font-size:var(--text-xs);color:var(--muted);margin-top:4px">of all functions</div>
-    </div>
-  </div>`;
-        const fileRows = fileEntries.map(([file, syms]) => {
-        const shortFile = file.split('/').pop();
-        return `<div style="margin-bottom:8px;">
-          <div style="font-size:var(--text-xs);color:var(--muted);margin-bottom:3px;cursor:pointer;" title="${_dashEscape(file)}"
-               onclick="_dashOpenFunctionGroupDrilldown('Dead symbols in ${_dashEscape(shortFile)}', (DATA.stats.dead_code_symbols || []).filter(s => s.file === ${_dashJson(file)}).map(s => ({ file: s.file, name: s.name, value: 'unused' })))">${_dashEscape(shortFile)} <span style="color:var(--border)">(${syms.length})</span></div>
-          <div style="display:flex;flex-wrap:wrap;gap:4px;">
-            ${syms.map(s => `<span data-clickable="true" onclick="_dashGoToGraphFile(${_dashJson(s.file)}, ${_dashJson(s.name || '')})" style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--surface-elevated);color:${color};cursor:pointer">${_dashEscape(s.name || s)}</span>`).join('')}
-          </div>
-        </div>`;
-    }).join('') || '<div class="dash-empty">No dead code detected</div>';
+        // Hero visual: large ring
+        const heroVisual = `<div class="dash-dead-detail-ring">${_kpiDeadCodeRing(pct, color, 140, 140)}<div class="dash-dead-detail-ring__label" style="color:${color}">${pct}%</div><div class="dash-dead-detail-ring__sub">of functions</div></div>`;
+
+        const summaryText = count === 0
+            ? 'No dead code detected.'
+            : `${count} unused symbol${count !== 1 ? 's' : ''} across ${affectedFiles} file${affectedFiles !== 1 ? 's' : ''}.`;
+
+        // File rows using dash-kpi-detail-row pattern
+        const fileRows = fileEntries.slice(0, 20).map(([file, syms], i) => {
+            const short     = file.split('/').pop();
+            const symsJson  = _dashJson(syms.map(s => ({ file: s.file, name: s.name, value: 'unused' })));
+            const titleJson = _dashJson('Dead code in ' + short);
+            return `<div class="dash-kpi-detail-row" data-clickable="true" title="${_dashEscape(file)}"
+                onclick="_dashOpenFunctionGroupDrilldown(${titleJson}, ${symsJson})">
+                <span class="dash-kpi-detail-row__rank">${i + 1}</span>
+                <span class="dash-kpi-detail-row__name">${_dashEscape(short)}<span class="dash-kpi-detail-row__meta">${_dashEscape(file)}</span></span>
+                <span class="dash-kpi-detail-row__value">${syms.length} unused</span>
+            </div>`;
+        }).join('') || `<div class="dash-empty">No dead code detected</div>`;
 
         container.innerHTML = `
-${_dashReportSection({ title: 'Summary', accent: color, body: summary })}
-${_dashReportSection({ title: 'Dead Symbols by File', body: _dashReportList(fileRows) })}`;
+<div class="dash-kpi-detail dash-kpi-detail--dead-code">
+  <section class="dash-kpi-detail__hero">
+    <div class="dash-kpi-detail__hero-copy">
+      <div class="dash-kpi-detail__eyebrow">Unused symbol risk</div>
+      <h2 class="dash-kpi-detail__title">Dead Code</h2>
+      <div class="dash-kpi-detail__primary">
+        <span class="dash-kpi-detail__primary-value" style="color:${color}">${_dashFmtNum(count)}</span>
+        <span class="dash-kpi-detail__primary-suffix">unused</span>
+      </div>
+      <p class="dash-kpi-detail__summary">${_dashEscape(summaryText)}</p>
+    </div>
+    <div class="dash-kpi-detail__hero-visual">${heroVisual}</div>
+  </section>
+  <div class="dash-kpi-detail__sections">
+${_dashKpiDetailSectionHTML({
+    title: 'Snapshot',
+    body: _dashKpiDetailStatsHTML([
+        { value: String(count),          label: 'unused symbols', color },
+        { value: `${pct}%`,              label: 'of all functions', color },
+        { value: String(affectedFiles),  label: 'files affected' },
+        { value: String(total),          label: 'total functions' },
+    ]),
+})}
+${_dashKpiDetailSectionHTML({
+    title: count > 0 ? `Dead Symbols by File (${affectedFiles})` : 'Dead Symbols by File',
+    body: `<div class="dash-dead-detail-list">${fileRows}</div>`,
+})}
+  </div>
+</div>`;
     },
 });

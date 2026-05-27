@@ -21,33 +21,10 @@ function _dashEntryRows(files, limit) {
 
 function _dashRenderEntryPoints(container, stats, opts) {
   if (!container) return;
-  const isDetail = !!(opts && opts.detail);
   const entries = stats.entry_point_files || [];
   const isolated = stats.isolated_file_paths || [];
   const entryCount = stats.entry_points || entries.length;
   const isoCount = stats.isolated_files || isolated.length;
-
-  if (isDetail) {
-    container.innerHTML = `
-${_dashReportSection({
-  title: _dashT('dashEntryPointsTitle'),
-  subtitle: _dashT('dashEntryPointsSub'),
-  accent: 'var(--status-good)',
-  body: _dashReportGrid([
-    _dashReportSection({
-      title: _dashT('dashIssuesEntry'),
-      subtitle: `${_dashFmtNum(entryCount)} files`,
-      body: _dashReportList(_dashEntryRows(entries, 0)),
-    }),
-    _dashReportSection({
-      title: _dashT('dashEntryPointsIsolated'),
-      subtitle: `${_dashFmtNum(isoCount)} files`,
-      body: _dashReportList(_dashEntryRows(isolated, 0)),
-    }),
-  ], { columns: 2 }),
-})}`;
-    return;
-  }
 
   container.innerHTML = `
 <div class="dash-arch-panel">
@@ -144,5 +121,86 @@ _dashRegisterWidget({
     _dashRenderEntryPoints(container, stats);
   },
 
-  renderDetail(container, stats) { _dashRenderEntryPoints(container, stats, { detail: true }); },
+  renderDetail(container, stats) {
+    const entries    = stats.entry_point_files || [];
+    const isolated   = stats.isolated_file_paths || [];
+    const entryCount = stats.entry_points || entries.length;
+    const isoCount   = stats.isolated_files || isolated.length;
+
+    // Hero visual: two stat boxes
+    const heroVisual = `
+<div class="dash-entry-detail-hero-stats">
+  <div class="dash-entry-detail-hero-stat">
+    <span class="dash-entry-detail-hero-stat__value" style="color:var(--status-good)">${_dashFmtNum(entryCount)}</span>
+    <span class="dash-entry-detail-hero-stat__label">${_dashEscape(_dashT('dashIssuesEntry'))}</span>
+  </div>
+  <div class="dash-entry-detail-hero-stat">
+    <span class="dash-entry-detail-hero-stat__value" style="color:var(--muted)">${_dashFmtNum(isoCount)}</span>
+    <span class="dash-entry-detail-hero-stat__label">${_dashEscape(_dashT('dashIssuesIsolated'))}</span>
+  </div>
+</div>`;
+
+    const summaryText = entryCount === 0
+      ? 'No entry points detected in this codebase.'
+      : `${entryCount} file${entryCount !== 1 ? 's' : ''} not imported anywhere${isoCount > 0 ? `, ${isoCount} fully isolated` : ''}.`;
+
+    // Entry point rows
+    const entryRows = entries.length
+      ? entries.map((file, i) => {
+          const short    = String(file).split('/').pop();
+          const fileJson = _dashJson(file);
+          return `<div class="dash-kpi-detail-row" data-clickable="true" title="${_dashEscape(file)}"
+              onclick="_dashGoToGraphFile(${fileJson}, null)">
+              <span class="dash-kpi-detail-row__rank">${i + 1}</span>
+              <span class="dash-kpi-detail-row__name">${_dashEscape(short)}<span class="dash-kpi-detail-row__meta">${_dashEscape(file)}</span></span>
+          </div>`;
+        }).join('')
+      : `<div class="dash-empty">${_dashEscape(_dashT('dashEntryPointsEmpty'))}</div>`;
+
+    // Isolated file rows
+    const isoRows = isolated.length
+      ? isolated.map((file, i) => {
+          const short    = String(file).split('/').pop();
+          const fileJson = _dashJson(file);
+          return `<div class="dash-kpi-detail-row" data-clickable="true" title="${_dashEscape(file)}"
+              onclick="_dashGoToGraphFile(${fileJson}, null)">
+              <span class="dash-kpi-detail-row__rank">${i + 1}</span>
+              <span class="dash-kpi-detail-row__name">${_dashEscape(short)}<span class="dash-kpi-detail-row__meta">${_dashEscape(file)}</span></span>
+          </div>`;
+        }).join('')
+      : `<div class="dash-empty">${_dashEscape(_dashT('dashEntryPointsEmpty'))}</div>`;
+
+    container.innerHTML = `
+<div class="dash-kpi-detail dash-kpi-detail--entry-points">
+  <section class="dash-kpi-detail__hero">
+    <div class="dash-kpi-detail__hero-copy">
+      <div class="dash-kpi-detail__eyebrow">Graph reachability</div>
+      <h2 class="dash-kpi-detail__title">${_dashEscape(_dashT('dashEntryPointsTitle'))}</h2>
+      <div class="dash-kpi-detail__primary">
+        <span class="dash-kpi-detail__primary-value" style="color:var(--status-good)">${_dashFmtNum(entryCount)}</span>
+        <span class="dash-kpi-detail__primary-suffix">entry points</span>
+      </div>
+      <p class="dash-kpi-detail__summary">${_dashEscape(summaryText)}</p>
+    </div>
+    <div class="dash-kpi-detail__hero-visual">${heroVisual}</div>
+  </section>
+  <div class="dash-kpi-detail__sections">
+${_dashKpiDetailSectionHTML({
+    title: 'Snapshot',
+    body: _dashKpiDetailStatsHTML([
+        { value: String(entryCount), label: 'entry points',   color: 'var(--status-good)' },
+        { value: String(isoCount),   label: 'isolated files', color: isoCount > 0 ? 'var(--muted)' : undefined },
+    ]),
+})}
+${_dashKpiDetailSectionHTML({
+    title: `Entry Points (${entryCount})`,
+    body: `<div class="dash-entry-detail-list">${entryRows}</div>`,
+})}
+${isoCount > 0 ? _dashKpiDetailSectionHTML({
+    title: `Isolated Files (${isoCount})`,
+    body: `<div class="dash-entry-detail-list">${isoRows}</div>`,
+}) : ''}
+  </div>
+</div>`;
+  },
 });
