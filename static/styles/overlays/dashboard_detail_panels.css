@@ -366,6 +366,76 @@
     border: 0;
 }
 
+.dash-report-metric[data-clickable],
+.dash-report-primary[data-clickable],
+.dash-report-bar-row[data-clickable],
+.dash-report-stat[data-clickable],
+.dash-kpi-detail__primary[data-clickable],
+.dash-kpi-detail-bars__row[data-clickable],
+.dash-kpi-detail-stat[data-clickable],
+.dash-code-health-detail-panel__primary[data-clickable],
+.dash-code-health-diagnostic__weakest[data-clickable],
+.dash-code-health-summary-card[data-clickable],
+.dash-entry-detail-hero-stat[data-clickable],
+.dash-issues-detail-status__item[data-clickable],
+.dash-cyclo-detail-hist__bar[data-clickable],
+.dash-coupling-detail-conc__leg-item[data-clickable],
+.dash-debt-detail-comp__stack span[data-clickable],
+.dash-detail-stat-row > div[data-clickable],
+.dash-commit-activity-detail__primary[data-clickable],
+.dash-commit-activity-detail-stats > div[data-clickable],
+.dash-churn-timeline-detail__primary[data-clickable],
+.dash-churn-timeline-detail-stats > div[data-clickable] {
+    cursor: pointer;
+}
+
+.dash-report-metric[data-clickable]:hover,
+.dash-report-primary[data-clickable]:hover,
+.dash-report-bar-row[data-clickable]:hover,
+.dash-report-stat[data-clickable]:hover,
+.dash-kpi-detail__primary[data-clickable]:hover,
+.dash-kpi-detail-bars__row[data-clickable]:hover,
+.dash-kpi-detail-stat[data-clickable]:hover,
+.dash-code-health-detail-panel__primary[data-clickable]:hover,
+.dash-code-health-diagnostic__weakest[data-clickable]:hover,
+.dash-code-health-summary-card[data-clickable]:hover,
+.dash-entry-detail-hero-stat[data-clickable]:hover,
+.dash-issues-detail-status__item[data-clickable]:hover,
+.dash-cyclo-detail-hist__bar[data-clickable]:hover,
+.dash-coupling-detail-conc__leg-item[data-clickable]:hover,
+.dash-debt-detail-comp__stack span[data-clickable]:hover,
+.dash-detail-stat-row > div[data-clickable]:hover,
+.dash-commit-activity-detail__primary[data-clickable]:hover,
+.dash-commit-activity-detail-stats > div[data-clickable]:hover,
+.dash-churn-timeline-detail__primary[data-clickable]:hover,
+.dash-churn-timeline-detail-stats > div[data-clickable]:hover {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.dash-report-metric[data-clickable]:focus-visible,
+.dash-report-primary[data-clickable]:focus-visible,
+.dash-report-bar-row[data-clickable]:focus-visible,
+.dash-report-stat[data-clickable]:focus-visible,
+.dash-kpi-detail__primary[data-clickable]:focus-visible,
+.dash-kpi-detail-bars__row[data-clickable]:focus-visible,
+.dash-kpi-detail-stat[data-clickable]:focus-visible,
+.dash-code-health-detail-panel__primary[data-clickable]:focus-visible,
+.dash-code-health-diagnostic__weakest[data-clickable]:focus-visible,
+.dash-code-health-summary-card[data-clickable]:focus-visible,
+.dash-entry-detail-hero-stat[data-clickable]:focus-visible,
+.dash-issues-detail-status__item[data-clickable]:focus-visible,
+.dash-cyclo-detail-hist__bar[data-clickable]:focus-visible,
+.dash-coupling-detail-conc__leg-item[data-clickable]:focus-visible,
+.dash-debt-detail-comp__stack span[data-clickable]:focus-visible,
+.dash-detail-stat-row > div[data-clickable]:focus-visible,
+.dash-commit-activity-detail__primary[data-clickable]:focus-visible,
+.dash-commit-activity-detail-stats > div[data-clickable]:focus-visible,
+.dash-churn-timeline-detail__primary[data-clickable]:focus-visible,
+.dash-churn-timeline-detail-stats > div[data-clickable]:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+    outline-offset: 2px;
+}
+
 .dash-report-metric-value {
     display: block;
     overflow: hidden;
