@@ -1,0 +1,10 @@
+/* ── Print: keep cycle card borders visible without large solid fills ── */
+@media print {
+    .dash-cycle-card {
+        background: transparent !important;
+        border: 1px solid color-mix(in srgb, var(--muted) 30%, transparent);
+    }
+    .dash-cycle-action { display: none; }
+}
+
+

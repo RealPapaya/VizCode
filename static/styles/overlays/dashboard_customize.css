@@ -1,0 +1,1135 @@
+/* ── Add Widget picker (visual preview cards) ── */
+
+.dash-add-widget-overlay {
+
+    position: fixed;
+
+    inset: 0;
+
+    background: rgba(0, 0, 0, 0.6);
+
+    z-index: 125;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    animation: dash-fade-in 0.18s ease-out;
+
+}
+
+
+
+.dash-add-widget-panel {
+    width: min(880px, calc(100vw - 48px));
+    max-height: calc(100vh - 80px);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.dash-add-widget-panel--split {
+    width: min(960px, calc(100vw - 48px));
+    height: min(580px, calc(100vh - 80px));
+}
+
+
+
+.dash-add-widget-head {
+
+    flex-shrink: 0;
+
+    padding: var(--space-3) var(--space-4);
+
+    border-bottom: 1px solid var(--border);
+
+    display: flex;
+
+    align-items: center;
+
+    gap: var(--space-3);
+
+}
+
+
+
+.dash-add-widget-title {
+
+    flex: 1;
+
+    font-size: var(--text-sm, 12px);
+
+    font-weight: 600;
+
+    color: var(--text);
+
+}
+
+
+
+/* Card grid */
+
+/* Two-column body */
+.dash-awp-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Left sidebar: categorised widget list */
+.dash-awp-sidebar {
+    width: 200px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: var(--space-2) 0;
+}
+
+.dash-awp-cat { margin-bottom: var(--space-1); }
+
+.dash-awp-cat-label {
+    padding: var(--space-2) var(--space-3);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+}
+
+.dash-awp-item {
+    padding: 8px var(--space-4);
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    margin: 1px var(--space-2);
+    transition: background 0.12s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.dash-awp-item:hover { background: var(--surface-elevated); }
+.dash-awp-item.active {
+    background: var(--accent);
+    color: #191614;
+    font-weight: 600;
+}
+
+/* Already-added state: visible but dimmed — user can see what's on the board */
+.dash-awp-item--added {
+    opacity: 0.4;
+    cursor: default;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.dash-awp-item--added:hover { background: transparent; }
+
+.dash-awp-item-check {
+    flex-shrink: 0;
+    font-size: 10px;
+    color: var(--accent);
+    font-weight: 700;
+    opacity: 0.8;
+}
+
+.dash-awp-empty {
+    padding: var(--space-4);
+    font-size: 11px;
+    color: var(--muted);
+}
+
+/* Right side: large preview + meta */
+.dash-awp-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: var(--space-4);
+    gap: var(--space-3);
+    overflow: hidden;
+}
+
+/* Stage: dark canvas that surrounds the widget preview */
+.dash-awp-preview-stage {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: var(--bg);
+    border-radius: var(--radius-md);
+}
+
+/* Preview box: widget's actual colours, visible border, no extra tinting */
+.dash-awp-preview-box {
+    background: var(--surface-card);
+    border: 1px solid color-mix(in srgb, var(--border) 80%, var(--accent) 40%);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    position: relative;
+}
+
+.dash-awp-preview-inner {
+    width: 100%;
+    height: 100%;
+    padding: var(--space-3);
+    box-sizing: border-box;
+    pointer-events: none;
+    font-size: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+}
+
+/* Preview box sizing — adapts to S / M / L tier */
+/* S: compact square, centered in stage */
+.dash-awp-preview-box[data-tier='S'] { width: 220px; height: 220px; }
+/* M: fixed height — clearly shorter than L */
+.dash-awp-preview-box[data-tier='M'] { width: 100%; height: min(280px, 100%); }
+/* L: stretches to fill the entire stage — radius must match stage to avoid corner gaps */
+.dash-awp-preview-box[data-tier='L'] { width: 100%; height: min(340px, 100%); align-self: center; border-radius: var(--radius-md); }
+
+/* ── Preview-specific overrides to prevent content clipping ── */
+/* Unset tall chart min-heights so charts scale to fit the preview box */
+.dash-awp-preview-inner .dash-chart-wrap,
+.dash-awp-preview-inner .dash-chart-wrap--tall { min-height: 0; }
+/* Suppress horizontal scrollbar reservation that pushes legend out of view */
+.dash-awp-preview-inner .dash-temporal-heatmap-body { overflow: hidden; }
+.dash-awp-preview-inner .dash-temporal-heatmap-svg { min-width: 0; }
+.dash-awp-preview-inner .dash-temporal-heatmap-legend { margin-top: 7px; }
+.dash-awp-preview-inner .dash-temporal-heatmap-stats {
+    margin-top: var(--space-2);
+    padding-top: var(--space-2);
+}
+
+/* Meta section below preview */
+.dash-awp-meta {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding-top: var(--space-1);
+}
+
+.dash-awp-meta-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.dash-awp-meta-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.55;
+}
+
+.dash-awp-meta-sizes {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-1);
+}
+
+.dash-awp-size-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    min-width: 30px;
+}
+
+.dash-add-widget-size-row {
+    display: flex;
+    gap: 4px;
+}
+
+/* Primary Add button */
+.dash-awp-add-btn {
+    align-self: flex-start;
+    margin-top: var(--space-1);
+    background: #DFA745;
+    color: #191614;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 7px 20px;
+    font-size: 13px;
+    font-family: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+.dash-awp-add-btn:hover { opacity: 0.85; }
+.dash-awp-add-btn:disabled {
+    background: var(--surface-elevated);
+    color: var(--muted);
+    cursor: default;
+    opacity: 1;
+}
+
+/* Already-on-dashboard state: subtle green tint instead of grey */
+.dash-awp-add-btn--added:disabled {
+    background: color-mix(in srgb, #4ade80 12%, var(--surface-elevated));
+    color: color-mix(in srgb, #4ade80 70%, var(--muted));
+    border: 1px solid color-mix(in srgb, #4ade80 25%, var(--border));
+    opacity: 1;
+}
+
+.dash-add-widget-add-btn {
+    background: #DFA745;
+    color: #191614;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 4px 12px;
+    font-size: var(--text-sm, 12px);
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    align-self: flex-end;
+    transition: opacity 0.15s;
+}
+.dash-add-widget-add-btn:hover { opacity: 0.85; }
+.dash-add-widget-add-btn:disabled {
+    background: var(--surface-elevated);
+    color: var(--muted);
+    cursor: default;
+    opacity: 1;
+}
+
+
+
+/* ── Shared dashboard card (used inside detail panels) ── */
+
+.dash-card {
+
+    background: var(--surface-card);
+
+    border: 1px solid var(--border);
+
+    border-radius: var(--radius-md);
+
+    padding: var(--space-4) var(--space-5);
+
+    box-shadow: var(--shadow-sm);
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: var(--space-3);
+
+}
+
+
+
+.dash-card-title {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: var(--space-2);
+
+    font-size: var(--text-caption, 10px);
+
+    font-weight: 600;
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.1em;
+
+    color: var(--muted);
+
+    flex-shrink: 0;
+
+}
+
+
+
+.dash-card-title-dot {
+    display: none;
+
+}
+
+
+
+.dash-card-sub {
+
+    margin-left: auto;
+
+    font-size: var(--text-xs, 11px);
+
+    color: var(--muted);
+
+    font-weight: 400;
+
+    text-transform: none;
+
+    letter-spacing: 0;
+
+}
+
+
+
+.dash-empty {
+
+    font-size: var(--text-xs, 11px);
+
+    color: var(--muted);
+
+    text-align: center;
+
+    padding: var(--space-6) 0;
+
+    font-style: italic;
+
+}
+
+
+
+/* ── Chart wrap (inside cards) ── */
+
+.dash-chart-wrap {
+
+    position: relative;
+
+    flex: 1;
+
+    min-height: 80px;
+
+    overflow: hidden;
+
+}
+
+
+
+.dash-chart-wrap canvas {
+
+    width: 100% !important;
+
+    height: 100% !important;
+
+}
+
+.dash-chart-wrap canvas:hover {
+    filter: brightness(1.04);
+}
+
+.dash-detail-split {
+    display: grid;
+    grid-template-columns: minmax(220px, 0.9fr) minmax(260px, 1.1fr);
+    gap: var(--space-4);
+    align-items: stretch;
+    min-height: 0;
+}
+
+.dash-detail-breakdown,
+.dash-detail-list {
+    min-height: 0;
+}
+
+#dash-chart-tooltip {
+    position: fixed;
+    z-index: 140;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(2px);
+    transition: opacity 0.08s ease, transform 0.08s ease;
+    background: var(--surface-elevated);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+    padding: 8px 10px;
+    min-width: 112px;
+    max-width: 240px;
+    font-size: var(--text-xs, 11px);
+    line-height: 1.35;
+}
+
+#dash-chart-tooltip.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.dash-chart-tip-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+}
+
+.dash-chart-tip-swatch {
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    flex: 0 0 auto;
+}
+
+.dash-chart-tip-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.dash-chart-tip-value {
+    margin-top: 3px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-chart-tip-delta {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-chart-tip-add { color: #A4B55B; }
+.dash-chart-tip-del { color: #E05A5A; }
+
+.dash-commit-activity-detail {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.8fr);
+    gap: var(--space-4);
+    height: auto;
+    min-height: 0;
+}
+
+.dash-commit-activity-detail-main,
+.dash-commit-activity-detail-side {
+    min-height: 0;
+    overflow: visible;
+}
+
+.dash-commit-activity-detail-main {
+    display: flex;
+    flex-direction: column;
+}
+
+.dash-commit-activity-detail-side {
+    display: flex;
+    flex-direction: column;
+}
+
+@media (max-width: 760px) {
+    .dash-detail-split {
+        grid-template-columns: 1fr;
+    }
+
+    .dash-report-chart--sm {
+        min-height: 170px !important;
+        max-height: none;
+    }
+
+    .dash-commit-activity-detail {
+        grid-template-columns: 1fr;
+    }
+}
+
+.dash-report-details--structure .dash-structure-chart-grid {
+    flex: 0 0 auto;
+    align-items: stretch;
+}
+
+.dash-report-details--structure .dash-structure-chart-wrap {
+    min-height: 260px !important;
+}
+
+.dash-report-details--structure .dash-structure-treemap-card {
+    max-height: none;
+    min-height: 260px;
+}
+
+.dash-report-details--structure .dash-treemap {
+    min-height: 210px;
+}
+
+@media (max-width: 860px) {
+    .dash-report-details--structure .dash-structure-chart-grid {
+        grid-template-columns: 1fr;
+        flex: 0 0 auto;
+    }
+
+    .dash-detail-split,
+    .dash-report-details .dash-commit-activity-detail,
+    .dash-report-details .dash-structure-chart-grid,
+    .dash-report-details .dash-report-grid--2 {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .dash-codebase-function-list .dash-list-row {
+        grid-template-columns: 24px minmax(0, 1fr) minmax(68px, auto);
+    }
+
+    .dash-codebase-function-list .dash-list-bar-track {
+        display: none;
+    }
+}
+
+@media (max-width: 720px) {
+    .dash-report-body--overview .dash-report-hero,
+    .dash-report-body--kpi_functions .dash-report-hero,
+    .dash-report-body--structure .dash-report-hero {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding-bottom: var(--dash-report-section-gap);
+    }
+
+    .dash-report-body--overview .dash-report-hero-copy,
+    .dash-report-body--kpi_functions .dash-report-hero-copy,
+    .dash-report-body--structure .dash-report-hero-copy {
+        gap: 10px;
+    }
+
+    .dash-report-body--overview .dash-report-primary,
+    .dash-report-body--kpi_functions .dash-report-primary,
+    .dash-report-body--structure .dash-report-primary {
+        flex-wrap: wrap;
+    }
+
+    .dash-report-body--overview .dash-report-primary-value,
+    .dash-report-body--kpi_functions .dash-report-primary-value,
+    .dash-report-body--structure .dash-report-primary-value {
+        font-size: clamp(34px, 13vw, 48px);
+    }
+
+    .dash-report-body--overview .dash-report-metrics,
+    .dash-report-body--kpi_functions .dash-report-metrics,
+    .dash-report-body--structure .dash-report-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 16px;
+    }
+
+    .dash-report-body--kpi_functions .dash-report-metrics,
+    .dash-report-body--structure .dash-report-metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .dash-report-body--overview .dash-report-details,
+    .dash-report-body--kpi_functions .dash-report-details,
+    .dash-report-body--structure .dash-report-details {
+        margin-top: 10px;
+    }
+
+    .dash-report-body--overview .dash-report-hero-visual,
+    .dash-report-body--kpi_functions .dash-report-hero-visual,
+    .dash-report-body--structure .dash-report-hero-visual {
+        display: none;
+    }
+}
+
+
+/* -- Lists (detail panel rows) -- */
+
+.dash-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.dash-list-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 5px 6px;
+    border-radius: 5px;
+    transition: background 0.12s;
+    font-size: 12px;
+    min-height: 30px;
+}
+
+.dash-list-row[data-clickable] { cursor: pointer; }
+
+.dash-list-row[data-clickable]:hover {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.dash-list-rank {
+    color: color-mix(in srgb, var(--muted) 60%, transparent);
+    font-size: 10px;
+    font-weight: 600;
+    width: 20px;
+    flex-shrink: 0;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+}
+
+.dash-list-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text);
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.01em;
+}
+
+.dash-list-meta {
+    color: var(--muted);
+    font-weight: 400;
+    margin-left: var(--space-2);
+    font-size: 10px;
+}
+
+/* bar track: flex container so fill width is % of track, not hardcoded px */
+.dash-list-bar-track {
+    flex: 0 0 80px;
+    height: 4px;
+    background: color-mix(in srgb, var(--accent) 14%, var(--surface-elevated));
+    border-radius: 2px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.dash-list-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.35s ease;
+}
+
+/* legacy single-element bar (kept for compat, hidden width set via JS) */
+.dash-list-bar {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--accent);
+    flex-shrink: 0;
+    min-width: 3px;
+    opacity: 0.7;
+}
+
+.dash-list-val {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    min-width: 28px;
+    text-align: right;
+}
+
+
+
+/* ── Bar rows (debt / health detail) ── */
+
+.dash-health-row,
+
+.dash-debt-row {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: var(--space-2);
+
+    font-size: var(--text-xs, 11px);
+
+}
+
+
+
+.dash-health-row-label,
+
+.dash-debt-row-label {
+
+    width: 120px;
+
+    flex-shrink: 0;
+
+    color: var(--text);
+
+    font-weight: 500;
+
+    white-space: nowrap;
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+}
+
+
+
+.dash-health-row-weight,
+
+.dash-debt-row-weight {
+
+    width: 48px;
+
+    flex-shrink: 0;
+
+    color: var(--muted);
+
+    font-size: 10px;
+
+    text-align: right;
+
+}
+
+
+
+.dash-health-row-track,
+
+.dash-debt-row-track {
+
+    flex: 1;
+
+    height: 6px;
+
+    background: var(--surface-elevated);
+
+    border-radius: 3px;
+
+    overflow: hidden;
+
+}
+
+
+
+.dash-health-row-fill,
+
+.dash-debt-row-fill {
+
+    height: 100%;
+
+    border-radius: 3px;
+
+    background: #DFA745;
+
+    transition: width 0.4s ease;
+
+}
+
+
+
+.dash-health-row-value,
+
+.dash-debt-row-value {
+
+    width: 36px;
+
+    flex-shrink: 0;
+
+    color: var(--text);
+
+    font-weight: 600;
+
+    font-size: 10px;
+
+    text-align: right;
+
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+
+}
+
+
+
+/* ── Tech debt specific ── */
+
+.dash-debt-body { display: flex; flex-direction: column; gap: var(--space-3); flex: 1; min-height: 0; }
+
+.dash-debt-headline { flex-shrink: 0; }
+
+.dash-debt-hours { font-size: var(--text-stat, 26px); font-weight: 700; color: var(--accent); line-height: 1; }
+
+.dash-debt-hours-unit { font-size: var(--text-sm, 12px); color: var(--muted); margin-left: 2px; }
+
+.dash-debt-sub { font-size: var(--text-xs, 11px); color: var(--muted); margin-top: 2px; }
+
+.dash-debt-rows { display: flex; flex-direction: column; gap: var(--space-2); }
+
+.dash-debt-render { flex: 1; min-height: 0; overflow: hidden; }
+
+
+
+/* ── Chart type toggle ── */
+
+.dash-chart-toggle {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 2px;
+
+    margin-left: auto;
+
+    background: var(--surface-elevated);
+
+    border-radius: 4px;
+
+    padding: 2px;
+
+}
+
+
+
+.dash-chart-toggle-btn {
+
+    width: 24px;
+
+    height: 20px;
+
+    border-radius: 3px;
+
+    border: none;
+
+    background: transparent;
+
+    color: var(--muted);
+
+    cursor: pointer;
+
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    transition: color 0.12s, background 0.12s;
+
+}
+
+
+
+.dash-chart-toggle-btn:hover { color: var(--text); }
+
+.dash-chart-toggle-btn.active { color: #191614; background: #DFA745; }
+
+
+
+/* ── Code health gauge ── */
+
+.dash-health-gauge-svg { width: 100%; height: auto; }
+
+.dash-health-gauge-track { fill: none; stroke: var(--surface-elevated); stroke-width: 14; stroke-linecap: round; }
+
+.dash-health-gauge-fill { fill: none; stroke-width: 14; stroke-linecap: round; stroke-dashoffset: 0; transition: stroke-dasharray 0.8s ease-out; }
+
+.dash-health-gauge-score { text-anchor: middle; font-size: 28px; font-weight: 700; fill: var(--text); }
+
+.dash-health-gauge-den { text-anchor: middle; font-size: 13px; fill: var(--muted); }
+
+.dash-health-gauge-area { display: flex; flex-direction: column; align-items: center; flex: 1; min-height: 0; justify-content: center; }
+
+.dash-health-status-badge { font-size: var(--text-xs, 11px); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+
+.dash-health-expand-btn {
+
+    flex-shrink: 0;
+
+    display: flex;
+
+    align-items: center;
+
+    gap: var(--space-1);
+
+    padding: 4px var(--space-2);
+
+    border: 1px solid var(--border);
+
+    border-radius: 4px;
+
+    background: transparent;
+
+    color: var(--muted);
+
+    font-size: var(--text-xs, 11px);
+
+    cursor: pointer;
+
+    transition: border-color 0.15s, color 0.15s;
+
+    align-self: center;
+
+}
+
+.dash-health-expand-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.dash-health-chevron { transition: transform 0.2s ease; }
+
+.dash-health-detail { display: none; }
+
+.dash-health-detail--open { display: block; }
+
+.dash-health-bars { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }
+
+
+
+/* ── Duplication widget ── */
+
+.dash-dup-body { display: flex; flex-direction: column; gap: var(--space-3); flex: 1; min-height: 0; overflow: hidden; }
+
+.dash-dup-gauge { flex-shrink: 0; }
+
+.dash-dup-pct { font-size: var(--text-stat, 26px); font-weight: 700; line-height: 1; }
+
+.dash-dup-pct-track { height: 4px; background: var(--surface-elevated); border-radius: 2px; margin: var(--space-1) 0; overflow: hidden; }
+
+.dash-dup-pct-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+
+.dash-dup-sub { font-size: var(--text-xs, 11px); color: var(--muted); }
+
+.dash-dup-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-2); scrollbar-width: thin; }
+
+.dash-dup-row { padding: var(--space-2); border-radius: 4px; border: 1px solid transparent; cursor: pointer; }
+
+.dash-dup-row:hover { border-color: var(--border); background: color-mix(in srgb, var(--accent) 6%, transparent); }
+
+.dash-dup-row-head { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-xs, 11px); }
+
+.dash-dup-row-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 500; }
+
+.dash-dup-row-line { color: var(--muted); font-size: 10px; }
+
+.dash-dup-row-count { font-size: 10px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+
+.dash-dup-row-sample { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+
+
+
+/* ── Tool button (shared) ── */
+
+.dash-tool-btn {
+
+    width: 30px;
+
+    height: 30px;
+
+    border-radius: 6px;
+
+    border: 1px solid var(--border);
+
+    background: var(--panel);
+
+    color: var(--muted);
+
+    cursor: pointer;
+
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+
+    padding: 0;
+
+}
+
+
+
+.dash-tool-btn:hover {
+
+    color: var(--text);
+
+    border-color: var(--accent);
+
+    background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+
+}
+
+
+
+.dash-tool-btn svg { display: block; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   dashboard_drag_additions.css
+   Append to viz_overlays.css (or load after it).
+   Covers: widget float animation in edit mode + handle/title overlap fix.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Float animation ── */
+@keyframes dash-widget-float {
+    0%   { transform: translateY(0px)    rotate(0deg);    }
+    30%  { transform: translateY(-2.5px) rotate(0.35deg); }
+    70%  { transform: translateY(1.8px)  rotate(-0.28deg);}
+    100% { transform: translateY(0px)    rotate(0deg);    }
+}
+
+/* All widgets float gently in edit mode... */
+body.dash-customize .dash-widget {
+    animation: dash-widget-float 3.2s ease-in-out infinite;
+    cursor: grab;
+}
+
+/* ...except the one being dragged or displaced (those use explicit transform) */
+body.dash-customize .dash-widget.dash-dragging,
+body.dash-customize .dash-widget.dash-shifted-widget {
+    animation: none !important;
+}
+
+/* ── Hover highlight in edit mode ── */
+body.dash-customize .dash-widget {
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+body.dash-customize .dash-widget:hover {
+    box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* ── Ghost border accent (supplements existing .dash-drag-ghost shadow) ── */
+.dash-drag-ghost {
+    border: 1px solid color-mix(in srgb, #DFA745 55%, transparent) !important;
+}
+
+/* ── iOS-style remove button ── */
+body.dash-customize .dash-widget {
+    overflow: visible !important;
+}
+.dash-widget-remove-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--panel, #222);
+    border: 1px solid var(--border, #444);
+    color: var(--text, #eee);
+    font-size: 12px;
+    font-family: sans-serif;
+    line-height: 1;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 20;
+    transition: transform 0.15s, background 0.15s, color 0.15s;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+    padding: 0;
+}
+body.dash-customize .dash-widget-remove-btn {
+    display: flex;
+    animation: dash-pop-in 0.25s cubic-bezier(0.3, 1.5, 0.6, 1) forwards;
+}
+.dash-widget-remove-btn:hover {
+    transform: scale(1.15);
+    background: #e55353;
+    border-color: #e55353;
+    color: #fff;
+}
+@keyframes dash-pop-in {
+    0%   { transform: scale(0.1); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+

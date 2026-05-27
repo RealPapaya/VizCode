@@ -1,0 +1,228 @@
+/* ── Architecture widgets: severity + cycle cards (widget_issues / widget_coupling) ── */
+
+.dash-sev-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+.dash-sev-critical { background: #d35454; }
+.dash-sev-warn     { background: var(--status-warn); }
+.dash-sev-info     { background: color-mix(in srgb, var(--muted) 80%, transparent); }
+
+.dash-sev-bg-critical { background: color-mix(in srgb, #d35454 18%, transparent); color: #d35454; }
+.dash-sev-bg-warn     { background: color-mix(in srgb, var(--status-warn) 18%, transparent); color: var(--status-warn); }
+.dash-sev-bg-info     { background: color-mix(in srgb, var(--muted) 14%, transparent); color: var(--muted); }
+
+.dash-sev-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1.5;
+}
+
+.dash-arch-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: var(--space-2);
+    vertical-align: middle;
+    box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.dash-arch-stat-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+/* Cycle cards (used by widget_issues L + M + detail) */
+.dash-cycle-card {
+    border-left: 3px solid var(--muted);
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--accent) 4%, var(--surface-elevated));
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: var(--space-2);
+    transition: background 0.15s, border-color 0.15s;
+}
+.dash-cycle-card:last-child { margin-bottom: 0; }
+.dash-cycle-card.sev-critical { border-left-color: #d35454; }
+.dash-cycle-card.sev-warn     { border-left-color: var(--status-warn); }
+.dash-cycle-card.sev-info     { border-left-color: color-mix(in srgb, var(--muted) 70%, transparent); }
+.dash-cycle-card:hover {
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface-elevated));
+}
+
+.dash-cycle-card .dash-cycle-head {
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+}
+.dash-cycle-card .dash-list-rank { width: 18px; }
+.dash-cycle-card .dash-cycle-count {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--accent);
+}
+
+.dash-cycle-chain {
+    font-family: ui-monospace, 'JetBrains Mono', SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 3px 5px;
+    margin-left: 22px;
+    line-height: 1.5;
+}
+.dash-cycle-chain .dash-cycle-file {
+    color: var(--text);
+    cursor: pointer;
+    padding: 1px 4px;
+    border-radius: 3px;
+    transition: background 0.12s, color 0.12s;
+}
+.dash-cycle-chain .dash-cycle-file:hover {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--accent);
+}
+.dash-cycle-chain .dash-cycle-arrow {
+    opacity: 0.45;
+    user-select: none;
+}
+.dash-cycle-chain .dash-cycle-more {
+    color: color-mix(in srgb, var(--muted) 80%, transparent);
+    font-style: italic;
+}
+
+.dash-cycle-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: 22px;
+    font-size: 11px;
+}
+.dash-cycle-action {
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 14%, transparent);
+    user-select: none;
+    transition: background 0.12s, border-color 0.12s;
+}
+.dash-cycle-action:hover {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* ── Architecture: L-layout grid (widget_issues full size) ── */
+.dash-arch-layout {
+    height: 100%;
+    display: grid;
+    grid-template-rows: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: var(--space-3);
+    box-sizing: border-box;
+    overflow: hidden;
+}
+.dash-arch-layout .dash-card {
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.dash-arch-bottom-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    gap: var(--space-3);
+    min-height: 0;
+}
+.dash-arch-bottom-grid .dash-card { min-height: 0; }
+.dash-arch-cycles-list {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.dash-arch-mini-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: var(--space-2) var(--space-3);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--accent) 4%, var(--surface-elevated));
+    border: 1px solid color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.dash-arch-mini-stat-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+}
+.dash-arch-mini-stat-value {
+    font-size: 22px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1;
+}
+.dash-arch-mini-stat-sub {
+    font-size: 11px;
+    color: var(--muted);
+}
+
+/* ── Coupling widget (widget_coupling) tweaks ── */
+.dash-coupling-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--muted);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.dash-coupling-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.dash-coupling-row .dash-list-bar-fill.sev-critical { background: #d35454; }
+.dash-coupling-row .dash-list-bar-fill.sev-warn     { background: var(--status-warn); }
+.dash-coupling-row .dash-list-bar-fill.sev-info     { background: color-mix(in srgb, var(--accent) 65%, var(--muted)); }
+
+.dash-coupling-row .dash-list-rank {
+    position: relative;
+    padding-right: 10px;
+}
+.dash-coupling-row .dash-list-rank .dash-sev-dot {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+}
+.dash-coupling-row .dash-list-val small {
+    font-weight: 500;
+    color: var(--muted);
+    margin-left: 4px;
+    font-size: 10px;
+}
+

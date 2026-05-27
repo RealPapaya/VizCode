@@ -1,0 +1,769 @@
+/* ── Widget cell ── */
+
+.dash-widget {
+
+    background: var(--surface-card);
+
+    border: 1px solid var(--border);
+
+    border-radius: var(--radius-md);
+
+    padding: var(--space-3);
+
+    box-shadow: var(--shadow-sm);
+
+    overflow: hidden;
+
+    position: relative;
+
+    cursor: pointer;
+
+    display: flex;
+
+    flex-direction: column;
+
+    min-height: 0;
+
+    min-width: 0;
+
+    transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+
+}
+
+
+
+.dash-widget:hover {
+
+    transform: translateY(-1px);
+
+    box-shadow: var(--shadow-md);
+
+    border-color: color-mix(in srgb, #DFA745 30%, var(--border));
+
+}
+
+
+
+/* Hover ↗ icon */
+
+.dash-widget-link-icon {
+
+    position: absolute;
+
+    top: var(--space-2);
+
+    right: var(--space-2);
+
+    width: 18px;
+
+    height: 18px;
+
+    display: none;
+
+    align-items: center;
+
+    justify-content: center;
+
+    color: var(--muted);
+
+    opacity: 0;
+
+    transition: opacity 0.15s;
+
+    pointer-events: none;
+
+    font-size: 11px;
+
+}
+
+
+
+.dash-widget:hover .dash-widget-link-icon {
+
+    display: flex;
+
+    opacity: 1;
+
+}
+
+
+
+/* Customize mode — no detail click, show controls */
+
+body.dash-customize .dash-widget {
+
+    cursor: default;
+
+}
+
+
+
+body.dash-customize .dash-widget:hover {
+
+    transform: none;
+
+    box-shadow: var(--shadow-sm);
+
+    border-color: var(--border);
+
+}
+
+
+
+body.dash-customize .dash-widget-link-icon {
+
+    display: none !important;
+
+}
+
+
+
+/* ── Drag handle (customize mode) ── */
+
+.dash-widget-handle {
+    position: absolute;
+    top: var(--space-2);
+    left: 50%;
+    width: 28px;
+    height: 28px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    transform: translateX(-50%);
+    color: var(--muted);
+    cursor: grab;
+    font-size: 14px;
+    letter-spacing: -2px;
+
+    line-height: 1;
+
+    z-index: 2;
+
+    user-select: none;
+
+}
+
+
+
+body.dash-customize .dash-widget-handle {
+
+    display: flex;
+
+}
+
+
+
+.dash-widget-handle:active {
+
+    cursor: grabbing;
+
+}
+
+
+
+/* ── Size picker (customize mode) ── */
+
+.dash-widget-size-picker {
+
+    position: absolute;
+
+    bottom: var(--space-2);
+
+    right: var(--space-2);
+
+    display: none;
+
+    align-items: center;
+
+    gap: 2px;
+
+    background: var(--surface-elevated);
+
+    border: 1px solid var(--border);
+
+    border-radius: var(--radius-sm);
+
+    padding: 2px 4px;
+
+    z-index: 2;
+
+}
+
+
+
+body.dash-customize .dash-widget:hover .dash-widget-size-picker {
+
+    display: flex;
+
+}
+
+
+
+.dash-size-btn {
+
+    height: 20px;
+
+    padding: 0 6px;
+
+    border-radius: 4px;
+
+    border: none;
+
+    background: transparent;
+
+    color: var(--muted);
+
+    font-size: 10px;
+
+    font-weight: 700;
+
+    cursor: pointer;
+
+    transition: color 0.12s, background 0.12s;
+
+}
+
+
+
+.dash-size-btn:hover { color: var(--text); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+
+.dash-size-btn.active { color: #191614; background: #DFA745; }
+
+
+
+/* Dragging widget */
+.dash-widget.dash-dragging {
+    opacity: 0;
+    cursor: grabbing;
+    z-index: 5;
+}
+
+.dash-drag-ghost {
+    box-shadow: var(--shadow-lg);
+    opacity: 0.94;
+    cursor: grabbing;
+}
+
+.dash-drop-placeholder {
+    border: 1px dashed #DFA745;
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, #DFA745 8%, transparent);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.dash-widget.dash-shifted-widget {
+    transition: transform 200ms ease-out, box-shadow 200ms ease-out, border-color 200ms ease-out;
+    z-index: 3;
+}
+
+body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragging) {
+    animation: none !important;
+    transition:
+        transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        box-shadow 180ms ease,
+        border-color 180ms ease;
+    will-change: transform;
+}
+
+/* Drop target highlight */
+.dash-widget.dash-drop-target {
+    border-color: #DFA745;
+    background: color-mix(in srgb, #DFA745 8%, var(--surface-card));
+
+}
+
+
+
+/* ── Widget content tiers ── */
+
+.dash-widget-title {
+
+    font-size: var(--text-caption, 10px);
+
+    font-weight: 600;
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.1em;
+
+    color: var(--muted);
+
+    flex-shrink: 0;
+
+    margin-bottom: var(--space-1);
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+    white-space: nowrap;
+
+}
+
+
+
+.dash-widget-stat {
+
+    font-size: var(--text-stat, 26px);
+
+    font-weight: 700;
+
+    color: var(--accent);
+
+    line-height: 1;
+
+    margin-bottom: var(--space-1);
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+    white-space: nowrap;
+
+}
+
+
+
+.dash-widget-stat-lg {
+
+    font-size: var(--text-display, 44px);
+
+    font-weight: 700;
+
+    color: var(--accent);
+
+    line-height: 1;
+
+    margin-bottom: var(--space-1);
+
+}
+
+
+
+.dash-widget-sub {
+
+    font-size: var(--text-xs, 11px);
+
+    color: var(--muted);
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+    white-space: nowrap;
+
+    flex-shrink: 0;
+
+}
+
+
+
+.dash-widget-chart {
+
+    flex: 1;
+
+    min-height: 0;
+
+    overflow: hidden;
+
+    position: relative;
+
+}
+
+
+
+.dash-widget-chart canvas {
+
+    width: 100% !important;
+
+    height: 100% !important;
+
+}
+/* -- KPI widget size variants (S / M / L) ---------------------------------- */
+
+.dash-widget-stat-md {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: var(--space-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* S -- single column, vertically centred */
+.dash-kpi-s {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 100%;
+}
+
+/* M -- stat left | separator | breakdown right */
+.dash-kpi-m {
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+.dash-kpi-m-left {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-right: var(--space-3);
+    min-width: 80px;
+}
+
+.dash-kpi-m-sep {
+    width: 1px;
+    align-self: stretch;
+    background: var(--border);
+    flex-shrink: 0;
+    margin: 4px var(--space-3) 4px 0;
+}
+
+.dash-kpi-m-right {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+}
+
+/* L -- header stat above expandable body */
+.dash-kpi-l {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.dash-kpi-l-head { flex: 0 0 auto; }
+
+.dash-kpi-divider {
+    height: 1px;
+    background: var(--border);
+    flex-shrink: 0;
+    margin: var(--space-2) 0;
+}
+
+.dash-kpi-l-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Shared mini-bar row */
+.dash-kpi-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 14px;
+}
+
+.dash-kpi-l-body .dash-kpi-bar-row { flex: 1; }
+
+.dash-kpi-bar-label {
+    flex: 0 0 52px;
+    font-size: var(--text-xs, 11px);
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-kpi-l-body .dash-kpi-bar-label {
+    flex: 0 0 62px;
+    font-size: var(--text-sm, 12px);
+}
+
+.dash-kpi-bar-track {
+    flex: 1;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.dash-kpi-l-body .dash-kpi-bar-track {
+    height: 6px;
+    border-radius: 3px;
+}
+
+.dash-kpi-bar-fill {
+    height: 100%;
+    transition: width 0.4s ease;
+}
+
+.dash-kpi-bar-val {
+    flex: 0 0 auto;
+    font-size: var(--text-xs, 11px);
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    min-width: 28px;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.dash-kpi-l-body .dash-kpi-bar-val {
+    font-size: var(--text-sm, 12px);
+    min-width: auto;
+}
+
+.dash-kpi-bar-pct {
+    font-size: 9px;
+    color: var(--muted);
+    margin-left: 2px;
+}
+
+.dash-kpi-empty {
+    font-size: var(--text-xs, 11px);
+    color: var(--muted);
+    font-style: italic;
+    align-self: center;
+    margin: auto;
+}
+
+/* -- Overview widget (combined Codebase snapshot) -- */
+
+/* L size: 2x2 metric tiles + stretched top-file-types list */
+.dash-overview-l {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.dash-overview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+    flex: 0 0 auto;
+}
+
+.dash-overview-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--accent) 5%, transparent);
+    border: 1px solid var(--border);
+    min-width: 0;
+}
+
+.dash-overview-tile-label {
+    font-size: var(--text-caption, 10px);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dash-overview-tile-value {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+}
+
+.dash-overview-tile-sub {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dash-overview-types {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.dash-overview-types-title { margin-bottom: 2px; }
+
+.dash-overview-types-rows {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.dash-overview-types-rows .dash-kpi-bar-row {
+    flex: 1;
+    min-height: 0;
+}
+
+/* S size: balanced 2x2 mini-grid (no dominant stat) */
+.dash-overview-s {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.dash-overview-s-grid {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 4px;
+}
+
+.dash-overview-s-cell {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+    min-height: 0;
+}
+
+.dash-overview-s-label {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dash-overview-s-value {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* S body: content block centred with compact contextual pills */
+.dash-kpi-s {
+    justify-content: flex-start;
+}
+
+.dash-kpi-s-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;  /* 從頂部排，overflow 只裁底部 */
+    min-height: 0;
+}
+
+.dash-kpi-s-body .dash-widget-stat { font-size: 32px; }
+
+.dash-s-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 8px;
+    padding-bottom: 2px; /* 為 border-radius 底部留出空間 */
+    overflow: visible;   /* 由 widget 容器統一裁切，不在 pill 層硬截 */
+}
+
+.dash-s-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    min-width: 0;
+    padding: 2px 6px;
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    color: var(--text);
+    font-size: 10px;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dash-s-pill b {
+    color: var(--accent);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-s-pill.muted {
+    border-color: var(--border);
+    background: var(--surface-elevated);
+    color: var(--muted);
+}
+
+.dash-s-pill[onclick] {
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.dash-s-pill[onclick]:hover {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+}
+
+.dash-group-drilldown-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 125;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    backdrop-filter: blur(3px);
+}
+
+.dash-group-drilldown-panel {
+    width: min(760px, calc(100vw - 80px));
+    max-height: min(720px, calc(100vh - 80px));
+    background: var(--surface-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.dash-group-drilldown-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-5);
+    border-bottom: 1px solid var(--border);
+}
+
+.dash-group-drilldown-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--space-4) var(--space-5);
+}
+
+
+

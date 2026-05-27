@@ -3,7 +3,11 @@ tests/test_analyzer.py — Validate build_graph() output contract.
 
 Tests run against the real testproject/ directory (multi-language smoke test).
 """
+import shutil
+import subprocess
+
 import pytest
+import analyze_viz
 from analyze_viz import build_graph
 
 # ─── Required top-level keys in build_graph output ───────────────────────────
@@ -23,6 +27,32 @@ REQUIRED_KEYS = {
 }
 
 REQUIRED_STATS_KEYS = {'files', 'modules', 'functions', 'calls'}
+
+
+def _init_git_repo(path):
+    if not shutil.which('git'):
+        pytest.skip('git CLI is required for git ignore tests')
+    subprocess.run(
+        ['git', 'init'],
+        cwd=path,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    )
+
+
+def _write(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding='utf-8')
+
+
+def _all_dashboard_paths(graph):
+    paths = set()
+    for files in graph.get('files_by_module', {}).values():
+        paths.update(f['path'] for f in files)
+    for files in graph.get('other_files_by_module', {}).values():
+        paths.update(f['path'] for f in files)
+    return paths
 
 
 # ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -141,3 +171,78 @@ class TestModules:
         mod_ids = {m['id'] for m in graph['modules']}
         for key in graph['files_by_module']:
             assert key in mod_ids, f'files_by_module key {key!r} not in modules'
+
+
+class TestGitIgnoreFiltering:
+    def test_git_ignored_files_are_excluded_from_dashboard_inputs(self, tmp_path):
+        _init_git_repo(tmp_path)
+        _write(tmp_path / '.gitignore', 'ignored.py\nignored.js\nignored.css\n')
+        _write(tmp_path / 'kept.py', 'def kept():\n    return 1\n')
+        _write(tmp_path / 'ignored.py', 'eval("1 + 1")\n')
+        _write(tmp_path / 'ignored.js', 'console.log("ignored")\n')
+        _write(tmp_path / 'ignored.css', '.ignored { color: red; }\n')
+        _write(tmp_path / 'notes.txt', 'visible other file\n')
+
+        graph = build_graph(str(tmp_path))
+        paths = _all_dashboard_paths(graph)
+
+        assert 'kept.py' in paths
+        assert 'notes.txt' in paths
+        assert 'ignored.py' not in paths
+        assert 'ignored.js' not in paths
+        assert 'ignored.css' not in paths
+        assert graph['stats']['ignore_filter_enabled'] is True
+        assert graph['stats']['ignore_filter_mode'] == 'git'
+        assert graph['stats']['ignored_files'] == 3
+        assert graph['stats']['files'] == 1
+        security = graph['stats'].get('security_findings', {})
+        issue_paths = {
+            issue.get('path') or issue.get('file')
+            for issue in security.get('top_issues', [])
+        }
+        assert 'ignored.py' not in issue_paths
+
+    def test_git_ignore_nested_patterns_and_negation_match_git(self, tmp_path):
+        _init_git_repo(tmp_path)
+        _write(tmp_path / '.gitignore', 'nested/ignored_root.py\n')
+        _write(tmp_path / 'nested' / '.gitignore', '*.js\n!keep.js\n')
+        _write(tmp_path / 'nested' / 'keep.py', 'def keep_py():\n    return 1\n')
+        _write(tmp_path / 'nested' / 'ignored_root.py', 'def ignored_root():\n    return 1\n')
+        _write(tmp_path / 'nested' / 'drop.js', 'console.log("drop")\n')
+        _write(tmp_path / 'nested' / 'keep.js', 'console.log("keep")\n')
+
+        graph = build_graph(str(tmp_path))
+        paths = _all_dashboard_paths(graph)
+
+        assert 'nested/keep.py' in paths
+        assert 'nested/keep.js' in paths
+        assert 'nested/ignored_root.py' not in paths
+        assert 'nested/drop.js' not in paths
+        assert graph['stats']['ignored_files'] == 2
+
+    def test_non_git_directory_uses_fallback_filter(self, tmp_path):
+        _write(tmp_path / '.gitignore', 'ignored.py\n')
+        _write(tmp_path / 'kept.py', 'def kept():\n    return 1\n')
+        _write(tmp_path / 'ignored.py', 'def ignored_but_visible_without_git():\n    return 1\n')
+
+        graph = build_graph(str(tmp_path))
+        paths = _all_dashboard_paths(graph)
+
+        assert 'ignored.py' in paths
+        assert graph['stats']['ignore_filter_enabled'] is False
+        assert graph['stats']['ignore_filter_mode'] == 'fallback'
+        assert graph['stats']['ignored_files'] == 0
+
+    def test_git_cli_failure_falls_back_without_aborting(self, tmp_path, monkeypatch):
+        _write(tmp_path / '.gitignore', 'ignored.py\n')
+        _write(tmp_path / 'ignored.py', 'def visible_when_git_fails():\n    return 1\n')
+
+        def fail_run(*args, **kwargs):
+            raise FileNotFoundError('git unavailable')
+
+        monkeypatch.setattr(analyze_viz.subprocess, 'run', fail_run)
+        graph = build_graph(str(tmp_path))
+
+        assert 'ignored.py' in _all_dashboard_paths(graph)
+        assert graph['stats']['ignore_filter_enabled'] is False
+        assert graph['stats']['ignore_filter_mode'] == 'fallback'

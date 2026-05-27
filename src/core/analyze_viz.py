@@ -12,7 +12,7 @@ Project type is auto-detected and displayed during analysis.
 Backward compatible: still importable as analyze_bios (server.py alias).
 """
 
-import os, re, json, sys, argparse, datetime
+import os, re, json, sys, argparse, datetime, subprocess
 import concurrent.futures
 from pathlib import Path
 from collections import defaultdict, Counter
@@ -712,6 +712,70 @@ def get_module(rel_path: str) -> str:
 
 # ─── Quality-metric helpers (consumed by build_graph stats) ──────────────────
 
+class _GitIgnoreFilterError(RuntimeError):
+    pass
+
+
+class _GitIgnoreFilter:
+    def __init__(self, root: str, enabled: bool):
+        self.root = root
+        self.enabled = enabled
+        self.mode = 'git' if enabled else 'fallback'
+
+    def ignored(self, rel_paths) -> set:
+        if not self.enabled or not rel_paths:
+            return set()
+        normalized = []
+        for p in rel_paths:
+            path = str(p).replace('\\', '/')
+            if path.startswith('./'):
+                path = path[2:]
+            if path:
+                normalized.append(path)
+        if not normalized:
+            return set()
+        payload = ('\0'.join(normalized) + '\0').encode('utf-8', errors='surrogateescape')
+        try:
+            proc = subprocess.run(
+                ['git', 'check-ignore', '--no-index', '-z', '-v', '--stdin'],
+                cwd=self.root,
+                input=payload,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=30,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+            raise _GitIgnoreFilterError(str(exc)) from exc
+        if proc.returncode not in (0, 1):
+            raise _GitIgnoreFilterError(
+                proc.stderr.decode('utf-8', errors='replace') if proc.stderr else 'git check-ignore failed'
+            )
+        fields = proc.stdout.decode('utf-8', errors='surrogateescape').split('\0')
+        ignored = set()
+        for i in range(0, len(fields) - 3, 4):
+            pattern = fields[i + 2]
+            path = fields[i + 3]
+            if path and not pattern.startswith('!'):
+                ignored.add(path.replace('\\', '/').rstrip('/'))
+        return ignored
+
+
+def _build_git_ignore_filter(root: str) -> _GitIgnoreFilter:
+    try:
+        proc = subprocess.run(
+            ['git', 'rev-parse', '--is-inside-work-tree'],
+            cwd=root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return _GitIgnoreFilter(root, enabled=False)
+    if proc.returncode != 0 or proc.stdout.decode('utf-8', errors='replace').strip() != 'true':
+        return _GitIgnoreFilter(root, enabled=False)
+    return _GitIgnoreFilter(root, enabled=True)
+
+
 def _aggregate_loc(file_meta: dict) -> dict:
     """Sum per-file LOC into project totals.
 
@@ -938,7 +1002,6 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         return int(round(start + ((end - start) * progress)))
 
     root = os.path.abspath(root_dir)
-    all_files = []
 
     _cb(0, 'Scanning files...', stage='scan')
     skip_dirs = set(SKIP_DIRS)
@@ -947,17 +1010,75 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     if include_dirs:
         skip_dirs -= set(include_dirs)
 
-    total_project_files = 0
-    total_project_dirs = 0
+    raw_total_project_files = 0
+    raw_total_project_dirs = 0
     for _dp, _dns, _fns in os.walk(root):
-        total_project_dirs += len(_dns)
-        total_project_files += len(_fns)
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in skip_dirs]
-        for fname in filenames:
-            ext = Path(fname).suffix.lower()
+        raw_total_project_dirs += len(_dns)
+        raw_total_project_files += len(_fns)
+
+    def _rel_path(path: str) -> str:
+        return os.path.relpath(path, root).replace('\\', '/')
+
+    def _collect_project_files(ignore_filter: _GitIgnoreFilter):
+        visible_paths = []
+        ignored_rel_paths = set()
+        dirs_scanned = 0
+
+        def _remember_ignored_file(abs_path: str) -> None:
+            ignored_rel_paths.add(_rel_path(abs_path))
+
+        def _remember_ignored_dir(abs_dir: str) -> None:
+            for _idp, _idns, _ifns in os.walk(abs_dir):
+                _idns[:] = [d for d in _idns if d not in skip_dirs]
+                for _ifn in _ifns:
+                    _remember_ignored_file(os.path.join(_idp, _ifn))
+
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames if d not in skip_dirs]
+            if ignore_filter.enabled and dirnames:
+                rel_dirs = [f'{_rel_path(os.path.join(dirpath, d))}/' for d in dirnames]
+                ignored_dirs = ignore_filter.ignored(rel_dirs)
+                kept_dirs = []
+                for dirname in dirnames:
+                    abs_dir = os.path.join(dirpath, dirname)
+                    rel_dir = _rel_path(abs_dir).rstrip('/')
+                    if rel_dir in ignored_dirs:
+                        _remember_ignored_dir(abs_dir)
+                    else:
+                        kept_dirs.append(dirname)
+                dirnames[:] = kept_dirs
+            dirs_scanned += len(dirnames)
+
+            if ignore_filter.enabled and filenames:
+                rel_files = [_rel_path(os.path.join(dirpath, fname)) for fname in filenames]
+                ignored_files_here = ignore_filter.ignored(rel_files)
+            else:
+                ignored_files_here = set()
+
+            for fname in filenames:
+                fp = os.path.join(dirpath, fname)
+                rel = _rel_path(fp)
+                if rel in ignored_files_here:
+                    ignored_rel_paths.add(rel)
+                    continue
+                visible_paths.append(fp)
+
+        source_paths = []
+        for fp in visible_paths:
+            ext = Path(fp).suffix.lower()
             if ext in SCAN_EXT and ext not in SKIP_EXT:
-                all_files.append(os.path.join(dirpath, fname))
+                source_paths.append(fp)
+        return visible_paths, source_paths, len(ignored_rel_paths), dirs_scanned
+
+    ignore_filter = _build_git_ignore_filter(root)
+    try:
+        visible_file_paths, all_files, ignored_files, total_dirs_scanned = _collect_project_files(ignore_filter)
+    except _GitIgnoreFilterError:
+        ignore_filter = _GitIgnoreFilter(root, enabled=False)
+        visible_file_paths, all_files, ignored_files, total_dirs_scanned = _collect_project_files(ignore_filter)
+
+    total_project_files = max(0, raw_total_project_files - ignored_files)
+    total_project_dirs = raw_total_project_dirs
 
     total = len(all_files)
     _cb(
@@ -1181,46 +1302,42 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     other_files_all: dict = {}
     _oth_idx = len(file_meta)
 
-    total_dirs_scanned = 0
     other_files_seen = 0
     other_scan_total = max(total_project_files - total, 1)
 
-    for _dp, _dns, _fns in os.walk(root):
-        _dns[:] = [d for d in _dns if d not in skip_dirs]
-        total_dirs_scanned += len(_dns)
-        for _fn in _fns:
-            _fp  = os.path.join(_dp, _fn)
-            _rel = os.path.relpath(_fp, root).replace('\\', '/')
-            if _rel in file_meta:
-                continue
-            _ext = Path(_fn).suffix.lower()
-            try:
-                _sz = os.path.getsize(_fp)
-            except OSError:
-                _sz = 0
-            _ft = 'binary' if _ext in SKIP_EXT else 'other'
-            other_files_all[_rel] = {
-                'id':        _oth_idx,
-                'label':     _fn,
-                'path':      _rel,
-                'ext':       _ext,
-                'size':      _sz,
-                'module':    get_module(_rel),
-                'file_type': _ft,
-            }
-            _oth_idx += 1
-            other_files_seen += 1
-            if other_files_seen % 100 == 0:
-                _cb(
-                    _stage_pct('node', other_files_seen / other_scan_total, ease_power=0.9),
-                    'Scanning other files...',
-                    stage='node',
-                    analyzed_files=total,
-                    total_files=total,
-                    project_total_files=total_project_files,
-                    project_processed_files=min(total + other_files_seen, total_project_files),
-                    source_files_total=total,
-                )
+    for _fp in visible_file_paths:
+        _rel = os.path.relpath(_fp, root).replace('\\', '/')
+        if _rel in file_meta:
+            continue
+        _fn = os.path.basename(_fp)
+        _ext = Path(_fn).suffix.lower()
+        try:
+            _sz = os.path.getsize(_fp)
+        except OSError:
+            _sz = 0
+        _ft = 'binary' if _ext in SKIP_EXT else 'other'
+        other_files_all[_rel] = {
+            'id':        _oth_idx,
+            'label':     _fn,
+            'path':      _rel,
+            'ext':       _ext,
+            'size':      _sz,
+            'module':    get_module(_rel),
+            'file_type': _ft,
+        }
+        _oth_idx += 1
+        other_files_seen += 1
+        if other_files_seen % 100 == 0:
+            _cb(
+                _stage_pct('node', other_files_seen / other_scan_total, ease_power=0.9),
+                'Scanning other files...',
+                stage='node',
+                analyzed_files=total,
+                total_files=total,
+                project_total_files=total_project_files,
+                project_processed_files=min(total + other_files_seen, total_project_files),
+                source_files_total=total,
+            )
 
     total_other = len(other_files_all)
     total_binary = sum(1 for m in other_files_all.values() if m['file_type'] == 'binary')
@@ -2074,6 +2191,9 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             'total_dirs_skipped': total_dirs_skipped,   # dirs completely ignored
             'skipped_files':      total_files_skipped,  # files inside skipped dirs
             'skipped_dir_names':  sorted(skip_dirs),    # which dirs were skipped
+            'ignore_filter_enabled': ignore_filter.enabled,
+            'ignore_filter_mode':    ignore_filter.mode,
+            'ignored_files':         ignored_files,
             'type_counts':        dict(type_counts),
             'root':               root.replace('\\', '/'),
             'project_type':       project_type,
