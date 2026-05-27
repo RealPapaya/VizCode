@@ -21,10 +21,11 @@ import json
 import sys
 from collections import deque
 from pathlib import Path
+from typing import Optional, Tuple
 
 # ─── Wire protocol ───────────────────────────────────────────────────────────
 
-def _read_message(stream) -> dict | None:
+def _read_message(stream) -> Optional[dict]:
     """Read one Content-Length-framed JSON-RPC message from stream."""
     headers = {}
     while True:
@@ -149,7 +150,7 @@ def _build_index(scan: dict, sem: dict):
 
 # ─── Stem index ───────────────────────────────────────────────────────────────
 
-def _build_stem_index(modules: dict) -> tuple[dict, dict]:
+def _build_stem_index(modules: dict) -> Tuple[dict, dict]:
     """
     Group files by top-level directory; build stem→path lookup for import resolution.
 

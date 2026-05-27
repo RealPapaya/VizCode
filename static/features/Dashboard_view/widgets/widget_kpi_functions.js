@@ -83,6 +83,7 @@ _dashRegisterWidget({
   },
 
   renderDetail(container, stats) {
+    // ── Collect all functions, sorted by length ───────────────────────────────
     const allFuncs = [];
     for (const files of Object.values(DATA.files_by_module || {})) {
       (files || []).forEach(f => {
@@ -91,41 +92,81 @@ _dashRegisterWidget({
     }
     allFuncs.sort((a, b) => b.lines - a.lines);
     const top = allFuncs.slice(0, 15);
-    const max = top.length ? top[0].lines : 1;
-    const colors = typeof _dashColorScale === 'function' ? _dashColorScale(top.length) : [];
+    const maxLines = top.length ? top[0].lines : 1;
+    const rowColors = typeof _dashColorScale === 'function' ? _dashColorScale(top.length) : [];
 
+    // ── Module function counts ─────────────────────────────────────────────────
     const allModEntries = Object.entries(DATA.files_by_module || {}).map(([mod, files]) => {
       const fnCount = (files || []).reduce((s, f) => s + (f.func_count || (f.functions || []).length), 0);
       return [mod, mod.split('/').pop() || mod, fnCount];
     }).filter(([, , count]) => count > 0).sort((a, b) => b[2] - a[2]);
     const modEntries = allModEntries.slice(0, 12);
 
+    const totalFuncs = stats.functions || allFuncs.length;
+    const calls = stats.calls || 0;
+    const topModCount = modEntries.length;
+
+    // ── Hero visual: top-5 module bars ───────────────────────────────────
+    const heroVisual = _dashKpiDetailBarsHTML(
+      modEntries.slice(0, 5).map(([, label, cnt], i) => ({
+        label, value: cnt, raw: cnt, color: _dashAccentStop(i),
+      }))
+    );
+
+    // ── Longest function list rows ───────────────────────────────────────
     const canvasId = 'dash-detail-functions-chart';
     const chartKey = 'kpi_functions_detail_chart';
     const chartTypes = ['bar', 'doughnut'];
     const topRows = top.map((fn, i) => {
-      const pct = Math.round((fn.lines / max) * 100);
-      const col = colors[i];
-      return `<div class="dash-list-row" data-clickable="true" onclick="_dashGoToGraphFile(${_dashJson(fn.file)}, ${_dashJson(fn.name)})">
-          <span class="dash-list-rank">${i + 1}</span>
-          <span class="dash-list-name" title="${_dashEscape(fn.file)}">${_dashEscape(fn.name)}</span>
-          <div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${pct}%;background:${col}"></div></div>
-          <span class="dash-list-val" title="Function length in source lines">${_dashFmtExactNum(fn.lines)} lines</span>
+      const pct = Math.round((fn.lines / maxLines) * 100);
+      const col = rowColors[i];
+      return `<div class="dash-kpi-detail-row" data-clickable="true" onclick="_dashGoToGraphFile(${_dashJson(fn.file)}, ${_dashJson(fn.name)})">
+          <span class="dash-kpi-detail-row__rank">${i + 1}</span>
+          <span class="dash-kpi-detail-row__name" title="${_dashEscape(fn.file)}">${_dashEscape(fn.name)}</span>
+          <div class="dash-kpi-detail-row__bar-track"><div class="dash-kpi-detail-row__bar-fill" style="width:${pct}%;background:${col}"></div></div>
+          <span class="dash-kpi-detail-row__value" title="Function length in source lines">${_dashFmtExactNum(fn.lines)} lines</span>
         </div>`;
     }).join('');
 
-    container.innerHTML = _dashReportGrid([
-      _dashReportSection({
-        title: 'Functions per Module',
-        subtitle: _dashChartToggleHTML(chartKey, chartTypes, 'bar'),
-        body: _dashReportChart(`<canvas id="${canvasId}"></canvas>`, { size: 'md' }),
-      }),
-      _dashReportSection({
-        title: 'Longest Functions',
-        body: _dashReportList(topRows || '<div class="dash-empty">No function data</div>', { className: 'dash-codebase-function-list' }),
-      }),
-    ], { columns: 2 });
+    // ── Render: hero + details wrapper ───────────────────────────────────
+    container.innerHTML = `
+<div class="dash-kpi-detail dash-kpi-detail--functions">
+  <section class="dash-kpi-detail__hero">
+    <div class="dash-kpi-detail__hero-copy">
+      <div class="dash-kpi-detail__eyebrow">Codebase functions</div>
+      <h2 class="dash-kpi-detail__title">Function Inventory</h2>
+      <div class="dash-kpi-detail__primary">
+        <span class="dash-kpi-detail__primary-value" style="color:${_dashAccentStop(1)}">${_dashFmtExactNum(totalFuncs)}</span>
+        <span class="dash-kpi-detail__primary-suffix">functions</span>
+      </div>
+      <p class="dash-kpi-detail__summary">${calls ? `${_dashFmtExactNum(calls)} calls tracked across ` : ''}${_dashFmtExactNum(topModCount)} modules.</p>
+    </div>
+    <div class="dash-kpi-detail__hero-visual">${heroVisual}</div>
+  </section>
+  <div class="dash-kpi-detail__sections">
+${_dashKpiDetailSectionHTML({
+  title: 'Overview',
+  body: _dashKpiDetailStatsHTML([
+    { value: _dashFmtExactNum(totalFuncs), label: 'functions' },
+    { value: _dashFmtExactNum(calls), label: 'calls' },
+    { value: _dashFmtExactNum(topModCount), label: 'modules' },
+  ]),
+})}
+${_dashKpiDetailGridHTML([
+  _dashKpiDetailSectionHTML({
+    title: 'Functions per Module',
+    subtitle: _dashChartToggleHTML(chartKey, chartTypes, 'bar'),
+    body: _dashKpiDetailChartHTML(`<canvas id="${canvasId}"></canvas>`, { size: 'md' }),
+  }),
+  _dashKpiDetailSectionHTML({
+    title: 'Longest Functions',
+    body: _dashKpiDetailListHTML(topRows || '<div class="dash-empty">No function data</div>', { className: 'dash-kpi-detail-function-list' }),
+  }),
+], { columns: 2 })}
+  </div>
+</div>`;
 
+    // ── Init chart (after innerHTML) ──────────────────────────────────────
     function renderChart() {
       const canvas = document.getElementById(canvasId);
       if (!canvas || typeof Chart === 'undefined' || !modEntries.length) return;

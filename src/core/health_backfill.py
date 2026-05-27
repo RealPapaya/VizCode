@@ -27,6 +27,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Optional
 
 
 # ─── Git helpers ─────────────────────────────────────────────────────────────
@@ -114,7 +115,7 @@ def _save_history(root: str, history: list) -> None:
 
 # ─── Per-commit analysis ──────────────────────────────────────────────────────
 
-def analyze_commit_health(root: str, sha: str, date: str) -> dict | None:
+def analyze_commit_health(root: str, sha: str, date: str) -> Optional[dict]:
     """
     Create a temporary git worktree for `sha`, run the analysis pipeline
     with snapshot-saving disabled, return a health-entry dict or None on failure.

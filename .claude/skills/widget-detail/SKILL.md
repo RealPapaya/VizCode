@@ -1,173 +1,157 @@
-﻿# Widget Detail Panel — Build Workflow
+# Widget Detail Panel - Build Workflow
 
 ## Trigger
-Use this skill whenever building or refactoring a widget's **detail panel** (`renderDetail`).
+Use this skill whenever building or refactoring a widget's detail panel (`renderDetail`).
 
----
+## Architecture
 
-## Architecture Overview
+The dashboard framework owns only the modal shell:
 
-### Panel lifecycle (framework — do NOT modify)
-```
+```text
 _dashOpenDetailPanel(widgetId, originRect)
-  └─ creates .dash-detail-panel
-       ├─ .dash-detail-head  (title bar + close button)
-       └─ #dash-detail-body  (.dash-report-body .dash-report-body--{widgetId})
-            └─ widget.renderDetail(body, DATA.stats)   ← widget owns everything inside
+  -> creates .dash-detail-panel
+     -> .dash-detail-head
+     -> #dash-detail-body.dash-report-body.dash-report-body--{widgetId}
+        -> widget.renderDetail(body, DATA.stats)
 ```
 
-The framework only provides the **chrome** (panel shell + head). The widget owns 100% of `#dash-detail-body` content.
+The widget owns everything rendered inside `#dash-detail-body`. Do not make the detail content depend on the shared dashboard card/report layout.
 
----
+## Required DOM Pattern
 
-## DOM Structure Every Widget Must Produce
+Every detail panel should create a widget-owned root and widget-owned class namespace:
 
 ```html
-<!-- 1. Hero banner (full-width, above the fold) -->
-<section class="dash-report-hero">
-  <div class="dash-report-hero-copy">
-    <div class="dash-report-eyebrow">…category label…</div>
-    <h2 class="dash-report-title">…widget title…</h2>
-    <div class="dash-report-primary">
-      <span class="dash-report-primary-value" style="color:…">…big number…</span>
-      <span class="dash-report-primary-suffix">…unit…</span>
+<div class="dash-{widgetId}-detail">
+  <section class="dash-{widgetId}-detail__hero">
+    <div class="dash-{widgetId}-detail__hero-copy">
+      <div class="dash-{widgetId}-detail__eyebrow">category label</div>
+      <h2 class="dash-{widgetId}-detail__title">widget title</h2>
+      <div class="dash-{widgetId}-detail__primary">
+        <span class="dash-{widgetId}-detail__primary-value">big number</span>
+        <span class="dash-{widgetId}-detail__primary-suffix">unit</span>
+      </div>
+      <p class="dash-{widgetId}-detail__summary">1-2 sentence summary</p>
     </div>
-    <p class="dash-report-summary">…1-2 sentence summary…</p>
-    <!-- optional: metrics row (omit if sections below already show all data) -->
-    <div class="dash-report-metrics">…_dashReportMetricHTML() items…</div>
-  </div>
-  <div class="dash-report-hero-visual">…bar chart / gauge SVG…</div>
-</section>
+    <div class="dash-{widgetId}-detail__hero-visual">visual</div>
+  </section>
 
-<!-- 2. Section list (scrollable detail body) -->
-<div class="dash-report-details dash-report-details--{widgetId}">
-  <!-- _dashReportSection() calls go here -->
+  <div class="dash-{widgetId}-detail__sections">
+    <section class="dash-{widgetId}-detail-section">
+      <div class="dash-{widgetId}-detail-section__head">
+        <div class="dash-{widgetId}-detail-section__title">section title</div>
+      </div>
+      <div class="dash-{widgetId}-detail-section__body">section body</div>
+    </section>
+  </div>
 </div>
 ```
 
-### Hero visual options
-| Visual | When to use |
-|--------|-------------|
-| `_dashReportBarsHTML(items)` | List of labeled values (file types, metrics) |
-| `_dashHealthGaugeSvg(score, color, opts)` | Score-out-of-10 widgets |
-| Custom SVG / canvas | Specific widgets (e.g. heatmap thumbnail) |
+Use a family namespace when widgets are intentionally maintained together, for example `dash-kpi-detail--files`, `dash-kpi-detail--functions`, and `dash-kpi-detail--overview`.
 
----
+## Experience Planning
 
-## Helper Functions (available globally)
+Each widget detail page should feel purpose-built for that widget, not like a repeated card template. Before coding a new or substantially refactored detail page, infer what the user probably needs to inspect, compare, drill into, or act on for that widget.
 
-```js
-// Section with optional title + subtitle dot
-_dashReportSection({ title, subtitle, accent, body, className })
+If the expected layout or interaction is not obvious, discuss it with the user before implementation. Ask what the detail page should emphasize, for example:
 
-// 2-column (or auto) grid of sections
-_dashReportGrid([sectionHTML, …], { columns: 2 })
+- Should the hero focus on one headline number, a trend, a ranking, or a status?
+- Should the main interaction be a chart toggle, file drilldown, ranked list, timeline, heatmap, graph preview, filter, or comparison view?
+- Should sections be arranged as a narrative top-to-bottom report, a dense dashboard, a split chart/list workspace, or a focused inspector?
+- What should be clickable, and what should open a drilldown or navigate to the graph/code view?
 
-// Scrollable list wrapper (preserves overflow:visible)
-_dashReportList(innerHTML, { className, id })
+When the user has not specified a design, choose a conservative purpose-built layout based on the widget's data and existing dashboard patterns, then mention the assumption briefly. Avoid making all detail pages identical just because the same helpers are available.
 
-// Stat tile grid (big number + label)
-_dashReportStats([{ value, label, color }, …])
+## Visual And Section Choices
 
-// Chart canvas wrapper with fixed min-height
-_dashReportChart(canvasHTML, { size: 'sm' | 'md' | 'lg' })
+Choose the hero and sections before coding:
 
-// Top-N file extension bars (for hero visual)
-_dashReportBarsHTML(items)   // items: [{ label, value, raw, color }]
-```
+- Primary value: the single most important number.
+- Suffix: short unit text such as `files`, `functions`, `cycles`, `%`, or `hours`.
+- Summary: one concise sentence with the next most important metrics.
+- Hero visual: choose what fits the widget, such as a compact bar list, stacked composition bar, gauge, mini timeline, heatmap preview, dependency thumbnail, SVG, canvas, or another widget-owned visual.
+- Sections: usually 2-4 logical groups such as stats, breakdown rows, lists, charts, filters, ranked findings, or focused drilldown workspaces.
 
----
+## Implementation Steps
 
-## Step-by-Step for a New Widget Detail
+1. Extract all data at the top of `renderDetail(container, stats)`.
+2. Build escaped HTML fragments for bars, rows, stats, and chart wrappers.
+3. Set `container.innerHTML` to one widget-owned root element.
+4. Initialize Chart.js after `container.innerHTML` so canvases exist in the DOM.
+5. Add scoped CSS under a widget-specific block in `viz_overlays.css`.
 
-### 1. Decide the hero
-- **Primary value**: the single most important number for this widget
-- **Suffix**: unit string (files / cycles / % / hours / …)
-- **Summary**: 1–2 sentences, mention the next most important metrics
-- **Visual**: pick from table above; if data-rich use `_dashReportBarsHTML`
-- **Omit `dash-report-metrics` row** if the sections below already repeat those numbers
+Example:
 
-### 2. Plan the sections
-- Each `_dashReportSection` = one logical topic
-- Max ~3–4 sections per detail panel
-- Common patterns:
-  - Summary stats → `_dashReportStats([…])`
-  - Bar/row breakdown → `<div class="dash-detail-bar-rows">` with `.dash-health-row` items
-  - List of files/symbols → `_dashReportList(rows)`
-  - Two side-by-side lists → `_dashReportGrid([_dashReportSection(…), _dashReportSection(…)], { columns: 2 })`
-  - Chart → `_dashReportChart('<canvas id="…"></canvas>', { size: 'md' })`
-
-### 3. Write `renderDetail(container, stats)`
 ```js
 renderDetail(container, stats) {
-    // 1. Extract data from stats
-    const files = stats.files || 0;
-    // …
+  const total = stats.files || 0;
+  const bars = buildWidgetBars(rows);
 
-    // 2. Build reusable HTML fragments
-    const heroVisual = _dashReportBarsHTML(…);
-    const rows = …;
-
-    // 3. Set container.innerHTML = hero + details wrapper
-    container.innerHTML = `
-<section class="dash-report-hero">
-  <div class="dash-report-hero-copy">
-    <div class="dash-report-eyebrow">…</div>
-    <h2 class="dash-report-title">…</h2>
-    <div class="dash-report-primary">
-      <span class="dash-report-primary-value">${value}</span>
-      <span class="dash-report-primary-suffix">${suffix}</span>
+  container.innerHTML = `
+<div class="dash-kpi-detail dash-kpi-detail--files">
+  <section class="dash-kpi-detail__hero">
+    <div class="dash-kpi-detail__hero-copy">
+      <div class="dash-kpi-detail__eyebrow">Codebase files</div>
+      <h2 class="dash-kpi-detail__title">File Inventory</h2>
+      <div class="dash-kpi-detail__primary">
+        <span class="dash-kpi-detail__primary-value">${_dashFmtExactNum(total)}</span>
+        <span class="dash-kpi-detail__primary-suffix">files</span>
+      </div>
+      <p class="dash-kpi-detail__summary">...</p>
     </div>
-    <p class="dash-report-summary">…</p>
-  </div>
-  <div class="dash-report-hero-visual">${heroVisual}</div>
-</section>
-<div class="dash-report-details dash-report-details--${WIDGET_ID}">
-${_dashReportSection({ title: '…', body: _dashReportStats([…]) })}
-${_dashReportSection({ title: '…', body: _dashReportList(rows) })}
+    <div class="dash-kpi-detail__hero-visual">${bars}</div>
+  </section>
+  <div class="dash-kpi-detail__sections">...</div>
 </div>`;
 
-    // 4. Init charts AFTER innerHTML (canvas must exist in DOM)
-    const canvas = container.querySelector('#…');
-    if (canvas && typeof Chart !== 'undefined') { … }
-},
+  const canvas = container.querySelector('#chart-id');
+  if (canvas && typeof Chart !== 'undefined') {
+    // init chart here
+  }
+}
 ```
 
-### 4. Add widget-specific CSS overrides (if needed)
-In `viz_overlays.css`, under the widget-specific block:
+## CSS Rules
+
+Keep detail CSS scoped to the widget-owned namespace:
+
 ```css
-/* {Widget}: list row column layout */
-.dash-report-details--{widgetId} .dash-list-row {
-    display: grid;
-    grid-template-columns: 24px minmax(0, 1fr) minmax(72px, 120px) minmax(44px, auto);
-    align-items: center;
+.dash-kpi-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
 }
-.dash-report-details--{widgetId} .dash-list-bar-track {
-    width: 100%;
-    min-width: 0;
+
+.dash-kpi-detail__hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
+    gap: 24px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+}
+
+.dash-kpi-detail--files .dash-kpi-detail-row {
+    grid-template-columns: 24px minmax(0, 1fr) minmax(72px, 120px) minmax(44px, auto);
 }
 ```
 
----
+Avoid styling the new detail through generic `.dash-report-*` selectors. Those selectors are legacy shared report/card layout and make detail panels harder to modify.
 
 ## Rules
-- **Never** rely on `_dashDetailHeroHTML` or `_dashDetailReportModel` — those are legacy helpers kept for backward compatibility only. Widgets own their full DOM.
-- **Always** wrap sections in `<div class="dash-report-details dash-report-details--{widgetId}">` so dividers and spacing work correctly.
-- **Always** init Chart.js instances *after* `container.innerHTML = …`, never before.
-- **Omit** the hero metrics row (`dash-report-metrics`) when the sections below already surface the same numbers — avoid duplication.
+
+- Do not use `_dashDetailHeroHTML` or `_dashDetailReportModel` for new or refactored detail panels.
+- Do not use `_dashReportSection`, `_dashReportGrid`, `_dashReportStats`, `_dashReportChart`, or `_dashReportList` as the main layout for new/refactored detail panels.
+- A small local helper is acceptable if it emits the widget-owned namespace, not `.dash-report-*`.
 - Use `_dashEscape()` for all user/data strings inserted into HTML.
-- Use `_dashFmtExactNum()` for large integers, `_dashFmtNum()` for compact display.
+- Use `_dashFmtExactNum()` for large exact integers and `_dashFmtNum()` for compact widget-card display.
+- Keep chart initialization after `container.innerHTML`.
+- After editing files with non-ASCII text, inspect the diff for mojibake before finishing.
 
----
+## Current Canonical Example
 
-## Reference: Overview widget (canonical example)
+Use these files as the current pattern:
 
-File: `static/features/Dashboard_view/widgets/widget_overview.js`
-
-- Hero: big file count + file-type bar chart on the right
-- No metrics row (sections already have all 6 numbers as stat tiles)
-- Section 1: `_dashReportStats` — 6 tile grid
-- Section 2: `dash-detail-bar-rows` — LOC breakdown with drilldown
-- Section 3: `_dashReportList` — top file types ranked list
-
-CSS overrides: `dash-report-details--overview` in `viz_overlays.css`
+- `static/features/Dashboard_view/widgets/widget_overview.js`
+- `static/features/Dashboard_view/widgets/widget_kpi_files.js`
+- `static/features/Dashboard_view/widgets/widget_kpi_functions.js`
+- `static/styles/viz_overlays.css` block: `KPI/Overview detail panels`

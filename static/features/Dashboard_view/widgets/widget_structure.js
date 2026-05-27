@@ -52,6 +52,36 @@ function _dashStructureFilesForRows(row, resolver) {
     return (row && row.keys ? row.keys : []).flatMap(key => resolver(key));
 }
 
+function _dashStructureHeroBarsHTML(rows) {
+    const items = (rows || []).slice(0, 5);
+    const max = Math.max(1, ...items.map(([, value]) => Number(value) || 0));
+    return `<div class="dash-filetypes-detail-bars">${items.map(([label, value], i) => {
+        const pct = Math.max(4, Math.round(((Number(value) || 0) / max) * 100));
+        return `<div class="dash-filetypes-detail-bars__row">
+  <span class="dash-filetypes-detail-bars__label">${_dashEscape(String(label).replace('_', ' '))}</span>
+  <div class="dash-filetypes-detail-bars__track"><i style="width:${pct}%;background:${_dashAccentStop(i)}"></i></div>
+  <b class="dash-filetypes-detail-bars__value">${_dashFmtExactNum(value)}</b>
+</div>`;
+    }).join('')}</div>`;
+}
+
+function _dashStructureRankRowsHTML(rows, resolver, titlePrefix) {
+    const max = Math.max(1, ...rows.map(([, value]) => Number(value) || 0));
+    const colors = typeof _dashColorScale === 'function' ? _dashColorScale(rows.length) : [];
+    return rows.map(([key, value], i) => {
+        const label = String(key || 'unknown').replace('_', ' ');
+        const pct = Math.max(4, Math.round(((Number(value) || 0) / max) * 100));
+        const color = colors[i] || _dashAccentStop(i);
+        return `<div class="dash-filetypes-detail-row" data-clickable="true"
+    onclick="_dashOpenFileGroupDrilldown('${_dashEscape(titlePrefix)} ${_dashEscape(label)}', ${resolver}(${_dashJson(key)}))">
+  <span class="dash-filetypes-detail-row__rank">${i + 1}</span>
+  <span class="dash-filetypes-detail-row__name">${_dashEscape(label)}</span>
+  <div class="dash-filetypes-detail-row__track"><i style="width:${pct}%;background:${color}"></i></div>
+  <span class="dash-filetypes-detail-row__value">${_dashFmtExactNum(value)}</span>
+</div>`;
+    }).join('');
+}
+
 function _dashRenderStructure(container, stats, options) {
     if (!container) return;
     const scope = (options && options.scope) || '';
@@ -78,24 +108,61 @@ function _dashRenderStructure(container, stats, options) {
     const layoutClose = isDetail ? '' : '</div>';
 
     if (isDetail) {
+        const typeRows = Object.entries(stats.type_counts || {}).sort((a, b) => b[1] - a[1]);
+        const langRows = Object.entries(stats.language_distribution || {}).sort((a, b) => b[1] - a[1]);
+        const typeCount = typeRows.length;
+        const extCount = langRows.length;
+        const files = stats.files || _dashAllFiles().length;
+        const modules = (DATA.modules || []).length;
+        const topTypeRows = typeRows.slice(0, 12);
+        const topLangRows = langRows.slice(0, 12);
+        const heroVisual = _dashStructureHeroBarsHTML(typeRows);
+        const typeRankRows = _dashStructureRankRowsHTML(topTypeRows, '_dashFilesByType', 'Files:');
+        const langRankRows = _dashStructureRankRowsHTML(topLangRows, '_dashFilesByExt', 'Files');
+
         container.innerHTML = `
-${_dashReportGrid([
-  _dashReportSection({
-    title: _dashT('dashStructureFileTypes'),
-    subtitle: _dashChartToggleHTML(keys.typesKey, _DASH_TYPES_TYPES, _DASH_TYPES_DEFAULT),
-    body: _dashReportChart(`<canvas id="${keys.typesId}"></canvas>`, { size: 'md' }),
-  }),
-  _dashReportSection({
-    title: _dashT('dashStructureLangDist'),
-    subtitle: _dashChartToggleHTML(keys.langKey, _DASH_LANG_TYPES, _DASH_LANG_DEFAULT),
-    body: _dashReportChart(`<canvas id="${keys.langId}"></canvas>`, { size: 'md' }),
-  }),
-], { columns: 2 })}
-${_dashReportSection({
-  title: _dashT('dashStructureTreemap'),
-  className: 'dash-structure-treemap-card',
-  body: `<div class="dash-treemap" id="${keys.treemapId}"></div>`,
-})}`;
+<div class="dash-filetypes-detail">
+  <section class="dash-filetypes-detail__hero">
+    <div class="dash-filetypes-detail__hero-copy">
+      <div class="dash-filetypes-detail__eyebrow">Codebase file types</div>
+      <h2 class="dash-filetypes-detail__title">${_dashEscape(_dashT('dashStructureFileTypes'))}</h2>
+      <div class="dash-filetypes-detail__primary">
+        <span class="dash-filetypes-detail__primary-value">${_dashFmtExactNum(typeCount)}</span>
+        <span class="dash-filetypes-detail__primary-suffix">types</span>
+      </div>
+      <p class="dash-filetypes-detail__summary">${_dashFmtExactNum(files)} files across ${_dashFmtExactNum(extCount)} extensions and ${_dashFmtExactNum(modules)} modules.</p>
+    </div>
+    <div class="dash-filetypes-detail__hero-visual">${heroVisual}</div>
+  </section>
+  <div class="dash-filetypes-detail__sections">
+    <section class="dash-filetypes-detail-section dash-filetypes-detail-section--types">
+      <div class="dash-filetypes-detail-section__head">
+        <div class="dash-filetypes-detail-section__title">${_dashEscape(_dashT('dashStructureFileTypes'))}</div>
+        <div class="dash-filetypes-detail-section__tools">${_dashChartToggleHTML(keys.typesKey, _DASH_TYPES_TYPES, _DASH_TYPES_DEFAULT)}</div>
+      </div>
+      <div class="dash-filetypes-detail-split">
+        <div class="dash-chart-wrap dash-filetypes-detail-chart"><canvas id="${keys.typesId}"></canvas></div>
+        <div class="dash-filetypes-detail-list">${typeRankRows || '<div class="dash-empty">No file type data</div>'}</div>
+      </div>
+    </section>
+    <section class="dash-filetypes-detail-section dash-filetypes-detail-section--languages">
+      <div class="dash-filetypes-detail-section__head">
+        <div class="dash-filetypes-detail-section__title">${_dashEscape(_dashT('dashStructureLangDist'))}</div>
+        <div class="dash-filetypes-detail-section__tools">${_dashChartToggleHTML(keys.langKey, _DASH_LANG_TYPES, _DASH_LANG_DEFAULT)}</div>
+      </div>
+      <div class="dash-filetypes-detail-split">
+        <div class="dash-chart-wrap dash-filetypes-detail-chart"><canvas id="${keys.langId}"></canvas></div>
+        <div class="dash-filetypes-detail-list">${langRankRows || '<div class="dash-empty">No language data</div>'}</div>
+      </div>
+    </section>
+    <section class="dash-filetypes-detail-section dash-filetypes-detail-section--treemap">
+      <div class="dash-filetypes-detail-section__head">
+        <div class="dash-filetypes-detail-section__title">${_dashEscape(_dashT('dashStructureTreemap'))}</div>
+      </div>
+      <div class="dash-filetypes-detail-treemap"><div class="dash-treemap" id="${keys.treemapId}"></div></div>
+    </section>
+  </div>
+</div>`;
 
         _dashRegisterChartSwitch(keys.typesKey, () => _dashChartFileTypes(stats, scope));
         _dashRegisterChartSwitch(keys.langKey,  () => _dashChartLanguageDist(stats, scope));

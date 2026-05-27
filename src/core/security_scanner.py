@@ -18,6 +18,7 @@ import math
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import List, Tuple
 
 # ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -66,14 +67,14 @@ _MAX_SCAN_BYTES        = 200_000  # ~200KB cap; minified bundles are still skipp
 
 # ─── Rule loading ─────────────────────────────────────────────────────────────
 
-def load_rules(rules_dir: Path) -> list[dict]:
+def load_rules(rules_dir: Path) -> List[dict]:
     """Load all ``*.json`` rule files in *rules_dir*; return the merged rule list.
 
     Each file should have shape ``{"schema_rev": 1, "rules": [...]}``.
     Files that fail to parse or have a mismatched schema_rev are skipped
     silently — security scanning must never abort an analysis.
     """
-    rules: list[dict] = []
+    rules: List[dict] = []
     if not rules_dir.is_dir():
         return rules
     for fp in sorted(rules_dir.glob('*.json')):
@@ -92,13 +93,13 @@ def load_rules(rules_dir: Path) -> list[dict]:
     return rules
 
 
-def compile_rules(rules: list[dict]) -> list[dict]:
+def compile_rules(rules: List[dict]) -> List[dict]:
     """Pre-compile regexes and bake derived fields.
 
     Returns a new list of dicts (originals are left untouched). Rules whose
     pattern fails to compile are dropped silently.
     """
-    compiled: list[dict] = []
+    compiled: List[dict] = []
     for r in rules:
         try:
             entry = dict(r)
@@ -123,7 +124,7 @@ def compile_rules(rules: list[dict]) -> list[dict]:
 
 # ─── Per-file scan ────────────────────────────────────────────────────────────
 
-def scan_file(src: str, ext: str, rel: str, compiled_rules: list[dict]) -> list[dict]:
+def scan_file(src: str, ext: str, rel: str, compiled_rules: List[dict]) -> List[dict]:
     """Scan a single file's text content; return list of issue dicts.
 
     Issue schema::
@@ -142,7 +143,7 @@ def scan_file(src: str, ext: str, rel: str, compiled_rules: list[dict]) -> list[
     is_test  = _is_test_file(rel)
     lines    = src.split('\n')
     src_low  = src.lower()
-    issues: list[dict] = []
+    issues: List[dict] = []
 
     for rule in compiled_rules:
         try:
@@ -208,11 +209,11 @@ def scan_file(src: str, ext: str, rel: str, compiled_rules: list[dict]) -> list[
     return issues
 
 
-def _regex_scan(src: str, lines: list[str], rule: dict) -> list[dict]:
+def _regex_scan(src: str, lines: List[str], rule: dict) -> List[dict]:
     rx = rule['_re']
     if rx is None:
         return []
-    hits: list[dict] = []
+    hits: List[dict] = []
     for m in rx.finditer(src):
         full = m.group(0)
         # Line-level deny: skip if the line containing the match has any deny keyword.
@@ -303,13 +304,13 @@ def _downgrade(sev: str) -> str:
 
 # ─── Custom rule handlers ─────────────────────────────────────────────────────
 
-def _python_requests_no_timeout(src: str, lines: list[str]) -> list[dict]:
+def _python_requests_no_timeout(src: str, lines: List[str]) -> List[dict]:
     """Flag ``requests.get/post/...()`` calls that have no ``timeout=`` arg.
 
     Balances parentheses to capture the full call so multi-line invocations
     are checked correctly. Emits one hit per call.
     """
-    hits: list[dict] = []
+    hits: List[dict] = []
     rx = re.compile(r'\brequests\.(?:get|post|put|delete|patch|head|options|request)\s*\(')
     n  = len(src)
     for m in rx.finditer(src):
@@ -334,7 +335,7 @@ def _python_requests_no_timeout(src: str, lines: list[str]) -> list[dict]:
     return hits
 
 
-def _python_xml_unsafe_parse(src: str, lines: list[str]) -> list[dict]:
+def _python_xml_unsafe_parse(src: str, lines: List[str]) -> List[dict]:
     """Flag stdlib/lxml XML parsing calls when ``defusedxml`` is absent.
 
     XXE & billion-laughs attacks ride on ``xml.etree`` / ``xml.sax`` /
@@ -344,7 +345,7 @@ def _python_xml_unsafe_parse(src: str, lines: list[str]) -> list[dict]:
     """
     if 'defusedxml' in src:
         return []
-    hits: list[dict] = []
+    hits: List[dict] = []
     rx = re.compile(
         r'\b(?:'
         r'xml\.etree\.ElementTree\.(?:parse|fromstring|XML|iterparse)'
@@ -362,13 +363,13 @@ def _python_xml_unsafe_parse(src: str, lines: list[str]) -> list[dict]:
     return hits
 
 
-def _js_string_timer_call(src: str, lines: list[str]) -> list[dict]:
+def _js_string_timer_call(src: str, lines: List[str]) -> List[dict]:
     """Flag ``setTimeout``/``setInterval`` invoked with a string-literal body.
 
     Passing a string to a timer routes through the same machinery as ``eval``.
     A function-reference or arrow callback is the safe form.
     """
-    hits: list[dict] = []
+    hits: List[dict] = []
     rx = re.compile(r'\b(?:setTimeout|setInterval)\s*\(\s*[\'"`]')
     for m in rx.finditer(src):
         line_no = src.count('\n', 0, m.start()) + 1
@@ -377,13 +378,13 @@ def _js_string_timer_call(src: str, lines: list[str]) -> list[dict]:
     return hits
 
 
-def _dockerfile_missing_user(src: str, lines: list[str]) -> list[dict]:
+def _dockerfile_missing_user(src: str, lines: List[str]) -> List[dict]:
     """Flag Dockerfiles whose effective user is root.
 
     Emits at most one hit per file: either ``(no USER directive)`` at line 1
     or the offending ``USER root`` / ``USER 0`` line.
     """
-    user_hits: list[tuple[int, str]] = []
+    user_hits: List[Tuple[int, str]] = []
     for i, ln in enumerate(lines, 1):
         stripped = ln.lstrip()
         if not stripped or stripped.startswith('#'):
@@ -403,14 +404,14 @@ def _dockerfile_missing_user(src: str, lines: list[str]) -> list[dict]:
     return []
 
 
-def _dockerfile_apt_no_cleanup(src: str, lines: list[str]) -> list[dict]:
+def _dockerfile_apt_no_cleanup(src: str, lines: List[str]) -> List[dict]:
     """Flag ``apt-get install`` RUN blocks that leave package lists behind.
 
     A clean RUN block either purges ``/var/lib/apt/lists`` afterwards or uses
     ``--no-install-recommends``; everything else bloats image size and ships
     stale package metadata.
     """
-    hits: list[dict] = []
+    hits: List[dict] = []
     n = len(lines)
     i = 0
     while i < n:
@@ -432,7 +433,7 @@ def _dockerfile_apt_no_cleanup(src: str, lines: list[str]) -> list[dict]:
     return hits
 
 
-def _iam_policy_action_wildcard(src: str, lines: list[str]) -> list[dict]:
+def _iam_policy_action_wildcard(src: str, lines: List[str]) -> List[dict]:
     """Flag IAM-style policies that allow ``Action: '*'`` on ``Resource: '*'``.
 
     Works for both JSON (AWS / GCP) and YAML (k8s ClusterRole, CFN/SAM)
@@ -449,7 +450,7 @@ def _iam_policy_action_wildcard(src: str, lines: list[str]) -> list[dict]:
         return []
     if action_hits and not has_resource:
         return []
-    hits: list[dict] = []
+    hits: List[dict] = []
     for m in (action_hits or list(rx_verbs.finditer(src))):
         line_no = src.count('\n', 0, m.start()) + 1
         code    = lines[line_no - 1].strip()[:80] if 0 < line_no <= len(lines) else ''
@@ -457,7 +458,7 @@ def _iam_policy_action_wildcard(src: str, lines: list[str]) -> list[dict]:
     return hits
 
 
-def _noop_handler(src: str, lines: list[str]) -> list[dict]:
+def _noop_handler(src: str, lines: List[str]) -> List[dict]:
     return []
 
 
@@ -485,7 +486,7 @@ def aggregate(file_security: dict) -> dict:
     counts: dict   = {'high': 0, 'medium': 0, 'low': 0}
     by_rule: dict  = {}
     by_sev:  dict  = {'high': [], 'medium': [], 'low': []}
-    all_issues: list[dict] = []
+    all_issues: List[dict] = []
 
     for rel, issues in (file_security or {}).items():
         for issue in issues or []:
@@ -531,14 +532,14 @@ def aggregate(file_security: dict) -> dict:
 
 # ─── History persistence ──────────────────────────────────────────────────────
 
-def append_history(project_root: Path, snapshot: dict) -> list[dict]:
+def append_history(project_root: Path, snapshot: dict) -> List[dict]:
     """Append a snapshot to ``.vizcode/security_history.json``; return the full history.
 
     Caps to the most recent _HISTORY_CAP entries. Silent-fail on I/O — the
     in-memory return is still correct so the widget can render the current run.
     """
     path                  = project_root / '.vizcode' / _HISTORY_FILENAME
-    history: list[dict]   = []
+    history: List[dict]   = []
     if path.is_file():
         try:
             data = json.loads(path.read_text(encoding='utf-8'))

@@ -78,13 +78,17 @@ _dashRegisterWidget({
     },
 
     renderDetail(container, stats) {
-        const total      = stats.loc_total   || 1;
+        const totalRaw   = stats.loc_total   || 0;
+        const total      = totalRaw || 1;
         const code       = stats.loc_code    || 0;
         const comment    = stats.loc_comment || 0;
         const blank      = stats.loc_blank   || 0;
         const codePct    = Math.round((code    / total) * 100);
         const commentPct = Math.round((comment / total) * 100);
         const blankPct   = Math.round((blank   / total) * 100);
+        const codeFiles = _dashAllFiles().filter(f => (f.loc || {}).code > 0);
+        const commentFiles = _dashAllFiles().filter(f => (f.loc || {}).comment > 0);
+        const blankFiles = _dashAllFiles().filter(f => (f.loc || {}).blank > 0);
 
         const canvasId = 'dash-detail-lines-donut';
         const chartKey = 'kpi_lines_detail_chart';
@@ -94,44 +98,93 @@ _dashRegisterWidget({
             [code, comment, blank]
         );
 
-        container.innerHTML = _dashReportSection({
-          title: 'Line Composition',
-          subtitle: _dashChartToggleHTML(chartKey, chartTypes, 'doughnut'),
-          body: `
-  ${_dashReportStats([
-    { value: _dashFmtExactNum(total), label: 'total lines' },
+        const heroVisual = `
+<div class="dash-kpi-detail-composition">
+  <div class="dash-kpi-detail-composition__stack" aria-label="Line composition">
+    <span style="width:${codePct}%;background:${sliceColors[0]}" title="Code ${codePct}%"></span>
+    <span style="width:${commentPct}%;background:${sliceColors[1] || sliceColors[0]}" title="Comments ${commentPct}%"></span>
+    <span style="width:${blankPct}%;background:var(--border)" title="Blank ${blankPct}%"></span>
+  </div>
+  <div class="dash-kpi-detail-composition__legend">
+    <button type="button" onclick="_dashOpenFileGroupDrilldown('Files with code LOC', _dashAllFiles().filter(f => (f.loc || {}).code > 0), { meta: f => _dashFmtExactNum((f.loc || {}).code || 0) + ' lines of code' })">
+      <i style="background:${sliceColors[0]}"></i><span>Code</span><b>${codePct}%</b>
+    </button>
+    <button type="button" onclick="_dashOpenFileGroupDrilldown('Files with comment LOC', _dashAllFiles().filter(f => (f.loc || {}).comment > 0), { meta: f => _dashFmtExactNum((f.loc || {}).comment || 0) + ' lines' })">
+      <i style="background:${sliceColors[1] || sliceColors[0]}"></i><span>Comments</span><b>${commentPct}%</b>
+    </button>
+    <button type="button" onclick="_dashOpenFileGroupDrilldown('Files with blank LOC', _dashAllFiles().filter(f => (f.loc || {}).blank > 0), { meta: f => _dashFmtExactNum((f.loc || {}).blank || 0) + ' lines' })">
+      <i style="background:var(--border)"></i><span>Blank</span><b>${blankPct}%</b>
+    </button>
+  </div>
+</div>`;
+
+        const meterRows = `
+<div class="dash-kpi-detail-meters">
+  <div class="dash-kpi-detail-meter" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with code LOC', _dashAllFiles().filter(f => (f.loc || {}).code > 0), { meta: f => _dashFmtExactNum((f.loc || {}).code || 0) + ' lines of code' })">
+    <span class="dash-kpi-detail-meter__label">Code</span>
+    <div class="dash-kpi-detail-meter__track">
+      <div class="dash-kpi-detail-meter__fill" style="width:${codePct}%;background:${sliceColors[0]}"></div>
+    </div>
+    <span class="dash-kpi-detail-meter__value">${_dashFmtExactNum(code)} <small style="color:var(--muted)">lines (${codePct}%)</small></span>
+  </div>
+  <div class="dash-kpi-detail-meter" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with comment LOC', _dashAllFiles().filter(f => (f.loc || {}).comment > 0), { meta: f => _dashFmtExactNum((f.loc || {}).comment || 0) + ' lines' })">
+    <span class="dash-kpi-detail-meter__label">Comments</span>
+    <div class="dash-kpi-detail-meter__track">
+      <div class="dash-kpi-detail-meter__fill" style="width:${commentPct}%;background:${sliceColors[1] || sliceColors[0]}"></div>
+    </div>
+    <span class="dash-kpi-detail-meter__value">${_dashFmtExactNum(comment)} <small style="color:var(--muted)">lines (${commentPct}%)</small></span>
+  </div>
+  <div class="dash-kpi-detail-meter" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with blank LOC', _dashAllFiles().filter(f => (f.loc || {}).blank > 0), { meta: f => _dashFmtExactNum((f.loc || {}).blank || 0) + ' lines' })">
+    <span class="dash-kpi-detail-meter__label">Blank</span>
+    <div class="dash-kpi-detail-meter__track">
+      <div class="dash-kpi-detail-meter__fill" style="width:${blankPct}%;background:var(--border)"></div>
+    </div>
+    <span class="dash-kpi-detail-meter__value">${_dashFmtExactNum(blank)} <small style="color:var(--muted)">lines (${blankPct}%)</small></span>
+  </div>
+</div>`;
+
+        container.innerHTML = `
+<div class="dash-kpi-detail dash-kpi-detail--lines">
+  <section class="dash-kpi-detail__hero">
+    <div class="dash-kpi-detail__hero-copy">
+      <div class="dash-kpi-detail__eyebrow">Codebase lines</div>
+      <h2 class="dash-kpi-detail__title">Line Composition</h2>
+      <div class="dash-kpi-detail__primary">
+        <span class="dash-kpi-detail__primary-value" style="color:${sliceColors[0]}">${_dashFmtExactNum(totalRaw)}</span>
+        <span class="dash-kpi-detail__primary-suffix">lines</span>
+      </div>
+      <p class="dash-kpi-detail__summary">${codePct}% code, ${commentPct}% comments, and ${blankPct}% blank lines across ${_dashFmtExactNum(_dashAllFiles().length)} tracked files.</p>
+    </div>
+    <div class="dash-kpi-detail__hero-visual">${heroVisual}</div>
+  </section>
+  <div class="dash-kpi-detail__sections">
+${_dashKpiDetailSectionHTML({
+  title: 'Overview',
+  body: _dashKpiDetailStatsHTML([
+    { value: _dashFmtExactNum(totalRaw), label: 'total lines' },
     { value: _dashFmtExactNum(code), label: 'lines of code' },
     { value: _dashFmtExactNum(comment), label: 'comment lines' },
     { value: _dashFmtExactNum(blank), label: 'blank lines' },
-  ])}
-  <div class="dash-detail-split">
-    ${_dashReportChart(`<canvas id="${canvasId}"></canvas>`, { size: 'sm' })}
-    <div class="dash-detail-breakdown dash-detail-bar-rows">
-    <div class="dash-health-row" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with code LOC', _dashAllFiles().filter(f => (f.loc || {}).code > 0), { meta: f => _dashFmtExactNum((f.loc || {}).code || 0) + ' lines of code' })">
-      <span class="dash-health-row-label">Code</span>
-      <div class="dash-health-row-track">
-        <div class="dash-health-row-fill" style="width:${codePct}%;background:${sliceColors[0]}"></div>
-      </div>
-      <span class="dash-health-row-value">${_dashFmtExactNum(code)} <small style="color:var(--muted)">lines (${codePct}%)</small></span>
-    </div>
-    <div class="dash-health-row" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with comment LOC', _dashAllFiles().filter(f => (f.loc || {}).comment > 0), { meta: f => _dashFmtNum((f.loc || {}).comment || 0) + ' lines' })">
-      <span class="dash-health-row-label">Comments</span>
-      <div class="dash-health-row-track">
-        <div class="dash-health-row-fill" style="width:${commentPct}%;background:${sliceColors[1] || sliceColors[0]}"></div>
-      </div>
-      <span class="dash-health-row-value">${_dashFmtExactNum(comment)} <small style="color:var(--muted)">lines (${commentPct}%)</small></span>
-    </div>
-    <div class="dash-health-row" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with blank LOC', _dashAllFiles().filter(f => (f.loc || {}).blank > 0), { meta: f => _dashFmtNum((f.loc || {}).blank || 0) + ' lines' })">
-      <span class="dash-health-row-label">Blank</span>
-      <div class="dash-health-row-track">
-        <div class="dash-health-row-fill" style="width:${blankPct}%;background:var(--border)"></div>
-      </div>
-      <span class="dash-health-row-value">${_dashFmtExactNum(blank)} <small style="color:var(--muted)">lines (${blankPct}%)</small></span>
-    </div>
-    </div>
+  ]),
+})}
+${_dashKpiDetailSectionHTML({
+  title: 'Line Mix',
+  subtitle: _dashChartToggleHTML(chartKey, chartTypes, 'doughnut'),
+  body: `<div class="dash-kpi-detail-split dash-kpi-detail-split--lines">
+    ${_dashKpiDetailChartHTML(`<canvas id="${canvasId}"></canvas>`, { size: 'sm' })}
+    ${meterRows}
+  </div>`,
+})}
+${_dashKpiDetailSectionHTML({
+  title: 'Drilldown',
+  body: _dashKpiDetailStatsHTML([
+    { value: _dashFmtExactNum(codeFiles.length), label: 'files with code' },
+    { value: _dashFmtExactNum(commentFiles.length), label: 'files with comments' },
+    { value: _dashFmtExactNum(blankFiles.length), label: 'files with blanks' },
+  ]),
+})}
   </div>
-`,
-        });
+</div>`;
 
         function renderChart() {
             const canvas = document.getElementById(canvasId);

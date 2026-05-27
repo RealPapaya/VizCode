@@ -13,6 +13,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 _QA_FILENAME = "ai_qa_cache.json"
 _SCHEMA_REV  = 1
@@ -97,7 +98,7 @@ def _is_entry_valid(entry: dict, scan_cache: dict) -> bool:
 
 # ─── 公開 API ─────────────────────────────────────────────────────────────────
 
-def lookup(question: str, project_root, scan_cache: dict, depth: str = "general") -> dict | None:
+def lookup(question: str, project_root, scan_cache: dict, depth: str = "general") -> Optional[dict]:
     """若找到有效的快取命中，回傳 entry dict，否則回傳 None。"""
     project_root = Path(project_root)
     entries = _load(project_root).get("entries", [])

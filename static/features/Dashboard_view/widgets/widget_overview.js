@@ -150,42 +150,43 @@ _dashRegisterWidget({
         const locColor0 = _dashAccentStop(0);
         const locColor1 = _dashAccentStop(1);
 
-        // ── File type bar rows ──────────────────────────────────────────────
+        // File type bar rows.
         const extRows = exts.map(([ext, cnt], i) => {
             const pct = Math.round((cnt / maxExt) * 100);
-            return `<div class="dash-list-row" data-clickable="true"
+            return `<div class="dash-kpi-detail-row" data-clickable="true"
                 onclick="_dashOpenFileGroupDrilldown('.${_dashEscape(ext)} files', _dashFilesByExt(${_dashJson(ext)}))"
-            ><span class="dash-list-rank">${i + 1}</span
-            ><span class="dash-list-name">.${_dashEscape(ext)}</span
-            ><div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${pct}%;background:${colors[i]}"></div></div
-            ><span class="dash-list-val">${cnt}</span></div>`;
+            ><span class="dash-kpi-detail-row__rank">${i + 1}</span
+            ><span class="dash-kpi-detail-row__name">.${_dashEscape(ext)}</span
+            ><div class="dash-kpi-detail-row__bar-track"><div class="dash-kpi-detail-row__bar-fill" style="width:${pct}%;background:${colors[i]}"></div></div
+            ><span class="dash-kpi-detail-row__value">${cnt}</span></div>`;
         }).join('');
 
-        // ── Hero visual: top-5 file type bars ──────────────────────────────
-        const heroVisual = _dashReportBarsHTML(
+        // Hero visual: top-5 file type bars.
+        const heroVisual = _dashKpiDetailBarsHTML(
             _overviewTopExts(5).map(([ext, cnt], i) => ({
                 label: `.${ext}`, value: cnt, raw: cnt, color: _dashAccentStop(i),
             }))
         );
 
-        // ── Render: hero + divider + sections ──────────────────────────────
+        // Render: dedicated detail DOM.
         container.innerHTML = `
-<section class="dash-report-hero">
-  <div class="dash-report-hero-copy">
-    <div class="dash-report-eyebrow">Repository overview</div>
-    <h2 class="dash-report-title">Codebase Snapshot</h2>
-    <div class="dash-report-primary">
-      <span class="dash-report-primary-value">${_dashFmtExactNum(files)}</span>
-      <span class="dash-report-primary-suffix">files</span>
+<div class="dash-kpi-detail dash-kpi-detail--overview">
+  <section class="dash-kpi-detail__hero">
+    <div class="dash-kpi-detail__hero-copy">
+      <div class="dash-kpi-detail__eyebrow">Repository overview</div>
+      <h2 class="dash-kpi-detail__title">Codebase Snapshot</h2>
+      <div class="dash-kpi-detail__primary">
+        <span class="dash-kpi-detail__primary-value">${_dashFmtExactNum(files)}</span>
+        <span class="dash-kpi-detail__primary-suffix">files</span>
+      </div>
+      <p class="dash-kpi-detail__summary">${_dashFmtExactNum(funcs)} functions across ${_dashFmtExactNum(modules)} modules with ${_dashFmtExactNum(extTotal)} file extensions.</p>
     </div>
-    <p class="dash-report-summary">${_dashFmtExactNum(funcs)} functions across ${_dashFmtExactNum(modules)} modules with ${_dashFmtExactNum(extTotal)} file extensions.</p>
-  </div>
-  <div class="dash-report-hero-visual">${heroVisual}</div>
-</section>
-<div class="dash-report-details dash-report-details--overview">
-${_dashReportSection({
+    <div class="dash-kpi-detail__hero-visual">${heroVisual}</div>
+  </section>
+  <div class="dash-kpi-detail__sections">
+${_dashKpiDetailSectionHTML({
     title: 'Codebase Snapshot',
-    body: _dashReportStats([
+    body: _dashKpiDetailStatsHTML([
         { value: _dashFmtExactNum(files),    label: 'files' },
         { value: _dashFmtExactNum(funcs),    label: 'functions' },
         { value: _dashFmtExactNum(calls),    label: 'calls' },
@@ -194,30 +195,31 @@ ${_dashReportSection({
         { value: _dashFmtExactNum(modules),  label: 'modules' },
     ]),
 })}
-${_dashReportSection({
+${_dashKpiDetailSectionHTML({
     title: 'Line Composition',
-    body: `<div class="dash-detail-bar-rows">
-    <div class="dash-health-row" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with code', _dashAllFiles().filter(f => (f.loc||{}).code > 0), { meta: f => _dashFmtExactNum((f.loc||{}).code||0) + ' lines' })">
-      <span class="dash-health-row-label">Code</span>
-      <div class="dash-health-row-track"><div class="dash-health-row-fill" style="width:${codePct}%;background:${locColor0}"></div></div>
-      <span class="dash-health-row-value">${_dashFmtExactNum(code)} <small style="color:var(--muted)">(${codePct}%)</small></span>
+    body: `<div class="dash-kpi-detail-meters">
+    <div class="dash-kpi-detail-meter" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with code', _dashAllFiles().filter(f => (f.loc||{}).code > 0), { meta: f => _dashFmtExactNum((f.loc||{}).code||0) + ' lines' })">
+      <span class="dash-kpi-detail-meter__label">Code</span>
+      <div class="dash-kpi-detail-meter__track"><div class="dash-kpi-detail-meter__fill" style="width:${codePct}%;background:${locColor0}"></div></div>
+      <span class="dash-kpi-detail-meter__value">${_dashFmtExactNum(code)} <small style="color:var(--muted)">(${codePct}%)</small></span>
     </div>
-    <div class="dash-health-row" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with comments', _dashAllFiles().filter(f => (f.loc||{}).comment > 0), { meta: f => _dashFmtExactNum((f.loc||{}).comment||0) + ' lines' })">
-      <span class="dash-health-row-label">Comments</span>
-      <div class="dash-health-row-track"><div class="dash-health-row-fill" style="width:${cmtPct}%;background:${locColor1}"></div></div>
-      <span class="dash-health-row-value">${_dashFmtExactNum(comment)} <small style="color:var(--muted)">(${cmtPct}%)</small></span>
+    <div class="dash-kpi-detail-meter" data-clickable="true" onclick="_dashOpenFileGroupDrilldown('Files with comments', _dashAllFiles().filter(f => (f.loc||{}).comment > 0), { meta: f => _dashFmtExactNum((f.loc||{}).comment||0) + ' lines' })">
+      <span class="dash-kpi-detail-meter__label">Comments</span>
+      <div class="dash-kpi-detail-meter__track"><div class="dash-kpi-detail-meter__fill" style="width:${cmtPct}%;background:${locColor1}"></div></div>
+      <span class="dash-kpi-detail-meter__value">${_dashFmtExactNum(comment)} <small style="color:var(--muted)">(${cmtPct}%)</small></span>
     </div>
-    <div class="dash-health-row">
-      <span class="dash-health-row-label">Blank</span>
-      <div class="dash-health-row-track"><div class="dash-health-row-fill" style="width:${blkPct}%;background:var(--border)"></div></div>
-      <span class="dash-health-row-value">${_dashFmtExactNum(blank)} <small style="color:var(--muted)">(${blkPct}%)</small></span>
+    <div class="dash-kpi-detail-meter">
+      <span class="dash-kpi-detail-meter__label">Blank</span>
+      <div class="dash-kpi-detail-meter__track"><div class="dash-kpi-detail-meter__fill" style="width:${blkPct}%;background:var(--border)"></div></div>
+      <span class="dash-kpi-detail-meter__value">${_dashFmtExactNum(blank)} <small style="color:var(--muted)">(${blkPct}%)</small></span>
     </div>
   </div>`,
 })}
-${_dashReportSection({
+${_dashKpiDetailSectionHTML({
     title: 'Top File Types',
-    body: _dashReportList(extRows || '<div class="dash-empty">No data</div>'),
+    body: _dashKpiDetailListHTML(extRows || '<div class="dash-empty">No data</div>'),
 })}
+  </div>
 </div>`;
     },
 });

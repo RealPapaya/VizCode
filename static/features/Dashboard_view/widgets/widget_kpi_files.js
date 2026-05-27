@@ -11,6 +11,65 @@ function _kpiFileExts() {
   return [...map.entries()].sort((a, b) => b[1] - a[1]);
 }
 
+function _dashKpiDetailBarsHTML(items) {
+  const rows = (items || []).slice(0, 5);
+  const vals = rows.map(m => Number(m.raw ?? String(m.value ?? '').replace(/[^\d.-]/g, '')) || 0);
+  const max = Math.max(1, ...vals);
+  return `
+<div class="dash-kpi-detail-bars">
+  ${rows.map((m, i) => {
+    const pct = Math.max(4, Math.round((vals[i] || 0) / max * 100));
+    const color = m.color || _dashAccentStop(i);
+    return `<div class="dash-kpi-detail-bars__row">
+  <span class="dash-kpi-detail-bars__label">${_dashEscape(m.label || '')}</span>
+  <div class="dash-kpi-detail-bars__track"><i style="width:${pct}%;background:${color}"></i></div>
+  <b class="dash-kpi-detail-bars__value">${_dashEscape(String(m.value ?? ''))}</b>
+</div>`;
+  }).join('')}
+</div>`;
+}
+
+function _dashKpiDetailStatsHTML(items) {
+  return `<div class="dash-kpi-detail-stats">${(items || []).map(item => {
+    const color = item.color ? ` style="color:${item.color}"` : '';
+    return `<div class="dash-kpi-detail-stat">
+  <span class="dash-kpi-detail-stat__value"${color}>${_dashEscape(String(item.value ?? ''))}</span>
+  <small class="dash-kpi-detail-stat__label">${_dashEscape(item.label || '')}</small>
+</div>`;
+  }).join('')}</div>`;
+}
+
+function _dashKpiDetailSectionHTML({ title, subtitle, body, className } = {}) {
+  const cls = className ? ` ${className}` : '';
+  const subtitleHTML = subtitle && String(subtitle).includes('<')
+    ? String(subtitle)
+    : (subtitle ? _dashEscape(subtitle) : '');
+  const head = (title || subtitle) ? `
+  <div class="dash-kpi-detail-section__head">
+    ${title ? `<div class="dash-kpi-detail-section__title">${_dashEscape(title)}</div>` : ''}
+    ${subtitle ? `<div class="dash-kpi-detail-section__subtitle">${subtitleHTML}</div>` : ''}
+  </div>` : '';
+  return `
+<section class="dash-kpi-detail-section${cls}">
+  ${head}
+  <div class="dash-kpi-detail-section__body">${body || ''}</div>
+</section>`;
+}
+
+function _dashKpiDetailGridHTML(items, { columns } = {}) {
+  const cols = columns ? ` dash-kpi-detail-grid--${columns}` : '';
+  return `<div class="dash-kpi-detail-grid${cols}">${(items || []).join('')}</div>`;
+}
+
+function _dashKpiDetailChartHTML(html, { size } = {}) {
+  return `<div class="dash-chart-wrap dash-kpi-detail-chart dash-kpi-detail-chart--${size || 'md'}">${html || ''}</div>`;
+}
+
+function _dashKpiDetailListHTML(html, { className } = {}) {
+  const cls = className ? ` ${className}` : '';
+  return `<div class="dash-kpi-detail-list${cls}">${html || ''}</div>`;
+}
+
 _dashRegisterWidget({
   id: 'kpi_files',
   labelKey: 'dashKpiFiles',
@@ -80,6 +139,7 @@ _dashRegisterWidget({
   },
 
   renderDetail(container, stats) {
+    // ── Build extension map ───────────────────────────────────────────────
     const langMap = new Map();
     for (const files of Object.values(DATA.files_by_module || {})) {
       (files || []).forEach(f => {
@@ -88,8 +148,15 @@ _dashRegisterWidget({
       });
     }
     const langs = [...langMap.entries()].sort((a, b) => b[1] - a[1]);
+    const totalFiles = stats.files || _dashAllFiles().length;
+    const extCount = langs.length;
+    const modules = (DATA.modules || []).length;
     const max = langs.length ? langs[0][1] : 1;
+
+    // ── Chart setup ──────────────────────────────────────────────────────
     const canvasId = 'dash-detail-files-donut';
+    const chartKey = 'kpi_files_detail_chart';
+    const chartTypes = ['doughnut', 'bar'];
     const sliceRows = langs.length > 5
       ? langs.slice(0, 4).map(([ext, cnt]) => ({ label: `.${ext}`, exts: [ext], count: cnt }))
         .concat([{
@@ -98,43 +165,67 @@ _dashRegisterWidget({
           count: langs.slice(4).reduce((sum, [, cnt]) => sum + cnt, 0),
         }])
       : langs.map(([ext, cnt]) => ({ label: `.${ext}`, exts: [ext], count: cnt }));
-    const labels = sliceRows.map(row => row.label);
-    const data = sliceRows.map(row => row.count);
     const sliceColors = typeof _dashColorScale === 'function' ? _dashColorScale(sliceRows.length) : _dashAccentForSlices(sliceRows.length);
-    const chartKey = 'kpi_files_detail_chart';
-    const chartTypes = ['doughnut', 'bar'];
 
+    // ── Hero visual: top-5 extension bars ────────────────────────────────
+    const heroVisual = _dashKpiDetailBarsHTML(
+      langs.slice(0, 5).map(([ext, cnt], i) => ({
+        label: `.${ext}`, value: cnt, raw: cnt, color: _dashAccentStop(i),
+      }))
+    );
+
+    // ── Breakdown list rows ───────────────────────────────────────────────
     const breakdownSlice = langs.slice(0, 12);
     const breakdownColors = typeof _dashColorScale === 'function' ? _dashColorScale(breakdownSlice.length) : [];
     const breakdownRows = breakdownSlice.map(([ext, cnt], i) => {
       const pct = Math.round((cnt / max) * 100);
       const col = breakdownColors[i];
-      const files = _dashFilesByExt(ext);
-      return `<div class="dash-list-row" data-clickable="true"
+      const fileList = _dashFilesByExt(ext);
+      return `<div class="dash-kpi-detail-row" data-clickable="true"
           onclick="_dashOpenFileGroupDrilldown('Files .${_dashEscape(ext)}', _dashFilesByExt(${_dashJson(ext)}))">
-          <span class="dash-list-rank">${i + 1}</span>
-          <span class="dash-list-name">.${_dashEscape(ext)}</span>
-          <div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${pct}%;background:${col}"></div></div>
-          <span class="dash-list-val">${files.length || cnt}</span>
+          <span class="dash-kpi-detail-row__rank">${i + 1}</span>
+          <span class="dash-kpi-detail-row__name">.${_dashEscape(ext)}</span>
+          <div class="dash-kpi-detail-row__bar-track"><div class="dash-kpi-detail-row__bar-fill" style="width:${pct}%;background:${col}"></div></div>
+          <span class="dash-kpi-detail-row__value">${fileList.length || cnt}</span>
         </div>`;
     }).join('');
 
-    container.innerHTML = _dashReportSection({
-      title: 'File Types',
-      subtitle: _dashChartToggleHTML(chartKey, chartTypes, 'doughnut'),
-      body: `
-  ${_dashReportStats([
-    { value: _dashFmtExactNum(stats.files || _dashAllFiles().length), label: 'files' },
-    { value: _dashFmtExactNum(langs.length), label: 'extensions' },
-    { value: _dashFmtExactNum((DATA.modules || []).length), label: 'modules' },
-  ])}
-  <div class="dash-detail-split">
-    ${_dashReportChart(`<canvas id="${canvasId}"></canvas>`, { size: 'sm' })}
-    ${_dashReportList(breakdownRows)}
+    // ── Render: hero + details wrapper ───────────────────────────────────
+    container.innerHTML = `
+<div class="dash-kpi-detail dash-kpi-detail--files">
+  <section class="dash-kpi-detail__hero">
+    <div class="dash-kpi-detail__hero-copy">
+      <div class="dash-kpi-detail__eyebrow">Codebase files</div>
+      <h2 class="dash-kpi-detail__title">File Inventory</h2>
+      <div class="dash-kpi-detail__primary">
+        <span class="dash-kpi-detail__primary-value" style="color:${_dashAccentStop(0)}">${_dashFmtExactNum(totalFiles)}</span>
+        <span class="dash-kpi-detail__primary-suffix">files</span>
+      </div>
+      <p class="dash-kpi-detail__summary">${_dashFmtExactNum(extCount)} file extensions across ${_dashFmtExactNum(modules)} modules.</p>
+    </div>
+    <div class="dash-kpi-detail__hero-visual">${heroVisual}</div>
+  </section>
+  <div class="dash-kpi-detail__sections">
+${_dashKpiDetailSectionHTML({
+  title: 'Overview',
+  body: _dashKpiDetailStatsHTML([
+    { value: _dashFmtExactNum(totalFiles), label: 'files' },
+    { value: _dashFmtExactNum(extCount), label: 'extensions' },
+    { value: _dashFmtExactNum(modules), label: 'modules' },
+  ]),
+})}
+${_dashKpiDetailSectionHTML({
+  title: 'File Types',
+  subtitle: _dashChartToggleHTML(chartKey, chartTypes, 'doughnut'),
+  body: `<div class="dash-kpi-detail-split">
+    ${_dashKpiDetailChartHTML(`<canvas id="${canvasId}"></canvas>`, { size: 'sm' })}
+    ${_dashKpiDetailListHTML(breakdownRows || '<div class="dash-empty">No file data</div>')}
+  </div>`,
+})}
   </div>
-`,
-    });
+</div>`;
 
+    // ── Init chart (after innerHTML) ──────────────────────────────────────
     function renderChart() {
       const canvas = document.getElementById(canvasId);
       if (!canvas || typeof Chart === 'undefined') return;
