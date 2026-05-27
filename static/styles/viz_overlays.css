@@ -2555,21 +2555,32 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 
 .dash-report-stat {
     min-width: 0;
+    padding: clamp(10px, 1.2vw, 14px) clamp(10px, 1.4vw, 16px);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-elevated) 80%, transparent);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
 }
 
 .dash-report-stat-value {
     display: block;
     color: var(--text);
-    font-size: clamp(22px, 3vw, 32px);
+    font-size: clamp(20px, 2.6vw, 28px);
     font-weight: 700;
     line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
 }
 
 .dash-report-stat small {
     display: block;
-    margin-top: 4px;
     color: var(--muted);
     font-size: var(--text-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
 }
 
 .dash-detail-bar-rows,
@@ -2687,6 +2698,16 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
 .dash-report-details--overview .dash-list-bar-track {
     width: 100%;
     min-width: 0;
+}
+
+/* Overview: tighten stat grid on narrow panels */
+.dash-report-details--overview .dash-report-stats {
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+}
+
+/* Overview: no divider line below hero */
+.dash-report-body--overview .dash-report-hero::after {
+    display: none;
 }
 
 .dash-report-details--temporal .dash-temporal-period {

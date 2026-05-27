@@ -1,4 +1,4 @@
-// @module Dashboard_view/widgets/widget_overview
+﻿// @module Dashboard_view/widgets/widget_overview
 // Codebase snapshot: Files, Functions, LOC, and top File Types in one widget.
 // High-level summary — intentionally shallower than the dedicated KPI widgets.
 
@@ -147,31 +147,51 @@ _dashRegisterWidget({
         const extTotal = _overviewExtCount();
         const maxExt   = exts.length ? exts[0][1] : 1;
         const colors   = _dashColorScale(exts.length);
+        const locColor0 = _dashAccentStop(0);
+        const locColor1 = _dashAccentStop(1);
 
+        // ── File type bar rows ──────────────────────────────────────────────
         const extRows = exts.map(([ext, cnt], i) => {
             const pct = Math.round((cnt / maxExt) * 100);
-            const col = colors[i];
             return `<div class="dash-list-row" data-clickable="true"
                 onclick="_dashOpenFileGroupDrilldown('.${_dashEscape(ext)} files', _dashFilesByExt(${_dashJson(ext)}))"
             ><span class="dash-list-rank">${i + 1}</span
             ><span class="dash-list-name">.${_dashEscape(ext)}</span
-            ><div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${pct}%;background:${col}"></div></div
+            ><div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${pct}%;background:${colors[i]}"></div></div
             ><span class="dash-list-val">${cnt}</span></div>`;
         }).join('');
 
-        const locColor0 = _dashAccentStop(0);
-        const locColor1 = _dashAccentStop(1);
+        // ── Hero visual: top-5 file type bars ──────────────────────────────
+        const heroVisual = _dashReportBarsHTML(
+            _overviewTopExts(5).map(([ext, cnt], i) => ({
+                label: `.${ext}`, value: cnt, raw: cnt, color: _dashAccentStop(i),
+            }))
+        );
 
+        // ── Render: hero + divider + sections ──────────────────────────────
         container.innerHTML = `
+<section class="dash-report-hero">
+  <div class="dash-report-hero-copy">
+    <div class="dash-report-eyebrow">Repository overview</div>
+    <h2 class="dash-report-title">Codebase Snapshot</h2>
+    <div class="dash-report-primary">
+      <span class="dash-report-primary-value">${_dashFmtExactNum(files)}</span>
+      <span class="dash-report-primary-suffix">files</span>
+    </div>
+    <p class="dash-report-summary">${_dashFmtExactNum(funcs)} functions across ${_dashFmtExactNum(modules)} modules with ${_dashFmtExactNum(extTotal)} file extensions.</p>
+  </div>
+  <div class="dash-report-hero-visual">${heroVisual}</div>
+</section>
+<div class="dash-report-details dash-report-details--overview">
 ${_dashReportSection({
     title: 'Codebase Snapshot',
     body: _dashReportStats([
-        { value: _dashFmtExactNum(files),   label: 'files' },
-        { value: _dashFmtExactNum(funcs),   label: 'functions' },
-        { value: _dashFmtExactNum(calls),   label: 'calls' },
-        { value: _dashFmtExactNum(loc),     label: 'lines of code' },
-        { value: _dashFmtExactNum(extTotal),label: 'file types' },
-        { value: _dashFmtExactNum(modules), label: 'modules' },
+        { value: _dashFmtExactNum(files),    label: 'files' },
+        { value: _dashFmtExactNum(funcs),    label: 'functions' },
+        { value: _dashFmtExactNum(calls),    label: 'calls' },
+        { value: _dashFmtExactNum(loc),      label: 'lines of code' },
+        { value: _dashFmtExactNum(extTotal), label: 'file types' },
+        { value: _dashFmtExactNum(modules),  label: 'modules' },
     ]),
 })}
 ${_dashReportSection({
@@ -197,6 +217,7 @@ ${_dashReportSection({
 ${_dashReportSection({
     title: 'Top File Types',
     body: _dashReportList(extRows || '<div class="dash-empty">No data</div>'),
-})}`;
+})}
+</div>`;
     },
 });

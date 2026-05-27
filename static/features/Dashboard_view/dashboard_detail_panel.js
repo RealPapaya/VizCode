@@ -1,4 +1,4 @@
-// @module Dashboard_view/dashboard_detail_panel
+﻿// @module Dashboard_view/dashboard_detail_panel
 // Shared zoom-to-center detail overlay.
 // Usage: _dashOpenDetailPanel(widgetId, originRect)
 //   originRect = the widget's getBoundingClientRect()
@@ -50,15 +50,12 @@ function _dashOpenDetailPanel(widgetId, originRect) {
   </div>
   <button class="dash-detail-close" id="dash-detail-close" type="button" aria-label="Close">×</button>
 </div>
-<div class="dash-detail-body dash-report-body dash-report-body--${widgetId}" id="dash-detail-body">
-  ${_dashDetailHeroHTML(widgetId, widget, DATA.stats || {})}
-  <div class="dash-report-details dash-report-details--${widgetId}" id="dash-detail-report-details"></div>
-</div>`;
+<div class="dash-detail-body dash-report-body dash-report-body--${widgetId}" id="dash-detail-body"></div>`;
 
     document.body.appendChild(backdrop);
     document.body.appendChild(panel);
 
-    const body = document.getElementById('dash-detail-report-details');
+    const body = document.getElementById('dash-detail-body');
 
     // Defer renderDetail one frame so the panel's layout (and the canvas's
     // offsetWidth/offsetHeight) is fully resolved before Chart.js captures
@@ -98,6 +95,7 @@ function _dashOpenDetailPanel(widgetId, originRect) {
 
 function _dashDetailHeroHTML(widgetId, widget, stats) {
     const model = _dashDetailReportModel(widgetId, widget, stats || {});
+    if (model.noHero) return '';
     const metrics = (model.metrics || []).map(m => _dashReportMetricHTML(m)).join('');
     const visual = model.visual || _dashReportBarsHTML(model.metrics || []);
     const reverse = model.reverse ? ' dash-report-hero--reverse' : '';
@@ -225,15 +223,12 @@ function _dashDetailReportModel(widgetId, widget, stats) {
             title: 'Codebase Snapshot',
             eyebrow: 'Repository overview',
             value: fmt(files),
-            suffix: 'tracked files',
+            suffix: 'files',
             summary: `${fmt(funcs)} functions across ${fmt(modules)} modules with ${fmt(extCount)} file extensions.`,
-            metrics: [
-                { label: 'Functions', value: fmt(funcs), raw: funcs },
-                { label: 'LOC', value: fmt(loc), raw: loc },
-                { label: 'File types', value: fmt(extCount), raw: extCount },
-                { label: 'Calls', value: fmt(stats.calls || 0), raw: stats.calls || 0 },
-            ],
-            visual: _dashReportBarsHTML(_dashReportFileExts(5).map(([ext, count], i) => ({ label: `.${ext}`, value: count, raw: count, color: _dashAccentStop(i) }))),
+            metrics: [],
+            visual: _dashReportBarsHTML(_dashReportFileExts(5).map(([ext, count], i) => ({
+                label: `.${ext}`, value: count, raw: count, color: _dashAccentStop(i),
+            }))),
         });
     }
 
