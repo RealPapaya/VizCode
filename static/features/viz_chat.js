@@ -48,6 +48,7 @@
     // ── DOM refs (populated in initChat) ─────────────────────────────────────
     let _btn, _panel, _msgs, _input, _sendBtn, _modal;
     let _chatCfgSnapshot = {};
+    let _chatIsConfigured = null;
 
     // ── Drag state ────────────────────────────────────────────────────────────
     let _isDragging = false;
@@ -137,6 +138,7 @@
         if (_panelMode === 'side' && _chatResizer) _chatResizer.style.display = 'block';
         _btn.classList.add('active');
         _updateButtonIcon();
+        _checkConfig();
         setTimeout(() => _input.focus(), 220);
     }
 
@@ -256,6 +258,50 @@
 
     function _escHtml(s) {
         return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function _chatProviderHasCredential(provider, cfg) {
+        if (provider === 'anthropic') return !!cfg.anthropic_api_key_present;
+        if (provider === 'openai') return !!cfg.openai_api_key_present;
+        if (provider === 'grok') return !!cfg.grok_api_key_present;
+        if (provider === 'gemini') return !!cfg.gemini_api_key_present;
+        if (provider === 'ollama') return !!cfg.ollama_url_present;
+        if (provider === 'custom') return !!cfg.custom_api_key_present;
+        return false;
+    }
+
+    function _chatConfigIsReady(cfg) {
+        if (!cfg) return false;
+        if ((cfg.ai_mode || 'api') === 'cli') return !!(cfg.cli_agent || 'claude');
+        return _chatProviderHasCredential(cfg.provider || 'anthropic', cfg);
+    }
+
+    function _openAiSettingsFromChat() {
+        if (typeof window.openAiSettings === 'function') {
+            window.openAiSettings();
+            return;
+        }
+        const prefBtn = document.getElementById('pref-btn');
+        if (prefBtn) {
+            prefBtn.click();
+            setTimeout(() => {
+                try { if (typeof _activatePrefSection === 'function') _activatePrefSection('ai'); } catch (_) {}
+            }, 80);
+        }
+    }
+
+    function _appendSetupGuide() {
+        if (!_msgs || document.getElementById('chat-setup-card')) return;
+        const card = document.createElement('div');
+        card.id = 'chat-setup-card';
+        card.className = 'chat-setup-card';
+        card.innerHTML = `
+          <div class="chat-setup-title">${_escHtml(_t('chatSetupRequiredTitle', 'AI is not configured'))}</div>
+          <div class="chat-setup-copy">${_escHtml(_t('chatSetupRequiredCopy', 'Choose an API provider or Local CLI before using chat.'))}</div>
+          <button type="button" class="chat-setup-btn">${_escHtml(_t('chatSetupRequiredAction', 'Open AI Settings'))}</button>`;
+        card.querySelector('.chat-setup-btn')?.addEventListener('click', _openAiSettingsFromChat);
+        _msgs.appendChild(card);
+        _scrollBottom();
     }
 
     // ── Mermaid: lazy-load from CDN, render on demand ─────────────────────────
@@ -584,6 +630,10 @@
     function _sendMessage() {
         const text = _input.value.trim();
         if (!text || _isBusy) return;
+        if (_chatIsConfigured === false) {
+            _appendSetupGuide();
+            return;
+        }
 
         // New turn: drop stale badge mappings so labels that collided with a
         // previous turn's node_id don't leak into this response.
@@ -640,6 +690,24 @@
 
         const assistantContent = [];   // accumulates for history
         let _sseFinished = false;
+        let _timeoutId = null;
+
+        function _idleLimitMs() {
+            return (_currentChatProvider || '').startsWith('cli:') ? 10 * 60 * 1000 : 90 * 1000;
+        }
+
+        function _resetIdleTimer() {
+            clearTimeout(_timeoutId);
+            _timeoutId = setTimeout(function () {
+                if (!_cleanup(true)) return;
+                _removeTyping();
+                if (!_lastTurnHadError) {
+                    const seconds = Math.round(_idleLimitMs() / 1000);
+                    _appendMsg('err', `No activity from AI for ${seconds} s. The local CLI may still be running in the background.`);
+                }
+                _setBusy(false);
+            }, _idleLimitMs());
+        }
 
         function _cleanup(cancel) {
             if (_sseFinished) return false;
@@ -651,14 +719,14 @@
         }
 
         // Safety valve: if server never sends 'done' or closes connection
-        const _timeoutId = setTimeout(function () {
+        _timeoutId = setTimeout(function () {
             if (!_cleanup(true)) return;
             _removeTyping();
             if (!_lastTurnHadError) {
                 _appendMsg('err', 'No response after 90 s — check your API key and server logs.');
             }
             _setBusy(false);
-        }, 90000);
+        }, _idleLimitMs());
 
         // Exposed for the stop button
         _cancelStream = function () {
@@ -698,6 +766,7 @@
                         if (!dataStr) continue;
                         try {
                             const ev = JSON.parse(dataStr);
+                            _resetIdleTimer();
                             if (ev.type === 'done') { gotDone = true; break; }
                             _handleSSEEvent(ev, assistantContent);
                         } catch (_) {}
@@ -739,6 +808,10 @@
 
         } else if (ev.type === 'cached') {
             _markBubbleCached(ev.entry_id || '');
+
+        } else if (ev.type === 'status') {
+            const typing = document.getElementById('_chat-typing');
+            if (typing && ev.message) typing.title = ev.message;
 
         } else if (ev.type === 'done') {
             // handled in finishTurn after stream ends
@@ -959,8 +1032,10 @@
     // ── Config modal ──────────────────────────────────────────────────────────
 
     function _updateProviderSections(provider) {
+        const mode = document.getElementById('chat-cfg-ai-mode')?.value || 'api';
+        const activeProvider = mode === 'cli' ? 'cli' : provider;
         document.querySelectorAll('.chat-cfg-section').forEach(function (sec) {
-            sec.style.display = (sec.dataset.provider === provider) ? '' : 'none';
+            sec.style.display = (sec.dataset.provider === activeProvider) ? '' : 'none';
         });
     }
 
@@ -1121,6 +1196,8 @@
     }
 
     async function _openConfigModal() {
+        _openAiSettingsFromChat();
+        return;
         let cfg = {};
         try {
             const r = await fetch('/chat-config');
@@ -1129,6 +1206,7 @@
         _chatCfgSnapshot = cfg || {};
 
         const provider = cfg.provider || 'anthropic';
+        document.getElementById('chat-cfg-ai-mode').value          = cfg.ai_mode === 'cli' ? 'cli' : 'api';
         document.getElementById('chat-cfg-provider').value          = provider;
         document.getElementById('chat-cfg-anthropic-key').value     = '';
         document.getElementById('chat-cfg-anthropic-model').value   = cfg.anthropic_model || 'claude-sonnet-4-6';
@@ -1144,6 +1222,11 @@
         document.getElementById('chat-cfg-custom-key').value        = '';
         document.getElementById('chat-cfg-custom-base-url').value   = cfg.custom_base_url || '';
         document.getElementById('chat-cfg-custom-model').value      = cfg.custom_model || '';
+        document.getElementById('chat-cfg-cli-agent').value         = cfg.cli_agent || 'claude';
+        document.getElementById('chat-cfg-cli-model').value         = cfg.cli_model || '';
+        document.getElementById('chat-cfg-claude-cli-path').value   = cfg.claude_cli_path || '';
+        document.getElementById('chat-cfg-codex-cli-path').value     = cfg.codex_cli_path || '';
+        document.getElementById('chat-cfg-gemini-cli-path').value   = cfg.gemini_cli_path || '';
         _setKeyStatus('chat-cfg-anthropic-key-status', 'anthropic_api_key', cfg);
         _setKeyStatus('chat-cfg-openai-key-status', 'openai_api_key', cfg);
         _setKeyStatus('chat-cfg-grok-key-status', 'grok_api_key', cfg);
@@ -1167,12 +1250,13 @@
     }
 
     function _closeConfigModal() {
-        _modal.classList.add('hidden');
+        if (_modal) _modal.classList.add('hidden');
     }
 
     async function _saveConfig() {
         const provider = document.getElementById('chat-cfg-provider').value;
         const cfg = {
+            ai_mode:           document.getElementById('chat-cfg-ai-mode').value || 'api',
             provider,
             anthropic_api_key:  document.getElementById('chat-cfg-anthropic-key').value.trim(),
             anthropic_model:    document.getElementById('chat-cfg-anthropic-model').value.trim() || 'claude-sonnet-4-6',
@@ -1188,6 +1272,11 @@
             custom_api_key:     document.getElementById('chat-cfg-custom-key').value.trim(),
             custom_base_url:    document.getElementById('chat-cfg-custom-base-url').value.trim(),
             custom_model:       document.getElementById('chat-cfg-custom-model').value.trim(),
+            cli_agent:          document.getElementById('chat-cfg-cli-agent').value || 'claude',
+            cli_model:          document.getElementById('chat-cfg-cli-model').value.trim(),
+            claude_cli_path:    document.getElementById('chat-cfg-claude-cli-path').value.trim(),
+            codex_cli_path:     document.getElementById('chat-cfg-codex-cli-path').value.trim(),
+            gemini_cli_path:    document.getElementById('chat-cfg-gemini-cli-path').value.trim(),
         };
         try {
             const resp = await fetch('/chat-config', {
@@ -1199,7 +1288,7 @@
             if (!resp.ok || data.error) throw new Error(data.error || 'Unable to save config');
             _chatCfgSnapshot = {};
             _closeConfigModal();
-            _appendMsg('sys', `AI provider saved: ${provider}`);
+            _appendMsg('sys', cfg.ai_mode === 'cli' ? `AI mode saved: Local CLI (${cfg.cli_agent})` : `AI provider saved: ${provider}`);
         } catch (e) {
             alert('Failed to save config: ' + e.message);
         }
@@ -1409,7 +1498,7 @@
 
         // Config button in header
         const cfgBtn = document.getElementById('chat-cfg-btn');
-        if (cfgBtn) cfgBtn.addEventListener('click', _openConfigModal);
+        if (cfgBtn) cfgBtn.addEventListener('click', _openAiSettingsFromChat);
 
         // History button
         const histBtn = document.getElementById('chat-hist-btn');
@@ -1433,6 +1522,12 @@
                 _updateProviderSections(this.value);
             });
         }
+        const modeSelect = document.getElementById('chat-cfg-ai-mode');
+        if (modeSelect) {
+            modeSelect.addEventListener('change', function () {
+                _updateProviderSections(providerSelect?.value || 'anthropic');
+            });
+        }
 
         document.querySelectorAll('[data-open-key-folder]').forEach(btn => {
             btn.addEventListener('click', async function () {
@@ -1447,17 +1542,23 @@
         });
 
         // Modal buttons
-        document.getElementById('chat-config-save').addEventListener('click', _saveConfig);
-        document.getElementById('chat-config-cancel').addEventListener('click', _closeConfigModal);
+        document.getElementById('chat-config-save')?.addEventListener('click', _saveConfig);
+        document.getElementById('chat-config-cancel')?.addEventListener('click', _closeConfigModal);
 
         // Close modal on backdrop click
-        _modal.addEventListener('click', function (e) {
+        _modal?.addEventListener('click', function (e) {
             if (e.target === _modal) _closeConfigModal();
         });
         document.addEventListener('click', function (e) {
             if (!e.target.closest('.chat-cfg-provider-dd')) {
                 document.querySelectorAll('.chat-cfg-provider-dd[data-open="true"]').forEach(dd => _setChatProviderDropdownOpen(dd, false));
             }
+        });
+        window.addEventListener('vizAiConfigChanged', function (e) {
+            _chatCfgSnapshot = e.detail || {};
+            _chatIsConfigured = _chatConfigIsReady(_chatCfgSnapshot);
+            _btn.classList.toggle('needs-setup', !_chatIsConfigured);
+            if (_chatIsConfigured) document.getElementById('chat-setup-card')?.remove();
         });
 
         // Keyboard shortcut: Alt+C toggles chat
@@ -1517,6 +1618,12 @@
             const r = await fetch('/chat-config');
             if (!r.ok) return;
             const cfg = await r.json();
+            _chatCfgSnapshot = cfg || {};
+            _chatIsConfigured = _chatConfigIsReady(_chatCfgSnapshot);
+            _btn.classList.toggle('needs-setup', !_chatIsConfigured);
+            _btn.title = _chatIsConfigured ? 'AI Chat' : 'AI Chat - open to set up';
+            if (!_chatIsConfigured && _isOpen) _appendSetupGuide();
+            return;
             // If no API key is set at all, prompt setup on first open
             const hasKey = cfg.anthropic_api_key || cfg.openai_api_key || cfg.grok_api_key || cfg.gemini_api_key;
             if (!hasKey) {

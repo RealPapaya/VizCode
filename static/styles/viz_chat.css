@@ -30,6 +30,10 @@
     color: var(--accent);
 }
 
+#chat-btn.needs-setup {
+    color: #eab308;
+}
+
 #chat-btn svg {
     width: 16px;
     height: 16px;
@@ -825,6 +829,46 @@
 #chat-send:disabled { opacity: .4; cursor: default; }
 
 #chat-send.stop { background: #ef4444; }
+
+.chat-setup-card {
+    align-self: stretch;
+    margin: 6px 10px 10px;
+    padding: 12px;
+    border: 1px solid color-mix(in srgb, #eab308 34%, var(--border));
+    border-radius: 8px;
+    background: color-mix(in srgb, #eab308 8%, var(--panel2));
+    color: var(--text);
+}
+
+.chat-setup-title {
+    font-size: 12px;
+    font-weight: 800;
+    color: #eab308;
+}
+
+.chat-setup-copy {
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 11.5px;
+    line-height: 1.45;
+}
+
+.chat-setup-btn {
+    margin-top: 10px;
+    border: none;
+    border-radius: 6px;
+    background: var(--accent);
+    color: #000;
+    padding: 7px 10px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.chat-setup-btn:hover {
+    background: var(--accent2);
+}
 
 /* ── Config modal ────────────────────────────────────────────────────────── */
 #chat-config-modal {

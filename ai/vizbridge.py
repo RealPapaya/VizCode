@@ -81,6 +81,7 @@ _SECRET_FIELDS = (
 )
 
 _DEFAULTS: dict = {
+    "ai_mode":             "api",
     "provider":            "anthropic",
     "anthropic_api_key":   "",
     "anthropic_model":     "claude-sonnet-4-6",
@@ -97,6 +98,11 @@ _DEFAULTS: dict = {
     "custom_api_key":      "",
     "custom_base_url":     "",
     "custom_model":        "",
+    "cli_agent":           "claude",
+    "cli_model":           "",
+    "claude_cli_path":     "",
+    "codex_cli_path":      "",
+    "gemini_cli_path":     "",
 }
 
 
@@ -193,6 +199,12 @@ def masked_config() -> dict:
     out["key_store_file"] = str(_KEYS_PATH)
     out["ollama_url_present"] = bool(cfg.get("ollama_url"))
     return out
+
+
+def cli_agents_config() -> dict:
+    """Return detected local CLI agents and current CLI selection."""
+    from ai.cli_runtime import availability_report
+    return availability_report(load_config())
 
 
 # ─── ProviderRouter ───────────────────────────────────────────────────────────
@@ -481,18 +493,25 @@ class VizBridge:
           {"type": "error",     "message": "..."}
         """
         # ── DEBUG LOG ────────────────────────────────────────────────────────
+        _mode = (self._cfg.get('ai_mode') or 'api').lower()
         _p = self._cfg.get('provider', '?')
+        _cli = self._cfg.get('cli_agent', '?')
         _k = self._cfg.get(f'{_p}_api_key', '') or self._cfg.get('ollama_url', '')
-        print(f'[VizBridge.stream_response] called  provider={_p}  key_present={bool(_k)}  msgs={len(messages)}  depth={depth!r}  output={output!r}')
+        print(f'[VizBridge.stream_response] called  mode={_mode}  provider={_p}  cli={_cli}  key_present={bool(_k)}  msgs={len(messages)}  depth={depth!r}  output={output!r}')
         import sys; sys.stdout.flush()
         # ─────────────────────────────────────────────────────────────────────
-        try:
-            provider = ProviderRouter(self._cfg).get_provider()
-            yield {"type": "provider", "name": self._cfg.get("provider")}
-        except ValueError as e:
-            print(f'[VizBridge.stream_response] provider error: {e}')
-            yield {"type": "error", "message": str(e)}
-            return
+        if _mode == "cli":
+            from ai.cli_runtime import CliRuntime
+            provider = CliRuntime(self._cfg)
+            yield {"type": "provider", "name": provider.provider_name}
+        else:
+            try:
+                provider = ProviderRouter(self._cfg).get_provider()
+                yield {"type": "provider", "name": self._cfg.get("provider")}
+            except ValueError as e:
+                print(f'[VizBridge.stream_response] provider error: {e}')
+                yield {"type": "error", "message": str(e)}
+                return
 
         # Resolve depth + output into (tool whitelist, prompt addendum).
         whitelist, addendum = _resolve_mode(depth, output)
@@ -566,6 +585,9 @@ class VizBridge:
                     yield ev
                     return
 
+                elif ev["type"] == "status":
+                    yield ev
+
             # Append text to assistant content if any
             for blob in synthetic_tool_blobs:
                 text_buf = text_buf.replace(blob, "")
@@ -587,6 +609,10 @@ class VizBridge:
                 if tc["id"] in ui_results:
                     result = ui_results[tc["id"]]
                 else:
+                    yield {
+                        "type": "status",
+                        "message": f"Running tool {tc['name']}...",
+                    }
                     result = self._tools.call(tc["name"], tc["input"])
                     yield {
                         "type":   "tool_call",
