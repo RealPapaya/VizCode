@@ -510,6 +510,8 @@ const _PREF_AI_PROVIDER_KEY_FIELDS = {
 };
 
 let _prefAiCfgSnapshot = {};
+let _prefCliAgents = [];
+let _prefSelectedCliAgent = 'claude';
 
 function _prefT(key, fallback) {
     return (typeof T === 'function') ? T(key) : fallback;
@@ -530,6 +532,49 @@ function _prefAiProviderHasStoredCredential(provider, cfg) {
     return key ? !!(cfg && cfg[`${key}_present`]) : false;
 }
 
+function _prefAiIsConfigured(cfg) {
+    if (!cfg) return false;
+    if ((cfg.ai_mode || 'api') === 'cli') return !!(cfg.cli_agent || 'claude');
+    return _prefAiProviderHasStoredCredential(cfg.provider || 'anthropic', cfg);
+}
+
+function _prefAiProviderLabel(provider) {
+    const labels = {
+        anthropic: 'Anthropic',
+        openai: 'OpenAI',
+        grok: 'Grok',
+        gemini: 'Gemini',
+        ollama: 'Ollama',
+        custom: 'Custom',
+    };
+    return labels[provider] || provider || 'AI';
+}
+
+function _prefAiSyncNavState(cfg) {
+    const nav = document.querySelector('.pref-nav-item[data-pref-section="ai"]');
+    if (!nav) return;
+    const configured = _prefAiIsConfigured(cfg);
+    const mode = (cfg?.ai_mode || 'api') === 'cli' ? 'cli' : 'api';
+    nav.classList.toggle('pref-nav-ai-configured', configured);
+    nav.classList.toggle('pref-nav-ai-missing', !configured);
+    nav.dataset.aiMode = mode;
+    nav.dataset.aiConfigured = configured ? 'true' : 'false';
+
+    let badge = nav.querySelector('.pref-nav-status');
+    if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'pref-nav-status';
+        nav.appendChild(badge);
+    }
+    if (configured) {
+        badge.textContent = mode === 'cli'
+            ? `CLI: ${cfg?.cli_agent || 'claude'}`
+            : _prefAiProviderLabel(cfg?.provider || 'anthropic');
+    } else {
+        badge.textContent = _prefT('prefAiSetupRequired', 'Setup');
+    }
+}
+
 function _prefAiSetKeyStatus(statusId, cfgKey, cfg) {
     const el = _prefAiField(statusId);
     if (!el) return;
@@ -545,6 +590,83 @@ function _prefAiSetKeyStatus(statusId, cfgKey, cfg) {
     }
 }
 
+function _prefAiActiveMode() {
+    const active = document.querySelector('.pref-ai-mode-btn.active');
+    return active?.dataset.prefAiMode === 'cli' ? 'cli' : 'api';
+}
+
+function _prefCliStatusText(agent) {
+    if (!agent) return _prefT('prefAiCliUnknown', 'Unknown');
+    if (!agent.available) return _prefT('prefAiCliNotFound', 'Not found');
+    const version = agent.version ? ` - ${agent.version}` : '';
+    return `${agent.path || agent.binary}${version}`;
+}
+
+function _prefRenderCliAgents() {
+    const list = _prefAiField('cli-agent-list');
+    if (!list) return;
+    const agents = _prefCliAgents.length ? _prefCliAgents : [
+        { key: 'claude', label: 'Claude Code', available: false },
+        { key: 'codex', label: 'Codex CLI', available: false },
+        { key: 'gemini', label: 'Gemini CLI', available: false },
+    ];
+    list.innerHTML = agents.map(agent => {
+        const active = agent.key === _prefSelectedCliAgent;
+        const available = !!agent.available;
+        return `<button type="button" class="pref-ai-cli-card${active ? ' active' : ''}${available ? ' available' : ''}" data-cli-agent="${_prefEscHtml(agent.key)}" aria-pressed="${active ? 'true' : 'false'}">
+          <span class="pref-ai-cli-card-title">${_prefEscHtml(agent.label || agent.key)}</span>
+          <span class="pref-ai-cli-card-status">${_prefEscHtml(_prefCliStatusText(agent))}</span>
+        </button>`;
+    }).join('');
+    list.querySelectorAll('[data-cli-agent]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            _prefSelectedCliAgent = btn.dataset.cliAgent || 'claude';
+            const select = _prefAiField('cli-agent');
+            if (select) select.value = _prefSelectedCliAgent;
+            _prefRenderCliAgents();
+        });
+    });
+}
+
+async function _prefAiLoadCliAgents() {
+    const status = _prefAiField('cli-status');
+    if (status) status.textContent = _prefT('prefAiCliRefreshing', 'Refreshing...');
+    try {
+        const resp = await fetch('/chat-cli-agents');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        _prefCliAgents = Array.isArray(data.agents) ? data.agents : [];
+        _prefSelectedCliAgent = (_prefAiField('cli-agent')?.value || data.selected || _prefSelectedCliAgent || 'claude');
+        _prefRenderCliAgents();
+        if (status) status.textContent = _prefT('prefAiCliRefreshed', 'CLI status refreshed');
+    } catch (err) {
+        if (status) status.textContent = _prefT('prefAiCliRefreshFailed', 'Could not refresh CLI status');
+        console.warn('Failed to load CLI agents', err);
+    }
+}
+
+async function _prefAiTestCli() {
+    const status = _prefAiField('cli-status');
+    const btn = _prefAiField('cli-test');
+    if (btn) btn.disabled = true;
+    if (status) status.textContent = _prefT('prefAiCliTesting', 'Testing...');
+    try {
+        const resp = await fetch('/chat-cli-test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(_prefAiBuildPayload()),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || data.error) throw new Error(data.error || 'CLI test failed');
+        if (status) status.textContent = `${_prefT('prefAiCliTestOk', 'Test ok')}: ${data.text || data.provider || ''}`;
+    } catch (err) {
+        if (status) status.textContent = `${_prefT('prefAiCliTestFailed', 'Test failed')}: ${err.message}`;
+        console.warn('CLI test failed', err);
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
 function _prefAiUpdateProviderSections(provider) {
     document.querySelectorAll('.pref-ai-provider-section').forEach(sec => {
         sec.hidden = sec.dataset.provider !== provider;
@@ -554,12 +676,14 @@ function _prefAiUpdateProviderSections(provider) {
         opt.classList.toggle('active', active);
         const stored = _prefAiProviderHasStoredCredential(opt.dataset.provider, _prefAiCfgSnapshot);
         opt.classList.toggle('has-stored-key', stored);
+        opt.classList.toggle('is-current', active && stored);
         opt.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
 }
 
 function _prefAiApplyConfig(cfg) {
     _prefAiCfgSnapshot = cfg || {};
+    _prefSelectedCliAgent = cfg.cli_agent || 'claude';
     const provider = cfg.provider || 'anthropic';
     _prefAiField('provider').value = provider;
 
@@ -577,6 +701,11 @@ function _prefAiApplyConfig(cfg) {
     _prefAiField('custom-key').value = '';
     _prefAiField('custom-base-url').value = cfg.custom_base_url || '';
     _prefAiField('custom-model').value = cfg.custom_model || '';
+    _prefAiField('cli-agent').value = _prefSelectedCliAgent;
+    _prefAiField('cli-model').value = cfg.cli_model || '';
+    _prefAiField('cli-claude-path').value = cfg.claude_cli_path || '';
+    _prefAiField('cli-codex-path').value = cfg.codex_cli_path || '';
+    _prefAiField('cli-gemini-path').value = cfg.gemini_cli_path || '';
 
     _prefAiSetKeyStatus('anthropic-key-status', 'anthropic_api_key', cfg);
     _prefAiSetKeyStatus('openai-key-status', 'openai_api_key', cfg);
@@ -590,10 +719,15 @@ function _prefAiApplyConfig(cfg) {
         keyFolderBtn.title = _prefT('prefAiOpenKeyFolder', 'Open key folder') + `: ${keyDir}`;
     }
     _prefAiUpdateProviderSections(provider);
+    _prefAiSyncNavState(cfg);
+    window.dispatchEvent(new CustomEvent('vizAiConfigChanged', { detail: cfg }));
+    const mode = cfg.ai_mode === 'cli' ? 'cli' : 'api';
+    _prefAiSetMode(mode);
+    if (mode !== 'cli') _prefAiLoadCliAgents();
 }
 
 async function _prefAiLoadConfig() {
-    const status = _prefAiField('save-status');
+    const status = _prefAiActiveMode() === 'cli' ? _prefAiField('cli-status') : _prefAiField('save-status');
     if (status) status.textContent = _prefT('prefAiLoading', 'Loading...');
     let cfg = {};
     try {
@@ -611,6 +745,7 @@ async function _prefAiLoadConfig() {
 function _prefAiBuildPayload() {
     const provider = _prefAiField('provider').value;
     return {
+        ai_mode: _prefAiActiveMode(),
         provider,
         anthropic_api_key: _prefAiField('anthropic-key').value.trim(),
         anthropic_model: _prefAiField('anthropic-model').value.trim() || 'claude-sonnet-4-6',
@@ -626,14 +761,21 @@ function _prefAiBuildPayload() {
         custom_api_key: _prefAiField('custom-key').value.trim(),
         custom_base_url: _prefAiField('custom-base-url').value.trim(),
         custom_model: _prefAiField('custom-model').value.trim(),
+        cli_agent: _prefAiField('cli-agent').value || _prefSelectedCliAgent || 'claude',
+        cli_model: _prefAiField('cli-model').value.trim(),
+        claude_cli_path: _prefAiField('cli-claude-path').value.trim(),
+        codex_cli_path: _prefAiField('cli-codex-path').value.trim(),
+        gemini_cli_path: _prefAiField('cli-gemini-path').value.trim(),
     };
 }
 
 async function _prefAiSaveConfig() {
     const saveBtn = _prefAiField('save');
-    const status = _prefAiField('save-status');
+    const cliSaveBtn = _prefAiField('cli-save');
+    const status = _prefAiActiveMode() === 'cli' ? _prefAiField('cli-status') : _prefAiField('save-status');
     const cfg = _prefAiBuildPayload();
     if (saveBtn) saveBtn.disabled = true;
+    if (cliSaveBtn) cliSaveBtn.disabled = true;
     if (status) status.textContent = _prefT('prefAiSaving', 'Saving...');
     try {
         const resp = await fetch('/chat-config', {
@@ -650,6 +792,7 @@ async function _prefAiSaveConfig() {
         console.warn('Failed to save preference AI settings', err);
     } finally {
         if (saveBtn) saveBtn.disabled = false;
+        if (cliSaveBtn) cliSaveBtn.disabled = false;
     }
 }
 
@@ -663,7 +806,8 @@ function _prefAiSetMode(mode) {
     document.querySelectorAll('.pref-ai-mode-panel').forEach(panel => {
         panel.hidden = panel.dataset.prefAiModePanel !== selected;
     });
-    if (selected === 'api') _prefAiLoadConfig();
+    document.querySelector('.pref-ai-shell')?.setAttribute('data-active-mode', selected);
+    if (selected === 'cli') _prefAiLoadCliAgents();
 }
 
 function _prefAiProviderBlock(provider, rows) {
@@ -741,11 +885,21 @@ function _buildPrefAiSettingsHTML() {
           </div>
         </div>
         <div class="pref-ai-mode-panel" data-pref-ai-mode-panel="cli" hidden>
-          <div class="pref-ai-cli-placeholder">
-            <span class="pref-ai-cli-badge" data-i18n="prefAiReserved">Reserved</span>
-            <h3 data-i18n="prefAiCliTitle">Local CLI adapter</h3>
-            <p data-i18n="prefAiCliDesc">This entry is reserved for a later local CLI implementation.</p>
-            <button type="button" class="pref-ai-secondary-btn" disabled data-i18n="prefAiComingSoon">Coming soon</button>
+          <div class="pref-ai-cli-panel">
+            <input id="pref-ai-cli-agent" type="hidden" value="claude">
+            <div id="pref-ai-cli-agent-list" class="pref-ai-cli-agent-list" role="group" aria-label="Local CLI agent"></div>
+            <div class="pref-ai-cli-form">
+              ${_prefAiTextField('cli-model', 'prefAiModel', 'Model', 'optional; uses CLI default when blank')}
+              ${_prefAiTextField('cli-claude-path', 'prefAiCliClaudePath', 'Claude path', 'claude')}
+              ${_prefAiTextField('cli-codex-path', 'prefAiCliCodexPath', 'Codex path', 'codex')}
+              ${_prefAiTextField('cli-gemini-path', 'prefAiCliGeminiPath', 'Gemini path', 'gemini')}
+              <div class="pref-ai-save-row">
+                <button type="button" id="pref-ai-cli-refresh" class="pref-ai-secondary-btn" data-i18n="prefAiCliRefresh">Refresh</button>
+                <button type="button" id="pref-ai-cli-test" class="pref-ai-secondary-btn" data-i18n="prefAiCliTest">Test</button>
+                <span id="pref-ai-cli-status" class="pref-ai-save-status"></span>
+                <button type="button" id="pref-ai-cli-save" class="pref-ai-save-btn" data-i18n="prefAiSave">Save</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -999,7 +1153,7 @@ function _activatePrefSection(sectionId, previewId) {
         activePanel?.querySelector('select')?.id;
     const target = targetId ? document.getElementById(targetId) : null;
     if (target && _prefSupportsPreview(target.id)) _showPrefPreview(target.id, target.value);
-    if (selected === 'ai') _prefAiSetMode('api');
+    if (selected === 'ai') _prefAiLoadConfig();
 }
 
 function _initPrefSectionNav(modal) {
@@ -1373,6 +1527,9 @@ function _initPrefAiSettings(modal) {
     });
 
     _prefAiField('save')?.addEventListener('click', _prefAiSaveConfig);
+    _prefAiField('cli-save')?.addEventListener('click', _prefAiSaveConfig);
+    _prefAiField('cli-refresh')?.addEventListener('click', _prefAiLoadCliAgents);
+    _prefAiField('cli-test')?.addEventListener('click', _prefAiTestCli);
     _prefAiField('open-key-folder')?.addEventListener('click', async () => {
         const status = _prefAiField('save-status');
         try {
@@ -1407,6 +1564,7 @@ function initPreferences() {
     const prefModal = document.getElementById('pref-modal');
     _initPrefSectionNav(prefModal);
     _initPrefAiSettings(prefModal);
+    _prefAiLoadConfig();
 
     // Apply saved values on load
     const savedFont = getSavedFont();
@@ -1449,11 +1607,15 @@ function initPreferences() {
     if (layoutL1Sel) layoutL1Sel.value = _PREFS.get('layoutL1');
     if (layoutL2Sel) layoutL2Sel.value = _PREFS.get('layoutL2');
 
-    // Open/close
-    prefBtn.addEventListener('click', () => {
+    function openPreferences(section = 'appearance') {
         prefModal.style.display = 'flex';
-        setTimeout(() => _activatePrefSection('appearance'), 50);
-    });
+        setTimeout(() => _activatePrefSection(section || 'appearance'), 50);
+    }
+    window.openPreferences = openPreferences;
+    window.openAiSettings = () => openPreferences('ai');
+
+    // Open/close
+    prefBtn.addEventListener('click', () => openPreferences('appearance'));
     const close = () => { prefModal.style.display = 'none'; };
     document.getElementById('pref-close-x')?.addEventListener('click', close);
     document.getElementById('pref-close-btn')?.addEventListener('click', close);

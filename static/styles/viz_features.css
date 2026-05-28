@@ -2467,6 +2467,37 @@
     transition: background .15s, border-color .15s, color .15s;
 }
 
+.pref-nav-status {
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+    margin-top: 5px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, .12);
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pref-nav-item.pref-nav-ai-configured {
+    border-color: color-mix(in srgb, #22c55e 28%, var(--border));
+}
+
+.pref-nav-item.pref-nav-ai-configured .pref-nav-status {
+    background: color-mix(in srgb, #22c55e 14%, transparent);
+    color: #22c55e;
+}
+
+.pref-nav-item.pref-nav-ai-missing .pref-nav-status {
+    background: color-mix(in srgb, #eab308 14%, transparent);
+    color: #eab308;
+}
+
 .pref-nav-item:hover {
     color: var(--text);
     background: color-mix(in srgb, var(--accent) 7%, transparent);
@@ -2812,6 +2843,7 @@
     background: color-mix(in srgb, var(--accent) 14%, var(--panel));
     border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
     color: var(--accent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .pref-ai-mode-panel {
@@ -2883,6 +2915,10 @@
     color: var(--accent);
     background: color-mix(in srgb, var(--accent) 10%, var(--panel2));
     border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.pref-ai-provider-option.is-current {
+    box-shadow: 0 0 0 2px color-mix(in srgb, #22c55e 16%, transparent);
 }
 
 .pref-ai-form {
@@ -3016,40 +3052,88 @@
     opacity: .45;
 }
 
-.pref-ai-cli-placeholder {
+.pref-ai-cli-panel {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.pref-ai-cli-agent-list {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-    max-width: 520px;
-    padding: 18px;
-    border: 1px dashed color-mix(in srgb, var(--accent) 34%, var(--border));
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--panel2) 58%, transparent);
+    gap: 8px;
+    min-width: 0;
 }
 
-.pref-ai-cli-badge {
-    color: var(--accent);
-    border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border));
-    border-radius: 999px;
-    padding: 2px 8px;
-    font-size: 10px;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: .06em;
-}
-
-.pref-ai-cli-placeholder h3 {
-    margin: 0;
-    color: var(--text);
-    font-size: 15px;
-}
-
-.pref-ai-cli-placeholder p {
-    margin: 0;
+.pref-ai-cli-card {
+    width: 100%;
+    min-height: 70px;
+    border: 1px solid var(--border);
+    background: var(--panel2);
     color: var(--muted);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, color .15s;
+}
+
+.pref-ai-cli-card:hover {
+    color: var(--text);
+    border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+}
+
+.pref-ai-cli-card.active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, var(--panel2));
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.pref-ai-cli-card.available .pref-ai-cli-card-status::before {
+    background: #22c55e;
+}
+
+.pref-ai-cli-card-title,
+.pref-ai-cli-card-status {
+    display: block;
+    min-width: 0;
+}
+
+.pref-ai-cli-card-title {
+    color: var(--text);
     font-size: 12px;
-    line-height: 1.55;
+    font-weight: 800;
+}
+
+.pref-ai-cli-card-status {
+    position: relative;
+    margin-top: 7px;
+    padding-left: 14px;
+    font-size: 11px;
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pref-ai-cli-card-status::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: .45em;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--border);
+}
+
+.pref-ai-cli-form {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    min-width: 0;
 }
 
 /* Settings modal responsive */
@@ -3096,7 +3180,8 @@
     }
 
     .pref-ai-mode-switch,
-    .pref-ai-api-grid {
+    .pref-ai-api-grid,
+    .pref-ai-cli-panel {
         width: 100%;
         grid-template-columns: 1fr;
     }
