@@ -1,8 +1,8 @@
 """
 parsers/bios_parser.py — BIOS / UEFI / AMI Firmware Parser
 
-Handles all BIOS-related file types:
-  C/C++ / Assembly    .c .cpp .h .hpp .asm .s .S .nasm
+Handles BIOS-related file types:
+  Assembly            .asm .s .S .nasm
   EDK2 build system   .inf .dec .dsc .fdf
   AMI BIOS            .sdl .sd .cif .mak
   HII (Setup UI)      .vfr .hfr .uni
@@ -613,7 +613,6 @@ def scan_c(src: str, ext: str):
 
 # Extensions handled by this parser
 BIOS_EXTENSIONS = {
-    '.c','.cpp','.cc','.h','.hpp',
     '.asm','.s','.S','.nasm',
     '.inf','.dec','.dsc','.fdf',
     '.sdl','.sd','.cif','.mak',
@@ -632,8 +631,7 @@ def scan_bios(src: str, ext: str):
     Returns:
         (refs, funcdefs, funccalls, extra_dict, func_calls_by_func, symbol_defs)
         — same 6-tuple as all other parsers.  symbol_defs is a list of
-        {kind, name, line, end_line, bases, parent, is_public} dicts; it is
-        non-empty only for C/C++ source files.
+        {kind, name, line, end_line, bases, parent, is_public} dicts.
     """
     ext = ext.lower()
 
@@ -689,5 +687,4 @@ def scan_bios(src: str, ext: str):
         data = scan_asl(src)
         return data['includes'], [], [], data, [], []
 
-    # C / C++ / Assembly fallback
-    return scan_c(src, ext)
+    return [], [], [], None, [], []

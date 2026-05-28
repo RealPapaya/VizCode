@@ -115,6 +115,13 @@ class TestBuildGraphContent:
         assert isinstance(graph['edge_types'], dict)
         assert len(graph['edge_types']) > 0
 
+    def test_c_cpp_and_csharp_use_dedicated_parsers(self):
+        assert analyze_viz._get_parser_fn('.c').__name__ == 'scan_c_cpp'
+        assert analyze_viz._get_parser_fn('.cpp').__name__ == 'scan_c_cpp'
+        assert analyze_viz._get_parser_fn('.h').__name__ == 'scan_c_cpp'
+        assert analyze_viz._get_parser_fn('.cs').__name__ == 'scan_csharp'
+        assert analyze_viz._get_parser_fn('.inf').__name__ == 'scan_bios'
+
 
 # ─── Symbol index structure ───────────────────────────────────────────────────
 

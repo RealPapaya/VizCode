@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 analyze_viz.py V4 — VIZCODE Universal Code Visualizer
-Supports: UEFI/BIOS (C/H/ASM/INF/DEC/DSC/FDF/SDL/CIF/MAK/VFR/HFR/UNI/ASL)
+Supports: C/C++ (C/H/CPP/HPP), UEFI/BIOS (ASM/INF/DEC/DSC/FDF/SDL/CIF/MAK/VFR/HFR/UNI/ASL)
           Python (.py)
           JavaScript / TypeScript (.js/.mjs/.cjs/.jsx/.ts/.tsx)
           Go (.go)
@@ -54,6 +54,8 @@ for _p in (str(_SRC_DIR), str(_CORE_DIR)):
 
 try:
     from parsers.bios_parser   import scan_bios, BIOS_EXTENSIONS as _BIOS_EXTENSIONS
+    from parsers.c_cpp_parser  import scan_c_cpp, C_CPP_EXTENSIONS as _C_CPP_EXTENSIONS
+    from parsers.csharp_parser import scan_csharp, CSHARP_EXTENSIONS as _CSHARP_EXTENSIONS
     from parsers.python_parser import scan_python
     from parsers.js_parser     import scan_js, scan_ts, JS_KEYWORDS as _JS_KEYWORDS
     from parsers.go_parser     import scan_go
@@ -64,6 +66,8 @@ try:
 except ImportError as _pe:
     _PARSERS_LOADED = False
     _BIOS_EXTENSIONS = set()
+    _C_CPP_EXTENSIONS = set()
+    _CSHARP_EXTENSIONS = set()
     _console_print(f'[WARN] Could not load language parsers: {_pe}', file=sys.stderr)
 
 import parse_memo
@@ -94,8 +98,12 @@ def _get_parser_fn(ext: str):
     Returns None when parsers aren't loaded (C-like fallback path)."""
     if not _PARSERS_LOADED:
         return None
+    if ext in _C_CPP_EXTENSIONS:
+        return scan_c_cpp
     if ext in _BIOS_EXTENSIONS:
         return scan_bios
+    if ext in _CSHARP_EXTENSIONS:
+        return scan_csharp
     if ext == '.py':
         return scan_python
     if ext in ('.js', '.mjs', '.cjs', '.jsx'):
@@ -125,8 +133,8 @@ SKIP_DIRS  = {
 }
 BUILD_DIRS = {'Build','build','DEBUG','RELEASE'}
 SCAN_EXT   = {
-    # ── C/C++ / ASM (BIOS) ─────────────────────────────────────────────────
-    '.c','.cpp','.cc','.h','.hpp','.asm','.s','.S','.nasm',
+    # ── C/C++ / ASM ────────────────────────────────────────────────────────
+    '.c','.cpp','.cc','.cxx','.h','.hpp','.hh','.hxx','.asm','.s','.S','.nasm',
     # ── UEFI / EDK2 build system ───────────────────────────────────────────
     '.inf', '.dec', '.dsc', '.fdf',
     # ── AMI BIOS proprietary ───────────────────────────────────────────────
@@ -168,9 +176,9 @@ SKIP_EXT   = {'.veb','.lib','.obj','.efi','.rom','.bin','.log','.map'}
 
 # ─── File type semantic categories ───────────────────────────────────────────
 FILE_TYPE_MAP = {
-    # BIOS / C
-    '.c': 'c_source', '.cpp': 'c_source', '.cc': 'c_source',
-    '.h': 'header',   '.hpp': 'header',
+    # C / C++ and BIOS assets
+    '.c': 'c_source', '.cpp': 'c_source', '.cc': 'c_source', '.cxx': 'c_source',
+    '.h': 'header',   '.hpp': 'header', '.hh': 'header', '.hxx': 'header',
     '.asm': 'assembly', '.s': 'assembly', '.S': 'assembly', '.nasm': 'assembly',
     '.inf': 'module_inf',
     '.dec': 'package_dec',
@@ -252,7 +260,7 @@ EDGE_TYPES = {
     'inferred':      {'label': 'Inferred',  'color': '#94a3b8', 'style': 'dashed', 'kind': 'inferred'},
 }
 
-# C_KEYWORDS now lives in parsers/bios_parser.py
+# C/C++ parsing lives in parsers/c_cpp_parser.py; BIOS parser handles firmware formats.
 
 MODULE_COLORS = [
     '#00d4ff','#00ff9f','#ff6b35','#ffd700','#a78bfa',
@@ -582,14 +590,14 @@ KNOWN_SYS_FUNCS: Dict[str, str] = {
     'LibReportStatusCode':          'Status Code',
 }
 
-# ─── All BIOS/UEFI/AMI/C parsers → parsers/bios_parser.py ──────────────────────
+# ─── Parser dispatch wrappers ─────────────────────────────────────────────────
 
 # ─── scan_file ────────────────────────────────────────────────────────────────
 def scan_file(filepath: str, root: str, _memo: Optional[dict] = None):
     """
-    Returns (includes_or_refs, funcdefs, funccalls, bios_extra_dict, func_calls_by_func, symbol_defs)
-    bios_extra_dict varies by file type; None for C/H/ASM.
-    symbol_defs is a list of {kind, name, line, end_line, bases, parent, is_public} — may be [] for BIOS/C.
+    Returns (includes_or_refs, funcdefs, funccalls, extra_dict, func_calls_by_func, symbol_defs)
+    extra_dict varies by file type; None for some firmware/assembly inputs.
+    symbol_defs is a list of {kind, name, line, end_line, bases, parent, is_public}.
 
     _memo: optional in-memory cache dict from parse_memo.open_memo().  When
            provided, results are looked up before parsing and stored afterward.
@@ -643,7 +651,9 @@ def _compute_parse_result(file_bytes: bytes, ext: str) -> tuple:
     loc_data = count_loc(src, ext) if _PARSERS_LOADED else {'code': 0, 'comment': 0, 'blank': 0}
 
     raw = None
-    if ext in _BIOS_EXTENSIONS and _PARSERS_LOADED:
+    if ext in _C_CPP_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_c_cpp(src, ext)
+    elif ext in _BIOS_EXTENSIONS and _PARSERS_LOADED:
         raw = scan_bios(src, ext)
     elif ext == '.py' and _PARSERS_LOADED:
         raw = scan_python(src)
@@ -653,6 +663,8 @@ def _compute_parse_result(file_bytes: bytes, ext: str) -> tuple:
         raw = scan_ts(src)
     elif ext == '.go' and _PARSERS_LOADED:
         raw = scan_go(src)
+    elif ext in _CSHARP_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_csharp(src, ext)
     elif ext == '.json' and _PARSERS_LOADED:
         raw = scan_json(src, ext)
     elif _PARSERS_LOADED:
@@ -1557,7 +1569,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         ext = file_meta[src_rel]['ext']
         src_dir = str(Path(src_rel).parent)
 
-        if ext in ('.c', '.cpp', '.cc', '.h', '.hpp', '.vfr', '.asl'):
+        if ext in ('.c', '.cpp', '.cc', '.cxx', '.h', '.hpp', '.hh', '.hxx', '.vfr', '.asl'):
             # Standard #include edges
             for inc in file_incs.get(src_rel, []):
                 for tgt in resolve_ref(inc, src_dir):

@@ -143,7 +143,9 @@ The browser graph shows static edges (imports, calls). The MCP server additional
 | Python | `python_parser.py` | imports · functions · classes · methods |
 | JavaScript / TypeScript | `js_parser.py` | imports · functions · classes · interfaces · enums |
 | Go | `go_parser.py` | imports · functions · structs · interfaces |
-| C / C++ / BIOS / EDK2 | `bios_parser.py` | includes · functions · structs · typedefs · enums · INF/SDL sections |
+| C / C++ | `c_cpp_parser.py` | includes · functions · methods · structs · typedefs · enums |
+| C# / .NET | `csharp_parser.py` | using directives · classes · records · interfaces · methods |
+| BIOS / EDK2 / AMI | `bios_parser.py` | ASM refs · INF/DEC/DSC/FDF · SDL/CIF · VFR/HFR/UNI/ASL |
 | Java, Rust, Swift, Kotlin, Ruby, PHP, Lua, Haskell, … (50+) | `common_parser.py` | imports · functions · classes (language-aware patterns) |
 
 ---
@@ -162,6 +164,8 @@ VizCode/
 │   ├── python_parser.py
 │   ├── js_parser.py
 │   ├── go_parser.py
+│   ├── c_cpp_parser.py
+│   ├── csharp_parser.py
 │   ├── bios_parser.py
 │   └── common_parser.py
 ├── static/
