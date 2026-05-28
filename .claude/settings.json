@@ -46,13 +46,15 @@
       "PowerShell($jid='4bf718f6'; $html = \\(Invoke-WebRequest -Uri \"http://localhost:7777/result?job=$jid\" -UseBasicParsing -TimeoutSec 30\\).Content; foreach \\($probe in @\\('_svLoadFileGraph','_svBuildFileGraphModel','_svApplyFocus','_svUpdateFocusDetailCard','dagre.graphlib.Graph','sv-focus-detail','sv-fd-section','sv-compound-toggle','sv-ghost-path','_SV_DUR_MS','easeInOutQuint'\\)\\) { \"{0,-25} => {1}\" -f $probe, $html.Contains\\($probe\\) }; Write-Output \"HTML size: $\\([math]::Round\\($html.Length / 1024\\)\\) KB\")",
       "PowerShell($jid='4bf718f6'; $sg = Invoke-RestMethod -Uri \"http://localhost:7777/symbol-graph?job=$jid&sym=sym_9_5\" -TimeoutSec 10; Write-Output \"=== Pet class \\(symbol-graph response\\) ===\"; \"name: $\\($sg.center.name\\)\"; \"signature: $\\($sg.center.signature\\)\"; \"docstring: $\\($sg.center.docstring\\)\"; Write-Output \"=== children signatures ===\"; $sg.center.children | Select-Object name,signature,is_public,docstring | Format-Table -AutoSize; $procIds = \\(Get-NetTCPConnection -LocalPort 7777 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess | Select-Object -Unique; foreach \\($pp in $procIds\\) { Stop-Process -Id $pp -Force -ErrorAction SilentlyContinue }; Remove-Item server_out.log, server_err.log, .jid -ErrorAction SilentlyContinue; Write-Output '--- server stopped ---')",
       "Bash(gh pr *)",
-      "Bash(node -c static/viz_state.js)",
-      "Bash(node -c static/viz_layout.js)",
-      "Bash(node -c static/viz_graph.js)",
-      "Bash(node -c static/viz_toolbar.js)",
-      "Bash(node -c static/features/galaxy_view/viz_galaxy.js)",
-      "Bash(node -c static/features/galaxy_view/viz_galaxy_physics.js)",
-      "Bash(node -c static/features/galaxy_view/viz_galaxy_graph.js)",
+      "Bash(node -c *)",
+      "Bash(node --check *)",
+      "Bash(curl -s *)",
+      "Bash(curl -sI *)",
+      "Bash(curl -sL *)",
+      "PowerShell(Select-String *)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "PowerShell(Get-Content *)",
+      "PowerShell(Get-Process *)",
       "Bash(awk '{print $5, $9}')",
       "PowerShell(Get-ChildItem \"d:\\\\Google AI\\\\CodeViz\\\\static\" -Recurse -File | Select-Object @{N='Path';E={$_.FullName.Replace\\('d:\\\\Google AI\\\\CodeViz\\\\static\\\\',''\\)}} | Sort-Object Path | Format-Table -AutoSize)",
       "Bash(node --check _dash_bundle.js)",
@@ -93,10 +95,7 @@
       "Edit(/.claude/skills/debug-graph-render/**)",
       "Edit(/.claude/skills/galaxy-workflow/**)"
     ],
-    "additionalDirectories": [
-      "D:\\Google AI\\CodeViz\\testproject\\.local",
-      "D:\\Google AI\\CodeViz"
-    ]
+    "additionalDirectories": []
   },
   "enableAllProjectMcpServers": true,
   "hooks": {

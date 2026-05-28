@@ -447,8 +447,10 @@ const LEGEND_NODES = [
     { shape: '●', label: '.java', color: '#ed8b00', exts: ['.java'] },
     { shape: '◐', label: '.kt', color: '#7f52ff', exts: ['.kt', '.kts'] },
     { shape: '●', label: '.scala', color: '#dc322f', exts: ['.scala'] },
+    { shape: '●', label: '.groovy', color: '#629fcc', exts: ['.groovy'] },
     { shape: '◐', label: '.dart', color: '#0175c2', exts: ['.dart'] },
     { shape: '●', label: '.swift', color: '#f05138', exts: ['.swift'] },
+    { shape: '●', label: '.m/.mm', color: '#438eff', exts: ['.m', '.mm'] },
     // ── .NET ──────────────────────────────────────────────────────────────────
     { shape: '◐', label: '.cs', color: '#9b4993', exts: ['.cs'] },
     { shape: '◐', label: '.fs', color: '#378bba', exts: ['.fs', '.fsx'] },
@@ -458,6 +460,8 @@ const LEGEND_NODES = [
     // ── Scripting ─────────────────────────────────────────────────────────────
     { shape: '●', label: '.rb', color: '#cc342d', exts: ['.rb'] },
     { shape: '●', label: '.php', color: '#8892bf', exts: ['.php'] },
+    { shape: '●', label: '.pl', color: '#39457e', exts: ['.pl', '.pm'] },
+    { shape: '●', label: '.lua', color: '#000080', exts: ['.lua'] },
     { shape: '◐', label: '.sh', color: '#4eaa25', exts: ['.sh', '.bash', '.zsh'] },
     // ── Functional ────────────────────────────────────────────────────────────
     { shape: '●', label: '.ex', color: '#6e4a7e', exts: ['.ex', '.exs'] },

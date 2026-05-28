@@ -61,6 +61,16 @@ try:
     from parsers.go_parser     import scan_go
     from parsers.java_parser   import scan_java, JAVA_EXTENSIONS as _JAVA_EXTENSIONS
     from parsers.rust_parser   import scan_rust, RUST_EXTENSIONS as _RUST_EXTENSIONS
+    from parsers.kotlin_parser import scan_kotlin, KOTLIN_EXTENSIONS as _KOTLIN_EXTENSIONS
+    from parsers.scala_parser  import scan_scala, SCALA_EXTENSIONS as _SCALA_EXTENSIONS
+    from parsers.groovy_parser import scan_groovy, GROOVY_EXTENSIONS as _GROOVY_EXTENSIONS
+    from parsers.dart_parser   import scan_dart, DART_EXTENSIONS as _DART_EXTENSIONS
+    from parsers.swift_parser  import scan_swift, SWIFT_EXTENSIONS as _SWIFT_EXTENSIONS
+    from parsers.objc_parser   import scan_objc, OBJC_EXTENSIONS as _OBJC_EXTENSIONS
+    from parsers.php_parser    import scan_php, PHP_EXTENSIONS as _PHP_EXTENSIONS
+    from parsers.perl_parser   import scan_perl, PERL_EXTENSIONS as _PERL_EXTENSIONS
+    from parsers.lua_parser    import scan_lua, LUA_EXTENSIONS as _LUA_EXTENSIONS
+    from parsers.shell_parser  import scan_shell, SHELL_EXTENSIONS as _SHELL_EXTENSIONS
     from parsers.json_parser   import scan_json
     from parsers.common_parser import scan_common, count_loc
     from detector              import detect_project_type, fmt_detection_banner
@@ -72,6 +82,16 @@ except ImportError as _pe:
     _CSHARP_EXTENSIONS = set()
     _JAVA_EXTENSIONS = set()
     _RUST_EXTENSIONS = set()
+    _KOTLIN_EXTENSIONS = set()
+    _SCALA_EXTENSIONS = set()
+    _GROOVY_EXTENSIONS = set()
+    _DART_EXTENSIONS = set()
+    _SWIFT_EXTENSIONS = set()
+    _OBJC_EXTENSIONS = set()
+    _PHP_EXTENSIONS = set()
+    _PERL_EXTENSIONS = set()
+    _LUA_EXTENSIONS = set()
+    _SHELL_EXTENSIONS = set()
     _console_print(f'[WARN] Could not load language parsers: {_pe}', file=sys.stderr)
 
 import parse_memo
@@ -120,6 +140,26 @@ def _get_parser_fn(ext: str):
         return scan_java
     if ext in _RUST_EXTENSIONS:
         return scan_rust
+    if ext in _KOTLIN_EXTENSIONS:
+        return scan_kotlin
+    if ext in _SCALA_EXTENSIONS:
+        return scan_scala
+    if ext in _GROOVY_EXTENSIONS:
+        return scan_groovy
+    if ext in _DART_EXTENSIONS:
+        return scan_dart
+    if ext in _SWIFT_EXTENSIONS:
+        return scan_swift
+    if ext in _OBJC_EXTENSIONS:
+        return scan_objc
+    if ext in _PHP_EXTENSIONS:
+        return scan_php
+    if ext in _PERL_EXTENSIONS:
+        return scan_perl
+    if ext in _LUA_EXTENSIONS:
+        return scan_lua
+    if ext in _SHELL_EXTENSIONS:
+        return scan_shell
     if ext == '.json':
         return scan_json
     return scan_common  # generic fallback for all other recognized extensions
@@ -675,8 +715,28 @@ def _compute_parse_result(file_bytes: bytes, ext: str) -> tuple:
         raw = scan_java(src, ext)
     elif ext in _RUST_EXTENSIONS and _PARSERS_LOADED:
         raw = scan_rust(src, ext)
+    elif ext in _KOTLIN_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_kotlin(src, ext)
+    elif ext in _SCALA_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_scala(src, ext)
+    elif ext in _GROOVY_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_groovy(src, ext)
+    elif ext in _DART_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_dart(src, ext)
+    elif ext in _SWIFT_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_swift(src, ext)
+    elif ext in _OBJC_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_objc(src, ext)
     elif ext in _CSHARP_EXTENSIONS and _PARSERS_LOADED:
         raw = scan_csharp(src, ext)
+    elif ext in _PHP_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_php(src)
+    elif ext in _PERL_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_perl(src)
+    elif ext in _LUA_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_lua(src)
+    elif ext in _SHELL_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_shell(src)
     elif ext == '.json' and _PARSERS_LOADED:
         raw = scan_json(src, ext)
     elif _PARSERS_LOADED:

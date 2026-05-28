@@ -116,6 +116,24 @@ PROJECT_TYPES = {
         'description': 'Swift project — Apple platforms',
         'exts':        {'.swift'},
     },
+    'groovy': {
+        'key':         'groovy',
+        'name':        'Groovy',
+        'emoji':       '🟢',
+        'badge_color': '#629fcc',
+        'accent':      '#7fb3dc',
+        'description': 'Groovy project — JVM scripting, Gradle/Jenkins pipelines',
+        'exts':        {'.groovy'},
+    },
+    'objc': {
+        'key':         'objc',
+        'name':        'Objective-C',
+        'emoji':       '🍏',
+        'badge_color': '#438eff',
+        'accent':      '#6ba8ff',
+        'description': 'Objective-C / Objective-C++ project — Apple platforms',
+        'exts':        {'.m', '.mm'},
+    },
     'csharp': {
         'key':         'csharp',
         'name':        'C# / .NET',
@@ -221,6 +239,8 @@ def detect_project_type(ext_counts: dict) -> dict:
     scala_score   = _score({'.scala'})
     dart_score    = _score({'.dart'})
     swift_score   = _score({'.swift'})
+    groovy_score  = _score({'.groovy'})
+    objc_score    = _score({'.m', '.mm'})
     csharp_score  = _score({'.cs'})
     rust_score    = _score({'.rs'})
     ruby_score    = _score({'.rb'})
@@ -241,6 +261,8 @@ def detect_project_type(ext_counts: dict) -> dict:
         ('scala',      scala_score),
         ('dart',       dart_score),
         ('swift',      swift_score),
+        ('groovy',     groovy_score),
+        ('objc',       objc_score),
         ('csharp',     csharp_score),
         ('rust',       rust_score),
         ('ruby',       ruby_score),
