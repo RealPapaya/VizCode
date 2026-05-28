@@ -55,7 +55,7 @@ for _p in (str(_SRC_DIR), str(_CORE_DIR)):
 try:
     from parsers.bios_parser   import scan_bios, BIOS_EXTENSIONS as _BIOS_EXTENSIONS
     from parsers.python_parser import scan_python
-    from parsers.js_parser     import scan_js, scan_ts
+    from parsers.js_parser     import scan_js, scan_ts, JS_KEYWORDS as _JS_KEYWORDS
     from parsers.go_parser     import scan_go
     from parsers.json_parser   import scan_json
     from parsers.common_parser import scan_common, count_loc
@@ -1409,6 +1409,27 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
 
     rel_to_id = {rel: i for i, rel in enumerate(file_meta)}
 
+    # ── Global-symbol index (non-ESM JS/TS) ─────────────────────────────────
+    # Some JS/TS codebases share a single global namespace via ordered <script>
+    # tags instead of import/require (e.g. window.X = ...). They emit no import
+    # refs, so the import-edge pass below leaves them edgeless. Index each JS/TS
+    # file's top-level definitions + window./globalThis. exports so a file that
+    # *uses* a global can be linked to the file that *defines* it.
+    _JS_EXTS = {'.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx'}
+    global_def_index = defaultdict(set)  # global name → set(defining rel paths)
+    for rel, meta in file_meta.items():
+        if meta['ext'] not in _JS_EXTS:
+            continue
+        for sym in (file_symdefs.get(rel) or []):
+            if sym.get('parent') is None and sym.get('kind') in (
+                'function', 'class', 'interface', 'enum', 'namespace'
+            ):
+                global_def_index[sym['name']].add(rel)
+        _fx = file_extra.get(rel)
+        if isinstance(_fx, dict):
+            for name in _fx.get('global_defs', []):
+                global_def_index[name].add(rel)
+
     # Pre-build CamelCase → snake_case lookup for Ruby/Python convention matching
     _re_camel = re.compile(r'(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])')
 
@@ -1508,7 +1529,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     module_edge_counts = defaultdict(int)
     seen_file_edges    = set()
 
-    def add_edge(src_rel, tgt_rel, edge_type):
+    def add_edge(src_rel, tgt_rel, edge_type, via=None):
         src_id  = rel_to_id[src_rel]
         tgt_id  = rel_to_id[tgt_rel]
         src_mod = file_meta[src_rel]['module']
@@ -1521,7 +1542,13 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         ekey = (src_id, tgt_id, edge_type)
         if ekey not in seen_file_edges:
             seen_file_edges.add(ekey)
-            file_edges_by_module[src_mod].append({'s': src_id, 't': tgt_id, 'type': edge_type})
+            edge = {'s': src_id, 't': tgt_id, 'type': edge_type}
+            # `via` = the symbol that links the two files (global-script JS, where
+            # there is no import line to highlight — the code panel highlights the
+            # symbol-use line instead).
+            if via:
+                edge['via'] = via
+            file_edges_by_module[src_mod].append(edge)
 
     for src_rel, extra in file_extra.items():
         ext = file_meta[src_rel]['ext']
@@ -1566,6 +1593,26 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                 for tgt in resolve_ref(imp, src_dir):
                     if tgt != src_rel:
                         add_edge(src_rel, tgt, 'import')
+
+            # ── Global-symbol fallback (non-ESM JS/TS) ───────────────────────
+            # Only when the file emitted no ESM import/require refs — this
+            # targets the global-<script> case and keeps real ESM/npm projects
+            # free of spurious global-name edges.
+            if ext in _JS_EXTS and not file_incs.get(src_rel):
+                uses = set(file_calls.get(src_rel, []))
+                _fx = file_extra.get(src_rel)
+                if isinstance(_fx, dict):
+                    uses.update(_fx.get('global_uses', []))
+                for name in sorted(uses):
+                    if len(name) < 3 or name in _JS_KEYWORDS:
+                        continue
+                    definers = global_def_index.get(name)
+                    # Unambiguous only: skip generic names defined in many files.
+                    if not definers or len(definers) != 1:
+                        continue
+                    tgt = next(iter(definers))
+                    if tgt != src_rel:
+                        add_edge(src_rel, tgt, 'import', via=name)
 
         elif ext == '.inf' and extra:
             # [Sources] → .c files

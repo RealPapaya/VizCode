@@ -63,6 +63,16 @@ RE_JS_METHOD = re.compile(
 # Call sites
 RE_JS_CALL = re.compile(r'\b([A-Za-z_$][\w$]*)\s*\(')
 
+# Global-namespace assignment (export):  window.X = ...  /  globalThis.X = ...
+# Single `=` only (negative lookahead rejects ==, ===).
+RE_JS_GLOBAL_DEF = re.compile(
+    r'\b(?:window|globalThis)\.([A-Za-z_$][\w$]*)\s*=(?!=)'
+)
+# Global-namespace member access (use):  window.X  /  globalThis.X
+RE_JS_GLOBAL_USE = re.compile(
+    r'\b(?:window|globalThis)\.([A-Za-z_$][\w$]*)'
+)
+
 # Class declarations
 RE_JS_CLASS = re.compile(
     r'(?:^|\s)(?:export\s+)?(?:default\s+)?(?:abstract\s+)?class\s+(\w+)'
@@ -195,6 +205,17 @@ def _extract_calls(text: str) -> list:
         m.group(1) for m in RE_JS_CALL.finditer(text)
         if m.group(1) not in JS_KEYWORDS and len(m.group(1)) >= 2
     ]
+
+
+def _parse_globals(clean: str) -> tuple:
+    """Return (global_defs, global_uses) for window./globalThis. names.
+
+    Used to link files in non-ESM (global <script>) codebases where modules
+    share a global namespace instead of import/require.
+    """
+    defs = {m.group(1) for m in RE_JS_GLOBAL_DEF.finditer(clean)}
+    uses = {m.group(1) for m in RE_JS_GLOBAL_USE.finditer(clean)}
+    return sorted(defs), sorted(uses)
 
 
 # ─── Cyclomatic complexity (regex approximation for JS/TS) ───────────────────
@@ -506,6 +527,12 @@ def scan_js(src: str) -> tuple:
     extra = {'imports': imports, 'lang': 'javascript'}
     if docstrings:
         extra['docstrings'] = docstrings
+
+    global_defs, global_uses = _parse_globals(clean)
+    if global_defs:
+        extra['global_defs'] = global_defs
+    if global_uses:
+        extra['global_uses'] = global_uses
 
     return imports, funcdefs, all_calls, extra, func_calls_by_func, symbol_defs
 

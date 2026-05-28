@@ -152,7 +152,9 @@ function onEdgeTap(edge) {
             pushGlobalNavSnapshot('l1-edge');
             _lastTappedEdge = edge;  // remember for code-panel reverse sync
             updateCallGraphBtn(srcFile.path);
-            _syncCodePanel(srcFile.path, null, null, tgtLabel);
+            // Global-script JS edges have no import line; highlight the line where
+            // the source uses the linking symbol (d.via) instead of the filename.
+            _syncCodePanel(srcFile.path, null, null, d.via || tgtLabel);
         }
         return;
     }

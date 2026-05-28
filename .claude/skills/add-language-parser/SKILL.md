@@ -14,19 +14,48 @@ This skill focuses on the common parser path, which handles: Rust, Java, Kotlin,
 
 ---
 
-## Step 0: Research the Language Syntax First
+## Step 0: Research the Language Syntax First (research-driven, not from memory)
 
-Before touching any code, verify the exact syntax rules. Wrong regex = silent wrong edges.
+Before touching any code, verify the exact syntax rules against an **authoritative
+reference**. Wrong regex = silent wrong edges, and edges are the product. Do not write a
+single pattern from memory — fetch the grammar, then implement against it.
 
-Key questions to answer:
-1. **Import/dependency syntax** — How does this language declare dependencies? (e.g. `import`, `require`, `use`, `include`, `#include`)
-2. **Static/re-export forms** — Are there `import static`, `pub use`, `export from` variants?
+### 0a. Fetch authoritative grammar references
+
+Pull the real syntax from a canonical source before writing regex:
+
+| Family | Authoritative sources |
+|--------|----------------------|
+| JS / TS | ECMAScript spec (`tc39.es/ecma262`), TypeScript Handbook, MDN |
+| Java / Kotlin / Scala | Java Language Specification (JLS), Kotlin/Scala language reference |
+| Rust | The Rust Reference (`doc.rust-lang.org/reference`) |
+| Go | Go Language Specification (`go.dev/ref/spec`) |
+| Python | Python Language Reference (`docs.python.org/3/reference`) |
+| C# / .NET | C# language spec / Microsoft Learn |
+| Others | The language's **official reference manual / grammar (BNF/EBNF)**, then the stdlib docs |
+
+Tooling to fetch them:
+- `WebFetch` / `WebSearch` for spec pages and grammar sections.
+- **context7 MCP** for library/framework syntax: `resolve-library-id` → `query-docs`.
+
+Prefer the spec/reference over blog posts. Do not guess.
+
+### 0b. Answer these questions from the reference (cite where each came from)
+1. **Import/dependency syntax** — How does this language declare dependencies? (`import`, `require`, `use`, `include`, `#include`)
+2. **Static/re-export forms** — Are there `import static`, `pub use`, `export … from` variants?
 3. **Function definition keywords** — `def`, `fn`, `func`, `fun`, `sub`, `proc`, `defn`?
 4. **Class/module keywords** — `class`, `module`, `struct`, `record`, `trait`, `interface`, `defmodule`?
 5. **Line comment syntax** — `//`, `#`, `--`, `;`, `%`?
 6. **What the import string refers to** — a namespace (take last segment), a file path (take stem), or a mix?
+7. **Module system or global scope?** — Does the codebase actually *use* the import system,
+   or do files share a global namespace via `<script>` tags / a global object? (See the
+   "Global-script / non-ESM edge detection" chapter below — this is exactly why VIZCODE's
+   own `static/*.js` showed zero edges.)
 
-Use web search or context7 MCP to verify. Do not guess.
+### 0c. Output of this step
+A short note (in the PR/commit body) listing **which syntax forms you verified and the
+source** — e.g. "ESM `import … from` and `export … from` per tc39.es/ecma262 §16.2;
+confirmed against MDN". This is the audit trail that justifies every regex you add.
 
 ---
 
@@ -290,6 +319,71 @@ After adding a new language, update [CLAUDE.md](CLAUDE.md) only if:
 - A new dedicated parser file was created under `src/parsers/`
 
 For `common_parser.py` additions only (no new files, no interface changes), CLAUDE.md does not need to change.
+
+---
+
+## Chapter: Global-script / non-ESM edge detection
+
+Some codebases have source files but **no `import` / `require` / `export from`** at all.
+Files share a single **global namespace**, loaded as ordered `<script>` tags, and talk to
+each other through global function names and a global object (`window.X` / `globalThis.X`).
+VIZCODE's own `static/*.js` is exactly this shape — which is why scanning it produced **zero
+edges**: the import-edge pass had no refs to resolve.
+
+### How to detect it
+A folder with many source files of one language but where a grep for that language's import
+keyword returns **nothing**. (For JS/TS: zero `import`/`require`/`export from` across the
+folder.) The regexes aren't wrong — the code uses no module system.
+
+### Why regex alone can't fix it
+File-to-file (L1) edges in `src/core/analyze_viz.py` are built **only** from the per-file
+import/refs list. Cross-file *function calls* never create file edges — call-edge resolution
+is per-file (`fid_map` is built from a single file's own defs). So no imports ⇒ no edges,
+regardless of how good the function/class regex is.
+
+### The fix: global-symbol cross-file resolution
+Link a file that **uses** a global to the file that **defines** it:
+
+1. **Parser** (`src/parsers/js_parser.py`): capture global-namespace assignments
+   `window.X = …` / `globalThis.X = …` into `extra['global_defs']`, and member reads
+   `window.X` into `extra['global_uses']`. Use a single-`=` negative lookahead `=(?!=)` so
+   `===` comparisons are reads, not definitions.
+2. **Analyzer** (`src/core/analyze_viz.py`): before the edge loop, build
+   `global_def_index: name → {defining files}` from each JS/TS file's **top-level**
+   `symbol_defs` (kind function/class/interface/enum/namespace, `parent is None`) plus its
+   `global_defs`. In the JS/TS edge branch, for a file's uses (`all_calls` + `global_uses`),
+   emit an `import` edge to the single definer of each used name.
+
+### Guards (essential — copy these, they prevent edge explosion)
+- **Skip keywords/builtins** (reuse the parser's `JS_KEYWORDS` set) and names `< 3` chars.
+- **Unambiguous-only**: if a name is defined in more than one file, skip it. This naturally
+  drops generic names like `init` / `render` / `update` that appear everywhere.
+- **Per-file ESM-empty gate**: run the fallback for a file **only when it emitted zero
+  import/require refs**. This targets the global-script case and keeps real ESM/npm projects
+  (which have genuine imports) free of spurious global-name edges.
+- Reuse the existing `'import'` edge type so L1 rendering and the legend need no changes.
+- **Carry the linking symbol on the edge** as `via`. Unlike an ESM edge, a global-script
+  edge has no import line to highlight when clicked, so the code panel must highlight the
+  *symbol-use* line. `add_edge(..., via=name)` stores it; `graph_l1.js` copies `e.via` onto
+  the cytoscape edge; `onEdgeTap` (L1) passes `d.via` to `jumpToImport`, which word-boundary
+  matches the symbol in the source. Without `via`, clicking the edge highlights nothing.
+
+### Verify
+Confirm the previously-edgeless folder now yields edges, and a real ESM project still shows
+only its genuine imports:
+```python
+import sys; sys.path.insert(0, 'src')
+from core.analyze_viz import build_graph
+g = build_graph('<folder>')
+import itertools
+print(sum(len(v) for v in g['file_edges_by_module'].values()), 'edges')
+```
+
+### Applying to other languages
+The same shape appears beyond JS (e.g. Lua files loaded by a host, shell scripts sharing a
+sourced environment). The technique generalises: capture global defs + global uses in the
+parser, resolve unambiguous cross-file names in `analyze_viz.py`, gate to the
+no-import case.
 
 ---
 
