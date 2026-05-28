@@ -14,7 +14,10 @@ Extracts:
 """
 
 import ast
+import io
 import re
+import token
+import tokenize
 
 # ─── Python keywords / builtins to ignore in call extraction ─────────────────
 PY_KEYWORDS = {
@@ -126,18 +129,12 @@ class _PyAnalyzer(ast.NodeVisitor):
 
     def visit_Import(self, node):
         for alias in node.names:
-            top = alias.name.split('.')[0]
-            if top and top not in self._seen_imports:
-                self._seen_imports.add(top)
-                self.imports.append(top)
+            self._add_import(alias.name.split('.')[0])
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node):
-        if node.module:
-            top = node.module.split('.')[0]
-            if top and top not in self._seen_imports:
-                self._seen_imports.add(top)
-                self.imports.append(top)
+        for dep in _importfrom_dependencies(node.module, node.names, node.level):
+            self._add_import(dep)
         self.generic_visit(node)
 
     # ── Classes ──────────────────────────────────────────────────────────────
@@ -176,7 +173,7 @@ class _PyAnalyzer(ast.NodeVisitor):
         self._handle_funcdef(node)
 
     def _handle_funcdef(self, node):
-        parent_class = self._current_class()
+        parent_class = self._current_class() if self._is_direct_class_member() else None
         kind = 'method' if parent_class else 'function'
 
         # Nested functions (not class methods) are private
@@ -215,6 +212,8 @@ class _PyAnalyzer(ast.NodeVisitor):
             'is_efiapi': False,
             'is_static': is_private,
         })
+        call_index = len(self.func_calls_by_func)
+        self.func_calls_by_func.append([])
 
         self.symbol_defs.append({
             'kind':       kind,
@@ -238,7 +237,7 @@ class _PyAnalyzer(ast.NodeVisitor):
         self.generic_visit(node)
         self._scope_stack.pop()
 
-        self.func_calls_by_func.append(self._current_func_calls)
+        self.func_calls_by_func[call_index] = self._current_func_calls
         self._current_func_calls = prev_calls
 
     # ── Calls ────────────────────────────────────────────────────────────────
@@ -266,6 +265,33 @@ class _PyAnalyzer(ast.NodeVisitor):
                 return name
         return None
 
+    def _is_direct_class_member(self):
+        """Return True when the next function belongs directly to a class body."""
+        return bool(self._scope_stack and self._scope_stack[-1][0] == 'class')
+
+    def _add_import(self, name):
+        if name and name != '__future__' and name not in self._seen_imports:
+            self._seen_imports.add(name)
+            self.imports.append(name)
+
+
+def _importfrom_dependencies(module: str | None, aliases, level: int = 0) -> list:
+    """Return dependency roots for a Python ``from ... import ...`` node."""
+    if module == '__future__':
+        return []
+    if level:
+        if module:
+            return [module.split('.')[0]]
+        deps = []
+        for alias in aliases:
+            name = getattr(alias, 'name', '')
+            if name and name != '*':
+                deps.append(name.split('.')[0])
+        return deps
+    if module:
+        return [module.split('.')[0]]
+    return []
+
 
 def _scan_python_ast(src: str) -> tuple:
     """Parse Python source with the ast module."""
@@ -292,7 +318,7 @@ def _scan_python_ast(src: str) -> tuple:
     return (
         analyzer.imports,
         analyzer.funcdefs,
-        list(set(analyzer.all_calls)),
+        _dedupe_preserve_order(analyzer.all_calls),
         extra,
         analyzer.func_calls_by_func,
         analyzer.symbol_defs,
@@ -302,35 +328,104 @@ def _scan_python_ast(src: str) -> tuple:
 # ─── Regex fallback (for SyntaxError files) ──────────────────────────────────
 
 RE_PY_IMPORT_FROM = re.compile(
-    r'^[ \t]*from\s+([\w.]+)\s+import\s+', re.MULTILINE)
+    r'^[ \t]*from\s+([.\w]+)\s+import\s+([^\n]+)', re.MULTILINE)
 RE_PY_IMPORT = re.compile(
     r'^[ \t]*import\s+([\w., \t]+)', re.MULTILINE)
 RE_PY_FUNCDEF = re.compile(
-    r'^([ \t]*)(?:async[ \t]+)?def[ \t]+(\w+)[ \t]*\(', re.MULTILINE)
+    r'^([ \t]*)(?:async[ \t]+)?def[ \t]+(\w+)[ \t]*\([^#\n]*\)[ \t]*(?:->[^\n:]+)?[ \t]*:',
+    re.MULTILINE,
+)
 RE_PY_CLASSDEF = re.compile(
     r'^([ \t]*)class[ \t]+(\w+)[ \t]*(?:\(([^)]*)\))?[ \t]*:', re.MULTILINE)
 RE_PY_CALL = re.compile(r'\b([A-Za-z_]\w*)\s*\(')
 
 
+def _dedupe_preserve_order(values: list) -> list:
+    seen = set()
+    out = []
+    for value in values:
+        if value and value not in seen:
+            seen.add(value)
+            out.append(value)
+    return out
+
+
+def _mask_python_for_regex(src: str) -> str:
+    """Mask comments and string-like tokens for the regex fallback.
+
+    The fallback intentionally works on malformed source, so this helper keeps
+    original newlines and character offsets intact while blanking comments,
+    normal strings, byte strings, and f-string literal tokens.
+    """
+    lines = [list(line) for line in src.splitlines(keepends=True)]
+    if not lines:
+        return src
+
+    def blank_span(start, end):
+        start_row, start_col = start
+        end_row, end_col = end
+        start_row -= 1
+        end_row -= 1
+        if start_row < 0 or start_row >= len(lines):
+            return
+        end_row = min(end_row, len(lines) - 1)
+        for row in range(start_row, end_row + 1):
+            col_from = start_col if row == start_row else 0
+            col_to = end_col if row == end_row else len(lines[row])
+            col_to = min(col_to, len(lines[row]))
+            for col in range(col_from, col_to):
+                if lines[row][col] not in '\r\n':
+                    lines[row][col] = ' '
+
+    reader = io.StringIO(src).readline
+    try:
+        tokens = tokenize.generate_tokens(reader)
+        for tok in tokens:
+            tok_name = token.tok_name.get(tok.type, '')
+            if tok.type in (tokenize.COMMENT, token.STRING) or tok_name.startswith('FSTRING'):
+                blank_span(tok.start, tok.end)
+    except tokenize.TokenError as err:
+        if len(err.args) > 1 and isinstance(err.args[1], tuple):
+            blank_span(err.args[1], (len(lines), len(lines[-1])))
+    except Exception:
+        return src
+
+    return ''.join(''.join(line) for line in lines)
+
+
 def _parse_imports_regex(src: str) -> list:
     modules = []
     for m in RE_PY_IMPORT_FROM.finditer(src):
-        top = m.group(1).split('.')[0]
-        if top:
-            modules.append(top)
+        module = m.group(1)
+        aliases = [
+            ast.alias(name=raw.strip().split()[0], asname=None)
+            for raw in m.group(2).split(',')
+            if raw.strip() and raw.strip().split()[0] != '('
+        ]
+        level = len(module) - len(module.lstrip('.'))
+        module_name = module.lstrip('.') or None
+        modules.extend(_importfrom_dependencies(module_name, aliases, level))
     for m in RE_PY_IMPORT.finditer(src):
         for raw in m.group(1).split(','):
-            token = raw.strip().split(' ')[0].split('.')[0]
-            if token:
-                modules.append(token)
-    return list(set(modules))
+            name = raw.strip().split()[0].split('.')[0] if raw.strip() else ''
+            if name and name != '__future__':
+                modules.append(name)
+    return _dedupe_preserve_order(modules)
 
 
 def _extract_calls_regex(text: str) -> list:
-    return [
-        m.group(1) for m in RE_PY_CALL.finditer(text)
-        if m.group(1) not in PY_KEYWORDS and len(m.group(1)) >= 2
-    ]
+    calls = []
+    for m in RE_PY_CALL.finditer(text):
+        name = m.group(1)
+        line_start = text.rfind('\n', 0, m.start()) + 1
+        prefix = text[line_start:m.start()]
+        if re.search(r'\b(?:async[ \t]+)?def[ \t]+$', prefix):
+            continue
+        if re.search(r'\bclass[ \t]+$', prefix):
+            continue
+        if name not in PY_KEYWORDS and len(name) >= 2:
+            calls.append(name)
+    return calls
 
 
 def _parse_symbol_defs_regex(src: str) -> list:
@@ -392,18 +487,19 @@ def _parse_symbol_defs_regex(src: str) -> list:
 
 def _scan_python_regex(src: str) -> tuple:
     """Regex-based fallback for files that fail ast.parse()."""
-    imports = _parse_imports_regex(src)
-    lines = src.splitlines()
+    masked = _mask_python_for_regex(src)
+    imports = _parse_imports_regex(masked)
+    lines = masked.splitlines()
     n = len(lines)
 
     funcdefs = []
     func_calls_by_func = []
 
     def_positions = []
-    for m in RE_PY_FUNCDEF.finditer(src):
+    for m in RE_PY_FUNCDEF.finditer(masked):
         indent = len(m.group(1).expandtabs(4))
         name = m.group(2)
-        line_no = src[:m.start()].count('\n')
+        line_no = masked[:m.start()].count('\n')
         def_positions.append((line_no, indent, name))
 
     for pos_i, (line_no, indent, name) in enumerate(def_positions):
@@ -432,8 +528,8 @@ def _scan_python_regex(src: str) -> tuple:
         calls = _extract_calls_regex('\n'.join(body_lines))
         func_calls_by_func.append(calls)
 
-    all_calls = _extract_calls_regex(src)
-    symbol_defs = _parse_symbol_defs_regex(src)
+    all_calls = _extract_calls_regex(masked)
+    symbol_defs = _parse_symbol_defs_regex(masked)
 
     extra = {'imports': imports, 'lang': 'python'}
     return imports, funcdefs, all_calls, extra, func_calls_by_func, symbol_defs

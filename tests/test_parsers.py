@@ -92,6 +92,114 @@ class TestPythonParser:
         result = scan_python(bad_src)
         assert len(result) == 6
 
+    def test_python_import_forms_are_normalized(self):
+        src = '''\
+from __future__ import annotations
+import os, pkg.mod as alias
+import xml.etree.ElementTree as ET
+from package.sub import thing
+from . import sibling
+from .subpackage import other
+'''
+        imports, *_ = scan_python(src)
+        assert imports == ['os', 'pkg', 'xml', 'package', 'sibling', 'subpackage']
+
+    def test_python_ast_symbols_docstrings_decorators_and_signatures(self):
+        src = '''\
+"""module docs"""
+
+def deco(fn):
+    return fn
+
+class Service(Base):
+    """class docs"""
+
+    @deco
+    async def run(self, item: str) -> str:
+        """method docs"""
+        await worker(item)
+        return item
+
+def outer(value: int = 1):
+    """outer docs"""
+    def inner():
+        """inner docs"""
+        return helper(value)
+    return inner()
+
+anon = lambda x: x
+'''
+        _, funcdefs, funccalls, extra, func_calls_by_func, symbol_defs = scan_python(src)
+        labels = [f['label'] for f in funcdefs]
+        by_name = {s['name']: s for s in symbol_defs}
+
+        assert labels == ['deco', 'run', 'outer', 'inner']
+        assert 'lambda' not in labels
+        assert by_name['Service']['kind'] == 'class'
+        assert by_name['run']['kind'] == 'method'
+        assert by_name['run']['parent'] == 'Service'
+        assert by_name['run']['decorators'] == ['deco']
+        assert by_name['run']['signature'] == '(self, item: str) -> str'
+        assert by_name['inner']['kind'] == 'function'
+        assert extra['docstrings']['__module__'] == 'module docs'
+        assert extra['docstrings']['Service'] == 'class docs'
+        assert extra['docstrings']['Service.run'] == 'method docs'
+        assert extra['docstrings']['outer'] == 'outer docs'
+        assert 'worker' in funccalls
+        assert 'helper' in funccalls
+        assert func_calls_by_func[2] == ['inner']
+        assert func_calls_by_func[3] == ['helper']
+
+    def test_python_calls_exclude_declarations_and_builtins(self):
+        src = '''\
+def alpha():
+    beta()
+    print(len([1]))
+
+def beta():
+    return None
+'''
+        _, _, funccalls, _, func_calls_by_func, _ = scan_python(src)
+        assert 'alpha' not in funccalls
+        assert funccalls == ['beta']
+        assert func_calls_by_func == [['beta'], []]
+
+    def test_python_fallback_ignores_comments_and_literals(self):
+        src = r'''\
+import realpkg
+
+# import fake_comment
+# def fake_comment_func():
+# class FakeComment:
+
+TEXT = "import fake_string; def fake_string_func(): fake_call() # not comment"
+TRIPLE = """
+from fake_triple import thing
+class FakeTriple:
+    def hidden(self):
+        fake_triple_call()
+"""
+RAW = r"def fake_raw(): raw_call()"
+BYTES = b"import fake_bytes"
+FSTR = f"def fake_fstring(): {42}"
+
+def real():
+    helper()
+
+def broken(
+'''
+        imports, funcdefs, funccalls, extra, func_calls_by_func, symbol_defs = scan_python(src)
+        labels = {f['label'] for f in funcdefs}
+        names = {s['name'] for s in symbol_defs}
+
+        assert len((imports, funcdefs, funccalls, extra, func_calls_by_func, symbol_defs)) == 6
+        assert extra['file_error'].startswith('SyntaxError:')
+        assert imports == ['realpkg']
+        assert labels == {'real'}
+        assert names == {'real'}
+        assert funccalls == ['helper']
+        assert func_calls_by_func == [['helper']]
+
 
 # ─── JavaScript Parser ────────────────────────────────────────────────────────
 
