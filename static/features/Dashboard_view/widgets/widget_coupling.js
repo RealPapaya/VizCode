@@ -61,7 +61,6 @@ function _dashCouplingLegend() {
 function _dashRenderCoupling(container, stats) {
   if (!container) return;
   const imported = stats.top_imported_files || [];
-  const callers = stats.top_caller_files || [];
   const conc = _dashCouplingConcentration(imported);
   container.innerHTML = `
 <div class="dash-arch-panel">
@@ -76,19 +75,8 @@ function _dashRenderCoupling(container, stats) {
     <div class="dash-arch-panel-stats">${_dashCouplingLegend()}</div>
   </div>
   <div class="dash-arch-panel-body">
-    <div class="dash-grid dash-grid-2" style="height:100%;min-height:0">
-      <div class="dash-card" style="min-height:0;display:flex;flex-direction:column;overflow:hidden">
-        <div class="dash-card-title">
-          <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashCouplingTopImported'))}
-        </div>
-        <div class="dash-list" style="overflow-y:auto;min-height:0;padding-right:4px">${_dashCouplingRows(imported, _dashT('dashCouplingImports'))}</div>
-      </div>
-      <div class="dash-card" style="min-height:0;display:flex;flex-direction:column;overflow:hidden">
-        <div class="dash-card-title">
-          <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashCouplingTopCallers'))}
-        </div>
-        <div class="dash-list" style="overflow-y:auto;min-height:0;padding-right:4px">${_dashCouplingRows(callers, _dashT('dashCouplingCalls'))}</div>
-      </div>
+    <div class="dash-card" style="height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden">
+      <div class="dash-list" style="overflow-y:auto;min-height:0;padding:3px 4px 0">${_dashCouplingRows(imported, _dashT('dashCouplingImports'))}</div>
     </div>
   </div>
 </div>`;

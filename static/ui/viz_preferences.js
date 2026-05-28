@@ -928,6 +928,12 @@ function _buildPrefModalHTML() {
         <span class="pref-title" data-i18n="settingsTitle">Settings</span>
         <button id="pref-close-x" class="pref-close-x" aria-label="Close">&#10005;</button>
       </div>
+      <div class="pref-section-banner">
+        <div class="pref-section-banner-text">
+          <h2 class="pref-section-heading-title" id="pref-section-heading-title"></h2>
+          <p class="pref-section-heading-desc" id="pref-section-heading-desc"></p>
+        </div>
+      </div>
       <div class="pref-layout-shell">
         <nav class="pref-sidebar" aria-label="Settings categories">
           <button type="button" class="pref-nav-item active" data-pref-section="appearance" data-pref-preview-id="font-select" data-pref-desc-key="sectionAppearanceDesc"><span class="pref-nav-icon">${_PREF_NAV_ICONS.appearance}</span><span class="pref-nav-label" data-i18n="sectionAppearance">Appearance</span></button>
@@ -939,13 +945,8 @@ function _buildPrefModalHTML() {
           <section id="pref-preview-panel" class="pref-preview-panel">
             <div id="pref-preview-label" class="pref-preview-label"></div>
             <div id="pref-preview-area" class="pref-preview-area"></div>
-            <div id="pref-preview-hint" class="pref-preview-hint"></div>
           </section>
           <div class="pref-section-content">
-            <div class="pref-section-heading">
-              <h2 class="pref-section-heading-title" id="pref-section-heading-title"></h2>
-              <p class="pref-section-heading-desc" id="pref-section-heading-desc"></p>
-            </div>
             <section class="pref-subsection active" data-pref-section-panel="appearance">
               ${row('font-select', 'fontLabel', 'Code Editor Font', `
                 <option value="'JetBrains Mono', monospace">JetBrains Mono</option>
@@ -1114,21 +1115,20 @@ function _previewSvEdgeStyle(value) {
 function _showPrefPreview(id, value) {
     const area = document.getElementById('pref-preview-area');
     const label = document.getElementById('pref-preview-label');
-    const hint = document.getElementById('pref-preview-hint');
     if (!area) return;
     const PREVIEWS = {
-        'font-select': { fn: _previewFont, lk: 'fontLabel', hk: 'fontPreviewHint' },
-        'pref-theme-select': { fn: _previewTheme, lk: 'themeLabel', hk: 'themePreviewHint' },
-        'pref-lang-select': { fn: _previewLang, lk: 'langLabel', hk: 'langPreviewHint' },
-        'pref-node-style': { fn: _previewNodeStyle, lk: 'nodeStyleLabel', hk: 'nodeStylePreviewHint' },
-        'pref-ext-files': { fn: _previewExtFiles, lk: 'extFilesAlways', hk: 'extFilesAlwaysDesc' },
-        'pref-ext-funcs': { fn: _previewExtFuncs, lk: 'extFuncsAlways', hk: 'extFuncsAlwaysDesc' },
-        'pref-edge-type-labels': { fn: _previewEdgeTypeLabels, lk: 'edgeTypeLabelsDefault', hk: 'edgeTypeLabelsDefaultDesc' },
-        'pref-ext-expand': { fn: _previewExtExpand, lk: 'extExpandDefault', hk: 'extExpandDefaultDesc' },
-        'pref-sv-edge-style': { fn: _previewSvEdgeStyle, lk: 'symbolEdgeStyleLabel', hk: null },
-        'pref-layout-l0': { fn: _previewLayout, lk: 'layoutL0Label', hk: null },
-        'pref-layout-l1': { fn: _previewLayout, lk: 'layoutL1Label', hk: null },
-        'pref-layout-l2': { fn: _previewLayout, lk: 'layoutL2Label', hk: null },
+        'font-select': { fn: _previewFont, lk: 'fontLabel' },
+        'pref-theme-select': { fn: _previewTheme, lk: 'themeLabel' },
+        'pref-lang-select': { fn: _previewLang, lk: 'langLabel' },
+        'pref-node-style': { fn: _previewNodeStyle, lk: 'nodeStyleLabel' },
+        'pref-ext-files': { fn: _previewExtFiles, lk: 'extFilesAlways' },
+        'pref-ext-funcs': { fn: _previewExtFuncs, lk: 'extFuncsAlways' },
+        'pref-edge-type-labels': { fn: _previewEdgeTypeLabels, lk: 'edgeTypeLabelsDefault' },
+        'pref-ext-expand': { fn: _previewExtExpand, lk: 'extExpandDefault' },
+        'pref-sv-edge-style': { fn: _previewSvEdgeStyle, lk: 'symbolEdgeStyleLabel' },
+        'pref-layout-l0': { fn: _previewLayout, lk: 'layoutL0Label' },
+        'pref-layout-l1': { fn: _previewLayout, lk: 'layoutL1Label' },
+        'pref-layout-l2': { fn: _previewLayout, lk: 'layoutL2Label' },
     };
     const cfg = PREVIEWS[id];
     if (!cfg) return;
@@ -1138,7 +1138,6 @@ function _showPrefPreview(id, value) {
     setTimeout(() => {
         area.innerHTML = cfg.fn(value);
         if (label) label.textContent = (typeof T === 'function') ? T(cfg.lk) : cfg.lk;
-        if (hint) hint.innerHTML = cfg.hk ? ((typeof T === 'function') ? T(cfg.hk) : '') : '';
         area.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
         area.style.opacity = '1';
         area.style.transform = 'translateY(0)';

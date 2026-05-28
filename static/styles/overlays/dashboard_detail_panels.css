@@ -1061,6 +1061,13 @@
     border-top: 1px solid var(--dash-report-divider-color, var(--border));
 }
 
+/* Sections laid out as grid columns are side by side, not stacked — the
+   adjacency divider above doesn't apply to them. */
+.dash-kpi-detail-grid > .dash-kpi-detail-section + .dash-kpi-detail-section {
+    padding-top: 0;
+    border-top: none;
+}
+
 .dash-kpi-detail-section__head {
     display: flex;
     align-items: center;

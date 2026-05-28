@@ -2402,7 +2402,6 @@
 .pref-header {
     background: var(--panel2);
     padding: 13px 16px;
-    border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -2443,7 +2442,6 @@
 .pref-sidebar {
     width: 210px;
     flex: 0 0 210px;
-    border-right: 1px solid var(--border);
     background: color-mix(in srgb, var(--panel2) 64%, var(--panel));
     padding: 12px;
     display: flex;
@@ -2541,7 +2539,7 @@
 }
 
 .pref-preview-panel {
-    flex: 0 0 250px;
+    flex: 0 0 360px;
     min-height: 0;
     border-bottom: 1px solid var(--border);
     padding: 16px 18px;
@@ -2567,18 +2565,15 @@
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    background: var(--bg);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    box-sizing: border-box;
 }
 
 .pref-preview-area svg {
     max-width: 100%;
     max-height: 100%;
-}
-
-.pref-preview-hint {
-    min-height: 32px;
-    color: var(--muted);
-    font-size: 11px;
-    line-height: 1.5;
 }
 
 .pref-section-content {
@@ -2588,17 +2583,23 @@
     overflow-y: auto;
 }
 
-.pref-section-heading {
-    margin-bottom: 18px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid var(--border);
+.pref-section-banner {
+    display: flex;
+    flex-shrink: 0;
+    background: var(--panel2);
+}
+
+.pref-section-banner-text {
+    flex: 1;
+    padding: 10px 16px;
+    min-width: 0;
 }
 
 .pref-section-heading-title {
-    font-size: 15px;
+    font-size: 20px;
     font-weight: 700;
     color: var(--text);
-    margin: 0 0 4px;
+    margin: 0 0 3px;
     letter-spacing: -0.01em;
 }
 
@@ -3226,7 +3227,7 @@
     }
 
     .pref-preview-panel {
-        flex-basis: 220px;
+        flex-basis: 300px;
         padding: 14px;
     }
 
