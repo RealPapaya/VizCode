@@ -59,6 +59,8 @@ try:
     from parsers.python_parser import scan_python
     from parsers.js_parser     import scan_js, scan_ts, JS_KEYWORDS as _JS_KEYWORDS
     from parsers.go_parser     import scan_go
+    from parsers.java_parser   import scan_java, JAVA_EXTENSIONS as _JAVA_EXTENSIONS
+    from parsers.rust_parser   import scan_rust, RUST_EXTENSIONS as _RUST_EXTENSIONS
     from parsers.json_parser   import scan_json
     from parsers.common_parser import scan_common, count_loc
     from detector              import detect_project_type, fmt_detection_banner
@@ -68,6 +70,8 @@ except ImportError as _pe:
     _BIOS_EXTENSIONS = set()
     _C_CPP_EXTENSIONS = set()
     _CSHARP_EXTENSIONS = set()
+    _JAVA_EXTENSIONS = set()
+    _RUST_EXTENSIONS = set()
     _console_print(f'[WARN] Could not load language parsers: {_pe}', file=sys.stderr)
 
 import parse_memo
@@ -112,6 +116,10 @@ def _get_parser_fn(ext: str):
         return scan_ts
     if ext == '.go':
         return scan_go
+    if ext in _JAVA_EXTENSIONS:
+        return scan_java
+    if ext in _RUST_EXTENSIONS:
+        return scan_rust
     if ext == '.json':
         return scan_json
     return scan_common  # generic fallback for all other recognized extensions
@@ -663,6 +671,10 @@ def _compute_parse_result(file_bytes: bytes, ext: str) -> tuple:
         raw = scan_ts(src)
     elif ext == '.go' and _PARSERS_LOADED:
         raw = scan_go(src)
+    elif ext in _JAVA_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_java(src, ext)
+    elif ext in _RUST_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_rust(src, ext)
     elif ext in _CSHARP_EXTENSIONS and _PARSERS_LOADED:
         raw = scan_csharp(src, ext)
     elif ext == '.json' and _PARSERS_LOADED:
