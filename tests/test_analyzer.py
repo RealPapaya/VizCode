@@ -131,6 +131,8 @@ class TestSymbolIndex:
             'class', 'struct', 'interface', 'enum', 'typedef',
             'function', 'method', 'field', 'enum_constant',
             'global_var', 'macro', 'union', 'namespace',
+            'record', 'module', 'trait', 'type', 'abstract',
+            'impl', 'object', 'message', 'service', 'table', 'view',
         }
         for sym in graph['symbol_index'].values():
             assert sym['kind'] in known_kinds, (

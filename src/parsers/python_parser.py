@@ -445,21 +445,20 @@ def scan_python(src: str) -> tuple:
     """
     Full Python file analysis.
 
-    Returns a 6- or 7-tuple:
+    Returns a 6-tuple:
       (imports, funcdefs, all_calls, extra_dict, func_calls_by_func, symbol_defs)
-      (imports, funcdefs, all_calls, extra_dict, func_calls_by_func, symbol_defs, parse_diag)
-
-    parse_diag: {'file_error': str | None} — when present and truthy, ast.parse
-    failed and the regex fallback was used; every symbol from this file should
-    be flagged as unreliable. Optional; absent on clean files.
+    On parse failure, the regex fallback is used and `extra['file_error']`
+    records the diagnostic for callers that normalize parser output.
     """
     try:
         return _scan_python_ast(src)
     except SyntaxError as err:
-        result = _scan_python_regex(src)
-        diag = {'file_error': f'SyntaxError: {err.msg} (line {err.lineno})' if err.msg else 'SyntaxError'}
-        return (*result, diag)
+        result = list(_scan_python_regex(src))
+        msg = f'SyntaxError: {err.msg} (line {err.lineno})' if err.msg else 'SyntaxError'
+        result[3] = {**(result[3] or {}), 'file_error': msg}
+        return tuple(result)
     except Exception as err:
-        result = _scan_python_regex(src)
-        diag = {'file_error': f'Parse failed: {type(err).__name__}: {err}'}
-        return (*result, diag)
+        result = list(_scan_python_regex(src))
+        msg = f'Parse failed: {type(err).__name__}: {err}'
+        result[3] = {**(result[3] or {}), 'file_error': msg}
+        return tuple(result)

@@ -663,7 +663,10 @@ def _compute_parse_result(file_bytes: bytes, ext: str) -> tuple:
         if n == 5:
             result = (*raw, [], None)
         elif n == 6:
-            result = (*raw, None)
+            diag = None
+            if isinstance(raw[3], dict) and raw[3].get('file_error'):
+                diag = {'file_error': raw[3].get('file_error')}
+            result = (*raw, diag)
         elif n == 7:
             result = tuple(raw)
         else:

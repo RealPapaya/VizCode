@@ -149,6 +149,147 @@ class TestGoParser:
         result = scan_go('')
         assert len(result) == 6
 
+    def test_grouped_imports_with_alias_blank_and_dot(self):
+        src = '''\
+package main
+
+import (
+    "fmt"
+    alias "example.com/project/pkg"
+    _ "net/http/pprof"
+    . "math"
+)
+
+func main() {
+    fmt.Println(alias.Name, pprof.Profile, Pi)
+}
+'''
+        imports, *_ = scan_go(src)
+        assert {'fmt', 'pkg', 'pprof', 'math'} <= set(imports)
+
+    def test_structs_interfaces_methods_functions_and_docs(self):
+        src = '''\
+package main
+
+// Service handles work.
+type Service struct {
+    Name string
+}
+
+/*
+Runner executes services.
+*/
+type Runner interface {
+    Run() error
+}
+
+// Start begins work.
+func (s *Service) Start() {
+    helper()
+}
+
+// helper supports Start.
+func helper() {}
+'''
+        _, funcdefs, _, extra, _, symbol_defs = scan_go(src)
+        labels = {f['label'] for f in funcdefs}
+        assert {'Start', 'helper'} <= labels
+
+        by_name = {(s['kind'], s['name']): s for s in symbol_defs}
+        assert ('struct', 'Service') in by_name
+        assert ('interface', 'Runner') in by_name
+        assert ('method', 'Start') in by_name
+        assert ('function', 'helper') in by_name
+        assert by_name[('method', 'Start')]['parent'] == 'Service'
+
+        docs = extra['docstrings']
+        assert docs['Service'] == 'Service handles work.'
+        assert docs['Runner'] == 'Runner executes services.'
+        assert docs['Service.Start'] == 'Start begins work.'
+        assert docs['helper'] == 'helper supports Start.'
+
+    def test_commented_out_go_code_is_ignored(self):
+        src = '''\
+package main
+
+/*
+import "fakepkg"
+type Fake struct {}
+func FakeCall() {}
+*/
+// func AlsoFake() {}
+// import "otherfake"
+
+import "fmt"
+
+func Real() {
+    fmt.Println("ok")
+}
+'''
+        imports, funcdefs, funccalls, _, _, symbol_defs = scan_go(src)
+        labels = {f['label'] for f in funcdefs}
+        symbol_names = {s['name'] for s in symbol_defs}
+
+        assert imports == ['fmt']
+        assert labels == {'Real'}
+        assert 'FakeCall' not in funccalls
+        assert 'Fake' not in symbol_names
+        assert 'AlsoFake' not in symbol_names
+
+    def test_comment_markers_inside_literals_are_not_comments(self):
+        src = '''\
+package main
+
+import "fmt"
+
+func Real() {
+    fmt.Println("http://example.test/path"); helper()
+    fmt.Println("not /* a block comment */"); helper()
+    fmt.Println(`raw // text and /* text */`); helper()
+    r := '/'
+    _ = r
+    helper()
+}
+
+func helper() {}
+'''
+        imports, _, funccalls, _, func_calls_by_func, symbol_defs = scan_go(src)
+        names = {s['name'] for s in symbol_defs}
+
+        assert imports == ['fmt']
+        assert {'Real', 'helper'} <= names
+        assert 'helper' in funccalls
+        assert func_calls_by_func[0].count('helper') == 4
+
+    def test_block_comments_preserve_symbol_line_numbers(self):
+        src = '''\
+package main
+
+/*
+type Fake struct {}
+func Fake() {}
+*/
+type Later struct {}
+'''
+        *_, symbol_defs = scan_go(src)
+        later = next(s for s in symbol_defs if s['name'] == 'Later')
+        assert later['line'] == 7
+
+    def test_funccalls_excludes_function_declarations(self):
+        src = '''\
+package main
+
+func Alpha() {
+    Beta()
+}
+
+func Beta() {}
+'''
+        _, _, funccalls, _, func_calls_by_func, _ = scan_go(src)
+        assert 'Alpha' not in funccalls
+        assert funccalls.count('Beta') == 1
+        assert func_calls_by_func == [['Beta'], []]
+
 
 # ─── BIOS / C Parser ─────────────────────────────────────────────────────────
 
