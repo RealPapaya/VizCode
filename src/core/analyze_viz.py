@@ -71,6 +71,12 @@ try:
     from parsers.perl_parser   import scan_perl, PERL_EXTENSIONS as _PERL_EXTENSIONS
     from parsers.lua_parser    import scan_lua, LUA_EXTENSIONS as _LUA_EXTENSIONS
     from parsers.shell_parser  import scan_shell, SHELL_EXTENSIONS as _SHELL_EXTENSIONS
+    from parsers.r_parser       import scan_r, R_EXTENSIONS as _R_EXTENSIONS
+    from parsers.protobuf_parser import scan_protobuf, PROTOBUF_EXTENSIONS as _PROTOBUF_EXTENSIONS
+    from parsers.graphql_parser import scan_graphql, GRAPHQL_EXTENSIONS as _GRAPHQL_EXTENSIONS
+    from parsers.zig_parser     import scan_zig, ZIG_EXTENSIONS as _ZIG_EXTENSIONS
+    from parsers.d_parser       import scan_d, D_EXTENSIONS as _D_EXTENSIONS
+    from parsers.sql_parser     import scan_sql, SQL_EXTENSIONS as _SQL_EXTENSIONS
     from parsers.json_parser   import scan_json
     from parsers.common_parser import scan_common, count_loc
     from detector              import detect_project_type, fmt_detection_banner
@@ -92,6 +98,12 @@ except ImportError as _pe:
     _PERL_EXTENSIONS = set()
     _LUA_EXTENSIONS = set()
     _SHELL_EXTENSIONS = set()
+    _R_EXTENSIONS = set()
+    _PROTOBUF_EXTENSIONS = set()
+    _GRAPHQL_EXTENSIONS = set()
+    _ZIG_EXTENSIONS = set()
+    _D_EXTENSIONS = set()
+    _SQL_EXTENSIONS = set()
     _console_print(f'[WARN] Could not load language parsers: {_pe}', file=sys.stderr)
 
 import parse_memo
@@ -160,6 +172,18 @@ def _get_parser_fn(ext: str):
         return scan_lua
     if ext in _SHELL_EXTENSIONS:
         return scan_shell
+    if ext in _R_EXTENSIONS:
+        return scan_r
+    if ext in _PROTOBUF_EXTENSIONS:
+        return scan_protobuf
+    if ext in _GRAPHQL_EXTENSIONS:
+        return scan_graphql
+    if ext in _ZIG_EXTENSIONS:
+        return scan_zig
+    if ext in _D_EXTENSIONS:
+        return scan_d
+    if ext in _SQL_EXTENSIONS:
+        return scan_sql
     if ext == '.json':
         return scan_json
     return scan_common  # generic fallback for all other recognized extensions
@@ -737,6 +761,18 @@ def _compute_parse_result(file_bytes: bytes, ext: str) -> tuple:
         raw = scan_lua(src)
     elif ext in _SHELL_EXTENSIONS and _PARSERS_LOADED:
         raw = scan_shell(src)
+    elif ext in _R_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_r(src, ext)
+    elif ext in _PROTOBUF_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_protobuf(src, ext)
+    elif ext in _GRAPHQL_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_graphql(src, ext)
+    elif ext in _ZIG_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_zig(src, ext)
+    elif ext in _D_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_d(src, ext)
+    elif ext in _SQL_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_sql(src, ext)
     elif ext == '.json' and _PARSERS_LOADED:
         raw = scan_json(src, ext)
     elif _PARSERS_LOADED:
