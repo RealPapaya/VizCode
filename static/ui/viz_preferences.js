@@ -122,6 +122,7 @@ function _refreshVisualChrome() {
     // Global pass for any data-i18n tags
     window._i18n.apply(document);
     _syncAllPrefDropdowns();
+    _refreshPrefSectionHeading();
 
     const dashboardBtn = document.getElementById('dashboard-btn');
     if (dashboardBtn) {
@@ -906,6 +907,13 @@ function _buildPrefAiSettingsHTML() {
     </section>`;
 }
 
+const _PREF_NAV_ICONS = {
+    appearance: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>`,
+    language: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
+    maingraph: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>`,
+    ai: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>`,
+};
+
 function _buildPrefModalHTML() {
     const row = (id, i18nKey, label, options) => `
       <div class="pref-control">
@@ -922,11 +930,10 @@ function _buildPrefModalHTML() {
       </div>
       <div class="pref-layout-shell">
         <nav class="pref-sidebar" aria-label="Settings categories">
-          <button type="button" class="pref-nav-item active" data-pref-section="appearance" data-pref-preview-id="font-select" data-i18n="sectionAppearance">Appearance</button>
-          <button type="button" class="pref-nav-item" data-pref-section="behaviour" data-pref-preview-id="pref-ext-files" data-i18n="sectionBehaviour">Default Behaviour</button>
-          <button type="button" class="pref-nav-item" data-pref-section="symbol" data-pref-preview-id="pref-sv-edge-style" data-i18n="sectionSymbolView">Symbol View</button>
-          <button type="button" class="pref-nav-item" data-pref-section="layout" data-pref-preview-id="pref-layout-l0" data-i18n="sectionLayout">Default Layout</button>
-          <button type="button" class="pref-nav-item" data-pref-section="ai" data-pref-preview-id="" data-i18n="sectionAiSettings">AI Settings</button>
+          <button type="button" class="pref-nav-item active" data-pref-section="appearance" data-pref-preview-id="font-select" data-pref-desc-key="sectionAppearanceDesc"><span class="pref-nav-icon">${_PREF_NAV_ICONS.appearance}</span><span class="pref-nav-label" data-i18n="sectionAppearance">Appearance</span></button>
+          <button type="button" class="pref-nav-item" data-pref-section="language" data-pref-preview-id="pref-lang-select" data-pref-desc-key="sectionLanguageDesc"><span class="pref-nav-icon">${_PREF_NAV_ICONS.language}</span><span class="pref-nav-label" data-i18n="sectionLanguage">Language</span></button>
+          <button type="button" class="pref-nav-item" data-pref-section="maingraph" data-pref-preview-id="pref-layout-l0" data-pref-desc-key="sectionMainGraphDesc"><span class="pref-nav-icon">${_PREF_NAV_ICONS.maingraph}</span><span class="pref-nav-label" data-i18n="sectionMainGraph">Main graph</span></button>
+          <button type="button" class="pref-nav-item" data-pref-section="ai" data-pref-preview-id="" data-pref-desc-key="sectionAiSettingsDesc"><span class="pref-nav-icon">${_PREF_NAV_ICONS.ai}</span><span class="pref-nav-label" data-i18n="sectionAiSettings">AI Settings</span></button>
         </nav>
         <main class="pref-main">
           <section id="pref-preview-panel" class="pref-preview-panel">
@@ -935,6 +942,10 @@ function _buildPrefModalHTML() {
             <div id="pref-preview-hint" class="pref-preview-hint"></div>
           </section>
           <div class="pref-section-content">
+            <div class="pref-section-heading">
+              <h2 class="pref-section-heading-title" id="pref-section-heading-title"></h2>
+              <p class="pref-section-heading-desc" id="pref-section-heading-desc"></p>
+            </div>
             <section class="pref-subsection active" data-pref-section-panel="appearance">
               ${row('font-select', 'fontLabel', 'Code Editor Font', `
                 <option value="'JetBrains Mono', monospace">JetBrains Mono</option>
@@ -948,21 +959,37 @@ function _buildPrefModalHTML() {
                 <option value="claude" data-i18n="themeOptClaude">Light</option>
                 <option value="parchment" data-i18n="themeOptParchment">Parchment</option>
               `)}
-              ${row('pref-lang-select', 'langLabel', 'Interface Language', `
-                <option value="en">English</option>
-                <option value="zh-tw">&#32321;&#39636;&#20013;&#25991;</option>
-              `)}
               ${row('pref-node-style', 'nodeStyleLabel', 'Node Style', `
                 <option value="detailed" data-i18n="nodeStyleDetailed">Detailed</option>
                 <option value="simple" data-i18n="nodeStyleSimple">Simple</option>
               `)}
             </section>
-            <section class="pref-subsection" data-pref-section-panel="behaviour">
-              ${row('pref-ext-files', 'extFilesAlways', 'External Files always ON', `
-                <option value="false" data-i18n="behaviourOff">Off</option>
-                <option value="true" data-i18n="behaviourOn">Always On</option>
+            <section class="pref-subsection" data-pref-section-panel="language">
+              ${row('pref-lang-select', 'langLabel', 'Interface Language', `
+                <option value="en">English</option>
+                <option value="zh-tw">&#32321;&#39636;&#20013;&#25991;</option>
               `)}
-              ${row('pref-ext-funcs', 'extFuncsAlways', 'External Functions always ON', `
+            </section>
+            <section class="pref-subsection" data-pref-section-panel="maingraph">
+              <div class="pref-group-header" data-i18n="mgGroupL0">L0 · Module Overview</div>
+              ${row('pref-layout-l0', 'layoutL0Label', 'Module (L0)', `
+                <option value="dagre-lr">Hierarchy LR</option>
+                <option value="dagre-tb">Hierarchy TB</option>
+                <option value="cose">Force</option>
+                <option value="fcose">Smart Cluster</option>
+                <option value="elk-stress">ELK Stress</option>
+              `)}
+              <div class="pref-group-header" data-i18n="mgGroupL1">L1 · Dependency Map</div>
+              ${row('pref-layout-l1', 'layoutL1Label', 'Dependency Map (L1)', `
+                <option value="dagre-lr">Hierarchy LR</option>
+                <option value="dagre-tb">Hierarchy TB</option>
+                <option value="cose">Force</option>
+                <option value="fcose">Smart Cluster</option>
+                <option value="cola">Smooth Physics</option>
+                <option value="elk-layered">ELK Flow</option>
+                <option value="elk-stress">ELK Stress</option>
+              `)}
+              ${row('pref-ext-files', 'extFilesAlways', 'External Files always ON', `
                 <option value="false" data-i18n="behaviourOff">Off</option>
                 <option value="true" data-i18n="behaviourOn">Always On</option>
               `)}
@@ -974,30 +1001,7 @@ function _buildPrefModalHTML() {
                 <option value="true" data-i18n="behaviourOnDefault">On</option>
                 <option value="false" data-i18n="behaviourOffToggle">Off</option>
               `)}
-            </section>
-            <section class="pref-subsection" data-pref-section-panel="symbol">
-              ${row('pref-sv-edge-style', 'symbolEdgeStyleLabel', 'Edge Routing Style', `
-                <option value="bezier" data-i18n="symbolEdgeStyleBezier">Bezier Curves</option>
-                <option value="orthogonal" data-i18n="symbolEdgeStyleOrthogonal">Orthogonal</option>
-              `)}
-            </section>
-            <section class="pref-subsection" data-pref-section-panel="layout">
-              ${row('pref-layout-l0', 'layoutL0Label', 'Module (L0)', `
-                <option value="dagre-lr">Hierarchy LR</option>
-                <option value="dagre-tb">Hierarchy TB</option>
-                <option value="cose">Force</option>
-                <option value="fcose">Smart Cluster</option>
-                <option value="elk-stress">ELK Stress</option>
-              `)}
-              ${row('pref-layout-l1', 'layoutL1Label', 'Dependency Map (L1)', `
-                <option value="dagre-lr">Hierarchy LR</option>
-                <option value="dagre-tb">Hierarchy TB</option>
-                <option value="cose">Force</option>
-                <option value="fcose">Smart Cluster</option>
-                <option value="cola">Smooth Physics</option>
-                <option value="elk-layered">ELK Flow</option>
-                <option value="elk-stress">ELK Stress</option>
-              `)}
+              <div class="pref-group-header" data-i18n="mgGroupL2">L2 · Call Flow</div>
               ${row('pref-layout-l2', 'layoutL2Label', 'Call Flow (L2)', `
                 <option value="dagre-lr">Hierarchy LR</option>
                 <option value="dagre-tb">Hierarchy TB</option>
@@ -1006,6 +1010,15 @@ function _buildPrefModalHTML() {
                 <option value="cola">Smooth Physics</option>
                 <option value="elk-layered">ELK Flow</option>
                 <option value="elk-stress">ELK Stress</option>
+              `)}
+              ${row('pref-ext-funcs', 'extFuncsAlways', 'External Functions always ON', `
+                <option value="false" data-i18n="behaviourOff">Off</option>
+                <option value="true" data-i18n="behaviourOn">Always On</option>
+              `)}
+              <div class="pref-group-header" data-i18n="mgGroupL3">L3 · Symbol View</div>
+              ${row('pref-sv-edge-style', 'symbolEdgeStyleLabel', 'Edge Routing Style', `
+                <option value="bezier" data-i18n="symbolEdgeStyleBezier">Bezier Curves</option>
+                <option value="orthogonal" data-i18n="symbolEdgeStyleOrthogonal">Orthogonal</option>
               `)}
             </section>
             ${_buildPrefAiSettingsHTML()}
@@ -1132,6 +1145,22 @@ function _showPrefPreview(id, value) {
     }, 60);
 }
 
+function _refreshPrefSectionHeading() {
+    const modal = document.getElementById('pref-modal');
+    if (!modal) return;
+    const activeNav = modal.querySelector('.pref-nav-item.active');
+    const titleEl = document.getElementById('pref-section-heading-title');
+    const descEl = document.getElementById('pref-section-heading-desc');
+    if (titleEl) {
+        const label = activeNav?.querySelector('.pref-nav-label');
+        titleEl.textContent = label ? label.textContent : '';
+    }
+    if (descEl) {
+        const key = activeNav?.dataset.prefDescKey;
+        descEl.textContent = key ? ((typeof T === 'function') ? T(key) : '') : '';
+    }
+}
+
 function _activatePrefSection(sectionId, previewId) {
     const modal = document.getElementById('pref-modal');
     if (!modal) return;
@@ -1154,6 +1183,7 @@ function _activatePrefSection(sectionId, previewId) {
     const target = targetId ? document.getElementById(targetId) : null;
     if (target && _prefSupportsPreview(target.id)) _showPrefPreview(target.id, target.value);
     if (selected === 'ai') _prefAiLoadConfig();
+    _refreshPrefSectionHeading();
 }
 
 function _initPrefSectionNav(modal) {
