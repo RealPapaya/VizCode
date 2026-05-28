@@ -207,6 +207,7 @@ ${_dashKpiDetailGridHTML([
 _dashRegisterWidget({
     id: 'graph_intelligence',
     labelKey: 'dashGraphHotspots',
+    descriptionKey: 'dashDescGraphIntelligence',
     defaultSize: 'L',
 
     render(container, size, stats) {

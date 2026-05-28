@@ -146,6 +146,7 @@ ${period}
 _dashRegisterWidget({
     id: 'temporal',
     labelKey: 'dashTemporalTitle',
+    descriptionKey: 'dashDescTemporal',
     defaultSize: 'L',
     deprecated: true,
     render(container, size, stats) { _dashRenderTemporal(container, stats, size); },

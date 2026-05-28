@@ -257,6 +257,7 @@ function _dashSecRenderDetail(container, f) {
 _dashRegisterWidget({
     id: 'security',
     labelKey: 'dashSecurityTitle',
+    descriptionKey: 'dashDescSecurity',
     defaultSize: 'M',
 
     render(container, size, stats) {

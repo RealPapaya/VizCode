@@ -3,6 +3,7 @@
 _dashRegisterWidget({
     id: 'bus_factor',
     labelKey: 'dashBusFactorTitle',
+    descriptionKey: 'dashDescBusFactor',
     defaultSize: 'M',
 
     render(container, size, stats) {

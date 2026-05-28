@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 analyze_viz.py V4 — VIZCODE Universal Code Visualizer
-Supports: UEFI/BIOS (C/H/ASM/INF/DEC/DSC/FDF/SDL/CIF/MAK/VFR/HFR/UNI/ASL)
+Supports: C/C++ (C/H/CPP/HPP), UEFI/BIOS (ASM/INF/DEC/DSC/FDF/SDL/CIF/MAK/VFR/HFR/UNI/ASL)
           Python (.py)
           JavaScript / TypeScript (.js/.mjs/.cjs/.jsx/.ts/.tsx)
           Go (.go)
@@ -54,9 +54,13 @@ for _p in (str(_SRC_DIR), str(_CORE_DIR)):
 
 try:
     from parsers.bios_parser   import scan_bios, BIOS_EXTENSIONS as _BIOS_EXTENSIONS
+    from parsers.c_cpp_parser  import scan_c_cpp, C_CPP_EXTENSIONS as _C_CPP_EXTENSIONS
+    from parsers.csharp_parser import scan_csharp, CSHARP_EXTENSIONS as _CSHARP_EXTENSIONS
     from parsers.python_parser import scan_python
-    from parsers.js_parser     import scan_js, scan_ts
+    from parsers.js_parser     import scan_js, scan_ts, JS_KEYWORDS as _JS_KEYWORDS
     from parsers.go_parser     import scan_go
+    from parsers.java_parser   import scan_java, JAVA_EXTENSIONS as _JAVA_EXTENSIONS
+    from parsers.rust_parser   import scan_rust, RUST_EXTENSIONS as _RUST_EXTENSIONS
     from parsers.json_parser   import scan_json
     from parsers.common_parser import scan_common, count_loc
     from detector              import detect_project_type, fmt_detection_banner
@@ -64,6 +68,10 @@ try:
 except ImportError as _pe:
     _PARSERS_LOADED = False
     _BIOS_EXTENSIONS = set()
+    _C_CPP_EXTENSIONS = set()
+    _CSHARP_EXTENSIONS = set()
+    _JAVA_EXTENSIONS = set()
+    _RUST_EXTENSIONS = set()
     _console_print(f'[WARN] Could not load language parsers: {_pe}', file=sys.stderr)
 
 import parse_memo
@@ -94,8 +102,12 @@ def _get_parser_fn(ext: str):
     Returns None when parsers aren't loaded (C-like fallback path)."""
     if not _PARSERS_LOADED:
         return None
+    if ext in _C_CPP_EXTENSIONS:
+        return scan_c_cpp
     if ext in _BIOS_EXTENSIONS:
         return scan_bios
+    if ext in _CSHARP_EXTENSIONS:
+        return scan_csharp
     if ext == '.py':
         return scan_python
     if ext in ('.js', '.mjs', '.cjs', '.jsx'):
@@ -104,6 +116,10 @@ def _get_parser_fn(ext: str):
         return scan_ts
     if ext == '.go':
         return scan_go
+    if ext in _JAVA_EXTENSIONS:
+        return scan_java
+    if ext in _RUST_EXTENSIONS:
+        return scan_rust
     if ext == '.json':
         return scan_json
     return scan_common  # generic fallback for all other recognized extensions
@@ -125,8 +141,8 @@ SKIP_DIRS  = {
 }
 BUILD_DIRS = {'Build','build','DEBUG','RELEASE'}
 SCAN_EXT   = {
-    # ── C/C++ / ASM (BIOS) ─────────────────────────────────────────────────
-    '.c','.cpp','.cc','.h','.hpp','.asm','.s','.S','.nasm',
+    # ── C/C++ / ASM ────────────────────────────────────────────────────────
+    '.c','.cpp','.cc','.cxx','.h','.hpp','.hh','.hxx','.asm','.s','.S','.nasm',
     # ── UEFI / EDK2 build system ───────────────────────────────────────────
     '.inf', '.dec', '.dsc', '.fdf',
     # ── AMI BIOS proprietary ───────────────────────────────────────────────
@@ -168,9 +184,9 @@ SKIP_EXT   = {'.veb','.lib','.obj','.efi','.rom','.bin','.log','.map'}
 
 # ─── File type semantic categories ───────────────────────────────────────────
 FILE_TYPE_MAP = {
-    # BIOS / C
-    '.c': 'c_source', '.cpp': 'c_source', '.cc': 'c_source',
-    '.h': 'header',   '.hpp': 'header',
+    # C / C++ and BIOS assets
+    '.c': 'c_source', '.cpp': 'c_source', '.cc': 'c_source', '.cxx': 'c_source',
+    '.h': 'header',   '.hpp': 'header', '.hh': 'header', '.hxx': 'header',
     '.asm': 'assembly', '.s': 'assembly', '.S': 'assembly', '.nasm': 'assembly',
     '.inf': 'module_inf',
     '.dec': 'package_dec',
@@ -252,7 +268,7 @@ EDGE_TYPES = {
     'inferred':      {'label': 'Inferred',  'color': '#94a3b8', 'style': 'dashed', 'kind': 'inferred'},
 }
 
-# C_KEYWORDS now lives in parsers/bios_parser.py
+# C/C++ parsing lives in parsers/c_cpp_parser.py; BIOS parser handles firmware formats.
 
 MODULE_COLORS = [
     '#00d4ff','#00ff9f','#ff6b35','#ffd700','#a78bfa',
@@ -582,14 +598,14 @@ KNOWN_SYS_FUNCS: Dict[str, str] = {
     'LibReportStatusCode':          'Status Code',
 }
 
-# ─── All BIOS/UEFI/AMI/C parsers → parsers/bios_parser.py ──────────────────────
+# ─── Parser dispatch wrappers ─────────────────────────────────────────────────
 
 # ─── scan_file ────────────────────────────────────────────────────────────────
 def scan_file(filepath: str, root: str, _memo: Optional[dict] = None):
     """
-    Returns (includes_or_refs, funcdefs, funccalls, bios_extra_dict, func_calls_by_func, symbol_defs)
-    bios_extra_dict varies by file type; None for C/H/ASM.
-    symbol_defs is a list of {kind, name, line, end_line, bases, parent, is_public} — may be [] for BIOS/C.
+    Returns (includes_or_refs, funcdefs, funccalls, extra_dict, func_calls_by_func, symbol_defs)
+    extra_dict varies by file type; None for some firmware/assembly inputs.
+    symbol_defs is a list of {kind, name, line, end_line, bases, parent, is_public}.
 
     _memo: optional in-memory cache dict from parse_memo.open_memo().  When
            provided, results are looked up before parsing and stored afterward.
@@ -643,7 +659,9 @@ def _compute_parse_result(file_bytes: bytes, ext: str) -> tuple:
     loc_data = count_loc(src, ext) if _PARSERS_LOADED else {'code': 0, 'comment': 0, 'blank': 0}
 
     raw = None
-    if ext in _BIOS_EXTENSIONS and _PARSERS_LOADED:
+    if ext in _C_CPP_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_c_cpp(src, ext)
+    elif ext in _BIOS_EXTENSIONS and _PARSERS_LOADED:
         raw = scan_bios(src, ext)
     elif ext == '.py' and _PARSERS_LOADED:
         raw = scan_python(src)
@@ -653,6 +671,12 @@ def _compute_parse_result(file_bytes: bytes, ext: str) -> tuple:
         raw = scan_ts(src)
     elif ext == '.go' and _PARSERS_LOADED:
         raw = scan_go(src)
+    elif ext in _JAVA_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_java(src, ext)
+    elif ext in _RUST_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_rust(src, ext)
+    elif ext in _CSHARP_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_csharp(src, ext)
     elif ext == '.json' and _PARSERS_LOADED:
         raw = scan_json(src, ext)
     elif _PARSERS_LOADED:
@@ -663,7 +687,10 @@ def _compute_parse_result(file_bytes: bytes, ext: str) -> tuple:
         if n == 5:
             result = (*raw, [], None)
         elif n == 6:
-            result = (*raw, None)
+            diag = None
+            if isinstance(raw[3], dict) and raw[3].get('file_error'):
+                diag = {'file_error': raw[3].get('file_error')}
+            result = (*raw, diag)
         elif n == 7:
             result = tuple(raw)
         else:
@@ -1409,6 +1436,27 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
 
     rel_to_id = {rel: i for i, rel in enumerate(file_meta)}
 
+    # ── Global-symbol index (non-ESM JS/TS) ─────────────────────────────────
+    # Some JS/TS codebases share a single global namespace via ordered <script>
+    # tags instead of import/require (e.g. window.X = ...). They emit no import
+    # refs, so the import-edge pass below leaves them edgeless. Index each JS/TS
+    # file's top-level definitions + window./globalThis. exports so a file that
+    # *uses* a global can be linked to the file that *defines* it.
+    _JS_EXTS = {'.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx'}
+    global_def_index = defaultdict(set)  # global name → set(defining rel paths)
+    for rel, meta in file_meta.items():
+        if meta['ext'] not in _JS_EXTS:
+            continue
+        for sym in (file_symdefs.get(rel) or []):
+            if sym.get('parent') is None and sym.get('kind') in (
+                'function', 'class', 'interface', 'enum', 'namespace'
+            ):
+                global_def_index[sym['name']].add(rel)
+        _fx = file_extra.get(rel)
+        if isinstance(_fx, dict):
+            for name in _fx.get('global_defs', []):
+                global_def_index[name].add(rel)
+
     # Pre-build CamelCase → snake_case lookup for Ruby/Python convention matching
     _re_camel = re.compile(r'(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])')
 
@@ -1508,7 +1556,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     module_edge_counts = defaultdict(int)
     seen_file_edges    = set()
 
-    def add_edge(src_rel, tgt_rel, edge_type):
+    def add_edge(src_rel, tgt_rel, edge_type, via=None):
         src_id  = rel_to_id[src_rel]
         tgt_id  = rel_to_id[tgt_rel]
         src_mod = file_meta[src_rel]['module']
@@ -1521,13 +1569,19 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         ekey = (src_id, tgt_id, edge_type)
         if ekey not in seen_file_edges:
             seen_file_edges.add(ekey)
-            file_edges_by_module[src_mod].append({'s': src_id, 't': tgt_id, 'type': edge_type})
+            edge = {'s': src_id, 't': tgt_id, 'type': edge_type}
+            # `via` = the symbol that links the two files (global-script JS, where
+            # there is no import line to highlight — the code panel highlights the
+            # symbol-use line instead).
+            if via:
+                edge['via'] = via
+            file_edges_by_module[src_mod].append(edge)
 
     for src_rel, extra in file_extra.items():
         ext = file_meta[src_rel]['ext']
         src_dir = str(Path(src_rel).parent)
 
-        if ext in ('.c', '.cpp', '.cc', '.h', '.hpp', '.vfr', '.asl'):
+        if ext in ('.c', '.cpp', '.cc', '.cxx', '.h', '.hpp', '.hh', '.hxx', '.vfr', '.asl'):
             # Standard #include edges
             for inc in file_incs.get(src_rel, []):
                 for tgt in resolve_ref(inc, src_dir):
@@ -1566,6 +1620,26 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                 for tgt in resolve_ref(imp, src_dir):
                     if tgt != src_rel:
                         add_edge(src_rel, tgt, 'import')
+
+            # ── Global-symbol fallback (non-ESM JS/TS) ───────────────────────
+            # Only when the file emitted no ESM import/require refs — this
+            # targets the global-<script> case and keeps real ESM/npm projects
+            # free of spurious global-name edges.
+            if ext in _JS_EXTS and not file_incs.get(src_rel):
+                uses = set(file_calls.get(src_rel, []))
+                _fx = file_extra.get(src_rel)
+                if isinstance(_fx, dict):
+                    uses.update(_fx.get('global_uses', []))
+                for name in sorted(uses):
+                    if len(name) < 3 or name in _JS_KEYWORDS:
+                        continue
+                    definers = global_def_index.get(name)
+                    # Unambiguous only: skip generic names defined in many files.
+                    if not definers or len(definers) != 1:
+                        continue
+                    tgt = next(iter(definers))
+                    if tgt != src_rel:
+                        add_edge(src_rel, tgt, 'import', via=name)
 
         elif ext == '.inf' and extra:
             # [Sources] → .c files

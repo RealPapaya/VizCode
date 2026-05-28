@@ -3,6 +3,7 @@
 _dashRegisterWidget({
     id: 'kpi_lines',
     labelKey: 'dashKpiLoc',
+    descriptionKey: 'dashDescKpiLines',
     defaultSize: 'S',
 
     render(container, size, stats) {

@@ -309,6 +309,40 @@
     font-weight: 720;
     letter-spacing: 0;
     color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.dash-detail-help-tip {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    opacity: 0.7;
+    transition: color 0.18s, background 0.18s, opacity 0.18s;
+    vertical-align: middle;
+    line-height: 1;
+}
+
+.dash-detail-help-tip:hover {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    opacity: 1;
+}
+
+.dash-detail-help-tip:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+    outline-offset: 2px;
+    opacity: 1;
 }
 
 .dash-report-primary {
@@ -1025,6 +1059,13 @@
 .dash-kpi-detail-section + .dash-kpi-detail-grid {
     padding-top: clamp(22px, 2.6vw, 32px);
     border-top: 1px solid var(--dash-report-divider-color, var(--border));
+}
+
+/* Sections laid out as grid columns are side by side, not stacked — the
+   adjacency divider above doesn't apply to them. */
+.dash-kpi-detail-grid > .dash-kpi-detail-section + .dash-kpi-detail-section {
+    padding-top: 0;
+    border-top: none;
 }
 
 .dash-kpi-detail-section__head {

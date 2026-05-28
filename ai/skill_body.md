@@ -30,7 +30,7 @@ python "<VIZCODE_ROOT>/vizcode.py" "<PROJECT_PATH>" --scan-only
 
 1. `vizcode_l0()` — 看懂整體模組邊界
 2. `vizcode_l1("parsers")` — 深入某個模組
-3. `vizcode_l2("parsers/bios_parser.py")` — 看特定檔案的函式圖
+3. `vizcode_l2("parsers/c_cpp_parser.py")` — 看特定檔案的函式圖
 4. `vizcode_query("cache")` — 找所有跟 cache 相關的模組/邊
 
 **禁止**直接讀取 `.vizcode/scan_cache.json` 或 `.vizcode/semantic_cache.json` 原始檔案。

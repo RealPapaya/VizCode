@@ -502,7 +502,9 @@ function _dashOpenAddWidgetPicker() {
                 const { w: gw, h: gh } = _dashWidgetSizeTier(id, t);
                 return _dashGridHasRoom(null, gw, gh);
             });
-            selectedTier[id] = fit ? fit[0] : null;
+            // Fall back to the widget's default tier so size selection still works
+            // even when the grid is full (the Add button alone stays blocked).
+            selectedTier[id] = fit ? fit[0] : def;
         }
     }));
 
@@ -574,11 +576,11 @@ function _dashOpenAddWidgetPicker() {
         });
 
         const tierBtns = Object.entries(_DASH_SIZE_TIERS).map(([t]) => {
-            const { w: gw, h: gh } = _dashWidgetSizeTier(id, t);
-            const fits     = !isAdded && _dashGridHasRoom(null, gw, gh);
             const isActive = t === tier;
+            // Size pickers stay enabled even when the grid is full — only the
+            // "Add to Dashboard" button is blocked in that case.
             return `<button class="dash-size-btn${isActive ? ' active' : ''}"
-                data-tier="${t}"${(!fits || isAdded) ? ' disabled' : ''} type="button">${t}</button>`;
+                data-tier="${t}"${isAdded ? ' disabled' : ''} type="button">${t}</button>`;
         }).join('');
 
         meta.innerHTML = `

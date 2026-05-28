@@ -374,6 +374,7 @@ function _dashBuildTreemap(scope) {
 _dashRegisterWidget({
     id: 'structure',
     labelKey: 'dashStructureFileTypes',
+    descriptionKey: 'dashDescStructure',
     defaultSize: 'L',
 
     render(container, size, stats) {

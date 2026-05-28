@@ -336,8 +336,15 @@ HTML_SKELETON = """\
 </div>
 <div id="chat-config-modal" class="hidden">
   <div id="chat-config-box">
-    <h3>AI Chat Setup</h3>
-    <p>Choose a provider and enter your credentials to enable VizCode AI.</p>
+    <h3>AI Settings</h3>
+    <p>AI settings are managed from the main Settings panel.</p>
+    <div class="chat-cfg-row">
+      <label>Mode</label>
+      <select id="chat-cfg-ai-mode">
+        <option value="api">API</option>
+        <option value="cli">Local CLI</option>
+      </select>
+    </div>
     <div class="chat-cfg-row">
       <label>Provider</label>
       <select id="chat-cfg-provider">
@@ -466,6 +473,32 @@ HTML_SKELETON = """\
       <div class="chat-cfg-row">
         <label>Model</label>
         <input type="text" id="chat-cfg-custom-model" placeholder="meta-llama/llama-3.1-8b-instruct:free" />
+      </div>
+    </div>
+    <div class="chat-cfg-section" data-provider="cli" style="display:none">
+      <div class="chat-cfg-row">
+        <label>Local CLI</label>
+        <select id="chat-cfg-cli-agent">
+          <option value="claude">Claude Code</option>
+          <option value="codex">Codex CLI</option>
+          <option value="gemini">Gemini CLI</option>
+        </select>
+      </div>
+      <div class="chat-cfg-row">
+        <label>Model <span style="font-weight:400;opacity:.6">(optional)</span></label>
+        <input type="text" id="chat-cfg-cli-model" placeholder="uses CLI default when blank" />
+      </div>
+      <div class="chat-cfg-row">
+        <label>Claude path</label>
+        <input type="text" id="chat-cfg-claude-cli-path" placeholder="claude" />
+      </div>
+      <div class="chat-cfg-row">
+        <label>Codex path</label>
+        <input type="text" id="chat-cfg-codex-cli-path" placeholder="codex" />
+      </div>
+      <div class="chat-cfg-row">
+        <label>Gemini path</label>
+        <input type="text" id="chat-cfg-gemini-cli-path" placeholder="gemini" />
       </div>
     </div>
     <button id="chat-config-save">Save</button>

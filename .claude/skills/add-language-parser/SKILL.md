@@ -1,302 +1,403 @@
 ---
 name: add-language-parser
-description: Add or improve language support in VIZCODE — covers import/dependency edges, function/class node detection, file type shape, and legend entries. Use this skill whenever the user wants to add a new programming language, fix incorrect parsing for an existing language, strengthen edge connections between files, or report that a language's imports/functions aren't being detected. Also triggers when the user says "add support for X", "X files aren't showing edges", or "fix X parser".
+purpose: Production-grade parser engineering methodology for VIZCODE
+description: Add or improve language support in VIZCODE - covers import/dependency edges, function/class node detection, file type shape, and legend entries. Use when adding a language, fixing parsing, strengthening cross-file edges, or diagnosing missing dependencies.
 ---
 
 # SKILL: Add Language Support to VIZCODE
 
 VIZCODE supports two tiers of language parsers:
 
-- **Dedicated parsers** (`src/parsers/<lang>_parser.py`) — Python, JS/TS, Go, BIOS/C/C++. Full AST-level analysis.
-- **Common parser** (`src/parsers/common_parser.py`) — Regex-based fallback for 52+ other languages. This is almost always the right place to add new languages.
+- **Dedicated parsers** (`src/parsers/<lang>_parser.py`) - Python, JS/TS, Go, BIOS/C/C++. Full AST-level analysis where implemented.
+- **Common parser** (`src/parsers/common_parser.py`) - Regex-based fallback for 52+ other languages.
 
-This skill focuses on the common parser path, which handles: Rust, Java, Kotlin, Scala, C#, Ruby, Swift, Dart, Elixir, Erlang, Haskell, OCaml, F#, Lua, PHP, Perl, R, Julia, Nim, Zig, D, Clojure, SQL, GraphQL, Protobuf, Shell, and more.
+This skill applies to both, but the implementation path differs.
+
+## Mission
+
+Add or improve language support in a way that is:
+
+- Correct enough to trust
+- Stable under adversarial code
+- Conservative when ambiguous
+- Reusable for future languages
+- Grounded in authoritative syntax references
+
+This is not a "write regex from memory" workflow. It is a parser engineering workflow.
+
+---
+
+## Step -1: Classify the Codebase Architecture First
+
+Before writing any code, classify how the target codebase expresses dependencies and symbol visibility.
+
+Choose the dominant architecture:
+
+| Architecture | Description | Examples |
+|---|---|---|
+| ESM / module-based | Explicit import/export graph | modern JS/TS, Python packages |
+| Global-script | Shared global namespace, runtime load order, global object | legacy JS `<script>` apps |
+| Include-based | File inclusion creates visibility | PHP `include`, C `#include` |
+| Linker-based | Symbols resolved at compile/link time | C/C++, Rust crates |
+| Reflection-heavy | Runtime registration / reflection | Unity, Unreal |
+| Plugin/runtime-discovery | Runtime-loaded extensions | VSCode extensions, plugin systems |
+
+Required output before implementation:
+
+- Selected architecture
+- How cross-file visibility works
+- Whether dependency edges are explicit or inferred
+- What constitutes a definition
+- What constitutes a use/reference
+
+Do not assume every language uses import/export semantics.
 
 ---
 
 ## Step 0: Research the Language Syntax First
 
-Before touching any code, verify the exact syntax rules. Wrong regex = silent wrong edges.
+Before touching code, verify the exact syntax rules against an authoritative reference.
 
-Key questions to answer:
-1. **Import/dependency syntax** — How does this language declare dependencies? (e.g. `import`, `require`, `use`, `include`, `#include`)
-2. **Static/re-export forms** — Are there `import static`, `pub use`, `export from` variants?
-3. **Function definition keywords** — `def`, `fn`, `func`, `fun`, `sub`, `proc`, `defn`?
-4. **Class/module keywords** — `class`, `module`, `struct`, `record`, `trait`, `interface`, `defmodule`?
-5. **Line comment syntax** — `//`, `#`, `--`, `;`, `%`?
-6. **What the import string refers to** — a namespace (take last segment), a file path (take stem), or a mix?
+Wrong regex = silent wrong edges, and edges are the product. Do not write a pattern from memory.
 
-Use web search or context7 MCP to verify. Do not guess.
+### 0a. Fetch authoritative grammar references
+
+Use canonical sources first:
+
+| Family | Authoritative sources |
+|---|---|
+| JS / TS | ECMAScript spec (`tc39.es/ecma262`), TypeScript Handbook, MDN |
+| Java / Kotlin / Scala | Java Language Specification (JLS), Kotlin/Scala language reference |
+| Rust | The Rust Reference (`doc.rust-lang.org/reference`) |
+| Go | Go Language Specification (`go.dev/ref/spec`) |
+| Python | Python Language Reference (`docs.python.org/3/reference`) |
+| C# / .NET | C# language spec / Microsoft Learn |
+| Others | Official reference manual / grammar (BNF/EBNF), then stdlib docs |
+
+Tooling:
+
+- Web search / web fetch for spec pages and grammar sections
+- context7 MCP for library/framework syntax when relevant
+
+Prefer specs over blogs. Do not guess.
+
+### 0b. Optional subagent research
+
+When subagent tooling is available, delegate bounded syntax research to a cheaper or faster research agent only when it will save time.
+
+Rules for delegated research:
+
+- Give the subagent a narrow syntax question and require official sources first.
+- Require source links for every claim.
+- Require notes on ambiguity, unsupported syntax, and syntax forms that are intentionally out of scope.
+- Treat the result as input, not authority. The main implementer remains responsible for validation, tests, and final parser behavior.
+
+Do not delegate implementation ownership. Parser changes still need local reasoning, adversarial tests, and regression checks.
+
+### 0c. Answer these questions from the reference
+
+1. How does the language declare dependencies?
+2. Are there static/re-export forms?
+3. What keywords define functions?
+4. What keywords define classes/modules/types?
+5. What is the comment syntax?
+6. What string, raw-string, rune, char, template, heredoc, or multiline literal forms can contain comment-looking text?
+7. What does an import string refer to?
+8. Does the codebase actually use a module system, or does it use globals / includes / runtime registration?
+
+### 0d. Output of this step
+
+Record a short note in the PR/commit body listing:
+
+- Which syntax forms were verified
+- Which source documented them
+- Which syntax forms are intentionally unsupported
+
+This is the audit trail for every parser rule.
 
 ---
 
-## Step 1: Add Import Patterns — `src/parsers/common_parser.py`
+## Precision-first policy
+
+VIZCODE is a graph-analysis system.
+
+False-positive edges are more damaging than missing edges because they visually corrupt the graph and create edge explosion.
+
+When uncertain:
+
+- Prefer skipping an edge over inventing one
+- Prefer unambiguous resolution only
+- Prefer explicit imports over inferred references
+- Prefer stable precision over aggressive recall
+
+Every inference feature must define:
+
+- Precision risks
+- Ambiguity policy
+- False-positive suppression rules
+- Fallback behavior
+
+Examples of safe suppression:
+
+- Skip names defined in multiple files
+- Skip keywords and builtins
+- Skip names shorter than 3 characters
+- Gate inferred linkage behind "no explicit imports detected"
+
+---
+
+## Parser escalation strategy
+
+Not every syntax feature should be solved with regex.
+
+Choose the lightest parser strategy that safely handles the syntax complexity.
+
+| Complexity | Recommended strategy |
+|---|---|
+| Simple import syntax | Regex |
+| Nested expressions | Token-aware scanning |
+| JSX / decorators / advanced TS | AST parser |
+| Macro-heavy syntax | Specialized parser |
+| Runtime-generated symbols | Heuristic inference |
+
+Escalation rules:
+
+- Do not force regex into syntax it cannot safely parse
+- If regex becomes brittle, escalate the parser level
+- Prefer stable partial extraction over fragile full extraction
+
+---
+
+## Comment Masking Policy
+
+Comment stripping must be language-specific. There is no universal safe set of comment markers.
+
+Before adding or changing comment handling:
+
+- Verify the language's line and block comment syntax from an official reference.
+- Check every literal form that can contain comment-looking text, including strings, raw strings, rune/char literals, template literals, heredocs, regex literals, and multiline strings.
+- Do not remove or mask comment markers inside those literal forms.
+- Preserve line positions when parser results expose line numbers. For multiline comments, keep newline characters in the masked source.
+- Prefer token-aware masking over regex stripping when comments and literals can overlap.
+
+---
+
+## Validation matrix (required)
+
+Every parser or edge-resolution change must be validated against both positive and adversarial cases.
+
+Required validation categories:
+
+| Category | Purpose |
+|---|---|
+| Happy-path | Expected syntax works |
+| Ambiguous symbols | Duplicate names do not create false edges |
+| Builtin/runtime names | Globals like `console`, `document`, `window` do not create edges |
+| Existing module systems | Real imports remain authoritative |
+| Comment stripping | Commented code produces no defs/imports |
+| Literal/comment overlap | Comment markers inside strings/raw strings/runes/templates are not treated as comments |
+| Line preservation | Multiline comments do not shift reported symbol line numbers |
+| False-positive suppression | Generic names do not explode the graph |
+| Regression | Existing language support still works |
+
+Minimum requirement:
+
+- At least 1 positive case
+- At least 1 adversarial case
+- At least 1 regression case
+
+A parser change is incomplete without adversarial validation.
+
+---
+
+## Step 1: Add Import Patterns - `src/parsers/common_parser.py`
+
+Use this section for languages handled by the common regex parser.
 
 ### 1a. Map file extension to language name
 
-Find `_EXT_TO_LANG` dict. Add entries if missing:
+Find `_EXT_TO_LANG`. Add entries if missing:
 
 ```python
 _EXT_TO_LANG = {
     # existing...
     '.nim': 'nim',
-    '.hrl': 'erlang',   # Erlang header files
+    '.hrl': 'erlang',
     '.cljs': 'clojure',
 }
 ```
 
 ### 1b. Add comment-stripping awareness
 
-Find `_strip_comments(src, lang)`. The function has three branches:
+Find `_strip_comments(src, lang)`.
 
-| Branch | Languages | Pattern |
-|--------|-----------|---------|
-| `_RE_LINE_COMMENT_UNIVERSAL` | Most languages | `//` and `#` |
-| `_RE_LINE_COMMENT_SQL` | SQL, Haskell, Lua, Erlang | `--` |
-| `_RE_LINE_COMMENT_LISP` | Clojure, Common Lisp | `;` |
-
-If your language uses a different comment character (e.g. `%` for Erlang/LaTeX, `*` for COBOL), add a new regex constant and branch.
+Make sure the language's comments are stripped or masked correctly before regex parsing. Follow the Comment Masking Policy above; do not add marker-based stripping until literal exceptions and line preservation are understood.
 
 ### 1c. Add to `_LANG_IMPORT_PATTERNS`
 
-This is the most important step. The list is ordered; first match wins for each language. Each entry:
+Add a language-specific import regex only after verifying the actual syntax.
 
-```python
-(lang_set, compiled_regex)
-```
+Rules:
 
-Where `lang_set` is a `set` of language strings from `_EXT_TO_LANG`.
-
-**Template for a new language:**
-```python
-# YourLanguage — <brief description of import syntax>
-({'yourlang'}, re.compile(
-    r'^[ \t]*<import_keyword>\s+(<capture_group>)',
-    re.MULTILINE
-)),
-```
-
-**Critical rules for capture groups:**
-- Capture exactly what you need to resolve — typically the module name or file path
-- For JVM/CLR languages (Java, Kotlin, C#): capture the full dotted path, then take the **last segment** (done automatically by `_extract_imports`)
-- For Java `import static`: use **two capture groups** `(static\s+)?([\w.]+)` — the function detects group 1 = "static" and uses `segs[-2]` (class name, not method name)
-- For file-path imports (Ruby `require_relative`, Erlang `-include`, Shell `source`): the ref contains `/` or a known extension — the function takes the **file stem** automatically via `_KNOWN_FILE_EXTS`
-- For Rust `use`: colons `::` are the separator — split on `::` and take last non-`*` segment
-
-**Examples of existing patterns to reference:**
-
-```python
-# Rust
-({'rust'}, re.compile(r'^[ \t]*(?:pub\s+)?use\s+([\w:]+(?:::\w+)*)', re.MULTILINE)),
-({'rust'}, re.compile(r'^[ \t]*(?:pub(?:\([^)]*\))?\s+)?mod\s+(\w+)\s*;', re.MULTILINE)),
-
-# Java/Kotlin/Scala/Groovy — two-group for static import detection
-({'java', 'kotlin', 'scala', 'groovy'}, re.compile(
-    r'^[ \t]*import\s+(static\s+)?([\w.]+)', re.MULTILINE)),
-
-# Erlang — file include (path-style ref)
-({'erlang'}, re.compile(
-    r'''^-(?:include|include_lib)\s*\(\s*"([^"]+)"\s*\)''', re.MULTILINE)),
-
-# Shell — source and dot-include
-({'shell'}, re.compile(
-    r'^[ \t]*(?:source|\.)\s+["\']?([^\s"\'#]+)["\']?', re.MULTILINE)),
-
-# Ruby — require and require_relative
-({'ruby'}, re.compile(r'''^[ \t]*require(?:_relative)?\s+['"]([^'"]+)['"]''', re.MULTILINE)),
-```
+- Capture the reference that identifies the dependency
+- Be careful with static import forms
+- For file-path imports, ensure file stem extraction works
+- Keep patterns ordered so you do not shadow existing languages
 
 ### 1d. Add file extensions to `_KNOWN_FILE_EXTS` if needed
 
-`_KNOWN_FILE_EXTS` is a regex that matches file extensions in import strings. When a captured ref matches this, `_extract_imports` treats it as a file path and takes the **stem** instead of the last namespace segment.
-
-```python
-_KNOWN_FILE_EXTS = re.compile(
-    r'\.(rb|py|lua|sh|bash|hrl|dart|proto|graphql|gql|nim|zig|cr|ex|exs|'
-    r'erl|ml|mli|fs|fsx|r|jl|d|clj|cljs|sql|toml|yaml|yml|json)$',
-    re.IGNORECASE
-)
-```
-
-Add the extension here if import strings include a file extension (e.g. `#include "records.hrl"`, `require 'utils.rb'`).
+Add extensions when import strings include a file extension and should be treated as file paths.
 
 ---
 
-## Step 2: Add Function Definition Patterns — `_FUNCDEF_PATTERNS`
+## Step 2: Add Function Definition Patterns - `_FUNCDEF_PATTERNS`
 
-Find the `_FUNCDEF_PATTERNS` list. Each entry is a compiled regex with at least one capture group for the function name.
+Each entry should capture the function name without matching class/module definitions.
 
-**Rules:**
-- Must not match class/module definitions (those go in `_CLASSDEF_PATTERNS`)
-- Use `\b` word boundaries to avoid partial matches
-- Account for common modifiers (access modifiers, `async`, `static`, etc.) as optional non-capturing groups
+Rules:
 
-```python
-# Template
-re.compile(r'^\s*(?:modifier\s+)*def_keyword\s+(\w+)\s*[(<]', re.MULTILINE),
-```
-
-**What already exists (do not duplicate):**
-- `def \w+` (Python-style)
-- `fn \w+` (Rust/Zig-style)
-- `func \w+` (Go/Swift-style)
-- `function \w+` and `\w+\s*=\s*function` (JS-style)
-- `defp`, `defmacro` (Elixir)
-- `proc`, `method`, `template`, `iterator` (Nim)
-- `CREATE FUNCTION/PROCEDURE` (SQL)
-- `Function \w+` (VB.NET)
-
-**If adding something new**, look for the comment `# ── Function definitions ──` and insert after existing entries for the same language family.
+- Use word boundaries
+- Account for common modifiers
+- Do not match class/module declarations
+- Prefer conservative patterns over broad ones
 
 ---
 
-## Step 3: Add Class/Module Definition Patterns — `_CLASSDEF_PATTERNS`
+## Step 3: Add Class/Module Definition Patterns - `_CLASSDEF_PATTERNS`
 
-Same structure as `_FUNCDEF_PATTERNS`. Each entry is a `(regex, kind_string)` tuple:
+Each entry should capture the type/module name and map it to the correct kind.
 
-```python
-(re.compile(r'^\s*<keyword>\s+(\w+)', re.MULTILINE), 'class'),  # or 'interface', 'struct', 'module', 'record', 'trait'
-```
+Kinds include:
 
-**Available kind strings:** `'class'`, `'interface'`, `'struct'`, `'module'`, `'record'`, `'trait'`
+- `class`
+- `interface`
+- `struct`
+- `module`
+- `record`
+- `trait`
 
-**What already exists:** Python `class`, Java `class/interface/enum`, C# `class/interface/struct/record`, Rust `struct/trait/impl`, Elixir `defmodule`, Erlang `-module()`, Haskell `class where`, Julia `struct/abstract type`, SQL `CREATE TABLE/VIEW`, Clojure `defrecord/defprotocol/definterface`, Nim type section.
-
-### Kind detection via `_KIND_KEYWORD_MAP`
-
-`_detect_kind_keyword(full_match)` scans the full matched line using word-boundary regexes to determine the kind. If you add a new keyword to `_CLASSDEF_PATTERNS`, also add it to `_KIND_KEYWORD_MAP`:
-
-```python
-_KIND_KEYWORD_MAP = [
-    (re.compile(r'\byour_keyword\b', re.I), 'struct'),  # or appropriate kind
-    # ...
-]
-```
-
-**Gotcha:** Patterns starting with `-` (Erlang `-module`) cannot use `\b` before the hyphen. Use `re.compile(r'-module\b')` (no leading `\b`).
+If you add a new keyword, also add it to `_KIND_KEYWORD_MAP`.
 
 ---
 
 ## Step 4: Add to `_SKIP_NAMES` if Needed
 
-`_SKIP_NAMES` prevents false positives — common keywords or type names that look like class names but aren't. If your language has SQL-like type names or reserved words that appear after `class`/`struct` keywords:
+Use `_SKIP_NAMES` to suppress false positives from keywords or type-like tokens that are not real symbols.
 
-```python
-_SKIP_NAMES = {
-    'VARCHAR', 'INT', 'BOOLEAN', 'TEXT',  # SQL types
-    'your_keyword',                         # add if needed
-}
-```
+Examples:
 
----
-
-## Step 5: Update Frontend — `static/core/viz_constants.js`
-
-### 5a. File extension color — `extColor()`
-
-Find the `extColor` function. Add a `case` for the new extension returning a hex color:
-
-```javascript
-case 'nim': return '#FFE953';   // Nim yellow
-case 'zig': return '#F7A41D';   // Zig orange
-```
-
-Pick a color that's visually distinct from nearby languages in the same family.
-
-### 5b. Node shape — `FILE_TYPE_SHAPE`
-
-Find `FILE_TYPE_SHAPE`. Map the file type key (matches `FILE_TYPE_MAP` in `src/core/analyze_viz.py`) to a Cytoscape shape:
-
-```javascript
-const FILE_TYPE_SHAPE = {
-    // existing...
-    nim: 'pentagon',
-    zig: 'hexagon',
-};
-```
-
-**Shape guide by language family:**
-| Family | Shapes to use |
-|--------|--------------|
-| JVM (Java/Kotlin/Scala) | `round-rectangle`, `cut-rectangle`, `rhomboid` |
-| Systems (C/Rust/Zig) | `hexagon`, `diamond` |
-| Scripting (Ruby/Lua) | `diamond`, `tag` |
-| Functional (Haskell/OCaml/F#) | `rhomboid`, `concave-hexagon` |
-| Shell | `tag` |
-| Data/Schema (SQL/Proto/GraphQL) | `barrel`, `concave-hexagon`, `round-tag` |
-| Other | `ellipse` (default fallback) |
-
-### 5c. Human-readable name — `FILE_TYPE_FULL_NAME`
-
-```javascript
-const FILE_TYPE_FULL_NAME = {
-    // existing...
-    nim: 'Nim',
-    zig: 'Zig',
-};
-```
-
-### 5d. Legend entry — `LEGEND_NODES`
-
-Find the appropriate family block in `LEGEND_NODES` and add:
-
-```javascript
-{ label: 'Nim', shape: 'pentagon', color: '#FFE953' },
-```
+- SQL types
+- Reserved keywords
+- Language-specific builtins that appear in declaration-like contexts
 
 ---
 
-## Step 6: Verify — Quick Smoke Test
+## Step 5: Update Frontend - `static/core/viz_constants.js`
 
-```python
-# Run from project root (bash). Add src/ to sys.path so the package layout resolves.
-python - <<'EOF'
-import sys; sys.path.insert(0, 'src')
-from parsers.common_parser import scan_common
+Only do this if a new file type key was added or the visual representation should be distinct.
 
-# Replace with your language's sample code
-sample = """
-import MyModule
-import static java.util.Arrays.asList
+### 5a. File extension color - `extColor()`
 
-fun myFunction(x: Int): String { return x.toString() }
+Add a case for the new extension.
 
-class MyService : BaseService() {
-    fun helper() {}
-}
-"""
+### 5b. Node shape - `FILE_TYPE_SHAPE`
 
-result = scan_common(sample, '.kt')
-imports, funcdefs, funccalls, extra, calls_by_func, *rest = result
-print('imports:', imports)
-print('funcdefs:', [f['label'] for f in funcdefs])
-print('classes:', extra.get('classdefs', []) if extra else [])
-# Note: dedicated parsers also return a 6th `symbol_defs`; common_parser may omit it.
-EOF
-```
+Map the file type key to a Cytoscape shape.
 
-Expected checks:
-- `imports` should contain module names, NOT full dotted paths, NOT method names from `import static`
-- `funcdefs` should list function names without keywords
-- `classdefs` in `extra` should have the class name with correct kind
+### 5c. Human-readable name - `FILE_TYPE_FULL_NAME`
+
+Add the display name.
+
+### 5d. Legend entry - `LEGEND_NODES`
+
+Add the label/shape/color entry if the UI needs to show it.
 
 ---
 
-## Step 7: Update CLAUDE.md (only when contract changes)
+## Chapter: Global-script / non-ESM edge detection
 
-After adding a new language, update [CLAUDE.md](CLAUDE.md) only if:
-- A new file type key was added to `FILE_TYPE_MAP` in `src/core/analyze_viz.py`
-- The parser interface tuple changed (the 6-tuple contract documented in CLAUDE.md)
-- A new dedicated parser file was created under `src/parsers/`
+Some codebases have source files but **no `import` / `require` / `export from`** at all.
 
-For `common_parser.py` additions only (no new files, no interface changes), CLAUDE.md does not need to change.
+Files share a single global namespace, are loaded as ordered `<script>` tags, and communicate through global function names and a global object (`window.X` / `globalThis.X`).
+
+VIZCODE's own `static/*.js` is exactly this shape, which is why scanning it can produce zero edges if the analyzer only relies on imports.
+
+### How to detect it
+
+A folder with many source files of one language, but a grep for that language's import keyword returns nothing.
+
+For JS/TS, zero `import` / `require` / `export from` across the folder is a strong signal.
+
+### Why regex alone cannot fix it
+
+File-to-file edges are built only from the per-file import/reference list.
+
+Cross-file function calls do not automatically become file edges because call resolution is usually local to a file's own symbol table.
+
+### The fix: global-symbol cross-file resolution
+
+1. **Parser** (`src/parsers/js_parser.py`): capture global-namespace assignments like `window.X = ...` and `globalThis.X = ...` into `extra['global_defs']`, and member reads like `window.X` into `extra['global_uses']`. Use a single-`=` negative lookahead so `===` comparisons are not mistaken for definitions.
+2. **Analyzer** (`src/core/analyze_viz.py`): build a project-wide `global_def_index` from top-level symbol definitions plus `global_defs`, then link each JS/TS file that uses a global name to the single unambiguous definer of that name.
+
+### Guards
+
+- Skip keywords and builtins
+- Skip names shorter than 3 characters
+- Only resolve names with exactly one defining file
+- Only run fallback resolution when the file has zero explicit ESM imports/requires
+- Reuse the existing `import` edge type so the UI does not need a new legend entry
+
+### Verify
+
+Confirm the previously-edgeless folder now yields edges, and a real ESM project still shows only its genuine imports.
+
+---
+
+## Step 6: Verification checklist
+
+Before shipping a parser change, verify all of the following:
+
+1. **Smoke test** - sample input parses with expected imports/defs/calls
+2. **Adversarial test** - ambiguous or builtin names do not create false edges
+3. **Regression test** - existing supported languages still work
+4. **UI sanity** - file type and legend remain correct if a frontend change was made
+5. **Graph sanity** - edge count changes match expectation and do not explode unexpectedly
+
+If a change increases edges dramatically, inspect for false positives before merging.
+
+---
+
+## Step 7: Update CLAUDE.md only when contract changes
+
+Update CLAUDE.md only if:
+
+- A new file type key was added to `FILE_TYPE_MAP`
+- The parser interface tuple changed
+- A new dedicated parser file was created
+
+For common_parser-only additions with no interface changes, CLAUDE.md usually does not need modification.
 
 ---
 
 ## Rules
 
-- **Never break existing languages.** The `_LANG_IMPORT_PATTERNS` list is ordered — inserting in the wrong place can shadow existing patterns. Add new language entries in alphabetical order within their language family section.
-- **Zero external dependencies.** Only Python stdlib regex. No `pip install`.
-- **Test with adversarial cases.** Verify that `import static java.util.Arrays.asList` gives `Arrays` not `asList`. Verify that Erlang `-include("records.hrl")` gives `records` not `hrl`.
-- **Comment stripping must match language.** A semicolon-comment language should be in `_RE_LINE_COMMENT_LISP` branch, not stripped by `_RE_LINE_COMMENT_UNIVERSAL`.
-- **Kind detection uses word boundaries.** Never use `'keyword' in text.lower()` — use `\bkeyword\b` regex to avoid `UserService` being detected as kind `service`.
+- Never break existing languages
+- Zero external dependencies
+- Use authoritative references before syntax guesses
+- Add new patterns conservatively
+- Test with adversarial cases
+- Prefer precision over recall
+- Keep the parser contract stable unless the architecture explicitly changes
+
+---
+
+## Recommended deliverables for a language change
+
+When you finish, include:
+
+- What syntax was verified
+- Which source documented it
+- Which parser files changed
+- What adversarial cases were tested
+- Whether any edge resolution was intentionally skipped
+- Whether the change affects the frontend

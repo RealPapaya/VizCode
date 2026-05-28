@@ -16,6 +16,8 @@ import pytest
 from parsers.python_parser import scan_python
 from parsers.js_parser import scan_js
 from parsers.go_parser import scan_go
+from parsers.c_cpp_parser import scan_c_cpp
+from parsers.csharp_parser import scan_csharp
 from parsers.bios_parser import scan_bios
 
 
@@ -92,6 +94,114 @@ class TestPythonParser:
         result = scan_python(bad_src)
         assert len(result) == 6
 
+    def test_python_import_forms_are_normalized(self):
+        src = '''\
+from __future__ import annotations
+import os, pkg.mod as alias
+import xml.etree.ElementTree as ET
+from package.sub import thing
+from . import sibling
+from .subpackage import other
+'''
+        imports, *_ = scan_python(src)
+        assert imports == ['os', 'pkg', 'xml', 'package', 'sibling', 'subpackage']
+
+    def test_python_ast_symbols_docstrings_decorators_and_signatures(self):
+        src = '''\
+"""module docs"""
+
+def deco(fn):
+    return fn
+
+class Service(Base):
+    """class docs"""
+
+    @deco
+    async def run(self, item: str) -> str:
+        """method docs"""
+        await worker(item)
+        return item
+
+def outer(value: int = 1):
+    """outer docs"""
+    def inner():
+        """inner docs"""
+        return helper(value)
+    return inner()
+
+anon = lambda x: x
+'''
+        _, funcdefs, funccalls, extra, func_calls_by_func, symbol_defs = scan_python(src)
+        labels = [f['label'] for f in funcdefs]
+        by_name = {s['name']: s for s in symbol_defs}
+
+        assert labels == ['deco', 'run', 'outer', 'inner']
+        assert 'lambda' not in labels
+        assert by_name['Service']['kind'] == 'class'
+        assert by_name['run']['kind'] == 'method'
+        assert by_name['run']['parent'] == 'Service'
+        assert by_name['run']['decorators'] == ['deco']
+        assert by_name['run']['signature'] == '(self, item: str) -> str'
+        assert by_name['inner']['kind'] == 'function'
+        assert extra['docstrings']['__module__'] == 'module docs'
+        assert extra['docstrings']['Service'] == 'class docs'
+        assert extra['docstrings']['Service.run'] == 'method docs'
+        assert extra['docstrings']['outer'] == 'outer docs'
+        assert 'worker' in funccalls
+        assert 'helper' in funccalls
+        assert func_calls_by_func[2] == ['inner']
+        assert func_calls_by_func[3] == ['helper']
+
+    def test_python_calls_exclude_declarations_and_builtins(self):
+        src = '''\
+def alpha():
+    beta()
+    print(len([1]))
+
+def beta():
+    return None
+'''
+        _, _, funccalls, _, func_calls_by_func, _ = scan_python(src)
+        assert 'alpha' not in funccalls
+        assert funccalls == ['beta']
+        assert func_calls_by_func == [['beta'], []]
+
+    def test_python_fallback_ignores_comments_and_literals(self):
+        src = r'''\
+import realpkg
+
+# import fake_comment
+# def fake_comment_func():
+# class FakeComment:
+
+TEXT = "import fake_string; def fake_string_func(): fake_call() # not comment"
+TRIPLE = """
+from fake_triple import thing
+class FakeTriple:
+    def hidden(self):
+        fake_triple_call()
+"""
+RAW = r"def fake_raw(): raw_call()"
+BYTES = b"import fake_bytes"
+FSTR = f"def fake_fstring(): {42}"
+
+def real():
+    helper()
+
+def broken(
+'''
+        imports, funcdefs, funccalls, extra, func_calls_by_func, symbol_defs = scan_python(src)
+        labels = {f['label'] for f in funcdefs}
+        names = {s['name'] for s in symbol_defs}
+
+        assert len((imports, funcdefs, funccalls, extra, func_calls_by_func, symbol_defs)) == 6
+        assert extra['file_error'].startswith('SyntaxError:')
+        assert imports == ['realpkg']
+        assert labels == {'real'}
+        assert names == {'real'}
+        assert funccalls == ['helper']
+        assert func_calls_by_func == [['helper']]
+
 
 # ─── JavaScript Parser ────────────────────────────────────────────────────────
 
@@ -149,34 +259,342 @@ class TestGoParser:
         result = scan_go('')
         assert len(result) == 6
 
+    def test_grouped_imports_with_alias_blank_and_dot(self):
+        src = '''\
+package main
 
-# ─── BIOS / C Parser ─────────────────────────────────────────────────────────
+import (
+    "fmt"
+    alias "example.com/project/pkg"
+    _ "net/http/pprof"
+    . "math"
+)
 
-class TestBiosParser:
+func main() {
+    fmt.Println(alias.Name, pprof.Profile, Pi)
+}
+'''
+        imports, *_ = scan_go(src)
+        assert {'fmt', 'pkg', 'pprof', 'math'} <= set(imports)
+
+    def test_structs_interfaces_methods_functions_and_docs(self):
+        src = '''\
+package main
+
+// Service handles work.
+type Service struct {
+    Name string
+}
+
+/*
+Runner executes services.
+*/
+type Runner interface {
+    Run() error
+}
+
+// Start begins work.
+func (s *Service) Start() {
+    helper()
+}
+
+// helper supports Start.
+func helper() {}
+'''
+        _, funcdefs, _, extra, _, symbol_defs = scan_go(src)
+        labels = {f['label'] for f in funcdefs}
+        assert {'Start', 'helper'} <= labels
+
+        by_name = {(s['kind'], s['name']): s for s in symbol_defs}
+        assert ('struct', 'Service') in by_name
+        assert ('interface', 'Runner') in by_name
+        assert ('method', 'Start') in by_name
+        assert ('function', 'helper') in by_name
+        assert by_name[('method', 'Start')]['parent'] == 'Service'
+
+        docs = extra['docstrings']
+        assert docs['Service'] == 'Service handles work.'
+        assert docs['Runner'] == 'Runner executes services.'
+        assert docs['Service.Start'] == 'Start begins work.'
+        assert docs['helper'] == 'helper supports Start.'
+
+    def test_commented_out_go_code_is_ignored(self):
+        src = '''\
+package main
+
+/*
+import "fakepkg"
+type Fake struct {}
+func FakeCall() {}
+*/
+// func AlsoFake() {}
+// import "otherfake"
+
+import "fmt"
+
+func Real() {
+    fmt.Println("ok")
+}
+'''
+        imports, funcdefs, funccalls, _, _, symbol_defs = scan_go(src)
+        labels = {f['label'] for f in funcdefs}
+        symbol_names = {s['name'] for s in symbol_defs}
+
+        assert imports == ['fmt']
+        assert labels == {'Real'}
+        assert 'FakeCall' not in funccalls
+        assert 'Fake' not in symbol_names
+        assert 'AlsoFake' not in symbol_names
+
+    def test_comment_markers_inside_literals_are_not_comments(self):
+        src = '''\
+package main
+
+import "fmt"
+
+func Real() {
+    fmt.Println("http://example.test/path"); helper()
+    fmt.Println("not /* a block comment */"); helper()
+    fmt.Println(`raw // text and /* text */`); helper()
+    r := '/'
+    _ = r
+    helper()
+}
+
+func helper() {}
+'''
+        imports, _, funccalls, _, func_calls_by_func, symbol_defs = scan_go(src)
+        names = {s['name'] for s in symbol_defs}
+
+        assert imports == ['fmt']
+        assert {'Real', 'helper'} <= names
+        assert 'helper' in funccalls
+        assert func_calls_by_func[0].count('helper') == 4
+
+    def test_block_comments_preserve_symbol_line_numbers(self):
+        src = '''\
+package main
+
+/*
+type Fake struct {}
+func Fake() {}
+*/
+type Later struct {}
+'''
+        *_, symbol_defs = scan_go(src)
+        later = next(s for s in symbol_defs if s['name'] == 'Later')
+        assert later['line'] == 7
+
+    def test_funccalls_excludes_function_declarations(self):
+        src = '''\
+package main
+
+func Alpha() {
+    Beta()
+}
+
+func Beta() {}
+'''
+        _, _, funccalls, _, func_calls_by_func, _ = scan_go(src)
+        assert 'Alpha' not in funccalls
+        assert funccalls.count('Beta') == 1
+        assert func_calls_by_func == [['Beta'], []]
+
+
+# ─── C / C++ Parser ──────────────────────────────────────────────────────────
+
+class TestCCppParser:
     def test_six_tuple_contract(self, c_src):
-        result = scan_bios(c_src, '.c')
-        assert_six_tuple(result, 'scan_bios')
+        result = scan_c_cpp(c_src, '.c')
+        assert_six_tuple(result, 'scan_c_cpp')
 
     def test_includes_extracted(self, c_src):
-        imports, *_ = scan_bios(c_src, '.c')
+        imports, *_ = scan_c_cpp(c_src, '.c')
         # includes come back as the header filename
         assert any('stdio' in imp or 'myheader' in imp for imp in imports)
 
     def test_funcdefs_extracted(self, c_src):
-        _, funcdefs, *_ = scan_bios(c_src, '.c')
+        _, funcdefs, *_ = scan_c_cpp(c_src, '.c')
         labels = [f['label'] for f in funcdefs]
         assert any('add' in l for l in labels)
         assert any('main' in l for l in labels)
 
     def test_struct_in_symbol_defs(self, c_src):
-        *_, symbol_defs = scan_bios(c_src, '.c')
+        *_, symbol_defs = scan_c_cpp(c_src, '.c')
         kinds = [s['kind'] for s in symbol_defs]
         assert 'struct' in kinds or 'typedef' in kinds or len(symbol_defs) >= 0
 
     def test_empty_source(self):
-        result = scan_bios('', '.c')
+        result = scan_c_cpp('', '.c')
         assert len(result) == 6
 
     def test_no_crash_on_garbage(self):
-        result = scan_bios('!!!@@@###$$$', '.c')
+        result = scan_c_cpp('!!!@@@###$$$', '.c')
         assert len(result) == 6
+
+    def test_comments_and_literals_do_not_create_c_results(self):
+        src = r'''\
+#include "real.h"
+// #include "fake_comment.h"
+/* void FakeComment(void) { fake_comment_call(); } */
+const char *s = "#include <fake_string.h>\nvoid FakeString() { fake_string_call(); }";
+const char *raw = R"tag(
+#include "fake_raw.h"
+void FakeRaw() { fake_raw_call(); }
+)tag";
+
+static void real(void) {
+    helper();
+}
+'''
+        imports, funcdefs, funccalls, _, func_calls_by_func, symbol_defs = scan_c_cpp(src, '.cpp')
+        labels = {f['label'] for f in funcdefs}
+        names = {s['name'] for s in symbol_defs}
+
+        assert imports == ['real.h']
+        assert labels == {'real'}
+        assert names == {'real'}
+        assert funccalls == ['helper']
+        assert func_calls_by_func == [['helper']]
+
+    def test_cpp_classes_methods_constructors_and_enums(self):
+        src = '''\
+#include <vector>
+
+class Widget : public Base {
+public:
+    Widget();
+    void tick();
+};
+
+enum class Mode { Fast, Slow };
+typedef struct { int x; } Point;
+
+Widget::Widget() {
+    init();
+}
+
+void Widget::tick() const {
+    render();
+}
+
+static int helper(Point p) {
+    return compute(p.x);
+}
+'''
+        imports, funcdefs, funccalls, _, func_calls_by_func, symbol_defs = scan_c_cpp(src, '.cpp')
+        labels = [f['label'] for f in funcdefs]
+        by_name = {(s['kind'], s['name']): s for s in symbol_defs}
+
+        assert imports == ['vector']
+        assert labels == ['Widget', 'tick', 'helper']
+        assert ('class', 'Widget') in by_name
+        assert by_name[('class', 'Widget')]['bases'] == ['Base']
+        assert ('enum', 'Mode') in by_name
+        assert ('typedef', 'Point') in by_name
+        assert by_name[('method', 'tick')]['parent'] == 'Widget'
+        assert func_calls_by_func == [['init'], ['render'], ['compute']]
+        assert funccalls == ['init', 'render', 'compute']
+
+
+# ─── C# Parser ────────────────────────────────────────────────────────────────
+
+class TestCSharpParser:
+    def test_six_tuple_contract(self):
+        result = scan_csharp('class Demo { public void Run() {} }', '.cs')
+        assert_six_tuple(result, 'scan_csharp')
+
+    def test_usings_and_symbols(self):
+        src = '''\
+global using System.Text;
+using static System.Math;
+using Widgets = App.Core.Widgets;
+
+namespace App.Core;
+
+public interface IRunner { void Run(); }
+public record Job(int Id);
+
+public class Worker : BaseWorker, IRunner {
+    public string Name { get; init; }
+
+    public Worker() {
+        Init();
+    }
+
+    public async Task Run() {
+        await ExecuteAsync();
+        Helper();
+    }
+
+    private void Helper() {}
+}
+'''
+        imports, funcdefs, funccalls, extra, func_calls_by_func, symbol_defs = scan_csharp(src, '.cs')
+        labels = [f['label'] for f in funcdefs]
+        by_name = {(s['kind'], s['name']): s for s in symbol_defs}
+
+        assert imports == ['Text', 'Math', 'Widgets']
+        assert extra['namespaces'] == ['App.Core']
+        assert 'Name' not in labels
+        assert labels == ['Worker', 'Run', 'Helper']
+        assert ('interface', 'IRunner') in by_name
+        assert ('record', 'Job') in by_name
+        assert by_name[('class', 'Worker')]['bases'] == ['BaseWorker', 'IRunner']
+        assert by_name[('method', 'Helper')]['parent'] == 'Worker'
+        assert 'ExecuteAsync' in funccalls
+        assert 'Helper' in funccalls
+        assert func_calls_by_func[0] == ['Init']
+        assert func_calls_by_func[1] == ['ExecuteAsync', 'Helper']
+
+    def test_csharp_comments_and_literals_are_ignored(self):
+        src = r'''\
+using Real.Namespace;
+// using Fake.Comment;
+/* class FakeBlock { void Hidden() { fake_block_call(); } } */
+
+class Real {
+    string normal = "using Fake.String; void Hidden() { fake_string_call(); }";
+    string verbatim = @"using Fake.Verbatim; fake_verbatim_call()";
+    string raw = """
+using Fake.Raw;
+class FakeRaw { void Hidden() { fake_raw_call(); } }
+""";
+
+    public void Run() {
+        Helper();
+    }
+
+    void Helper() {}
+}
+'''
+        imports, funcdefs, funccalls, _, func_calls_by_func, symbol_defs = scan_csharp(src, '.cs')
+        labels = {f['label'] for f in funcdefs}
+        names = {s['name'] for s in symbol_defs}
+
+        assert imports == ['Namespace']
+        assert labels == {'Run', 'Helper'}
+        assert names == {'Real', 'Run', 'Helper'}
+        assert funccalls == ['Helper']
+        assert func_calls_by_func == [['Helper'], []]
+
+
+# ─── BIOS / Firmware Parser ──────────────────────────────────────────────────
+
+class TestBiosParser:
+    def test_six_tuple_contract_for_inf(self):
+        result = scan_bios('[Sources]\nMain.c\n[Packages]\nPkg.dec\n', '.inf')
+        assert_six_tuple(result, 'scan_bios')
+
+    def test_inf_refs_extracted(self):
+        imports, *_ = scan_bios('[Sources]\nMain.c\n[Packages]\nPkg.dec\n', '.inf')
+        assert imports == ['Main.c', 'Pkg.dec']
+
+    def test_c_sources_are_not_bios_parser_scope(self, c_src):
+        imports, funcdefs, funccalls, extra, func_calls_by_func, symbol_defs = scan_bios(c_src, '.c')
+        assert imports == []
+        assert funcdefs == []
+        assert funccalls == []
+        assert extra is None
+        assert func_calls_by_func == []
+        assert symbol_defs == []

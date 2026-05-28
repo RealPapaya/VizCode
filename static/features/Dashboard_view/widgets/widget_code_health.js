@@ -66,6 +66,7 @@ function _dashHealthSubscoreRows(stats) {
 _dashRegisterWidget({
     id: 'code_health',
     labelKey: 'dashCodeHealthTitle',
+    descriptionKey: 'dashDescCodeHealth',
     defaultSize: 'L',
 
     render(container, size, stats) {

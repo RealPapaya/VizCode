@@ -922,7 +922,7 @@ function _srBuildFileRowsHtml(results, start, end, q) {
         const fcBadge = r.func_count > 0
             ? `<span class="sr-fi-fc" data-tip="${r.func_count} functions">ƒ ${r.func_count}</span>` : '';
         const szBadge = r.size > 0
-            ? `<span class="sr-fi-sz">${_fmtBytes(r.size)}</span>` : '';
+            ? `<span class="sr-fi-sz">${fmtSize(r.size)}</span>` : '';
         const otherBadge = r._isOther
             ? `<span class="sr-fi-other" data-tip="Non-analysed file (grey node)">●</span>` : '';
         html += `<div class="sr-fi-row${ac}" data-idx="${i}">

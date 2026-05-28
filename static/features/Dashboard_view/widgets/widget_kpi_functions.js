@@ -13,6 +13,7 @@ function _kpiFuncModules() {
 _dashRegisterWidget({
   id: 'kpi_functions',
   labelKey: 'dashKpiFunctions',
+      descriptionKey: 'dashDescKpiFunctions',
   defaultSize: 'S',
 
   render(container, size, stats) {

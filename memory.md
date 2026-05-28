@@ -69,11 +69,13 @@
   - **用途**: 掃描資料夾內的特徵檔案，判斷目前的專案類型 (Python, JS, Go 或 BIOS)。
 - 🧩 **`parsers/`** (後端)
   - **用途**: 各獨立語言的解析器，只負責將原始碼轉為統一格式的資料 (Tuple) 交還給 `analyze_viz.py`。
-  - `bios_parser.py`: 解析 BIOS 相關檔案 (C/C++, ASM, EDK2, INF, SDL 等)
+  - `c_cpp_parser.py`: 解析 `.c`, `.cpp`, `.h`, `.hpp` 等一般 C/C++ 原始碼與標頭
+  - `csharp_parser.py`: 解析 `.cs` 的 using、type、method 與呼叫關係
+  - `bios_parser.py`: 解析 BIOS/UEFI/AMI 相關檔案 (ASM, EDK2 INF/DEC/DSC/FDF, SDL/CIF, VFR/HFR/UNI/ASL 等)
   - `python_parser.py`: 解析 `.py`
   - `js_parser.py`: 解析 `.js`, `.ts`, `.jsx`, `.tsx`
   - `go_parser.py`: 解析 `.go`
-  - `common_parser.py`: **通用 Fallback Parser**，處理所有其他 52 種語言 (Java/Kotlin/Scala/Dart/Swift/ObjC/C#/F#/VB/Ruby/PHP/Perl/Lua/Shell/R/Julia/Rust/Zig/D/Nim/Crystal/Elixir/Erlang/Haskell/OCaml/Elm/Clojure/SQL/GraphQL/Proto 等)；語言感知的 import pattern、正確的 comment stripping、word-boundary 型別偵測。
+  - `common_parser.py`: **通用 Fallback Parser**，處理其他語言 (Java/Kotlin/Scala/Dart/Swift/ObjC/F#/VB/Ruby/PHP/Perl/Lua/Shell/R/Julia/Rust/Zig/D/Nim/Crystal/Elixir/Erlang/Haskell/OCaml/Elm/Clojure/SQL/GraphQL/Proto 等)；語言感知的 import pattern、正確的 comment stripping、word-boundary 型別偵測。
 
 ### 🔵 前端視覺化 (Frontend UI)
 - 🖥️ **`launcher.html`** (前端)
@@ -143,9 +145,11 @@
 4. **專案偵測**: 修改 `detector.py`，加入識別 Java 專案的特徵。
 5. **前端樣式**: `viz_constants.js` 的 `extColor()` / `FILE_TYPE_SHAPE` / `FILE_TYPE_FULL_NAME`；`viz_sidebar.js` 的 `FT_GROUPS`。
 
-### 情境 2：修改或修復 BIOS (C/C++/EDK2) 的解析邏輯
-- **唯一需要修改的地方**: `parsers/bios_parser.py`。
-- `analyze_viz.py` 和 `detector.py` 完全**不需要碰**。BIOS 所有的正規表示式與邊界案例都在這個 parser 裡面。
+### 情境 2：修改或修復 C/C++ / C# / BIOS 的解析邏輯
+- 一般 C/C++: 修改 `parsers/c_cpp_parser.py`。
+- C#: 修改 `parsers/csharp_parser.py`。
+- BIOS/UEFI/AMI firmware 格式: 修改 `parsers/bios_parser.py`。
+- 若副檔名分派改變，需同步檢查 `analyze_viz.py` 的 parser dispatch。
 
 ### 情境 3：修改畫面上節點的顏色、形狀或連線的外觀
 - 修改相關的 `static/viz_constants.js` (顏色/形狀/常數表) 或 `static/viz_graph.js` (畫布算圖邏輯) 或 `static/viz.css` (靜態外觀)。
@@ -168,7 +172,7 @@
 
 任何在 `parsers/` 下的模組，其 `scan_xxx()` 函式回傳格式：
 
-**標準 5-tuple** (舊格式，BIOS/JS/Go parsers 部分仍使用):
+**標準 5-tuple** (舊格式，僅保留為相容說明):
 ```python
 return (
     imports_or_refs,      # list[str]: 這個檔案依賴的外部模組/檔案/字串
@@ -179,7 +183,7 @@ return (
 )
 ```
 
-**擴充 6-tuple** (全部 5 個 parser 均已實作 ✅，含 common_parser):
+**擴充 6-tuple** (目前 parser contract，含 dedicated 與 common parsers):
 ```python
 return (
     imports_or_refs,

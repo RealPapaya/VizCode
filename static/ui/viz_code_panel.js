@@ -767,7 +767,9 @@ function jumpToImport(targetLabel) {
     document.querySelectorAll('.code-line.fn-highlight').forEach(el => el.classList.remove('fn-highlight'));
     const base = targetLabel.replace(/\\/g, '/').split('/').pop().replace(/\.[^.]*$/, '');
     if (!base) return;
-    const pattern = new RegExp(escapeRe(base), 'i');
+    // Word-boundary match so a symbol like `add` lands on its real use, not
+    // inside `padding`. Works for filenames too (e.g. viz_state in a path).
+    const pattern = new RegExp(`\\b${escapeRe(base)}\\b`, 'i');
     for (let i = 0; i < codeState.rawLines.length; i++) {
         if (pattern.test(codeState.rawLines[i])) {
             const el = document.getElementById(`cl-${i}`);

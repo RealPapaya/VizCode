@@ -231,6 +231,7 @@ function _dashChurnTimelineStatsHTML(buckets, totals, peak) {
 _dashRegisterWidget({
     id: 'churn_timeline',
     labelKey: 'dashTemporalChurn',
+    descriptionKey: 'dashDescChurnTimeline',
     defaultSize: 'L',
     render(container, size, stats) {
         _dashRenderChurnTimelineWidget(container, size, stats, 'widget');

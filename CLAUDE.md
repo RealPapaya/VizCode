@@ -41,6 +41,7 @@ src/
     qa_cache.py           # Q&A response cache
   parsers/
     python_parser.py  js_parser.py  go_parser.py
+    c_cpp_parser.py   csharp_parser.py
     bios_parser.py    common_parser.py  json_parser.py
   server/
     server.py             # HTTP server + API

@@ -23,6 +23,7 @@ function _dashComplexityBucketFunctions(range) {
 _dashRegisterWidget({
     id: 'complexity',
     labelKey: 'dashComplexityTitle',
+    descriptionKey: 'dashDescComplexity',
     defaultSize: 'M',
 
     render(container, size, stats) {

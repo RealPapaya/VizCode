@@ -192,6 +192,7 @@ function _dashRenderCircularDeps(container, stats, opts) {
 _dashRegisterWidget({
   id: 'circular_deps',
   labelKey: 'dashCircularDepsTitle',
+      descriptionKey: 'dashDescCircularDeps',
   defaultSize: 'M',
 
   render(container, size, stats) {

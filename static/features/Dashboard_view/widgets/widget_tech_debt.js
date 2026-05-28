@@ -20,6 +20,7 @@ function _dashDebtCategoryFiles(key, stats) {
 _dashRegisterWidget({
     id: 'tech_debt',
     labelKey: 'dashTechDebtTitle',
+    descriptionKey: 'dashDescTechDebt',
     defaultSize: 'M',
 
     render(container, size, stats) {

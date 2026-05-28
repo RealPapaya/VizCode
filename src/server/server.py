@@ -1747,6 +1747,13 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.json_resp({'error': str(e)}, 500)
 
+        elif p == '/chat-cli-agents':
+            try:
+                from ai.vizbridge import cli_agents_config
+                self.json_resp(cli_agents_config())
+            except Exception as e:
+                self.json_resp({'error': str(e)}, 500)
+
         elif p == '/chat-sessions':
             # ── VizBridge: list all conversation sessions ─────────────────
             jid = qs.get('job', [''])[0]
@@ -2274,6 +2281,34 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.json_resp({'error': str(e)}, 500)
 
+        elif p == '/chat-cli-test':
+            length = int(self.headers.get('Content-Length', 0))
+            try:
+                body = json.loads(self.rfile.read(length).decode('utf-8') or '{}')
+                from ai.cli_runtime import CliRuntime
+                from ai.vizbridge import load_config
+                cfg = load_config()
+                for key in ('cli_agent', 'cli_model', 'claude_cli_path', 'codex_cli_path', 'gemini_cli_path'):
+                    if key in body:
+                        cfg[key] = body.get(key) or ''
+                runtime = CliRuntime(cfg)
+                events = []
+                text = []
+                for ev in runtime.stream_chat(
+                    [{'role': 'user', 'content': body.get('prompt') or 'Reply with exactly: ok'}],
+                    [],
+                    'You are running a VizCode local CLI smoke test. Reply briefly.',
+                ):
+                    events.append(ev)
+                    if ev.get('type') == 'delta':
+                        text.append(ev.get('text', ''))
+                    if ev.get('type') == 'error':
+                        self.json_resp({'ok': False, 'error': ev.get('message', '')}, 500)
+                        return
+                self.json_resp({'ok': True, 'provider': runtime.provider_name, 'text': ''.join(text).strip(), 'events': events[-5:]})
+            except Exception as e:
+                self.json_resp({'ok': False, 'error': str(e)}, 500)
+
         elif p == '/open-key-folder':
             try:
                 from ai.vizbridge import masked_config
@@ -2419,7 +2454,9 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     # ── Normal VizBridge flow ─────────────────────────────────
                     _cfg = load_config()
+                    _mode = (_cfg.get('ai_mode') or 'api').lower()
                     _provider = _cfg.get('provider', '?')
+                    _cli_agent = _cfg.get('cli_agent', '?')
                     _key_fields = {
                         'anthropic': 'anthropic_api_key',
                         'openai':    'openai_api_key',
@@ -2428,12 +2465,13 @@ class Handler(BaseHTTPRequestHandler):
                         'ollama':    'ollama_url',
                     }
                     _key_val = _cfg.get(_key_fields.get(_provider, ''), '')
-                    print(f'[chat-stream] provider={_provider}  key_present={bool(_key_val)}  root={project_root!r}')
+                    print(f'[chat-stream] mode={_mode}  provider={_provider}  cli={_cli_agent}  key_present={bool(_key_val)}  root={project_root!r}')
 
                     vb = VizBridge(project_root)
                     _ans_chunks: list = []
                     _tool_calls: list = []
                     _resp_provider = ''
+                    _sent_done = False
 
                     for event in vb.stream_response(history, depth=depth, output=output):
                         t = event.get('type', '')
@@ -2447,8 +2485,12 @@ class Handler(BaseHTTPRequestHandler):
                             })
                         elif t == 'provider':
                             _resp_provider = event.get('name', '')
+                        elif t == 'done':
+                            _sent_done = True
                         if not _sse(event):
                             break  # client disconnected
+                    if not _sent_done:
+                        _sse({'type': 'done'})
 
                     # ── Save to QA cache ──────────────────────────────────────
                     _full_ans = ''.join(_ans_chunks)

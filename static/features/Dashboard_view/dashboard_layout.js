@@ -12,17 +12,17 @@ const _DASH_DEFAULT_TAB_ID = 'default';
 
 // Default 6x3 arrangement (col/row are 0-indexed)
 const _DASH_DEFAULT_LAYOUT = [
-    { id: 'kpi_files',     col: 0, row: 0, w: 2, h: 1 },
-    { id: 'kpi_functions', col: 2, row: 0, w: 2, h: 1 },
-    { id: 'kpi_lines',     col: 4, row: 0, w: 2, h: 1 },
-    { id: 'code_health',    col: 0, row: 1, w: 2, h: 2 },
-    { id: 'tech_debt',      col: 2, row: 1, w: 2, h: 1 },
-    { id: 'complexity',     col: 4, row: 1, w: 2, h: 2 },
-    { id: 'duplication',    col: 2, row: 2, w: 2, h: 1 },
+    { id: 'code_health',    col: 0, row: 0, w: 2, h: 2 },
+    { id: 'commit_heatmap', col: 2, row: 0, w: 2, h: 1 },
+    { id: 'overview',       col: 4, row: 0, w: 2, h: 2 },
+    { id: 'churn_timeline', col: 2, row: 1, w: 2, h: 2 },
+    { id: 'coupling',       col: 0, row: 2, w: 2, h: 1 },
+    { id: 'tech_debt',      col: 4, row: 2, w: 1, h: 1 },
+    { id: 'issues',         col: 5, row: 2, w: 1, h: 1 },
 ];
 
 // Optional widgets (not in default layout; available via + Add Widget)
-const _DASH_OPTIONAL_IDS = ['overview', 'dead_code', 'coupling', 'issues', 'circular_deps', 'entry_points', 'structure', 'graph_intelligence', 'churn_timeline', 'commit_heatmap', 'health_trend', 'bus_factor', 'branch_overview', 'security'];
+const _DASH_OPTIONAL_IDS = ['kpi_files', 'kpi_functions', 'kpi_lines', 'complexity', 'duplication', 'dead_code', 'circular_deps', 'entry_points', 'structure', 'graph_intelligence', 'health_trend', 'bus_factor', 'branch_overview', 'security'];
 
 // Size tier definitions: S = small, M = medium, L = large
 const _DASH_SIZE_TIERS = {

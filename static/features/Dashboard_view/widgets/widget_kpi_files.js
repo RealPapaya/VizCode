@@ -73,6 +73,7 @@ function _dashKpiDetailListHTML(html, { className } = {}) {
 _dashRegisterWidget({
   id: 'kpi_files',
   labelKey: 'dashKpiFiles',
+      descriptionKey: 'dashDescKpiFiles',
   defaultSize: 'S',
 
   render(container, size, stats) {

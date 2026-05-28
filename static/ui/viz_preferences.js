@@ -122,6 +122,7 @@ function _refreshVisualChrome() {
     // Global pass for any data-i18n tags
     window._i18n.apply(document);
     _syncAllPrefDropdowns();
+    _refreshPrefSectionHeading();
 
     const dashboardBtn = document.getElementById('dashboard-btn');
     if (dashboardBtn) {
@@ -500,105 +501,509 @@ const _PREF_THEME_PALETTES = {
     parchment: { bg: '#f9f4ef', panel: '#eaddcf', accent: '#8c7851', text: '#020826', muted: '#9c8c78', card: '#ede8e0', name: 'Parchment' },
 };
 
-function _buildPrefModalHTML() {
-    const SS = 'background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:13px;outline:none;cursor:pointer;font-family:inherit;width:100%;';
-    const LS = 'font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;';
-    return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;width:640px;max-width:96vw;max-height:90vh;box-shadow:0 10px 30px rgba(0,0,0,0.7);display:flex;flex-direction:column;overflow:hidden;animation:flip-in-x 0.2s ease-out;">
-      <div style="background:var(--panel2);padding:12px 16px;border-bottom:1px solid var(--border);font-weight:600;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
-        <span data-i18n="settingsTitle">Settings</span>
-        <button id="pref-close-x" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:0 2px;">&#10005;</button>
+const _PREF_AI_PROVIDER_KEY_FIELDS = {
+    anthropic: 'anthropic_api_key',
+    openai: 'openai_api_key',
+    grok: 'grok_api_key',
+    gemini: 'gemini_api_key',
+    ollama: 'ollama_url',
+    custom: 'custom_api_key',
+};
+
+let _prefAiCfgSnapshot = {};
+let _prefCliAgents = [];
+let _prefSelectedCliAgent = 'claude';
+
+function _prefT(key, fallback) {
+    return (typeof T === 'function') ? T(key) : fallback;
+}
+
+function _prefEscHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    })[ch]);
+}
+
+function _prefAiField(id) {
+    return document.getElementById(`pref-ai-${id}`);
+}
+
+function _prefAiProviderHasStoredCredential(provider, cfg) {
+    const key = _PREF_AI_PROVIDER_KEY_FIELDS[provider];
+    return key ? !!(cfg && cfg[`${key}_present`]) : false;
+}
+
+function _prefAiIsConfigured(cfg) {
+    if (!cfg) return false;
+    if ((cfg.ai_mode || 'api') === 'cli') return !!(cfg.cli_agent || 'claude');
+    return _prefAiProviderHasStoredCredential(cfg.provider || 'anthropic', cfg);
+}
+
+function _prefAiProviderLabel(provider) {
+    const labels = {
+        anthropic: 'Anthropic',
+        openai: 'OpenAI',
+        grok: 'Grok',
+        gemini: 'Gemini',
+        ollama: 'Ollama',
+        custom: 'Custom',
+    };
+    return labels[provider] || provider || 'AI';
+}
+
+function _prefAiSyncNavState(cfg) {
+    const nav = document.querySelector('.pref-nav-item[data-pref-section="ai"]');
+    if (!nav) return;
+    const configured = _prefAiIsConfigured(cfg);
+    const mode = (cfg?.ai_mode || 'api') === 'cli' ? 'cli' : 'api';
+    nav.classList.toggle('pref-nav-ai-configured', configured);
+    nav.classList.toggle('pref-nav-ai-missing', !configured);
+    nav.dataset.aiMode = mode;
+    nav.dataset.aiConfigured = configured ? 'true' : 'false';
+
+    let badge = nav.querySelector('.pref-nav-status');
+    if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'pref-nav-status';
+        nav.appendChild(badge);
+    }
+    if (configured) {
+        badge.textContent = mode === 'cli'
+            ? `CLI: ${cfg?.cli_agent || 'claude'}`
+            : _prefAiProviderLabel(cfg?.provider || 'anthropic');
+    } else {
+        badge.textContent = _prefT('prefAiSetupRequired', 'Setup');
+    }
+}
+
+function _prefAiSetKeyStatus(statusId, cfgKey, cfg) {
+    const el = _prefAiField(statusId);
+    if (!el) return;
+    const masked = cfg?.[cfgKey] || '';
+    const present = !!cfg?.[`${cfgKey}_present`];
+    el.classList.toggle('present', present);
+    if (present && masked) {
+        el.innerHTML = `<strong>${_prefEscHtml(_prefT('prefAiKeyActive', 'Active'))}</strong>${_prefEscHtml(masked)}`;
+    } else if (present) {
+        el.innerHTML = `<strong>${_prefEscHtml(_prefT('prefAiKeyActive', 'Active'))}</strong>`;
+    } else {
+        el.textContent = _prefT('prefAiNoStoredKey', 'No stored key');
+    }
+}
+
+function _prefAiActiveMode() {
+    const active = document.querySelector('.pref-ai-mode-btn.active');
+    return active?.dataset.prefAiMode === 'cli' ? 'cli' : 'api';
+}
+
+function _prefCliStatusText(agent) {
+    if (!agent) return _prefT('prefAiCliUnknown', 'Unknown');
+    if (!agent.available) return _prefT('prefAiCliNotFound', 'Not found');
+    const version = agent.version ? ` - ${agent.version}` : '';
+    return `${agent.path || agent.binary}${version}`;
+}
+
+function _prefRenderCliAgents() {
+    const list = _prefAiField('cli-agent-list');
+    if (!list) return;
+    const agents = _prefCliAgents.length ? _prefCliAgents : [
+        { key: 'claude', label: 'Claude Code', available: false },
+        { key: 'codex', label: 'Codex CLI', available: false },
+        { key: 'gemini', label: 'Gemini CLI', available: false },
+    ];
+    list.innerHTML = agents.map(agent => {
+        const active = agent.key === _prefSelectedCliAgent;
+        const available = !!agent.available;
+        return `<button type="button" class="pref-ai-cli-card${active ? ' active' : ''}${available ? ' available' : ''}" data-cli-agent="${_prefEscHtml(agent.key)}" aria-pressed="${active ? 'true' : 'false'}">
+          <span class="pref-ai-cli-card-title">${_prefEscHtml(agent.label || agent.key)}</span>
+          <span class="pref-ai-cli-card-status">${_prefEscHtml(_prefCliStatusText(agent))}</span>
+        </button>`;
+    }).join('');
+    list.querySelectorAll('[data-cli-agent]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            _prefSelectedCliAgent = btn.dataset.cliAgent || 'claude';
+            const select = _prefAiField('cli-agent');
+            if (select) select.value = _prefSelectedCliAgent;
+            _prefRenderCliAgents();
+        });
+    });
+}
+
+async function _prefAiLoadCliAgents() {
+    const status = _prefAiField('cli-status');
+    if (status) status.textContent = _prefT('prefAiCliRefreshing', 'Refreshing...');
+    try {
+        const resp = await fetch('/chat-cli-agents');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        _prefCliAgents = Array.isArray(data.agents) ? data.agents : [];
+        _prefSelectedCliAgent = (_prefAiField('cli-agent')?.value || data.selected || _prefSelectedCliAgent || 'claude');
+        _prefRenderCliAgents();
+        if (status) status.textContent = _prefT('prefAiCliRefreshed', 'CLI status refreshed');
+    } catch (err) {
+        if (status) status.textContent = _prefT('prefAiCliRefreshFailed', 'Could not refresh CLI status');
+        console.warn('Failed to load CLI agents', err);
+    }
+}
+
+async function _prefAiTestCli() {
+    const status = _prefAiField('cli-status');
+    const btn = _prefAiField('cli-test');
+    if (btn) btn.disabled = true;
+    if (status) status.textContent = _prefT('prefAiCliTesting', 'Testing...');
+    try {
+        const resp = await fetch('/chat-cli-test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(_prefAiBuildPayload()),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || data.error) throw new Error(data.error || 'CLI test failed');
+        if (status) status.textContent = `${_prefT('prefAiCliTestOk', 'Test ok')}: ${data.text || data.provider || ''}`;
+    } catch (err) {
+        if (status) status.textContent = `${_prefT('prefAiCliTestFailed', 'Test failed')}: ${err.message}`;
+        console.warn('CLI test failed', err);
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+function _prefAiUpdateProviderSections(provider) {
+    document.querySelectorAll('.pref-ai-provider-section').forEach(sec => {
+        sec.hidden = sec.dataset.provider !== provider;
+    });
+    document.querySelectorAll('.pref-ai-provider-option').forEach(opt => {
+        const active = opt.dataset.provider === provider;
+        opt.classList.toggle('active', active);
+        const stored = _prefAiProviderHasStoredCredential(opt.dataset.provider, _prefAiCfgSnapshot);
+        opt.classList.toggle('has-stored-key', stored);
+        opt.classList.toggle('is-current', active && stored);
+        opt.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+}
+
+function _prefAiApplyConfig(cfg) {
+    _prefAiCfgSnapshot = cfg || {};
+    _prefSelectedCliAgent = cfg.cli_agent || 'claude';
+    const provider = cfg.provider || 'anthropic';
+    _prefAiField('provider').value = provider;
+
+    _prefAiField('anthropic-key').value = '';
+    _prefAiField('anthropic-model').value = cfg.anthropic_model || 'claude-sonnet-4-6';
+    _prefAiField('openai-key').value = '';
+    _prefAiField('openai-model').value = cfg.openai_model || 'gpt-4o';
+    _prefAiField('openai-base-url').value = cfg.openai_base_url || '';
+    _prefAiField('grok-key').value = '';
+    _prefAiField('grok-model').value = cfg.grok_model || 'grok-4.20';
+    _prefAiField('gemini-key').value = '';
+    _prefAiField('gemini-model').value = cfg.gemini_model || 'gemini-2.0-flash';
+    _prefAiField('ollama-url').value = cfg.ollama_url || '';
+    _prefAiField('ollama-model').value = cfg.ollama_model || 'llama3.1';
+    _prefAiField('custom-key').value = '';
+    _prefAiField('custom-base-url').value = cfg.custom_base_url || '';
+    _prefAiField('custom-model').value = cfg.custom_model || '';
+    _prefAiField('cli-agent').value = _prefSelectedCliAgent;
+    _prefAiField('cli-model').value = cfg.cli_model || '';
+    _prefAiField('cli-claude-path').value = cfg.claude_cli_path || '';
+    _prefAiField('cli-codex-path').value = cfg.codex_cli_path || '';
+    _prefAiField('cli-gemini-path').value = cfg.gemini_cli_path || '';
+
+    _prefAiSetKeyStatus('anthropic-key-status', 'anthropic_api_key', cfg);
+    _prefAiSetKeyStatus('openai-key-status', 'openai_api_key', cfg);
+    _prefAiSetKeyStatus('grok-key-status', 'grok_api_key', cfg);
+    _prefAiSetKeyStatus('gemini-key-status', 'gemini_api_key', cfg);
+    _prefAiSetKeyStatus('custom-key-status', 'custom_api_key', cfg);
+
+    const keyFolderBtn = _prefAiField('open-key-folder');
+    if (keyFolderBtn) {
+        const keyDir = cfg.key_store_dir || '.vizcode';
+        keyFolderBtn.title = _prefT('prefAiOpenKeyFolder', 'Open key folder') + `: ${keyDir}`;
+    }
+    _prefAiUpdateProviderSections(provider);
+    _prefAiSyncNavState(cfg);
+    window.dispatchEvent(new CustomEvent('vizAiConfigChanged', { detail: cfg }));
+    const mode = cfg.ai_mode === 'cli' ? 'cli' : 'api';
+    _prefAiSetMode(mode);
+    if (mode !== 'cli') _prefAiLoadCliAgents();
+}
+
+async function _prefAiLoadConfig() {
+    const status = _prefAiActiveMode() === 'cli' ? _prefAiField('cli-status') : _prefAiField('save-status');
+    if (status) status.textContent = _prefT('prefAiLoading', 'Loading...');
+    let cfg = {};
+    try {
+        const resp = await fetch('/chat-config');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        cfg = await resp.json();
+        _prefAiApplyConfig(cfg || {});
+        if (status) status.textContent = _prefT('prefAiLoaded', 'Loaded');
+    } catch (err) {
+        if (status) status.textContent = _prefT('prefAiLoadFailed', 'Could not load AI settings');
+        console.warn('Failed to load preference AI settings', err);
+    }
+}
+
+function _prefAiBuildPayload() {
+    const provider = _prefAiField('provider').value;
+    return {
+        ai_mode: _prefAiActiveMode(),
+        provider,
+        anthropic_api_key: _prefAiField('anthropic-key').value.trim(),
+        anthropic_model: _prefAiField('anthropic-model').value.trim() || 'claude-sonnet-4-6',
+        openai_api_key: _prefAiField('openai-key').value.trim(),
+        openai_model: _prefAiField('openai-model').value.trim() || 'gpt-4o',
+        openai_base_url: _prefAiField('openai-base-url').value.trim(),
+        grok_api_key: _prefAiField('grok-key').value.trim(),
+        grok_model: _prefAiField('grok-model').value.trim() || 'grok-4.20',
+        gemini_api_key: _prefAiField('gemini-key').value.trim(),
+        gemini_model: _prefAiField('gemini-model').value.trim() || 'gemini-2.0-flash',
+        ollama_url: _prefAiField('ollama-url').value.trim() || 'http://localhost:11434',
+        ollama_model: _prefAiField('ollama-model').value.trim() || 'llama3.1',
+        custom_api_key: _prefAiField('custom-key').value.trim(),
+        custom_base_url: _prefAiField('custom-base-url').value.trim(),
+        custom_model: _prefAiField('custom-model').value.trim(),
+        cli_agent: _prefAiField('cli-agent').value || _prefSelectedCliAgent || 'claude',
+        cli_model: _prefAiField('cli-model').value.trim(),
+        claude_cli_path: _prefAiField('cli-claude-path').value.trim(),
+        codex_cli_path: _prefAiField('cli-codex-path').value.trim(),
+        gemini_cli_path: _prefAiField('cli-gemini-path').value.trim(),
+    };
+}
+
+async function _prefAiSaveConfig() {
+    const saveBtn = _prefAiField('save');
+    const cliSaveBtn = _prefAiField('cli-save');
+    const status = _prefAiActiveMode() === 'cli' ? _prefAiField('cli-status') : _prefAiField('save-status');
+    const cfg = _prefAiBuildPayload();
+    if (saveBtn) saveBtn.disabled = true;
+    if (cliSaveBtn) cliSaveBtn.disabled = true;
+    if (status) status.textContent = _prefT('prefAiSaving', 'Saving...');
+    try {
+        const resp = await fetch('/chat-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cfg),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || data.error) throw new Error(data.error || 'Unable to save AI settings');
+        await _prefAiLoadConfig();
+        if (status) status.textContent = _prefT('prefAiSaved', 'Saved');
+    } catch (err) {
+        if (status) status.textContent = _prefT('prefAiSaveFailed', 'Could not save AI settings');
+        console.warn('Failed to save preference AI settings', err);
+    } finally {
+        if (saveBtn) saveBtn.disabled = false;
+        if (cliSaveBtn) cliSaveBtn.disabled = false;
+    }
+}
+
+function _prefAiSetMode(mode) {
+    const selected = mode === 'cli' ? 'cli' : 'api';
+    document.querySelectorAll('.pref-ai-mode-btn').forEach(btn => {
+        const active = btn.dataset.prefAiMode === selected;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    document.querySelectorAll('.pref-ai-mode-panel').forEach(panel => {
+        panel.hidden = panel.dataset.prefAiModePanel !== selected;
+    });
+    document.querySelector('.pref-ai-shell')?.setAttribute('data-active-mode', selected);
+    if (selected === 'cli') _prefAiLoadCliAgents();
+}
+
+function _prefAiProviderBlock(provider, rows) {
+    return `<div class="pref-ai-provider-section" data-provider="${provider}" hidden>${rows}</div>`;
+}
+
+function _prefAiTextField(id, labelKey, label, placeholder, type = 'text', statusId = '') {
+    return `<div class="pref-ai-field">
+      <div class="pref-ai-label-row">
+        <label for="pref-ai-${id}" data-i18n="${labelKey}">${label}</label>
+        ${statusId ? `<div id="pref-ai-${statusId}" class="pref-ai-key-status"></div>` : ''}
       </div>
-      <div style="display:flex;flex-direction:row;flex:1;min-height:0;">
-        <div style="width:290px;flex-shrink:0;padding:16px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;border-right:1px solid var(--border);">
-          <div style="${LS}color:var(--accent);" data-i18n="sectionAppearance">Appearance</div>
-          <div style="display:flex;flex-direction:column;gap:5px;">
-            <label for="font-select" style="${LS}" data-i18n="fontLabel">Code Editor Font</label>
-            <select id="font-select" style="${SS}">
-              <option value="'JetBrains Mono', monospace">JetBrains Mono</option>
-              <option value="'Fira Code', monospace">Fira Code</option>
-              <option value="'Cascadia Code', monospace">Cascadia Code</option>
-              <option value="Consolas, monospace">Consolas</option>
-              <option value="'Space Mono', monospace">Space Mono</option>
-            </select>
+      <input id="pref-ai-${id}" type="${type}" placeholder="${placeholder}" autocomplete="off">
+    </div>`;
+}
+
+function _buildPrefAiSettingsHTML() {
+    return `<section class="pref-subsection pref-ai-subsection" data-pref-section-panel="ai">
+      <div class="pref-ai-shell">
+        <div class="pref-ai-mode-switch" role="group" aria-label="AI settings mode">
+          <button type="button" class="pref-ai-mode-btn active" data-pref-ai-mode="api" aria-pressed="true" data-i18n="prefAiModeApi">API</button>
+          <button type="button" class="pref-ai-mode-btn" data-pref-ai-mode="cli" aria-pressed="false" data-i18n="prefAiModeCli">Local CLI</button>
+        </div>
+        <div class="pref-ai-mode-panel" data-pref-ai-mode-panel="api">
+          <div class="pref-ai-api-grid">
+            <div class="pref-ai-provider-list" role="group" aria-label="AI provider">
+              <select id="pref-ai-provider" class="pref-ai-provider-select" aria-label="AI provider">
+                <option value="anthropic">Anthropic</option>
+                <option value="openai">OpenAI / Azure</option>
+                <option value="grok">xAI Grok</option>
+                <option value="gemini">Google Gemini</option>
+                <option value="ollama">Ollama</option>
+                <option value="custom">Custom OpenAI-compatible</option>
+              </select>
+              <button type="button" class="pref-ai-provider-option active" data-provider="anthropic">Anthropic</button>
+              <button type="button" class="pref-ai-provider-option" data-provider="openai">OpenAI / Azure</button>
+              <button type="button" class="pref-ai-provider-option" data-provider="grok">xAI Grok</button>
+              <button type="button" class="pref-ai-provider-option" data-provider="gemini">Google Gemini</button>
+              <button type="button" class="pref-ai-provider-option" data-provider="ollama">Ollama</button>
+              <button type="button" class="pref-ai-provider-option" data-provider="custom" data-i18n="prefAiProviderCustom">Custom OpenAI-compatible</button>
+            </div>
+            <div class="pref-ai-form">
+              ${_prefAiProviderBlock('anthropic', `
+                ${_prefAiTextField('anthropic-key', 'prefAiApiKey', 'API Key', _prefT('prefAiKeyPlaceholder', 'Leave blank to keep stored key'), 'password', 'anthropic-key-status')}
+                ${_prefAiTextField('anthropic-model', 'prefAiModel', 'Model', 'claude-sonnet-4-6')}
+              `)}
+              ${_prefAiProviderBlock('openai', `
+                ${_prefAiTextField('openai-key', 'prefAiApiKey', 'API Key', _prefT('prefAiKeyPlaceholder', 'Leave blank to keep stored key'), 'password', 'openai-key-status')}
+                ${_prefAiTextField('openai-model', 'prefAiModel', 'Model', 'gpt-4o')}
+                ${_prefAiTextField('openai-base-url', 'prefAiBaseUrl', 'Base URL', 'https://api.openai.com/v1/chat/completions')}
+              `)}
+              ${_prefAiProviderBlock('grok', `
+                ${_prefAiTextField('grok-key', 'prefAiApiKey', 'API Key', _prefT('prefAiKeyPlaceholder', 'Leave blank to keep stored key'), 'password', 'grok-key-status')}
+                ${_prefAiTextField('grok-model', 'prefAiModel', 'Model', 'grok-4.20')}
+              `)}
+              ${_prefAiProviderBlock('gemini', `
+                ${_prefAiTextField('gemini-key', 'prefAiApiKey', 'API Key', _prefT('prefAiKeyPlaceholder', 'Leave blank to keep stored key'), 'password', 'gemini-key-status')}
+                ${_prefAiTextField('gemini-model', 'prefAiModel', 'Model', 'gemini-2.0-flash')}
+              `)}
+              ${_prefAiProviderBlock('ollama', `
+                ${_prefAiTextField('ollama-url', 'prefAiUrl', 'URL', 'http://localhost:11434')}
+                ${_prefAiTextField('ollama-model', 'prefAiModel', 'Model', 'llama3.1')}
+              `)}
+              ${_prefAiProviderBlock('custom', `
+                ${_prefAiTextField('custom-key', 'prefAiApiKey', 'API Key', _prefT('prefAiKeyPlaceholder', 'Leave blank to keep stored key'), 'password', 'custom-key-status')}
+                ${_prefAiTextField('custom-base-url', 'prefAiBaseUrl', 'Base URL', 'https://openrouter.ai/api/v1')}
+                ${_prefAiTextField('custom-model', 'prefAiModel', 'Model', 'meta-llama/llama-3.1-8b-instruct:free')}
+              `)}
+              <div class="pref-ai-save-row">
+                <button type="button" id="pref-ai-open-key-folder" class="pref-ai-secondary-btn" data-i18n="prefAiOpenKeyFolder">Open key folder</button>
+                <span id="pref-ai-save-status" class="pref-ai-save-status"></span>
+                <button type="button" id="pref-ai-save" class="pref-ai-save-btn" data-i18n="prefAiSave">Save</button>
+              </div>
+            </div>
           </div>
-          <div style="display:flex;flex-direction:column;gap:5px;">
-            <label for="pref-theme-select" style="${LS}" data-i18n="themeLabel">Theme</label>
-            <select id="pref-theme-select" style="${SS}">
-              <option value="dark" data-i18n="themeOptDark">Dark</option>
-              <option value="claude" data-i18n="themeOptClaude">Light</option>
-              <option value="parchment" data-i18n="themeOptParchment">Parchment</option>
-            </select>
+        </div>
+        <div class="pref-ai-mode-panel" data-pref-ai-mode-panel="cli" hidden>
+          <div class="pref-ai-cli-panel">
+            <input id="pref-ai-cli-agent" type="hidden" value="claude">
+            <div id="pref-ai-cli-agent-list" class="pref-ai-cli-agent-list" role="group" aria-label="Local CLI agent"></div>
+            <div class="pref-ai-cli-form">
+              ${_prefAiTextField('cli-model', 'prefAiModel', 'Model', 'optional; uses CLI default when blank')}
+              ${_prefAiTextField('cli-claude-path', 'prefAiCliClaudePath', 'Claude path', 'claude')}
+              ${_prefAiTextField('cli-codex-path', 'prefAiCliCodexPath', 'Codex path', 'codex')}
+              ${_prefAiTextField('cli-gemini-path', 'prefAiCliGeminiPath', 'Gemini path', 'gemini')}
+              <div class="pref-ai-save-row">
+                <button type="button" id="pref-ai-cli-refresh" class="pref-ai-secondary-btn" data-i18n="prefAiCliRefresh">Refresh</button>
+                <button type="button" id="pref-ai-cli-test" class="pref-ai-secondary-btn" data-i18n="prefAiCliTest">Test</button>
+                <span id="pref-ai-cli-status" class="pref-ai-save-status"></span>
+                <button type="button" id="pref-ai-cli-save" class="pref-ai-save-btn" data-i18n="prefAiSave">Save</button>
+              </div>
+            </div>
           </div>
-          <div style="display:flex;flex-direction:column;gap:5px;">
-            <label for="pref-lang-select" style="${LS}" data-i18n="langLabel">Interface Language</label>
-            <select id="pref-lang-select" style="${SS}">
-              <option value="en">English</option>
-              <option value="zh-tw">&#32321;&#39636;&#20013;&#25991;</option>
-            </select>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:5px;">
-            <label for="pref-node-style" style="${LS}" data-i18n="nodeStyleLabel">Node Style</label>
-            <select id="pref-node-style" style="${SS}">
-              <option value="detailed" data-i18n="nodeStyleDetailed">Detailed</option>
-              <option value="simple" data-i18n="nodeStyleSimple">Simple</option>
-            </select>
-          </div>
-          <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:12px;">
-            <div style="${LS}color:var(--accent);" data-i18n="sectionBehaviour">Default Behaviour</div>
-            <div style="display:flex;flex-direction:column;gap:5px;">
-              <label for="pref-ext-files" style="${LS}" data-i18n="extFilesAlways">External Files always ON</label>
-              <select id="pref-ext-files" style="${SS}">
+        </div>
+      </div>
+    </section>`;
+}
+
+const _PREF_NAV_ICONS = {
+    appearance: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>`,
+    language: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
+    maingraph: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>`,
+    ai: `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>`,
+};
+
+function _buildPrefModalHTML() {
+    const row = (id, i18nKey, label, options) => `
+      <div class="pref-control">
+        <label for="${id}" class="pref-label" data-i18n="${i18nKey}">${label}</label>
+        <select id="${id}" class="pref-select">
+          ${options}
+        </select>
+      </div>`;
+
+    return `<div class="pref-dialog pref-dialog-wide">
+      <div class="pref-header">
+        <span class="pref-title" data-i18n="settingsTitle">Settings</span>
+        <button id="pref-close-x" class="pref-close-x" aria-label="Close">&#10005;</button>
+      </div>
+      <div class="pref-section-banner">
+        <div class="pref-section-banner-text">
+          <h2 class="pref-section-heading-title" id="pref-section-heading-title"></h2>
+          <p class="pref-section-heading-desc" id="pref-section-heading-desc"></p>
+        </div>
+      </div>
+      <div class="pref-layout-shell">
+        <nav class="pref-sidebar" aria-label="Settings categories">
+          <button type="button" class="pref-nav-item active" data-pref-section="appearance" data-pref-preview-id="font-select" data-pref-desc-key="sectionAppearanceDesc"><span class="pref-nav-icon">${_PREF_NAV_ICONS.appearance}</span><span class="pref-nav-label" data-i18n="sectionAppearance">Appearance</span></button>
+          <button type="button" class="pref-nav-item" data-pref-section="language" data-pref-preview-id="pref-lang-select" data-pref-desc-key="sectionLanguageDesc"><span class="pref-nav-icon">${_PREF_NAV_ICONS.language}</span><span class="pref-nav-label" data-i18n="sectionLanguage">Language</span></button>
+          <button type="button" class="pref-nav-item" data-pref-section="maingraph" data-pref-preview-id="pref-layout-l0" data-pref-desc-key="sectionMainGraphDesc"><span class="pref-nav-icon">${_PREF_NAV_ICONS.maingraph}</span><span class="pref-nav-label" data-i18n="sectionMainGraph">Main graph</span></button>
+          <button type="button" class="pref-nav-item" data-pref-section="ai" data-pref-preview-id="" data-pref-desc-key="sectionAiSettingsDesc"><span class="pref-nav-icon">${_PREF_NAV_ICONS.ai}</span><span class="pref-nav-label" data-i18n="sectionAiSettings">AI Settings</span></button>
+        </nav>
+        <main class="pref-main">
+          <section id="pref-preview-panel" class="pref-preview-panel">
+            <div id="pref-preview-label" class="pref-preview-label"></div>
+            <div id="pref-preview-area" class="pref-preview-area"></div>
+          </section>
+          <div class="pref-section-content">
+            <section class="pref-subsection active" data-pref-section-panel="appearance">
+              ${row('font-select', 'fontLabel', 'Code Editor Font', `
+                <option value="'JetBrains Mono', monospace">JetBrains Mono</option>
+                <option value="'Fira Code', monospace">Fira Code</option>
+                <option value="'Cascadia Code', monospace">Cascadia Code</option>
+                <option value="Consolas, monospace">Consolas</option>
+                <option value="'Space Mono', monospace">Space Mono</option>
+              `)}
+              ${row('pref-theme-select', 'themeLabel', 'Theme', `
+                <option value="dark" data-i18n="themeOptDark">Dark</option>
+                <option value="claude" data-i18n="themeOptClaude">Light</option>
+                <option value="parchment" data-i18n="themeOptParchment">Parchment</option>
+              `)}
+              ${row('pref-node-style', 'nodeStyleLabel', 'Node Style', `
+                <option value="detailed" data-i18n="nodeStyleDetailed">Detailed</option>
+                <option value="simple" data-i18n="nodeStyleSimple">Simple</option>
+              `)}
+            </section>
+            <section class="pref-subsection" data-pref-section-panel="language">
+              ${row('pref-lang-select', 'langLabel', 'Interface Language', `
+                <option value="en">English</option>
+                <option value="zh-tw">&#32321;&#39636;&#20013;&#25991;</option>
+              `)}
+            </section>
+            <section class="pref-subsection" data-pref-section-panel="maingraph">
+              <div class="pref-group-header" data-i18n="mgGroupL0">L0 · Module Overview</div>
+              ${row('pref-layout-l0', 'layoutL0Label', 'Module (L0)', `
+                <option value="dagre-lr">Hierarchy LR</option>
+                <option value="dagre-tb">Hierarchy TB</option>
+                <option value="cose">Force</option>
+                <option value="fcose">Smart Cluster</option>
+                <option value="elk-stress">ELK Stress</option>
+              `)}
+              <div class="pref-group-header" data-i18n="mgGroupL1">L1 · Dependency Map</div>
+              ${row('pref-layout-l1', 'layoutL1Label', 'Dependency Map (L1)', `
+                <option value="dagre-lr">Hierarchy LR</option>
+                <option value="dagre-tb">Hierarchy TB</option>
+                <option value="cose">Force</option>
+                <option value="fcose">Smart Cluster</option>
+                <option value="cola">Smooth Physics</option>
+                <option value="elk-layered">ELK Flow</option>
+                <option value="elk-stress">ELK Stress</option>
+              `)}
+              ${row('pref-ext-files', 'extFilesAlways', 'External Files always ON', `
                 <option value="false" data-i18n="behaviourOff">Off</option>
                 <option value="true" data-i18n="behaviourOn">Always On</option>
-              </select>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:5px;">
-              <label for="pref-ext-funcs" style="${LS}" data-i18n="extFuncsAlways">External Functions always ON</label>
-              <select id="pref-ext-funcs" style="${SS}">
+              `)}
+              ${row('pref-edge-type-labels', 'edgeTypeLabelsDefault', 'Show edge types on edges by default', `
                 <option value="false" data-i18n="behaviourOff">Off</option>
                 <option value="true" data-i18n="behaviourOn">Always On</option>
-              </select>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:5px;">
-              <label for="pref-edge-type-labels" style="${LS}" data-i18n="edgeTypeLabelsDefault">Show edge types on edges by default</label>
-              <select id="pref-edge-type-labels" style="${SS}">
-                <option value="false" data-i18n="behaviourOff">Off</option>
-                <option value="true" data-i18n="behaviourOn">Always On</option>
-              </select>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:5px;">
-              <label for="pref-ext-expand" style="${LS}" data-i18n="extExpandDefault">Expand external groups by default</label>
-              <select id="pref-ext-expand" style="${SS}">
+              `)}
+              ${row('pref-ext-expand', 'extExpandDefault', 'Expand external groups by default', `
                 <option value="true" data-i18n="behaviourOnDefault">On</option>
                 <option value="false" data-i18n="behaviourOffToggle">Off</option>
-              </select>
-            </div>
-          </div>
-          <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:12px;">
-            <div style="${LS}color:var(--accent);">Symbol View</div>
-            <div style="display:flex;flex-direction:column;gap:5px;">
-              <label for="pref-sv-edge-style" style="${LS}">Edge Routing Style</label>
-              <select id="pref-sv-edge-style" style="${SS}">
-                <option value="bezier">Bezier Curves</option>
-                <option value="orthogonal">Orthogonal</option>
-              </select>
-            </div>
-          </div>
-          <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:12px;">
-            <div style="${LS}color:var(--accent);" data-i18n="sectionLayout">Default Layout</div>
-            <div style="display:flex;flex-direction:column;gap:5px;">
-              <label for="pref-layout-l0" style="${LS}" data-i18n="layoutL0Label">Module (L0)</label>
-              <select id="pref-layout-l0" style="${SS}">
-                <option value="dagre-lr">Hierarchy LR</option>
-                <option value="dagre-tb">Hierarchy TB</option>
-                <option value="cose">Force</option>
-                <option value="fcose">Smart Cluster</option>
-                <option value="elk-stress">ELK Stress</option>
-              </select>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:5px;">
-              <label for="pref-layout-l1" style="${LS}" data-i18n="layoutL1Label">Dependency Map (L1)</label>
-              <select id="pref-layout-l1" style="${SS}">
+              `)}
+              <div class="pref-group-header" data-i18n="mgGroupL2">L2 · Call Flow</div>
+              ${row('pref-layout-l2', 'layoutL2Label', 'Call Flow (L2)', `
                 <option value="dagre-lr">Hierarchy LR</option>
                 <option value="dagre-tb">Hierarchy TB</option>
                 <option value="cose">Force</option>
@@ -606,30 +1011,23 @@ function _buildPrefModalHTML() {
                 <option value="cola">Smooth Physics</option>
                 <option value="elk-layered">ELK Flow</option>
                 <option value="elk-stress">ELK Stress</option>
-              </select>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:5px;">
-              <label for="pref-layout-l2" style="${LS}" data-i18n="layoutL2Label">Call Flow (L2)</label>
-              <select id="pref-layout-l2" style="${SS}">
-                <option value="dagre-lr">Hierarchy LR</option>
-                <option value="dagre-tb">Hierarchy TB</option>
-                <option value="cose">Force</option>
-                <option value="fcose">Smart Cluster</option>
-                <option value="cola">Smooth Physics</option>
-                <option value="elk-layered">ELK Flow</option>
-                <option value="elk-stress">ELK Stress</option>
-              </select>
-            </div>
+              `)}
+              ${row('pref-ext-funcs', 'extFuncsAlways', 'External Functions always ON', `
+                <option value="false" data-i18n="behaviourOff">Off</option>
+                <option value="true" data-i18n="behaviourOn">Always On</option>
+              `)}
+              <div class="pref-group-header" data-i18n="mgGroupL3">L3 · Symbol View</div>
+              ${row('pref-sv-edge-style', 'symbolEdgeStyleLabel', 'Edge Routing Style', `
+                <option value="bezier" data-i18n="symbolEdgeStyleBezier">Bezier Curves</option>
+                <option value="orthogonal" data-i18n="symbolEdgeStyleOrthogonal">Orthogonal</option>
+              `)}
+            </section>
+            ${_buildPrefAiSettingsHTML()}
           </div>
-        </div>
-        <div id="pref-preview-panel" style="flex:1;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0;min-height:0;overflow-y:auto;">
-          <div id="pref-preview-label" style="${LS}color:var(--accent);min-height:14px;"></div>
-          <div id="pref-preview-area" style="flex:1;display:flex;align-items:center;justify-content:center;"></div>
-          <div id="pref-preview-hint" style="font-size:11px;color:var(--muted);line-height:1.5;min-height:32px;"></div>
-        </div>
+        </main>
       </div>
-      <div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;flex-shrink:0;">
-        <button id="pref-close-btn" style="background:var(--accent);color:#000;border:none;padding:6px 16px;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;" data-i18n="settingsDone">Done</button>
+      <div class="pref-footer">
+        <button id="pref-close-btn" class="pref-done-btn" data-i18n="settingsDone">Done</button>
       </div>
     </div>`;
 }
@@ -672,6 +1070,9 @@ function _previewSvEdgeStyle(value) {
     // Mini SVG showing two nodes connected with either bezier or orthogonal routing.
     const isBezier = value === 'bezier';
     const color = 'var(--accent)';
+    const previewLabel = typeof T === 'function'
+        ? T(isBezier ? 'symbolEdgeStyleBezier' : 'symbolEdgeStyleOrthogonal')
+        : (isBezier ? 'Bezier Curves' : 'Orthogonal');
     // Two pairs of nodes. Top pair: left→right. Bottom pair: right→left crossing.
     const nodes = [
         { x: 20, y: 40, w: 70, h: 24, label: 'A' },
@@ -707,28 +1108,27 @@ function _previewSvEdgeStyle(value) {
         ${nodes.map(nodeSvg).join('')}
         <path d="${edgePath(nodes[0], nodes[1])}" ${edgeStyle}/>
         <path d="${edgePath(nodes[2], nodes[3])}" ${edgeStyle}/>
-        <text x="135" y="128" text-anchor="middle" font-size="10" fill="var(--muted)">${isBezier ? 'Bezier Curves' : 'Orthogonal'}</text>
+        <text x="135" y="128" text-anchor="middle" font-size="10" fill="var(--muted)">${escapeHtml(previewLabel)}</text>
     </svg>`;
 }
 
 function _showPrefPreview(id, value) {
     const area = document.getElementById('pref-preview-area');
     const label = document.getElementById('pref-preview-label');
-    const hint = document.getElementById('pref-preview-hint');
     if (!area) return;
     const PREVIEWS = {
-        'font-select': { fn: _previewFont, lk: 'fontLabel', hk: 'fontPreviewHint' },
-        'pref-theme-select': { fn: _previewTheme, lk: 'themeLabel', hk: 'themePreviewHint' },
-        'pref-lang-select': { fn: _previewLang, lk: 'langLabel', hk: 'langPreviewHint' },
-        'pref-node-style': { fn: _previewNodeStyle, lk: 'nodeStyleLabel', hk: 'nodeStylePreviewHint' },
-        'pref-ext-files': { fn: _previewExtFiles, lk: 'extFilesAlways', hk: 'extFilesAlwaysDesc' },
-        'pref-ext-funcs': { fn: _previewExtFuncs, lk: 'extFuncsAlways', hk: 'extFuncsAlwaysDesc' },
-        'pref-edge-type-labels': { fn: _previewEdgeTypeLabels, lk: 'edgeTypeLabelsDefault', hk: 'edgeTypeLabelsDefaultDesc' },
-        'pref-ext-expand': { fn: _previewExtExpand, lk: 'extExpandDefault', hk: 'extExpandDefaultDesc' },
-        'pref-sv-edge-style': { fn: _previewSvEdgeStyle, lk: 'sectionLayout', hk: null },
-        'pref-layout-l0': { fn: _previewLayout, lk: 'layoutL0Label', hk: null },
-        'pref-layout-l1': { fn: _previewLayout, lk: 'layoutL1Label', hk: null },
-        'pref-layout-l2': { fn: _previewLayout, lk: 'layoutL2Label', hk: null },
+        'font-select': { fn: _previewFont, lk: 'fontLabel' },
+        'pref-theme-select': { fn: _previewTheme, lk: 'themeLabel' },
+        'pref-lang-select': { fn: _previewLang, lk: 'langLabel' },
+        'pref-node-style': { fn: _previewNodeStyle, lk: 'nodeStyleLabel' },
+        'pref-ext-files': { fn: _previewExtFiles, lk: 'extFilesAlways' },
+        'pref-ext-funcs': { fn: _previewExtFuncs, lk: 'extFuncsAlways' },
+        'pref-edge-type-labels': { fn: _previewEdgeTypeLabels, lk: 'edgeTypeLabelsDefault' },
+        'pref-ext-expand': { fn: _previewExtExpand, lk: 'extExpandDefault' },
+        'pref-sv-edge-style': { fn: _previewSvEdgeStyle, lk: 'symbolEdgeStyleLabel' },
+        'pref-layout-l0': { fn: _previewLayout, lk: 'layoutL0Label' },
+        'pref-layout-l1': { fn: _previewLayout, lk: 'layoutL1Label' },
+        'pref-layout-l2': { fn: _previewLayout, lk: 'layoutL2Label' },
     };
     const cfg = PREVIEWS[id];
     if (!cfg) return;
@@ -738,11 +1138,63 @@ function _showPrefPreview(id, value) {
     setTimeout(() => {
         area.innerHTML = cfg.fn(value);
         if (label) label.textContent = (typeof T === 'function') ? T(cfg.lk) : cfg.lk;
-        if (hint) hint.innerHTML = cfg.hk ? ((typeof T === 'function') ? T(cfg.hk) : '') : '';
         area.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
         area.style.opacity = '1';
         area.style.transform = 'translateY(0)';
     }, 60);
+}
+
+function _refreshPrefSectionHeading() {
+    const modal = document.getElementById('pref-modal');
+    if (!modal) return;
+    const activeNav = modal.querySelector('.pref-nav-item.active');
+    const titleEl = document.getElementById('pref-section-heading-title');
+    const descEl = document.getElementById('pref-section-heading-desc');
+    if (titleEl) {
+        const label = activeNav?.querySelector('.pref-nav-label');
+        titleEl.textContent = label ? label.textContent : '';
+    }
+    if (descEl) {
+        const key = activeNav?.dataset.prefDescKey;
+        descEl.textContent = key ? ((typeof T === 'function') ? T(key) : '') : '';
+    }
+}
+
+function _activatePrefSection(sectionId, previewId) {
+    const modal = document.getElementById('pref-modal');
+    if (!modal) return;
+    const selected = sectionId || 'appearance';
+
+    modal.querySelectorAll('.pref-nav-item').forEach(btn => {
+        const active = btn.dataset.prefSection === selected;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    modal.querySelectorAll('.pref-subsection').forEach(panel => {
+        panel.classList.toggle('active', panel.dataset.prefSectionPanel === selected);
+    });
+    modal.querySelector('.pref-main')?.classList.toggle('pref-main-ai-active', selected === 'ai');
+
+    const activePanel = modal.querySelector(`.pref-subsection[data-pref-section-panel="${selected}"]`);
+    const targetId = previewId ||
+        modal.querySelector(`.pref-nav-item[data-pref-section="${selected}"]`)?.dataset.prefPreviewId ||
+        activePanel?.querySelector('select')?.id;
+    const target = targetId ? document.getElementById(targetId) : null;
+    if (target && _prefSupportsPreview(target.id)) _showPrefPreview(target.id, target.value);
+    if (selected === 'ai') _prefAiLoadConfig();
+    _refreshPrefSectionHeading();
+}
+
+function _initPrefSectionNav(modal) {
+    if (!modal || modal.dataset.prefSectionNavBound === 'true') return;
+    modal.querySelectorAll('.pref-nav-item').forEach(btn => {
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-selected', btn.classList.contains('active') ? 'true' : 'false');
+        btn.addEventListener('click', () => {
+            _activatePrefSection(btn.dataset.prefSection, btn.dataset.prefPreviewId);
+        });
+    });
+    modal.dataset.prefSectionNavBound = 'true';
 }
 const _PREF_PREVIEW_SELECT_IDS = new Set([
     'font-select', 'pref-theme-select', 'pref-lang-select',
@@ -1086,6 +1538,44 @@ function _previewExtExpand(v) {
 
 // ─── Preferences Init ─────────────────────────────────────────────────────────
 
+function _initPrefAiSettings(modal) {
+    if (!modal || modal.dataset.prefAiBound === 'true') return;
+
+    modal.querySelectorAll('.pref-ai-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => _prefAiSetMode(btn.dataset.prefAiMode));
+    });
+
+    const providerSelect = _prefAiField('provider');
+    providerSelect?.addEventListener('change', () => _prefAiUpdateProviderSections(providerSelect.value));
+    modal.querySelectorAll('.pref-ai-provider-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (!providerSelect) return;
+            providerSelect.value = btn.dataset.provider;
+            providerSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    });
+
+    _prefAiField('save')?.addEventListener('click', _prefAiSaveConfig);
+    _prefAiField('cli-save')?.addEventListener('click', _prefAiSaveConfig);
+    _prefAiField('cli-refresh')?.addEventListener('click', _prefAiLoadCliAgents);
+    _prefAiField('cli-test')?.addEventListener('click', _prefAiTestCli);
+    _prefAiField('open-key-folder')?.addEventListener('click', async () => {
+        const status = _prefAiField('save-status');
+        try {
+            const resp = await fetch('/open-key-folder', { method: 'POST' });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || data.error) throw new Error(data.error || 'Unable to open key folder');
+            if (status) status.textContent = _prefT('prefAiKeyFolderOpened', 'Key folder opened');
+        } catch (err) {
+            if (status) status.textContent = _prefT('prefAiKeyFolderFailed', 'Could not open key folder');
+            console.warn('Failed to open AI key folder', err);
+        }
+    });
+
+    _prefAiUpdateProviderSections(providerSelect?.value || 'anthropic');
+    modal.dataset.prefAiBound = 'true';
+}
+
 function initPreferences() {
     const prefBtn = document.getElementById('pref-btn');
     if (!prefBtn) return;
@@ -1101,6 +1591,9 @@ function initPreferences() {
     }
 
     const prefModal = document.getElementById('pref-modal');
+    _initPrefSectionNav(prefModal);
+    _initPrefAiSettings(prefModal);
+    _prefAiLoadConfig();
 
     // Apply saved values on load
     const savedFont = getSavedFont();
@@ -1143,11 +1636,15 @@ function initPreferences() {
     if (layoutL1Sel) layoutL1Sel.value = _PREFS.get('layoutL1');
     if (layoutL2Sel) layoutL2Sel.value = _PREFS.get('layoutL2');
 
-    // Open/close
-    prefBtn.addEventListener('click', () => {
+    function openPreferences(section = 'appearance') {
         prefModal.style.display = 'flex';
-        setTimeout(() => _showPrefPreview('pref-theme-select', themeSel?.value || _PREFS.get('theme')), 50);
-    });
+        setTimeout(() => _activatePrefSection(section || 'appearance'), 50);
+    }
+    window.openPreferences = openPreferences;
+    window.openAiSettings = () => openPreferences('ai');
+
+    // Open/close
+    prefBtn.addEventListener('click', () => openPreferences('appearance'));
     const close = () => { prefModal.style.display = 'none'; };
     document.getElementById('pref-close-x')?.addEventListener('click', close);
     document.getElementById('pref-close-btn')?.addEventListener('click', close);

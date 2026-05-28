@@ -250,6 +250,8 @@ function renderFilesFlat(modId, files, subPath) {
             edgeLabel: depMapState.showEdgeTypeLabels ? es.label : '',
             etype: e.type || 'include',
         };
+        // Global-script JS edges carry the linking symbol (no import line to show).
+        if (e.via) edgeData.via = e.via;
         if (isInferred) {
             const conf = typeof e.confidence === 'number' ? e.confidence.toFixed(2) : '?';
             const reason = e.reason || '';

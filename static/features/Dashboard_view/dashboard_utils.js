@@ -354,10 +354,27 @@ function _dashOpenGroupDrilldown(title, rows, kind, options) {
     overlay.addEventListener('click', e => {
         if (e.target === overlay || e.target.closest('[data-close-group]')) _dashCloseGroupDrilldown();
     });
+    if (!_dashGroupDrillEscBound) {
+        document.addEventListener('keydown', _dashGroupDrillKeyHandler);
+        _dashGroupDrillEscBound = true;
+    }
+}
+
+let _dashGroupDrillEscBound = false;
+
+function _dashGroupDrillKeyHandler(e) {
+    if (e.key === 'Escape') {
+        e.stopPropagation();
+        _dashCloseGroupDrilldown();
+    }
 }
 
 function _dashCloseGroupDrilldown() {
     document.getElementById(_DASH_GROUP_DRILL_ID)?.remove();
+    if (_dashGroupDrillEscBound) {
+        document.removeEventListener('keydown', _dashGroupDrillKeyHandler);
+        _dashGroupDrillEscBound = false;
+    }
 }
 
 // ── Widget label keys (shared by settings and tab editor) ─────────────────
