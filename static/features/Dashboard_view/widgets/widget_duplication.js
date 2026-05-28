@@ -3,6 +3,7 @@
 _dashRegisterWidget({
   id: 'duplication',
   labelKey: 'dashDuplicationTitle',
+      descriptionKey: 'dashDescDuplication',
   defaultSize: 'S',
 
   render(container, size, stats) {

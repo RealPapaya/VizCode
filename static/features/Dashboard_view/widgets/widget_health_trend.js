@@ -3,6 +3,7 @@
 _dashRegisterWidget({
     id: 'health_trend',
     labelKey: 'dashHealthTrendTitle',
+    descriptionKey: 'dashDescHealthTrend',
     defaultSize: 'M',
 
     render(container, size, stats) {

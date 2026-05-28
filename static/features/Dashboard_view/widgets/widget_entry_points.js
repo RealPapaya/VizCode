@@ -69,6 +69,7 @@ function _dashRenderEntryPoints(container, stats, opts) {
 _dashRegisterWidget({
   id: 'entry_points',
   labelKey: 'dashEntryPointsTitle',
+      descriptionKey: 'dashDescEntryPoints',
   defaultSize: 'M',
 
   render(container, size, stats) {

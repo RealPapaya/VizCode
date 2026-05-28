@@ -176,6 +176,7 @@ ${_dashKpiDetailGridHTML([
 _dashRegisterWidget({
   id: 'coupling',
   labelKey: 'dashCouplingTopImported',
+      descriptionKey: 'dashDescCoupling',
   defaultSize: 'L',
 
   render(container, size, stats) {

@@ -16,6 +16,7 @@ function _kpiDeadCodeRing(pct, color, width, height) {
 _dashRegisterWidget({
     id: 'dead_code',
     labelKey: 'dashDeadCode',
+    descriptionKey: 'dashDescDeadCode',
     defaultSize: 'S',
 
     render(container, size, stats) {

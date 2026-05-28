@@ -3,6 +3,7 @@
 _dashRegisterWidget({
     id: 'branch_overview',
     labelKey: 'dashBranchOverviewTitle',
+    descriptionKey: 'dashDescBranchOverview',
     defaultSize: 'L',
     sizeTiers: { M: { w: 2, h: 1 }, L: { w: 4, h: 2 } },
 

@@ -1,4 +1,4 @@
-﻿// @module Dashboard_view/dashboard_detail_panel
+// @module Dashboard_view/dashboard_detail_panel
 // Shared zoom-to-center detail overlay.
 // Usage: _dashOpenDetailPanel(widgetId, originRect)
 //   originRect = the widget's getBoundingClientRect()
@@ -45,11 +45,16 @@ function _dashOpenDetailPanel(widgetId, originRect) {
     const label = _dashT(widget.detailLabelKey || widget.labelKey || widget.id) || widget.id;
     panel.setAttribute('aria-label', `${label} detail`);
 
+        const descTip = widget.descriptionKey
+        ? `<button class="dash-detail-help-tip" data-tip="${_dashEscape(_dashT(widget.descriptionKey))}" aria-label="Widget description" type="button"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><circle cx="12" cy="17" r=".5" fill="currentColor" stroke="none"/></svg></button>`
+        : '';
+
     panel.innerHTML = `
 <div class="dash-detail-head">
   <div class="dash-detail-head-title">
     <span class="dash-detail-head-label">Detail</span>
   </div>
+  ${descTip}
   <button class="dash-detail-close" id="dash-detail-close" type="button" aria-label="Close">×</button>
 </div>
 <div class="dash-detail-body dash-report-body dash-report-body--${widgetId}" id="dash-detail-body"></div>`;
@@ -118,7 +123,7 @@ function _dashDetailHeroHTML(widgetId, widget, stats) {
 <section class="dash-report-hero${reverse}"${accentStyle}>
   <div class="dash-report-hero-copy">
     <div class="dash-report-eyebrow">${_dashEscape(model.eyebrow || 'Dashboard report')}</div>
-    <h2 class="dash-report-title">${_dashEscape(model.title || _dashT(widget.labelKey || widget.id) || widget.id)}</h2>
+    <h2 class="dash-report-title"><span>${_dashEscape(model.title || _dashT(widget.labelKey || widget.id) || widget.id)}</span>${widget.descriptionKey ? `<button class="dash-detail-help-tip" data-tip="${_dashEscape(_dashT(widget.descriptionKey))}" aria-label="Widget description" type="button"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><circle cx="12" cy="17" r=".5" fill="currentColor" stroke="none"/></svg></button>` : ''}</h2>
     <div class="dash-report-primary">
       <span class="dash-report-primary-value"${model.color ? ` style="color:${model.color}"` : ''}>${_dashEscape(String(model.value ?? ''))}</span>
       ${model.suffix ? `<span class="dash-report-primary-suffix">${_dashEscape(model.suffix)}</span>` : ''}

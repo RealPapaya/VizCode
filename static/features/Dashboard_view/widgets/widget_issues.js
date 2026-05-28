@@ -108,6 +108,7 @@ function _dashRenderIssuesOverview(container, stats, opts) {
 _dashRegisterWidget({
   id: 'issues',
   labelKey: 'dashIssuesOverviewTitle',
+      descriptionKey: 'dashDescIssues',
   defaultSize: 'M',
 
   render(container, size, stats) {

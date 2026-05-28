@@ -429,6 +429,7 @@ ${_dashTemporalHeatmapSVG(model.model)}
 _dashRegisterWidget({
     id: 'commit_heatmap',
     labelKey: 'dashTemporalHeatmap',
+    descriptionKey: 'dashDescCommitHeatmap',
     defaultSize: 'M',
     render(container, size, stats) {
         if (size === 'S') {
