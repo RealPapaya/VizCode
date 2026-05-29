@@ -302,6 +302,14 @@ body.rail-expanded #app-rail #rail-toggle-btn .rail-toggle-collapse-icon {
     padding: 0 4px;
 }
 
+#level-switcher-card {
+    min-width: 360px;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+}
+
 .logo {
     font-size: 18px;
     font-weight: 700;
@@ -659,104 +667,119 @@ body.rail-expanded #app-rail #rail-toggle-btn .rail-toggle-collapse-icon {
 /* ── Level Switcher — sits inside its own card ─────────────────────────────── */
 #level-switcher {
     display: flex;
-    align-items: stretch;
+    align-items: center;
     position: relative;
     border: none;
-    border-radius: 12px;
+    border-radius: 999px;
     overflow: hidden;
     height: 100%;
+    width: 100%;
+    padding: 4px;
     flex-shrink: 0;
     user-select: none;
-    background: transparent;
-    touch-action: none
+    background: color-mix(in srgb, var(--accent) 14%, var(--panel) 86%);
+    border: 0.5px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+    box-shadow:
+        inset 0 1px 2px rgba(0, 0, 0, 0.18),
+        0 2px 8px rgba(0, 0, 0, 0.08);
+    touch-action: none;
 }
 
 #level-switcher.lsw-disabled {
-    opacity: 0.35;
-    pointer-events: none
+    opacity: 0.42;
+    pointer-events: none;
 }
 
 .lsw-seg {
     flex: 1;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 0 10px;
+    padding: 0 14px;
     background: transparent;
     border: none;
-    color: var(--muted);
+    color: color-mix(in srgb, var(--text) 48%, var(--muted) 52%);
     height: 100%;
-    min-width: 80px;
+    min-width: 0;
     cursor: pointer;
     position: relative;
-    overflow: hidden;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.04em
+    z-index: 2;
+    overflow: visible;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: color 0.16s ease, opacity 0.16s ease;
 }
 
 .lsw-seg.lsw-active {
-    color: var(--text)
+    color: var(--text-on-accent);
+}
+
+.lsw-seg:hover:not(.lsw-active) {
+    color: var(--text);
 }
 
 .lsw-seg.lsw-unavailable .lsw-icon {
-    opacity: 0.35
+    opacity: 0.35;
+}
+
+.lsw-seg.lsw-unavailable {
+    opacity: 0.45;
 }
 
 .lsw-icon {
     flex-shrink: 0;
     display: block;
     pointer-events: none;
-    transition: transform 0.15s ease
+    transition: transform 0.15s ease;
 }
 
 #level-switcher:hover .lsw-icon {
-    transform: translateY(-4px)
+    transform: none;
 }
 
 .lsw-label {
-    position: absolute;
-    bottom: 3px;
-    left: 0;
-    right: 0;
+    position: static;
     text-align: center;
-    font-size: 9px;
-    font-weight: 600;
+    font-size: inherit;
+    font-weight: inherit;
     white-space: nowrap;
-    opacity: 0;
+    opacity: 1;
     pointer-events: none;
     letter-spacing: 0.05em;
-    text-transform: uppercase;
+    text-transform: inherit;
     line-height: 1;
-    transition: opacity 0.15s ease, transform 0.15s ease;
-    transform: translateY(3px)
+    transition: none;
+    transform: none;
 }
 
 #level-switcher:hover .lsw-label {
     opacity: 1;
-    transform: translateY(0)
+    transform: none;
 }
 
 .lsw-div {
-    width: 0.5px;
-    background: var(--border);
-    align-self: center;
-    height: 20px;
-    flex-shrink: 0
+    display: none;
 }
 
 .lsw-pill {
     position: absolute;
-    bottom: 0;
-    left: 0;
-    width: calc(100% / 3);
-    height: 2px;
-    border-radius: 1px;
-    background: var(--accent);
-    transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    width: calc((100% - 8px) / 4);
+    height: auto;
+    border-radius: 999px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 96%, #fff 4%), var(--accent2));
+    box-shadow:
+        0 5px 16px color-mix(in srgb, var(--accent) 38%, transparent),
+        0 4px 10px rgba(0, 0, 0, 0.32),
+        inset 0 1px 0 rgba(255, 255, 255, 0.24);
+    transition: transform 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     pointer-events: none;
-    z-index: 1
+    z-index: 1;
 }
 
 /* ── Drill-group compound box cursor hint ─── */

@@ -485,7 +485,7 @@ function drillCurrentFileToL2() {
 
     if (!filePath) {
         // Flash L2 segment to signal "select a file first"
-        const seg = document.getElementById('level-switcher')?.querySelectorAll('.lsw-seg')[1];
+        const seg = document.getElementById('level-switcher')?.querySelectorAll('.lsw-seg')[2];
         if (seg) {
             seg.style.color = '#f87171';
             setTimeout(() => { seg.style.color = ''; }, 900);
@@ -508,7 +508,7 @@ function drillCurrentFileToL2() {
         }
     }
     drillToFile(filePath);
-    if (window._lswUpdate) window._lswUpdate({ active: 1 });
+    if (window._lswUpdate) window._lswUpdate({ active: 2, l1Available: true });
 }
 
 // ─── Lazy drill-down on ext_func / potential_func double-click ────────────────

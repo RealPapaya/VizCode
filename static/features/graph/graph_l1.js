@@ -8,9 +8,9 @@ function loadLevel0() {
     hideFuncView();
     if (window._sv && window._sv.active && window.svHideSvView) window.svHideSvView();
     if (window.svHideStructureBtn) svHideStructureBtn();
-    // No file context at L0 — disable and close code panel
+    // No file context at L0: keep only the L0 segment active.
     setCodeBtnEnabled(false);
-    if (window._lswUpdate) window._lswUpdate({ disabled: true, active: 0, l2Available: false, l3Available: false });
+    if (window._lswUpdate) window._lswUpdate({ disabled: false, active: 0, l1Available: false, l2Available: false, l3Available: false });
     if (codeState.isOpen) { closeCodePanel(); codeState.userClosed = false; }
     state.level = 0; state.activeModule = null; state.activeFile = null; state.activeSubDir = null;
     buildFtFilter(null, null);
@@ -126,7 +126,7 @@ function drillToModule(modId, opts) {
     if (window._sv && window._sv.active && window.svHideSvView) window.svHideSvView();
     if (window.svHideStructureBtn) svHideStructureBtn();
     setCodeBtnEnabled(false);
-    if (window._lswUpdate) window._lswUpdate({ disabled: false, active: 0, l2Available: false, l3Available: false });
+    if (window._lswUpdate) window._lswUpdate({ disabled: false, active: 1, l1Available: true, l2Available: false, l3Available: false });
 
     if (state.level === 0 && !isGlobalNavRestoring()) state.history.push({ level: 0 });
     state.level = 1; state.activeModule = modId; state.activeSubDir = null;
@@ -707,7 +707,7 @@ function updateCallGraphBtn(filePath) {
     const hasFuncs = filePath && ((DATA.funcs_by_file?.[filePath]?.length || 0) > 0);
     const l2Available = isL2 || hasFuncs;
     const structActive = !!(window._sv && window._sv.active);
-    const activeIdx = structActive ? 2 : (isL2 ? 1 : 0);
+    const activeIdx = structActive ? 3 : (isL2 ? 2 : (state.level === 1 ? 1 : 0));
     window._lswUpdate({ l2Available, active: activeIdx });
 }
 
