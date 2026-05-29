@@ -77,6 +77,19 @@ try:
     from parsers.zig_parser     import scan_zig, ZIG_EXTENSIONS as _ZIG_EXTENSIONS
     from parsers.d_parser       import scan_d, D_EXTENSIONS as _D_EXTENSIONS
     from parsers.sql_parser     import scan_sql, SQL_EXTENSIONS as _SQL_EXTENSIONS
+    from parsers.css_parser      import scan_css, CSS_EXTENSIONS as _CSS_EXTENSIONS
+    from parsers.ruby_parser     import scan_ruby, RUBY_EXTENSIONS as _RUBY_EXTENSIONS
+    from parsers.crystal_parser  import scan_crystal, CRYSTAL_EXTENSIONS as _CRYSTAL_EXTENSIONS
+    from parsers.julia_parser    import scan_julia, JULIA_EXTENSIONS as _JULIA_EXTENSIONS
+    from parsers.elixir_parser   import scan_elixir, ELIXIR_EXTENSIONS as _ELIXIR_EXTENSIONS
+    from parsers.vbnet_parser    import scan_vbnet, VBNET_EXTENSIONS as _VBNET_EXTENSIONS
+    from parsers.clojure_parser  import scan_clojure, CLOJURE_EXTENSIONS as _CLOJURE_EXTENSIONS
+    from parsers.erlang_parser   import scan_erlang, ERLANG_EXTENSIONS as _ERLANG_EXTENSIONS
+    from parsers.fsharp_parser   import scan_fsharp, FSHARP_EXTENSIONS as _FSHARP_EXTENSIONS
+    from parsers.ocaml_parser    import scan_ocaml, OCAML_EXTENSIONS as _OCAML_EXTENSIONS
+    from parsers.nim_parser      import scan_nim, NIM_EXTENSIONS as _NIM_EXTENSIONS
+    from parsers.haskell_parser  import scan_haskell, HASKELL_EXTENSIONS as _HASKELL_EXTENSIONS
+    from parsers.elm_parser      import scan_elm, ELM_EXTENSIONS as _ELM_EXTENSIONS
     from parsers.json_parser   import scan_json
     from parsers.common_parser import scan_common, count_loc
     from detector              import detect_project_type, fmt_detection_banner
@@ -104,6 +117,19 @@ except ImportError as _pe:
     _ZIG_EXTENSIONS = set()
     _D_EXTENSIONS = set()
     _SQL_EXTENSIONS = set()
+    _CSS_EXTENSIONS = set()
+    _RUBY_EXTENSIONS = set()
+    _CRYSTAL_EXTENSIONS = set()
+    _JULIA_EXTENSIONS = set()
+    _ELIXIR_EXTENSIONS = set()
+    _VBNET_EXTENSIONS = set()
+    _CLOJURE_EXTENSIONS = set()
+    _ERLANG_EXTENSIONS = set()
+    _FSHARP_EXTENSIONS = set()
+    _OCAML_EXTENSIONS = set()
+    _NIM_EXTENSIONS = set()
+    _HASKELL_EXTENSIONS = set()
+    _ELM_EXTENSIONS = set()
     _console_print(f'[WARN] Could not load language parsers: {_pe}', file=sys.stderr)
 
 import parse_memo
@@ -184,6 +210,32 @@ def _get_parser_fn(ext: str):
         return scan_d
     if ext in _SQL_EXTENSIONS:
         return scan_sql
+    if ext in _CSS_EXTENSIONS:
+        return scan_css
+    if ext in _RUBY_EXTENSIONS:
+        return scan_ruby
+    if ext in _CRYSTAL_EXTENSIONS:
+        return scan_crystal
+    if ext in _JULIA_EXTENSIONS:
+        return scan_julia
+    if ext in _ELIXIR_EXTENSIONS:
+        return scan_elixir
+    if ext in _VBNET_EXTENSIONS:
+        return scan_vbnet
+    if ext in _CLOJURE_EXTENSIONS:
+        return scan_clojure
+    if ext in _ERLANG_EXTENSIONS:
+        return scan_erlang
+    if ext in _FSHARP_EXTENSIONS:
+        return scan_fsharp
+    if ext in _OCAML_EXTENSIONS:
+        return scan_ocaml
+    if ext in _NIM_EXTENSIONS:
+        return scan_nim
+    if ext in _HASKELL_EXTENSIONS:
+        return scan_haskell
+    if ext in _ELM_EXTENSIONS:
+        return scan_elm
     if ext == '.json':
         return scan_json
     return scan_common  # generic fallback for all other recognized extensions
@@ -773,6 +825,32 @@ def _compute_parse_result(file_bytes: bytes, ext: str) -> tuple:
         raw = scan_d(src, ext)
     elif ext in _SQL_EXTENSIONS and _PARSERS_LOADED:
         raw = scan_sql(src, ext)
+    elif ext in _CSS_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_css(src, ext)
+    elif ext in _RUBY_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_ruby(src, ext)
+    elif ext in _CRYSTAL_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_crystal(src, ext)
+    elif ext in _JULIA_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_julia(src, ext)
+    elif ext in _ELIXIR_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_elixir(src, ext)
+    elif ext in _VBNET_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_vbnet(src, ext)
+    elif ext in _CLOJURE_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_clojure(src, ext)
+    elif ext in _ERLANG_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_erlang(src, ext)
+    elif ext in _FSHARP_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_fsharp(src, ext)
+    elif ext in _OCAML_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_ocaml(src, ext)
+    elif ext in _NIM_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_nim(src, ext)
+    elif ext in _HASKELL_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_haskell(src, ext)
+    elif ext in _ELM_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_elm(src, ext)
     elif ext == '.json' and _PARSERS_LOADED:
         raw = scan_json(src, ext)
     elif _PARSERS_LOADED:

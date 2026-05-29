@@ -43,6 +43,10 @@ src/
     python_parser.py  js_parser.py  go_parser.py
     c_cpp_parser.py   csharp_parser.py
     bios_parser.py    common_parser.py  json_parser.py
+    # dedicated long-tail parsers (same 6-tuple contract): java, rust, kotlin,
+    # scala, groovy, dart, swift, objc, php, perl, lua, shell, r, protobuf,
+    # graphql, zig, d, sql, css (css/scss/sass/less/styl), ruby, crystal, julia,
+    # elixir, vbnet, clojure, erlang, fsharp, ocaml, nim, haskell, elm
   server/
     server.py             # HTTP server + API
     job_manager.py        # Job state, viewer lifecycle, analysis thread
