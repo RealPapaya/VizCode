@@ -47,7 +47,8 @@ src/
     # dedicated long-tail parsers (same 6-tuple contract): java, rust, kotlin,
     # scala, groovy, dart, swift, objc, php, perl, lua, shell, r, protobuf,
     # graphql, zig, d, sql, css (css/scss/sass/less/styl), ruby, crystal, julia,
-    # elixir, vbnet, clojure, erlang, fsharp, ocaml, nim, haskell, elm
+    # elixir, vbnet, clojure, erlang, fsharp, ocaml, nim, haskell, elm,
+    # html, yaml, powershell (ps1/psm1/psd1), toml
   server/
     server.py             # HTTP server + API
     job_manager.py        # Job state, viewer lifecycle, analysis thread

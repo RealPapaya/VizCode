@@ -197,6 +197,42 @@ PROJECT_TYPES = {
         'description': 'Haskell project — pure functional, type classes',
         'exts':        {'.hs'},
     },
+    'html': {
+        'key':         'html',
+        'name':        'HTML / Web Markup',
+        'emoji':       '🌐',
+        'badge_color': '#e44d26',
+        'accent':      '#f16529',
+        'description': 'HTML markup project — pages, script/style includes, id anchors',
+        'exts':        {'.html', '.htm', '.xhtml'},
+    },
+    'yaml': {
+        'key':         'yaml',
+        'name':        'YAML Configuration',
+        'emoji':       '🗂️',
+        'badge_color': '#cb171e',
+        'accent':      '#ff6b6b',
+        'description': 'YAML configuration / data — CI pipelines, manifests, schemas',
+        'exts':        {'.yaml', '.yml'},
+    },
+    'powershell': {
+        'key':         'powershell',
+        'name':        'PowerShell',
+        'emoji':       '🔷',
+        'badge_color': '#012456',
+        'accent':      '#2b7cd3',
+        'description': 'PowerShell project — functions, classes, modules, dot-sourcing',
+        'exts':        {'.ps1', '.psm1', '.psd1'},
+    },
+    'toml': {
+        'key':         'toml',
+        'name':        'TOML Configuration',
+        'emoji':       '📋',
+        'badge_color': '#9c4221',
+        'accent':      '#d4845c',
+        'description': 'TOML configuration — tables, manifests (Cargo, pyproject)',
+        'exts':        {'.toml'},
+    },
     'mixed': {
         'key':         'mixed',
         'name':        'Multi-Language',
@@ -248,6 +284,10 @@ def detect_project_type(ext_counts: dict) -> dict:
     lua_score     = _score({'.lua'})
     elixir_score  = _score({'.ex', '.exs'})
     haskell_score = _score({'.hs'})
+    html_score    = _score({'.html', '.htm', '.xhtml'})
+    yaml_score    = _score({'.yaml', '.yml'})
+    pwsh_score    = _score({'.ps1', '.psm1', '.psd1'})
+    toml_score    = _score({'.toml'})
 
     scores = [
         ('go',         go_score),
@@ -270,6 +310,10 @@ def detect_project_type(ext_counts: dict) -> dict:
         ('lua',        lua_score),
         ('elixir',     elixir_score),
         ('haskell',    haskell_score),
+        ('html',       html_score),
+        ('yaml',       yaml_score),
+        ('powershell', pwsh_score),
+        ('toml',       toml_score),
     ]
 
     ranked = [(k, s) for k, s in scores if s > 0]
