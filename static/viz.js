@@ -361,31 +361,29 @@ function onNodeRightClick(ev, node) {
 
     document.getElementById('ctx-copy').onclick = () => {
         const d = node.data();
-        navigator.clipboard?.writeText(_absPath(d._f?.path || '') || d._m?.id || d.label).catch(() => { });
+        const path = _nodeRelPath(d);
+        navigator.clipboard?.writeText(path ? _absPath(path) : (d._m?.id || d.label)).catch(() => { });
         hideCtxMenu();
     };
     document.getElementById('ctx-open-code').onclick = () => {
         const d = node.data();
-        if (d._f?.path) loadFileInPanel(d._f.path);
+        const path = _nodeRelPath(d);
+        if (path && d._t !== 'module') loadFileInPanel(path);
         else if (d._t === 'module') drillToModule(d._m.id);
         hideCtxMenu();
     };
     document.getElementById('ctx-vscode').onclick = () => {
         const d = node.data();
-        if (d._f?.path) {
-            const root = DATA.stats.root;
-            const abs = root.replace(/\//g, '\\') + '\\' + d._f.path.replace(/\//g, '\\');
-            window.open(`vscode://file/${abs}`);
-        }
+        const path = _nodeRelPath(d);
+        if (path) _openPath(path, 'vscode');
+        else if (typeof showToast === 'function') showToast('No file path for this node', 'error');
         hideCtxMenu();
     };
     document.getElementById('ctx-reveal-explorer').onclick = () => {
         const d = node.data();
-        const path = d._f?.path || '';
-        if (path) {
-            _sbSwitchToExplorer();
-            revealSidebarExplorerPath(path, 'file');
-        }
+        const path = _nodeRelPath(d);
+        if (path) _openPath(path, d._t === 'module' ? 'folder' : 'reveal');
+        else if (typeof showToast === 'function') showToast('No file path for this node', 'error');
         hideCtxMenu();
     };
     document.getElementById('ctx-pin').onclick = () => {
@@ -399,17 +397,50 @@ function onNodeRightClick(ev, node) {
 function hideCtxMenu() { document.getElementById('ctx-menu').style.display = 'none'; }
 
 // ─── Shared path opener (calls server /open-path) ─────────────────────────
+function _nodeRelPath(d) {
+    if (!d) return '';
+    if (typeof d._f === 'string') return d._f;
+    if (d._f?.path) return d._f.path;
+    if (typeof d._file === 'string') return d._file;
+    if (typeof d._path === 'string') return d._path;
+    if (Array.isArray(d._files) && d._files.length) return d._files[0];
+    if (d._t === 'module' && d._m?.id) return d._m.id === '_root' ? '.' : d._m.id;
+    return '';
+}
+
 function _absPath(relPath) {
     const root = (DATA?.stats?.root || '').replace(/\\/g, '/').replace(/\/$/, '');
     return root + '/' + relPath;
 }
 
-function _openPath(relPath, action) {
-    if (!relPath) return;
-    // vscode:// opens directly in browser, no server needed
-    const root = DATA?.stats?.root || '';
-    const abs = root.replace(/\//g, '\\') + '\\' + relPath.replace(/\//g, '\\');
-    window.open(`vscode://file/${abs}`);
+async function _openPath(relPath, action = 'reveal') {
+    if (!relPath) return false;
+    const jobId = window.JOB_ID || '';
+    if (!jobId) {
+        console.warn('Cannot open path without an active job id:', relPath);
+        if (typeof showToast === 'function') showToast('Cannot open path: missing job id', 'error');
+        return false;
+    }
+    try {
+        const res = await _jobViewerPost('/open-path', {
+            job_id: jobId,
+            path: relPath,
+            action,
+        });
+        if (!res.ok) {
+            let msg = `open-path failed (${res.status})`;
+            try {
+                const data = await res.json();
+                if (data?.error) msg = data.error;
+            } catch (_) {}
+            throw new Error(msg);
+        }
+        return true;
+    } catch (err) {
+        console.error('Failed to open path:', err);
+        if (typeof showToast === 'function') showToast(`Failed to open path: ${err.message || err}`, 'error');
+        return false;
+    }
 }
 
 // ─── Helper: switch sidebar to Explorer tab ───────────────────────────
@@ -459,15 +490,12 @@ function _showExplorerCtxMenu(e, filePath, isFolder) {
     };
     document.getElementById('exp-ctx-vscode').onclick = (ev) => {
         ev.stopPropagation();
-        _openPath(filePath);
+        _openPath(filePath, 'vscode');
         _expCtxMenu.style.display = 'none';
     };
     document.getElementById('exp-ctx-folder').onclick = (ev) => {
         ev.stopPropagation();
-        _sbSwitchToExplorer();
-        if (typeof revealSidebarExplorerPath === 'function') {
-            revealSidebarExplorerPath(filePath, isFolder ? 'folder' : 'file');
-        }
+        _openPath(filePath, 'reveal');
         _expCtxMenu.style.display = 'none';
     };
 

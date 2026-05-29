@@ -114,11 +114,62 @@ def _open_folder_in_explorer(path: str) -> None:
         raise RuntimeError(f'Folder not found: {path}')
     if sys.platform.startswith('win'):
         os.startfile(path)
+        _focus_file_explorer_window()
         return
     if sys.platform == 'darwin':
         subprocess.Popen(['open', path])
         return
     subprocess.Popen(['xdg-open', path])
+
+
+def _focus_file_explorer_window(delay: float = 0.35) -> None:
+    if not sys.platform.startswith('win'):
+        return
+    try:
+        time.sleep(delay)
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.windll.user32
+        hwnds = []
+        enum_proc_type = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+
+        def _enum(hwnd, _lparam):
+            if not user32.IsWindowVisible(hwnd):
+                return True
+            class_name = ctypes.create_unicode_buffer(256)
+            user32.GetClassNameW(hwnd, class_name, 256)
+            if class_name.value in ('CabinetWClass', 'ExploreWClass'):
+                hwnds.append(hwnd)
+            return True
+
+        user32.EnumWindows(enum_proc_type(_enum), 0)
+        if not hwnds:
+            return
+        hwnd = hwnds[-1]
+        foreground = user32.GetForegroundWindow()
+        current_thread = ctypes.windll.kernel32.GetCurrentThreadId()
+        foreground_thread = user32.GetWindowThreadProcessId(foreground, None) if foreground else 0
+        target_thread = user32.GetWindowThreadProcessId(hwnd, None)
+        try:
+            if foreground_thread:
+                user32.AttachThreadInput(current_thread, foreground_thread, True)
+            if target_thread:
+                user32.AttachThreadInput(current_thread, target_thread, True)
+            # A transient ALT key event helps Windows permit foreground changes
+            # from a helper process without leaving a modifier key pressed.
+            user32.keybd_event(0x12, 0, 0, 0)  # VK_MENU down
+            user32.keybd_event(0x12, 0, 2, 0)  # KEYEVENTF_KEYUP
+            user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+            user32.BringWindowToTop(hwnd)
+            user32.SetForegroundWindow(hwnd)
+        finally:
+            if target_thread:
+                user32.AttachThreadInput(current_thread, target_thread, False)
+            if foreground_thread:
+                user32.AttachThreadInput(current_thread, foreground_thread, False)
+    except Exception:
+        pass
 
 # ─── Search index constants ──────────────────────────────────────────────────
 # Cleanup old .result_*.html files left from previous server design
@@ -2350,8 +2401,10 @@ class Handler(BaseHTTPRequestHandler):
                     _open_folder_in_explorer(folder)
                 else:  # reveal
                     if sys.platform.startswith('win'):
-                        # /select, and path must be ONE argument (no space separator)
-                        subprocess.Popen(['explorer', f'/select,{abs_path}'])
+                        # Keep the selected path separate so Explorer handles
+                        # spaces in project paths reliably.
+                        subprocess.Popen(['explorer.exe', '/select,', abs_path])
+                        _focus_file_explorer_window()
                     elif sys.platform == 'darwin':
                         subprocess.Popen(['open', '-R', abs_path])
                     else:
