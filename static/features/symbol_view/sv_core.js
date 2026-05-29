@@ -499,7 +499,7 @@ function svApplyNavSnapshot(snap) {
 function _svUpdateStructBtn(isOpen) {
     if (!window._lswUpdate) return;
     const isL2 = !!(window.state && window.state.level >= 2);
-    window._lswUpdate({ active: isOpen ? 2 : (isL2 ? 1 : 0) });
+    window._lswUpdate({ active: isOpen ? 3 : (isL2 ? 2 : (window.state && window.state.level === 1 ? 1 : 0)) });
 }
 
 // ── Legend save / restore ─────────────────────────────────────────────────
@@ -561,13 +561,13 @@ window.svUpdateStructureBtn = function (fileRel, _ext) {
     const hasSymbols = !!(window.DATA && window.DATA.symbol_index &&
         Object.values(window.DATA.symbol_index).some(s => s.file === fileRel));
     const isActive = hasSymbols && !!_svState.fileRel;
-    window._lswUpdate({ l3Available: hasSymbols, ...(isActive ? { active: 2 } : {}) });
+    window._lswUpdate({ l3Available: hasSymbols, ...(isActive ? { active: 3 } : {}) });
 };
 window.svHideStructureBtn = function () {
     if (!window._lswUpdate) return;
     window._lswUpdate({ l3Available: false });
-    if (window._lswGetActive && window._lswGetActive() === 2) {
-        const fallback = (window.state && window.state.level >= 2) ? 1 : 0;
+    if (window._lswGetActive && window._lswGetActive() === 3) {
+        const fallback = (window.state && window.state.level >= 2) ? 2 : (window.state && window.state.level === 1 ? 1 : 0);
         window._lswUpdate({ active: fallback });
     }
 };

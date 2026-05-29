@@ -75,7 +75,7 @@ HTML_SKELETON = """\
 
     <div class="rail-group-label">GENERAL</div>
     <button id="graph-btn" class="rail-btn topbar-mode-btn active" type="button" data-i18n-attr="data-tip" data-i18n="graphHomeTip" onclick="switchTopbarMode('graph')" title="Main Graph">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="6" r="2"></circle><circle cx="19" cy="12" r="2"></circle><circle cx="12" cy="18" r="2"></circle><line x1="6.8" y1="10.9" x2="10.2" y2="7.1"></line><line x1="13.8" y1="7.1" x2="17.2" y2="10.9"></line><line x1="17.2" y1="13.1" x2="13.8" y2="16.9"></line><line x1="10.2" y1="16.9" x2="6.8" y2="13.1"></line></svg>
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
       <span data-i18n="graphHome">Graph</span>
     </button>
     <button id="galaxy-btn" class="rail-btn topbar-mode-btn" type="button" data-i18n-attr="data-tip" data-i18n="galaxyTip" onclick="switchTopbarMode('galaxy')" title="Galaxy">
@@ -185,11 +185,13 @@ HTML_SKELETON = """\
       <div id="level-switcher-card" class="topbar-card">
       <div id="level-switcher" class="lsw-disabled">
         <div class="lsw-pill"></div>
-        <button class="lsw-seg lsw-active" data-seg="0" title="File Graph"><svg class="lsw-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><line x1="7" y1="11" x2="17" y2="6.5"/><line x1="7" y1="13" x2="17" y2="17.5"/></svg><span class="lsw-label">File Graph</span></button>
+        <button class="lsw-seg lsw-active" data-seg="0" title="Module Graph"><span class="lsw-label">L0 Map</span></button>
         <div class="lsw-div"></div>
-        <button class="lsw-seg" data-seg="1" title="Call Flow"><svg class="lsw-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/></svg><span class="lsw-label">Call Flow</span></button>
+        <button class="lsw-seg" data-seg="1" title="File Graph"><span class="lsw-label">L1 Graph</span></button>
         <div class="lsw-div"></div>
-        <button class="lsw-seg" data-seg="2" title="Structure"><svg class="lsw-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="6" rx="1"/><path d="M12 9v4"/><path d="M5 13h14"/><path d="M5 13v3"/><rect x="2" y="16" width="6" height="5" rx="1"/><path d="M19 13v3"/><rect x="16" y="16" width="6" height="5" rx="1"/></svg><span class="lsw-label">Structure</span></button>
+        <button class="lsw-seg" data-seg="2" title="Call Flow"><span class="lsw-label">L2 Flow</span></button>
+        <div class="lsw-div"></div>
+        <button class="lsw-seg" data-seg="3" title="Structure"><span class="lsw-label">L3 Structure</span></button>
       </div>
       </div><!-- /#level-switcher-card -->
       <div id="code-card" class="topbar-card">

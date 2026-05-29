@@ -410,7 +410,7 @@ function updateBreadcrumb() {
     if (window._lswUpdate) {
         const isL2 = state.level >= 2;
         const structActive = !!(window._sv && window._sv.active);
-        window._lswUpdate({ active: structActive ? 2 : (isL2 ? 1 : 0) });
+        window._lswUpdate({ active: structActive ? 3 : (isL2 ? 2 : (state.level === 1 ? 1 : 0)) });
     }
 }
 

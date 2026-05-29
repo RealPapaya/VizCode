@@ -43,6 +43,7 @@ let _lswActualIdx = 0;  // last committed index (action fired)
 let _lswDragStart = null;
 let _lswDragStartIdx = 0;
 let _lswDragging = false;
+const _LSW_SEG_COUNT = 4;
 
 function _lswSetActive(idx, trigger) {
     const bar = document.getElementById('level-switcher');
@@ -73,8 +74,14 @@ function _lswSetActive(idx, trigger) {
 
     if (idx === 0) {
         if (window._sv && window._sv.active) symViewClose();
-        if (state.level >= 2) restoreL1FromCallGraph();
+        if (typeof loadLevel0 === 'function') {
+            state.history = [];
+            loadLevel0();
+        }
     } else if (idx === 1) {
+        if (window._sv && window._sv.active) symViewClose();
+        if (state.level >= 2) restoreL1FromCallGraph();
+    } else if (idx === 2) {
         const symActive = window._sv && window._sv.active;
         if (symActive) {
             symViewClose();
@@ -86,7 +93,7 @@ function _lswSetActive(idx, trigger) {
             return;
         }
         if (state.level !== 2) drillCurrentFileToL2();
-    } else if (idx === 2) {
+    } else if (idx === 3) {
         if (window._sv && window._sv.active) { symViewClose(); return; }
         const fileRel = codeState.currentFile;
         if (window.symViewOpen && fileRel && DATA && DATA.symbol_index) {
@@ -103,8 +110,9 @@ window._lswUpdate = function (opts) {
     if (!bar) return;
     if (opts.disabled !== undefined) bar.classList.toggle('lsw-disabled', !!opts.disabled);
     const segs = bar.querySelectorAll('.lsw-seg');
-    if (opts.l2Available !== undefined) segs[1]?.classList.toggle('lsw-unavailable', !opts.l2Available);
-    if (opts.l3Available !== undefined) segs[2]?.classList.toggle('lsw-unavailable', !opts.l3Available);
+    if (opts.l1Available !== undefined) segs[1]?.classList.toggle('lsw-unavailable', !opts.l1Available);
+    if (opts.l2Available !== undefined) segs[2]?.classList.toggle('lsw-unavailable', !opts.l2Available);
+    if (opts.l3Available !== undefined) segs[3]?.classList.toggle('lsw-unavailable', !opts.l3Available);
     if (opts.active !== undefined) {
         _lswActualIdx = opts.active;
         window._lswCurrentIdx = opts.active;
@@ -130,8 +138,8 @@ function initLevelSwitcher() {
         if (_lswDragStart === null) return;
         if (Math.abs(e.clientX - _lswDragStart) > 5) _lswDragging = true;
         if (!_lswDragging) return;
-        const segW = bar.offsetWidth / 3;
-        const newIdx = Math.max(0, Math.min(2, _lswDragStartIdx + Math.round((e.clientX - _lswDragStart) / segW)));
+        const segW = bar.offsetWidth / _LSW_SEG_COUNT;
+        const newIdx = Math.max(0, Math.min(_LSW_SEG_COUNT - 1, _lswDragStartIdx + Math.round((e.clientX - _lswDragStart) / segW)));
         if (newIdx !== _lswIdx) _lswSetActive(newIdx, false);
     });
 
@@ -140,7 +148,7 @@ function initLevelSwitcher() {
         const dx = Math.abs(e.clientX - _lswDragStart);
         if (!_lswDragging || dx < 5) {
             const rect = bar.getBoundingClientRect();
-            const idx = Math.min(2, Math.max(0, Math.floor((e.clientX - rect.left) / (rect.width / 3))));
+            const idx = Math.min(_LSW_SEG_COUNT - 1, Math.max(0, Math.floor((e.clientX - rect.left) / (rect.width / _LSW_SEG_COUNT))));
             _lswSetActive(idx, true);
         } else {
             _lswSetActive(_lswIdx, true);
