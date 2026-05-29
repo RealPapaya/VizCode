@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": true,
-      "cwd": "d:/Code/PTL/AmiChipsetModulePkg/Library/SbHdaVerbTableLib",
-      "program": "d:/Code/PTL/AmiChipsetModulePkg/Library/SbHdaVerbTableLib/build/Debug/outDebug",
+      "cwd": "d:/Code/PTL/ChipsetModulePkg/Library/SbHdaVerbTableLib",
+      "program": "d:/Code/PTL/ChipsetModulePkg/Library/SbHdaVerbTableLib/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [

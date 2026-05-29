@@ -71,7 +71,8 @@
   - **用途**: 各獨立語言的解析器，只負責將原始碼轉為統一格式的資料 (Tuple) 交還給 `analyze_viz.py`。
   - `c_cpp_parser.py`: 解析 `.c`, `.cpp`, `.h`, `.hpp` 等一般 C/C++ 原始碼與標頭
   - `csharp_parser.py`: 解析 `.cs` 的 using、type、method 與呼叫關係
-  - `bios_parser.py`: 解析 BIOS/UEFI/AMI 相關檔案 (ASM, EDK2 INF/DEC/DSC/FDF, SDL/CIF, VFR/HFR/UNI/ASL 等)
+  - `uefi_parser.py`: 解析 BIOS/UEFI 相關檔案 (ASM, EDK2 INF/DEC/DSC/FDF, VFR/UNI/ASL 等)
+  - `common_parser.py`: 解析 SDL/CIF/HFR/MAK 等 vendor firmware 格式 (best-effort)
   - `python_parser.py`: 解析 `.py`
   - `js_parser.py`: 解析 `.js`, `.ts`, `.jsx`, `.tsx`
   - `go_parser.py`: 解析 `.go`
@@ -148,7 +149,7 @@
 ### 情境 2：修改或修復 C/C++ / C# / BIOS 的解析邏輯
 - 一般 C/C++: 修改 `parsers/c_cpp_parser.py`。
 - C#: 修改 `parsers/csharp_parser.py`。
-- BIOS/UEFI/AMI firmware 格式: 修改 `parsers/bios_parser.py`。
+- BIOS/UEFI firmware 格式: 修改 `parsers/uefi_parser.py` + `parsers/common_parser.py`。
 - 若副檔名分派改變，需同步檢查 `analyze_viz.py` 的 parser dispatch。
 
 ### 情境 3：修改畫面上節點的顏色、形狀或連線的外觀

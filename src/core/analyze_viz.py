@@ -53,7 +53,9 @@ for _p in (str(_SRC_DIR), str(_CORE_DIR)):
         sys.path.insert(0, _p)
 
 try:
-    from parsers.bios_parser   import scan_bios, BIOS_EXTENSIONS as _BIOS_EXTENSIONS
+    from parsers.uefi_parser   import scan_uefi, UEFI_EXTENSIONS as _UEFI_EXTENSIONS
+    from parsers.acpi_parser   import scan_acpi, ACPI_EXTENSIONS as _ACPI_EXTENSIONS
+    from parsers.asm_parser    import scan_asm,  ASM_EXTENSIONS  as _ASM_EXTENSIONS
     from parsers.c_cpp_parser  import scan_c_cpp, C_CPP_EXTENSIONS as _C_CPP_EXTENSIONS
     from parsers.csharp_parser import scan_csharp, CSHARP_EXTENSIONS as _CSHARP_EXTENSIONS
     from parsers.python_parser import scan_python
@@ -96,7 +98,9 @@ try:
     _PARSERS_LOADED = True
 except ImportError as _pe:
     _PARSERS_LOADED = False
-    _BIOS_EXTENSIONS = set()
+    _UEFI_EXTENSIONS = set()
+    _ACPI_EXTENSIONS = set()
+    _ASM_EXTENSIONS = set()
     _C_CPP_EXTENSIONS = set()
     _CSHARP_EXTENSIONS = set()
     _JAVA_EXTENSIONS = set()
@@ -162,8 +166,12 @@ def _get_parser_fn(ext: str):
         return None
     if ext in _C_CPP_EXTENSIONS:
         return scan_c_cpp
-    if ext in _BIOS_EXTENSIONS:
-        return scan_bios
+    if ext in _UEFI_EXTENSIONS:
+        return scan_uefi
+    if ext in _ACPI_EXTENSIONS:
+        return scan_acpi
+    if ext in _ASM_EXTENSIONS:
+        return scan_asm
     if ext in _CSHARP_EXTENSIONS:
         return scan_csharp
     if ext == '.py':
@@ -261,11 +269,11 @@ SCAN_EXT   = {
     '.c','.cpp','.cc','.cxx','.h','.hpp','.hh','.hxx','.asm','.s','.S','.nasm',
     # ── UEFI / EDK2 build system ───────────────────────────────────────────
     '.inf', '.dec', '.dsc', '.fdf',
-    # ── AMI BIOS proprietary ───────────────────────────────────────────────
+    # ── Vendor firmware formats handled by common_parser ──────────────────
     '.sdl', '.sd', '.cif', '.mak',
     # ── HII (Human Interface Infrastructure) ───────────────────────────────
     '.vfr',   # UEFI standard HII form language
-    '.hfr',   # AMI extended HII Form Resource
+    '.hfr',   # Extended HII Form Resource
     '.uni',   # Unicode string packages
     # ── ACPI ───────────────────────────────────────────────────────────────
     '.asl',
@@ -308,12 +316,12 @@ FILE_TYPE_MAP = {
     '.dec': 'package_dec',
     '.dsc': 'platform_dsc',
     '.fdf': 'flash_desc',
-    '.sdl': 'ami_sdl',
-    '.sd':  'ami_sd',
-    '.cif': 'ami_cif',
-    '.mak': 'makefile',
+    '.sdl': 'common_file',
+    '.sd':  'common_file',
+    '.cif': 'common_file',
+    '.mak': 'common_file',
     '.vfr': 'hii_vfr',
-    '.hfr': 'hii_hfr',
+    '.hfr': 'common_file',
     '.uni': 'hii_string',
     '.asl': 'acpi_asl',
     # Python
@@ -656,26 +664,22 @@ KNOWN_SYS_FUNCS: Dict[str, str] = {
     'rand':     'C Runtime',  'srand':    'C Runtime',
     'qsort':    'C Runtime',  'bsearch':  'C Runtime',
 
-    # ── AMI BIOS SDK ──────────────────────────────────────────────────────────
-    'Malloc':               'AMI SDK',
-    'MallocZ':              'AMI SDK',
-    'Free':                 'AMI SDK',
-    'MemSet':               'AMI SDK',
-    'MemCpy':               'AMI SDK',
-    'MemCmp':               'AMI SDK',
-    'Strlen':               'AMI SDK',
-    'Strcmp':               'AMI SDK',
-    'Strcpy':               'AMI SDK',
-    'Strcat':               'AMI SDK',
-    'Sprintf':              'AMI SDK',
-    'Swprintf':             'AMI SDK',
-    'AmiInstallProtocol':   'AMI SDK',
-    'AmiLocateProtocol':    'AMI SDK',
-    'TRACE':                'AMI SDK',
-    'PROGRESS_CODE':        'AMI SDK',
-    'ERROR_CODE':           'AMI SDK',
-    'AmiGetSystemVariable': 'AMI SDK',
-    'AmiSetSystemVariable': 'AMI SDK',
+    # ── Firmware SDK ──────────────────────────────────────────────────────────
+    'Malloc':        'Firmware SDK',
+    'MallocZ':       'Firmware SDK',
+    'Free':          'Firmware SDK',
+    'MemSet':        'Firmware SDK',
+    'MemCpy':        'Firmware SDK',
+    'MemCmp':        'Firmware SDK',
+    'Strlen':        'Firmware SDK',
+    'Strcmp':        'Firmware SDK',
+    'Strcpy':        'Firmware SDK',
+    'Strcat':        'Firmware SDK',
+    'Sprintf':       'Firmware SDK',
+    'Swprintf':      'Firmware SDK',
+    'TRACE':         'Firmware SDK',
+    'PROGRESS_CODE': 'Firmware SDK',
+    'ERROR_CODE':    'Firmware SDK',
 
     # ── IO / CPU / MSR ────────────────────────────────────────────────────────
     'IoRead8':      'CPU/IO Lib',  'IoWrite8':     'CPU/IO Lib',
@@ -777,8 +781,12 @@ def _compute_parse_result(file_bytes: bytes, ext: str) -> tuple:
     raw = None
     if ext in _C_CPP_EXTENSIONS and _PARSERS_LOADED:
         raw = scan_c_cpp(src, ext)
-    elif ext in _BIOS_EXTENSIONS and _PARSERS_LOADED:
-        raw = scan_bios(src, ext)
+    elif ext in _UEFI_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_uefi(src, ext)
+    elif ext in _ACPI_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_acpi(src, ext)
+    elif ext in _ASM_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_asm(src, ext)
     elif ext == '.py' and _PARSERS_LOADED:
         raw = scan_python(src)
     elif ext in ('.js', '.mjs', '.cjs', '.jsx') and _PARSERS_LOADED:
@@ -1580,8 +1588,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
 
     all_modules = sorted(set(m['module'] for m in file_meta.values()))
     module_color = {}
-    fixed = {'AmiPkg':'#00d4ff','AsusModulePkg':'#00ff9f',
-             'AsusProjectPkg':'#ff6b35','AmiChipsetPkg':'#ffd700'}
+    fixed = {}
     color_idx = 0
     for mod in all_modules:
         if mod in fixed:
@@ -1755,7 +1762,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         ext = file_meta[src_rel]['ext']
         src_dir = str(Path(src_rel).parent)
 
-        if ext in ('.c', '.cpp', '.cc', '.cxx', '.h', '.hpp', '.hh', '.hxx', '.vfr', '.asl'):
+        if ext in ('.c', '.cpp', '.cc', '.cxx', '.h', '.hpp', '.hh', '.hxx'):
             # Standard #include edges
             for inc in file_incs.get(src_rel, []):
                 for tgt in resolve_ref(inc, src_dir):
@@ -1789,6 +1796,8 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             '.clj', '.cljs', '.hs', '.ml', '.mli', '.elm',
             # Data / Schema
             '.sql', '.graphql', '.gql', '.proto',
+            # Vendor BIOS formats relocated to common_parser (best-effort)
+            '.sdl', '.sd', '.cif', '.hfr', '.mak',
         ):
             for imp in file_incs.get(src_rel, []):
                 for tgt in resolve_ref(imp, src_dir):
@@ -1843,71 +1852,45 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             for comp in extra.get('components', []):
                 for tgt in resolve_ref(comp, src_dir):
                     add_edge(src_rel, tgt, 'component')
+            # [LibraryClasses] LibName|Instance.inf → library instance .inf
+            for lib in extra.get('libraries', []):
+                for tgt in resolve_ref(lib, src_dir):
+                    if tgt != src_rel:
+                        add_edge(src_rel, tgt, 'library')
+            # !include other .dsc/.inc fragments
+            for inc in extra.get('includes', []):
+                for tgt in resolve_ref(inc, src_dir):
+                    if tgt != src_rel:
+                        add_edge(src_rel, tgt, 'component')
 
         elif ext == '.fdf' and extra:
             for inf_f in extra.get('infs', []):
                 for tgt in resolve_ref(inf_f, src_dir):
                     add_edge(src_rel, tgt, 'component')
-
-        elif ext == '.sdl' and extra:
-            # INFComponent → .inf files
-            for inf_f in extra.get('inf_components', []):
-                for tgt in resolve_ref(inf_f, src_dir):
-                    add_edge(src_rel, tgt, 'component')
-            # LibraryMapping → .inf by Instance "Pkg.LibClass" → stem is LibClass
-            for inst in extra.get('lib_mappings', []):
-                stem = inst.split('.')[-1] if '.' in inst else inst
-                for tgt in resolve_ref(stem, src_dir):
-                    if tgt != src_rel:
-                        add_edge(src_rel, tgt, 'library')
-            # Phase C: ELINK parent chain — each ELINK parent points to a .sdl that owns it
-            for parent in extra.get('elink_parents', []):
-                for tgt in resolve_ref(parent, src_dir):
-                    if tgt != src_rel:
-                        add_edge(src_rel, tgt, 'elink')
-
-        elif ext == '.cif' and extra:
-            # [INF] section → .inf files
-            for inf_f in extra.get('infs', []):
-                for tgt in resolve_ref(inf_f, src_dir):
-                    add_edge(src_rel, tgt, 'cif_own')
-            # [files] section → any file
-            for f in extra.get('files', []):
+            for f in extra.get('files', []) + extra.get('includes', []):
                 for tgt in resolve_ref(f, src_dir):
-                    add_edge(src_rel, tgt, 'cif_own')
+                    if tgt != src_rel:
+                        add_edge(src_rel, tgt, 'component')
 
-        # Phase D: VFR → UNI (str_ref) / HFR (include) edges
+        # VFR → UNI string-package (str_ref) + header #include edges.
+        # (Reachable now that '.vfr' was removed from the generic #include `if`.)
         elif ext == '.vfr' and extra:
-            # .uni string packages → str_ref (this VFR depends on that UNI for string tokens)
             for uni_f in extra.get('uni_includes', []):
                 for tgt in resolve_ref(uni_f, src_dir):
                     add_edge(src_rel, tgt, 'str_ref')
-            # .hfr sub-forms → include (this VFR includes that HFR form fragment)
-            for hfr_f in extra.get('hfr_includes', []):
-                for tgt in resolve_ref(hfr_f, src_dir):
-                    add_edge(src_rel, tgt, 'include')
-            # Other #include (e.g. .h header defines)
             for inc in extra.get('includes', []):
-                ext_i = Path(inc).suffix.lower()
-                if ext_i not in ('.uni', '.hfr'):  # already handled above
+                if Path(inc).suffix.lower() != '.uni':  # .uni handled above
                     for tgt in resolve_ref(inc, src_dir):
                         add_edge(src_rel, tgt, 'include')
 
-        # Phase D: HFR (AMI HII Form Resource) — same pattern as VFR
-        elif ext == '.hfr' and extra:
-            for uni_f in extra.get('uni_includes', []):
-                for tgt in resolve_ref(uni_f, src_dir):
-                    add_edge(src_rel, tgt, 'str_ref')
-            for hfr_f in extra.get('hfr_includes', []):
-                for tgt in resolve_ref(hfr_f, src_dir):
-                    add_edge(src_rel, tgt, 'include')
+        # UNI → UNI #include edges (string-package composition).
+        elif ext == '.uni' and extra:
             for inc in extra.get('includes', []):
-                ext_i = Path(inc).suffix.lower()
-                if ext_i not in ('.uni', '.hfr'):
-                    for tgt in resolve_ref(inc, src_dir):
+                for tgt in resolve_ref(inc, src_dir):
+                    if tgt != src_rel:
                         add_edge(src_rel, tgt, 'include')
 
-        # Phase C: ASL → Include edges
+        # ASL → Include edges (reachable now that '.asl' left the generic `if`).
         elif ext == '.asl' and extra:
             for inc in extra.get('includes', []):
                 for tgt in resolve_ref(inc, src_dir):

@@ -159,7 +159,7 @@ function drillToModule(modId, opts) {
 
     // If a focusFile is given, zoom into its parent subfolder instead of showing all files
     if (opts?.focusFile) {
-        const focusPath = opts.focusFile;                // e.g. "AmiCompatibilityPkg/Include/Setup.h"
+        const focusPath = opts.focusFile;                // e.g. "CompatibilityPkg/Include/Setup.h"
         const modPrefix = modId + '/';
         const relPath = focusPath.startsWith(modPrefix) ? focusPath.slice(modPrefix.length) : focusPath;
         const parts = relPath.split('/');

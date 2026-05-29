@@ -145,7 +145,7 @@ The browser graph shows static edges (imports, calls). The MCP server additional
 | Go | `go_parser.py` | imports · functions · structs · interfaces |
 | C / C++ | `c_cpp_parser.py` | includes · functions · methods · structs · typedefs · enums |
 | C# / .NET | `csharp_parser.py` | using directives · classes · records · interfaces · methods |
-| BIOS / EDK2 / AMI | `bios_parser.py` | ASM refs · INF/DEC/DSC/FDF · SDL/CIF · VFR/HFR/UNI/ASL |
+| BIOS / EDK2 | `uefi_parser.py` + `common_parser.py` | ASM refs · INF/DEC/DSC/FDF · SDL/CIF · VFR/HFR/UNI/ASL |
 | Java, Rust, Swift, Kotlin, Ruby, PHP, Lua, Haskell, … (50+) | `common_parser.py` | imports · functions · classes (language-aware patterns) |
 
 ---

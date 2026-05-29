@@ -1230,7 +1230,7 @@ def action_help():
         f"  {yellow('3.')} Open Browser        — start server (if needed) and open browser.",
         "",
         f"  {bold(cyan('Supported languages:'))}",
-        f"    🔲 UEFI / AMI BIOS    🐍 Python    ⚡ JS / TS    🔵 Go",
+        f"    🔲 UEFI / EDK2    🐍 Python    ⚡ JS / TS    🔵 Go",
         "",
         f"  {bold(cyan('Quick start:'))}",
         f"    {dim('python vizcode.py /path/to/project')}",

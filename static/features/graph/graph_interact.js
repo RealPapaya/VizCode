@@ -376,7 +376,7 @@ function updateBreadcrumb() {
     if (state.level >= 2 && state.level < 3 && state.activeFile) {
         // Build all path segments between module and filename
         const modId = state.activeModule || '';
-        const full = state.activeFile;              // e.g. "AmiNetworkPkg/Dhcp4Dxe/Dhcp4Driver.c"
+        const full = state.activeFile;              // e.g. "NetworkPkg/Dhcp4Dxe/Dhcp4Driver.c"
         const prefix = modId ? modId + '/' : '';
         const rel = full.startsWith(prefix) ? full.slice(prefix.length) : full;
         // rel = "Dhcp4Dxe/Dhcp4Driver.c"

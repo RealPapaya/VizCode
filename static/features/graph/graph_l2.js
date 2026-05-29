@@ -275,7 +275,7 @@ function renderL2Flowchart(fileRel, focusFuncName = null) {
         'EDK2 UefiLib': { color: '#60a5fa', bg: '#0b1e38' },
         'EDK2 DevicePath': { color: '#60a5fa', bg: '#0b1e38' },
         'C Runtime': { color: '#fb923c', bg: '#1e0e00' },
-        'AMI SDK': { color: '#e879f9', bg: '#1e0820' },
+        'Firmware SDK': { color: '#e879f9', bg: '#1e0820' },
         'CPU/IO Lib': { color: '#f87171', bg: '#200808' },
         'Status Code': { color: '#94a3b8', bg: '#0f1520' },
     };

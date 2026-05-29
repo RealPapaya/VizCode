@@ -84,6 +84,13 @@ _EXT_TO_LANG = {
     # ── CSS / stylesheet family ──────────────────────────────────────────────
     '.css': 'css', '.scss': 'scss', '.sass': 'sass', '.less': 'less',
     '.styl': 'stylus',
+    # ── Vendor firmware formats — best-effort cross-vendor ──────────────────
+    # Spec-backed firmware formats are handled by the dedicated UEFI/ACPI/ASM
+    # parsers; these proprietary
+    # ones fall through here.
+    '.sdl': 'bios_vendor', '.sd': 'bios_vendor',
+    '.cif': 'bios_vendor', '.hfr': 'bios_vendor',
+    '.mak': 'make',
 }
 
 # ─── Comment stripping ────────────────────────────────────────────────────────
@@ -496,6 +503,23 @@ _LANG_IMPORT_PATTERNS = [
         r'''@(?:import|use|forward|require)\s+(?:url\s*\(\s*)?['"]([^'"]+)['"]''',
         re.MULTILINE)),
 
+    # ── Vendor firmware formats (.sdl/.sd/.cif/.hfr) ─────────────────────────
+    # Cross-vendor conventions observed across public BIOS trees (not a single
+    # vendor's internal format):
+    #   File = "X.inf" / Instance = "Pkg.LibClass" / Source = "X.c"  (SDL)
+    #   #include "X.h"                                               (SD / HFR)
+    #   INF Path/X.inf  /  !include Frag.inc                         (build lists)
+    #   quoted firmware file paths                                   (CIF [files])
+    ({'bios_vendor'}, re.compile(
+        r'(?:File|Instance|Source)\s*=\s*"([^"]+)"', re.IGNORECASE)),
+    ({'bios_vendor'}, re.compile(
+        r'^[ \t]*#\s*(?:include|import)\s+["<]([^">]+)[">]', re.MULTILINE)),
+    ({'bios_vendor'}, re.compile(
+        r'^[ \t]*(?:!include|INF)\s+(\S+)', re.MULTILINE | re.IGNORECASE)),
+    ({'bios_vendor'}, re.compile(
+        r'"([^"]+\.(?:inf|dec|dsc|fdf|asl|vfr|uni|hfr|sdl|cif|c|h))"',
+        re.IGNORECASE)),
+
     # ── Universal fallback (applied to unknown languages) ─────────────────────
     # from X import  /  import X
     (None, re.compile(
@@ -509,7 +533,7 @@ _LANG_IMPORT_PATTERNS = [
     (None, re.compile(
         r'''require\s*\(?\s*['"]([^'"]+)['"]\s*\)?''',
         re.MULTILINE)),
-    # #include / #import (C-family already handled by bios_parser, catch rest)
+    # #include / #import (C-family handled by dedicated parsers, catch rest)
     (None, re.compile(
         r'^[ \t]*#\s*(?:import|include)\s+["<]([^">]+)[">]',
         re.MULTILINE)),
@@ -524,7 +548,8 @@ _KNOWN_FILE_EXTS = re.compile(
     r'\.(rb|py|sh|bash|zsh|jl|r|lua|dart|hrl|erl|ex|exs|ts|js|jsx|tsx'
     r'|php|pl|pm|cr|nim|zig|sql|proto|graphql|gql|elm|hs|ml|mli'
     r'|java|kt|kts|scala|groovy|cs|vb|fs|fsx|swift|m|mm|d|go|rs'
-    r'|css|scss|sass|less|styl)$',
+    r'|css|scss|sass|less|styl'
+    r'|inf|dec|dsc|fdf|uni|vfr|hfr|sdl|cif|sd|asl|nasm)$',
     re.IGNORECASE
 )
 

@@ -42,7 +42,8 @@ src/
   parsers/
     python_parser.py  js_parser.py  go_parser.py
     c_cpp_parser.py   csharp_parser.py
-    bios_parser.py    common_parser.py  json_parser.py
+    uefi_parser.py    acpi_parser.py    asm_parser.py   # firmware (spec-backed)
+    common_parser.py  json_parser.py
     # dedicated long-tail parsers (same 6-tuple contract): java, rust, kotlin,
     # scala, groovy, dart, swift, objc, php, perl, lua, shell, r, protobuf,
     # graphql, zig, d, sql, css (css/scss/sass/less/styl), ruby, crystal, julia,

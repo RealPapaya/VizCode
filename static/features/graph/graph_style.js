@@ -66,8 +66,7 @@ const CY_STYLE = [
     // BIOS file type — highlighted border tint
     { selector: 'node[ft="module_inf"]', style: { 'border-width': 2.5 } },
     { selector: 'node[ft="package_dec"]', style: { 'border-width': 2.5 } },
-    { selector: 'node[ft="ami_cif"]', style: { 'border-width': 2.5 } },
-    { selector: 'node[ft="ami_sdl"]', style: { 'border-width': 2.5 } },
+    { selector: 'node[ft="common_file"]', style: { 'border-width': 2.5 } },
         // Default edge — no CSS transitions (saves per-edge animation timers on large graphs)
     {
         selector: 'edge', style: {

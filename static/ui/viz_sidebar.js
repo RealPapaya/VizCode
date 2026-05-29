@@ -139,12 +139,8 @@ const FT_GROUPS = [
     { key: 'package_dec', label: '.dec', exts: ['.dec'], group: 'bios' },
     { key: 'platform_dsc', label: '.dsc', exts: ['.dsc'], group: 'bios' },
     { key: 'flash_desc', label: '.fdf', exts: ['.fdf'], group: 'bios' },
-    { key: 'ami_sdl', label: '.sdl', exts: ['.sdl'], group: 'bios' },
-    { key: 'ami_sd', label: '.sd', exts: ['.sd'], group: 'bios' },
-    { key: 'ami_cif', label: '.cif', exts: ['.cif'], group: 'bios' },
-    { key: 'makefile', label: '.mak', exts: ['.mak'], group: 'bios' },
+    { key: 'common_file', label: 'Common', exts: ['.sdl', '.sd', '.cif', '.hfr', '.mak'], group: 'bios' },
     { key: 'hii_vfr', label: '.vfr', exts: ['.vfr'], group: 'bios' },
-    { key: 'hii_hfr', label: '.hfr', exts: ['.hfr'], group: 'bios' },
     { key: 'hii_string', label: '.uni', exts: ['.uni'], group: 'bios' },
     { key: 'acpi_asl', label: '.asl', exts: ['.asl'], group: 'bios' },
     // ── Python ────────────────────────────────────────────────────────────────

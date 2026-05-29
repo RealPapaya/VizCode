@@ -120,7 +120,9 @@ class TestBuildGraphContent:
         assert analyze_viz._get_parser_fn('.cpp').__name__ == 'scan_c_cpp'
         assert analyze_viz._get_parser_fn('.h').__name__ == 'scan_c_cpp'
         assert analyze_viz._get_parser_fn('.cs').__name__ == 'scan_csharp'
-        assert analyze_viz._get_parser_fn('.inf').__name__ == 'scan_bios'
+        assert analyze_viz._get_parser_fn('.inf').__name__ == 'scan_uefi'
+        assert analyze_viz._get_parser_fn('.asl').__name__ == 'scan_acpi'
+        assert analyze_viz._get_parser_fn('.nasm').__name__ == 'scan_asm'
 
 
 # ─── Symbol index structure ───────────────────────────────────────────────────

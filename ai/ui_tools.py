@@ -60,7 +60,7 @@ UI_TOOL_SCHEMAS: list[dict] = [
         "description": (
             "Open the L2 function call-flow view for a single file. "
             "Use this when the user wants to see a file's internal call graph, e.g. "
-            "'open analyze_viz.py', '看 bios_parser 的函式關係'. "
+            "'open analyze_viz.py', '看 uefi_parser 的函式關係'. "
             "Use paths as shown by vizcode_l1()."
         ),
         "inputSchema": {

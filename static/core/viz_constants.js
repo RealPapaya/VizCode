@@ -24,7 +24,7 @@ function extColor(ext) {
         '.zig': '#f6a21e',      // Zig — amber
         // ── Assembly ─────────────────────────────────────────────────────────
         '.asm': '#f59e0b', '.s': '#f59e0b', '.S': '#f59e0b', '.nasm': '#f59e0b',
-        // ── UEFI / EDK2 / AMI ────────────────────────────────────────────────
+        // ── UEFI / EDK2 ─────────────────────────────────────────────────────
         '.inf': '#ffd700', '.dec': '#dfa745', '.dsc': '#e2e8f0', '.fdf': '#c084fc',
         '.sdl': '#34d399', '.sd': '#10b981', '.cif': '#60a5fa', '.mak': '#94a3b8',
         '.vfr': '#f472b6', '.hfr': '#e940a0', '.uni': '#fb923c', '.asl': '#a78bfa',
@@ -147,12 +147,9 @@ const FILE_TYPE_SHAPE = {
     'package_dec': { sh: 'hexagon', w: 190, h: 58 },
     'platform_dsc': { sh: 'star', w: 160, h: 60 },
     'flash_desc': { sh: 'vee', w: 160, h: 56 },
-    'ami_sdl': { sh: 'octagon', w: 170, h: 56 },
-    'ami_sd': { sh: 'concave-hexagon', w: 170, h: 54 },
-    'ami_cif': { sh: 'barrel', w: 160, h: 56 },
+    'common_file': { sh: 'round-rectangle', w: 165, h: 46 },
     'makefile': { sh: 'tag', w: 150, h: 46 },
     'hii_vfr': { sh: 'round-tag', w: 165, h: 50 },
-    'hii_hfr': { sh: 'round-tag', w: 165, h: 50 },
     'hii_form': { sh: 'round-tag', w: 165, h: 50 },
     'hii_string': { sh: 'round-rectangle', w: 155, h: 44 },
     'acpi_asl': { sh: 'pentagon', w: 160, h: 56 },
@@ -265,12 +262,9 @@ const FILE_TYPE_FULL_NAME = {
     'package_dec':  'EDK2 Package DEC',
     'platform_dsc': 'EDK2 Platform DSC',
     'flash_desc':   'Flash Description (FDF)',
-    'ami_sdl':      'AMI SDL Module',
-    'ami_sd':       'AMI SD File',
-    'ami_cif':      'AMI CIF Package',
+    'common_file':  'Common File',
     'makefile':     'Makefile',
     'hii_vfr':      'HII Form (VFR)',
-    'hii_hfr':      'HII Form (HFR)',
     'hii_form':     'HII Form',
     'hii_string':   'HII String (UNI)',
     'acpi_asl':     'ACPI ASL Source',
@@ -429,12 +423,11 @@ const LEGEND_NODES = [
     // ── BIOS / C ─────────────────────────────────────────────────────────────
     { shape: '◆', label: '.inf', color: '#ffd700', exts: ['.inf'] },
     { shape: '⬡', label: '.dec', color: '#dfa745', exts: ['.dec'] },
-    { shape: '⬟', label: '.sdl', color: '#34d399', exts: ['.sdl'] },
-    { shape: '▣', label: '.cif', color: '#60a5fa', exts: ['.cif'] },
+    { shape: '▭', label: 'Common', color: '#60a5fa', exts: ['.sdl', '.sd', '.cif', '.hfr', '.mak'] },
     { shape: '●', label: '.c/.h', color: '#3b82f6', exts: ['.c', '.h'] },
     { shape: '▲', label: '.asm', color: '#f59e0b', exts: ['.asm', '.s', '.nasm'] },
     { shape: '⬠', label: '.dsc', color: '#e2e8f0', exts: ['.dsc'] },
-    { shape: '‣', label: '.vfr/.hfr', color: '#f472b6', exts: ['.vfr', '.hfr'] },
+    { shape: '‣', label: '.vfr', color: '#f472b6', exts: ['.vfr'] },
     { shape: '□', label: '.uni', color: '#fb923c', exts: ['.uni'] },
     { shape: '▷', label: '.asl', color: '#a78bfa', exts: ['.asl', '.aslc'] },
     // ── Python / JS / TS / Go ─────────────────────────────────────────────────

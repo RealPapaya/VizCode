@@ -18,7 +18,7 @@ from parsers.js_parser import scan_js
 from parsers.go_parser import scan_go
 from parsers.c_cpp_parser import scan_c_cpp
 from parsers.csharp_parser import scan_csharp
-from parsers.bios_parser import scan_bios
+from parsers.uefi_parser import scan_uefi
 
 
 # ─── Helper ──────────────────────────────────────────────────────────────────
@@ -579,19 +579,19 @@ class FakeRaw { void Hidden() { fake_raw_call(); } }
         assert func_calls_by_func == [['Helper'], []]
 
 
-# ─── BIOS / Firmware Parser ──────────────────────────────────────────────────
+# ─── UEFI / Firmware Parser ──────────────────────────────────────────────────
 
-class TestBiosParser:
+class TestUefiParser:
     def test_six_tuple_contract_for_inf(self):
-        result = scan_bios('[Sources]\nMain.c\n[Packages]\nPkg.dec\n', '.inf')
-        assert_six_tuple(result, 'scan_bios')
+        result = scan_uefi('[Sources]\nMain.c\n[Packages]\nPkg.dec\n', '.inf')
+        assert_six_tuple(result, 'scan_uefi')
 
     def test_inf_refs_extracted(self):
-        imports, *_ = scan_bios('[Sources]\nMain.c\n[Packages]\nPkg.dec\n', '.inf')
+        imports, *_ = scan_uefi('[Sources]\nMain.c\n[Packages]\nPkg.dec\n', '.inf')
         assert imports == ['Main.c', 'Pkg.dec']
 
-    def test_c_sources_are_not_bios_parser_scope(self, c_src):
-        imports, funcdefs, funccalls, extra, func_calls_by_func, symbol_defs = scan_bios(c_src, '.c')
+    def test_c_sources_are_not_uefi_parser_scope(self, c_src):
+        imports, funcdefs, funccalls, extra, func_calls_by_func, symbol_defs = scan_uefi(c_src, '.c')
         assert imports == []
         assert funcdefs == []
         assert funccalls == []

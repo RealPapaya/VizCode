@@ -10,11 +10,11 @@ codebase it is, then returns a rich descriptor for display and UI theming.
 PROJECT_TYPES = {
     'uefi_bios': {
         'key':         'uefi_bios',
-        'name':        'UEFI / AMI BIOS Firmware',
+        'name':        'UEFI / EDK2 Firmware',
         'emoji':       '🔲',
         'badge_color': '#ffd700',
         'accent':      '#00d4ff',
-        'description': 'EDK2 / AMI BIOS firmware project with INF, DEC, DSC, SDL and CIF module manifests',
+        'description': 'EDK2 firmware project with INF, DEC, DSC, SDL and CIF module manifests',
         'exts':        {'.inf', '.sdl', '.cif', '.dec', '.dsc', '.fdf'},
     },
     'python': {
@@ -185,7 +185,7 @@ PROJECT_TYPES = {
         'emoji':       '⚗️',
         'badge_color': '#6e4a7e',
         'accent':      '#9c6fad',
-        'description': 'Elixir project — Phoenix, OTP, Mix',
+        'description': 'Elixir project — web framework, OTP, Mix',
         'exts':        {'.ex', '.exs'},
     },
     'haskell': {
