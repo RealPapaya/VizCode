@@ -2539,7 +2539,7 @@
 }
 
 .pref-preview-panel {
-    flex: 0 0 360px;
+    flex: 0 0 220px;
     min-height: 0;
     border-bottom: 1px solid var(--border);
     padding: 16px 18px;
@@ -3226,8 +3226,8 @@
         padding: 8px 11px;
     }
 
-    .pref-preview-panel {
-        flex-basis: 300px;
+        .pref-preview-panel {
+        flex-basis: 180px;
         padding: 14px;
     }
 
