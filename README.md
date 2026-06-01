@@ -39,6 +39,12 @@ launch.bat              # Windows
 
 A browser window opens at `http://localhost:7777`. Done.
 
+**Optional — install a global `vizcode` command:**
+
+```bash
+pip install -e .        # then run `vizcode <path>` from anywhere
+```
+
 ---
 
 ## 🤖 AI Assistant Integration
@@ -91,9 +97,11 @@ python src/vizcode.py <path> --ai "..."   # one-shot question, prints the answer
 
 | Mode | Command | Interactive | AI Report | Browser | Use Case |
 |------|---------|-------------|-----------|---------|----------|
-| **TUI (with prompt)** | `launch.bat` / `./launch.sh` | ✅ | 🤷 *You choose* | ✅ | **Flexible** — asks if you want report |
-| **Direct scan** | `python src/vizcode.py <path>` | ✅ Progress only | ❌ | ✅ | Quick viz (no menu) |
-| **Headless** | `python src/vizcode.py <path> --scan-only` | ❌ | ✅ | ❌ | CI/CD, AI integration |
+| **Launcher (menu)** | `launch.bat` / `./launch.sh` | ✅ | Optional | ✅ | **Easiest** — double-click and go |
+| **Global command** | `vizcode <path>` *(after `pip install -e .`)* | ✅ Progress | Optional | ✅ | Run from any folder |
+| **Direct scan** | `python src/vizcode.py <path>` | ✅ Progress | | ✅ | Quick viz, no menu |
+| **Headless** | `python src/vizcode.py <path> --scan-only` | | ✅ | | CI/CD, AI integration |
+| **Terminal chat** | `python src/vizcode.py <path> --chat` | ✅ | | | Ask AI about the code in the terminal |
 
 ### When to generate AI report?
 
