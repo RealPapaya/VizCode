@@ -27,39 +27,21 @@ VizCode is a local-first code visualization tool that scans your project and ren
 
 ## 🚀 Quick Start
 
-**Requirements:** Python 3.6+ — runs on Windows, macOS, and Linux. No third-party packages.
+**Requires Python 3.6+** (Windows / macOS / Linux). No third-party packages.
 
 ```bash
-# 1. Clone
 git clone https://github.com/RealPapaya/VizCode.git
 cd VizCode
 
-# 2. Run — pick whichever fits you
-launch.bat                  # Windows  (double-click or run in terminal)
-./launch.sh                 # macOS / Linux
-python src/vizcode.py       # Any platform (no launcher needed)
+launch.bat              # Windows
+./launch.sh             # macOS / Linux
 ```
 
-A browser window opens at `http://localhost:7777`. You can optionally generate an AI report (`.vizcode/vizcode_report.md`) before analysis for AI assistant consumption.
-
-### Optional: install the `vizcode` command (any OS)
-
-Prefer typing `vizcode` from anywhere — like an npm-installed CLI? Do an editable install once:
-
-```bash
-pip install -e .            # registers a cross-platform `vizcode` command
-
-vizcode <path>              # analyze a project + open the browser
-vizcode <path> --scan-only  # headless scan (CI / AI integration)
-vizcode <path> --chat       # terminal AI chat
-vizcode <path> --ai "..."   # one-shot AI question
-```
-
-> `-e` (editable) keeps the source in place, so VizCode's `static/` assets and `.vizcode/` cache resolve correctly. If the shell can't find `vizcode` afterward, add your Python user `Scripts`/`bin` directory to `PATH`.
+A browser window opens at `http://localhost:7777`. Done.
 
 ---
 
-### AI Assistant Integration
+## 🤖 AI Assistant Integration
 
 VizCode ships with an MCP server and platform-specific skill files so AI tools can explore your codebase at a fraction of the token cost.
 
@@ -96,20 +78,22 @@ python ai/install.py --list        # show install status
 
 Semantic analysis (`--ai`) is Claude-only — it infers non-static relationships (runtime spawns, shared data files, protocol implementations) that AST cannot detect.
 
+**Terminal AI (any provider):**
+
+```bash
+python src/vizcode.py <path> --chat       # interactive AI chat in the terminal
+python src/vizcode.py <path> --ai "..."   # one-shot question, prints the answer
+```
+
 ---
 
 ## 📊 Usage Modes
 
-> Commands below use `python src/vizcode.py`; if you ran `pip install -e .`, swap it for `vizcode`.
-
 | Mode | Command | Interactive | AI Report | Browser | Use Case |
 |------|---------|-------------|-----------|---------|----------|
-| **TUI (with prompt)** | `launch.bat` / `./launch.sh` / `python src/vizcode.py` | ✅ | 🤷 *You choose* | ✅ | **Flexible** — asks if you want report |
+| **TUI (with prompt)** | `launch.bat` / `./launch.sh` | ✅ | 🤷 *You choose* | ✅ | **Flexible** — asks if you want report |
 | **Direct scan** | `python src/vizcode.py <path>` | ✅ Progress only | ❌ | ✅ | Quick viz (no menu) |
 | **Headless** | `python src/vizcode.py <path> --scan-only` | ❌ | ✅ | ❌ | CI/CD, AI integration |
-| **Claude Parse** | `/vizcode --parse` | ❌ | ✅ | ✅ | Claude: AI analysis + viz |
-| **Claude AI** | `/vizcode --ai` | ❌ | ✅ | ❌ | Claude: semantic analysis only |
-| **Claude Full** | `/vizcode` | ❌ | ✅ | ✅ | Claude: complete workflow |
 
 ### When to generate AI report?
 

@@ -20,7 +20,8 @@
       "PowerShell(Get-Item *)",
       "PowerShell(Get-ChildItem *)",
       "Edit(/.claude/skills/**)",
-      "Bash(\"/c/Users/morris_hsueh/AppData/Roaming/Python/Python311/Scripts/vizcode.exe\" testproject *)"
+      "Bash(\"/c/Users/morris_hsueh/AppData/Roaming/Python/Python311/Scripts/vizcode.exe\" testproject *)",
+      "Bash(bash launch.sh testproject --scan-only)"
     ]
   }
 }
