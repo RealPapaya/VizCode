@@ -105,7 +105,7 @@
 | `viz_layout.js` | ~380 | Layout presets, switcher UI, zoom controls |
 | **`viz.js`** (boot) | ~330 | `DOMContentLoaded` boot, tooltip, keyboard (`onKey`), context menu, global tooltip |
 
-- **⚠️ Structure 按鈕**: 優先呼叫 `symViewOpen()`，若檔案無 symbol 才 fallback 到 `svToggleStructView()`。
+- **Structure 按鈕**: 只在檔案有 symbol 時呼叫 `symViewOpen()` 開啟 L3 Symbol View。
 - 💅 **`static/viz.css`** — 所有介面的視覺外觀定義。
 - 🌍 **`static/i18n.js`** — 管理中英雙語的翻譯對照表。
 - 🌐 **`static/symbol_view.js`** — Symbol-Centric Graph（以 symbol 為中心的互動式關聯圖）。

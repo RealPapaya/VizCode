@@ -552,10 +552,6 @@ window.svGetNavSnapshot = svGetNavSnapshot;
 window.svRestoreNavSnapshot = svRestoreNavSnapshot;
 window.svApplyNavSnapshot = svApplyNavSnapshot;
 window.svHideSvView    = symViewClose;
-window.svToggleStructView = function () {
-    const fileRel = window.codeState && window.codeState.currentFile;
-    if (fileRel) symViewOpen(fileRel);
-};
 window.svUpdateStructureBtn = function (fileRel, _ext) {
     if (!window._lswUpdate) return;
     const hasSymbols = !!(window.DATA && window.DATA.symbol_index &&

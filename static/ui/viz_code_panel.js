@@ -100,7 +100,6 @@ function _lswSetActive(idx, trigger) {
             const hasSymbols = Object.values(DATA.symbol_index).some(s => s.file === fileRel);
             if (hasSymbols) { symViewOpen(fileRel); return; }
         }
-        if (window.svToggleStructView) svToggleStructView();
     }
 }
 
