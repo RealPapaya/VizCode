@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vizcode"
+version = "4.0.0"
+description = "VizCode — local-first code visualization tool (pure Python stdlib backend + browser frontend)"
+readme = "README.md"
+requires-python = ">=3.6"
+license = { text = "MIT" }
+# Zero runtime dependencies — pure Python stdlib only.
+dependencies = []
+
+[project.scripts]
+# Registers a cross-platform `vizcode` command (npm `bin` equivalent).
+# After `pip install -e .` you can run `vizcode <path>` from anywhere.
+vizcode = "vizcode:main"
+
+[tool.setuptools]
+# vizcode.py lives in src/ and resolves static/, ai/, .vizcode via __file__.
+# Editable install (-e) keeps files in place so those relative paths stay valid.
+py-modules = ["vizcode"]
+
+[tool.setuptools.package-dir]
+"" = "src"
