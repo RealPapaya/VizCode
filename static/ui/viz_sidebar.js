@@ -170,6 +170,7 @@ const FT_GROUPS = [
     { key: 'perl_source',   label: '.pl/.pm',      exts: ['.pl', '.pm'],     group: 'script' },
     { key: 'lua_source',    label: '.lua',         exts: ['.lua'],           group: 'script' },
     { key: 'shell_source',  label: '.sh/.bash',    exts: ['.sh', '.bash', '.zsh'], group: 'script' },
+    { key: 'powershell_source', label: '.ps1',     exts: ['.ps1', '.psm1', '.psd1'], group: 'script' },
     { key: 'r_source',      label: '.r/.R',        exts: ['.r', '.R'],       group: 'script' },
     { key: 'julia_source',  label: '.jl',          exts: ['.jl'],            group: 'script' },
     // ── Systems ───────────────────────────────────────────────────────────────
@@ -194,8 +195,11 @@ const FT_GROUPS = [
     { key: 'scss_source',    label: '.scss/.sass', exts: ['.scss', '.sass'], group: 'web' },
     { key: 'less_source',    label: '.less',       exts: ['.less'],          group: 'web' },
     { key: 'stylus_source',  label: '.styl',       exts: ['.styl'],          group: 'web' },
+    { key: 'html_source',    label: '.html',       exts: ['.html', '.htm', '.xhtml'], group: 'web' },
     // ── Config / Data ────────────────────────────────────────────────────────
     { key: 'json_config',    label: '.json',       exts: ['.json'],          group: 'config' },
+    { key: 'yaml_source',    label: '.yaml/.yml',  exts: ['.yaml', '.yml'],  group: 'config' },
+    { key: 'toml_source',    label: '.toml',       exts: ['.toml'],          group: 'config' },
     // ── Unanalysed ────────────────────────────────────────────────────────────
     { key: 'other', label: 'Other', exts: [], isExtra: true },
     { key: 'binary', label: 'Binary', exts: [], isExtra: true },

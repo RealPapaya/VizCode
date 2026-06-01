@@ -69,7 +69,7 @@ function extColor(ext) {
         '.sh': '#4eaa25',      // Bash — green
         '.bash': '#4eaa25', '.zsh': '#4eaa25', '.fish': '#4eaa25',
         '.ps1': '#012456',     // PowerShell — dark blue
-        '.psm1': '#012456',
+        '.psm1': '#012456', '.psd1': '#012456',
         '.bat': '#c1c1c1', '.cmd': '#c1c1c1',
         '.r': '#276dc3',       // R — blue
         '.R': '#276dc3',
@@ -211,8 +211,12 @@ const FILE_TYPE_SHAPE = {
     'sass_source':     { sh: 'ellipse', w: 160, h: 48 },        // SASS — same as SCSS
     'less_source':     { sh: 'ellipse', w: 155, h: 46 },        // LESS — CSS preprocessor
     'stylus_source':   { sh: 'ellipse', w: 160, h: 46 },        // Stylus — flexible syntax
+    'html_source':     { sh: 'round-tag', w: 165, h: 48 },      // HTML — markup tag
     // ── Config / Data ──────────────────────────────────────────────────────────────
     'json_config':     { sh: 'round-rectangle', w: 165, h: 48 }, // JSON — configuration file
+    'yaml_source':     { sh: 'cut-rectangle', w: 160, h: 46 },   // YAML — config
+    'toml_source':     { sh: 'cut-rectangle', w: 160, h: 46 },   // TOML — config
+    'powershell_source': { sh: 'tag', w: 165, h: 46 },           // PowerShell — command-like
     // Fallbacks
     'other': { sh: 'round-rectangle', w: 155, h: 46 },
     'binary': { sh: 'round-rectangle', w: 150, h: 42 },
@@ -320,8 +324,13 @@ const FILE_TYPE_FULL_NAME = {
     'sass_source':    'Sass Stylesheet',
     'less_source':    'LESS Stylesheet',
     'stylus_source':  'Stylus Stylesheet',
+    'html_source':    'HTML Document',
     // Config / Data
     'json_config':    'JSON Configuration',
+    'yaml_source':    'YAML Configuration',
+    'toml_source':    'TOML Configuration',
+    // Scripting (Windows)
+    'powershell_source': 'PowerShell Script',
     // Fallbacks
     'other':        'File',
     'binary':       'Binary File',
@@ -456,6 +465,7 @@ const LEGEND_NODES = [
     { shape: '●', label: '.pl', color: '#39457e', exts: ['.pl', '.pm'] },
     { shape: '●', label: '.lua', color: '#000080', exts: ['.lua'] },
     { shape: '◐', label: '.sh', color: '#4eaa25', exts: ['.sh', '.bash', '.zsh'] },
+    { shape: '◧', label: '.ps1', color: '#012456', exts: ['.ps1', '.psm1', '.psd1'] },
     // ── Functional ────────────────────────────────────────────────────────────
     { shape: '●', label: '.ex', color: '#6e4a7e', exts: ['.ex', '.exs'] },
     { shape: '●', label: '.erl', color: '#a90533', exts: ['.erl', '.hrl'] },
@@ -464,5 +474,9 @@ const LEGEND_NODES = [
     { shape: '◐', label: '.sql', color: '#dad8d8', exts: ['.sql'] },
     { shape: '◐', label: '.proto', color: '#4285f4', exts: ['.proto'] },
     { shape: '◐', label: '.graphql', color: '#e10098', exts: ['.graphql', '.gql'] },
+    { shape: '◐', label: '.yaml', color: '#cc3e44', exts: ['.yaml', '.yml'] },
+    { shape: '◐', label: '.toml', color: '#9c4221', exts: ['.toml'] },
+    // ── Web ───────────────────────────────────────────────────────────────────
+    { shape: '◧', label: '.html', color: '#e44d26', exts: ['.html', '.htm', '.xhtml'] },
 ];
 

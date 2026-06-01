@@ -92,6 +92,10 @@ try:
     from parsers.nim_parser      import scan_nim, NIM_EXTENSIONS as _NIM_EXTENSIONS
     from parsers.haskell_parser  import scan_haskell, HASKELL_EXTENSIONS as _HASKELL_EXTENSIONS
     from parsers.elm_parser      import scan_elm, ELM_EXTENSIONS as _ELM_EXTENSIONS
+    from parsers.html_parser     import scan_html, HTML_EXTENSIONS as _HTML_EXTENSIONS
+    from parsers.yaml_parser     import scan_yaml, YAML_EXTENSIONS as _YAML_EXTENSIONS
+    from parsers.powershell_parser import scan_powershell, POWERSHELL_EXTENSIONS as _POWERSHELL_EXTENSIONS
+    from parsers.toml_parser     import scan_toml, TOML_EXTENSIONS as _TOML_EXTENSIONS
     from parsers.json_parser   import scan_json
     from parsers.common_parser import scan_common, count_loc
     from detector              import detect_project_type, fmt_detection_banner
@@ -134,6 +138,10 @@ except ImportError as _pe:
     _NIM_EXTENSIONS = set()
     _HASKELL_EXTENSIONS = set()
     _ELM_EXTENSIONS = set()
+    _HTML_EXTENSIONS = set()
+    _YAML_EXTENSIONS = set()
+    _POWERSHELL_EXTENSIONS = set()
+    _TOML_EXTENSIONS = set()
     _console_print(f'[WARN] Could not load language parsers: {_pe}', file=sys.stderr)
 
 import parse_memo
@@ -244,6 +252,14 @@ def _get_parser_fn(ext: str):
         return scan_haskell
     if ext in _ELM_EXTENSIONS:
         return scan_elm
+    if ext in _HTML_EXTENSIONS:
+        return scan_html
+    if ext in _YAML_EXTENSIONS:
+        return scan_yaml
+    if ext in _POWERSHELL_EXTENSIONS:
+        return scan_powershell
+    if ext in _TOML_EXTENSIONS:
+        return scan_toml
     if ext == '.json':
         return scan_json
     return scan_common  # generic fallback for all other recognized extensions
@@ -301,8 +317,11 @@ SCAN_EXT   = {
     '.sql', '.graphql', '.gql', '.proto',
     # ── Web / Styles ───────────────────────────────────────────────────────
     '.css', '.scss', '.sass', '.less', '.styl',
+    '.html', '.htm', '.xhtml',
     # ── Config / Data ──────────────────────────────────────────────────────
-    '.json',
+    '.json', '.yaml', '.yml', '.toml',
+    # ── Scripting (Windows) ────────────────────────────────────────────────
+    '.ps1', '.psm1', '.psd1',
 }
 SKIP_EXT   = {'.veb','.lib','.obj','.efi','.rom','.bin','.log','.map'}
 
@@ -362,8 +381,14 @@ FILE_TYPE_MAP = {
     # Web / Styles
     '.css': 'css_source', '.scss': 'scss_source', '.sass': 'sass_source',
     '.less': 'less_source', '.styl': 'stylus_source',
+    '.html': 'html_source', '.htm': 'html_source', '.xhtml': 'html_source',
     # Config / Data
     '.json': 'json_config',
+    '.yaml': 'yaml_source', '.yml': 'yaml_source',
+    '.toml': 'toml_source',
+    # Scripting (Windows)
+    '.ps1': 'powershell_source', '.psm1': 'powershell_source',
+    '.psd1': 'powershell_source',
 }
 
 # ─── Edge type definitions ───────────────────────────────────────────────────
@@ -859,6 +884,14 @@ def _compute_parse_result(file_bytes: bytes, ext: str) -> tuple:
         raw = scan_haskell(src, ext)
     elif ext in _ELM_EXTENSIONS and _PARSERS_LOADED:
         raw = scan_elm(src, ext)
+    elif ext in _HTML_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_html(src, ext)
+    elif ext in _YAML_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_yaml(src, ext)
+    elif ext in _POWERSHELL_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_powershell(src, ext)
+    elif ext in _TOML_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_toml(src, ext)
     elif ext == '.json' and _PARSERS_LOADED:
         raw = scan_json(src, ext)
     elif _PARSERS_LOADED:
@@ -1796,6 +1829,9 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             '.clj', '.cljs', '.hs', '.ml', '.mli', '.elm',
             # Data / Schema
             '.sql', '.graphql', '.gql', '.proto',
+            # Web / Config / Windows scripting
+            '.html', '.htm', '.xhtml', '.yaml', '.yml', '.toml',
+            '.ps1', '.psm1', '.psd1',
             # Vendor BIOS formats relocated to common_parser (best-effort)
             '.sdl', '.sd', '.cif', '.hfr', '.mak',
         ):
