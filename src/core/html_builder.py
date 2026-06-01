@@ -79,7 +79,7 @@ HTML_SKELETON = """\
       <span data-i18n="graphHome">Graph</span>
     </button>
     <button id="galaxy-btn" class="rail-btn topbar-mode-btn" type="button" data-i18n-attr="data-tip" data-i18n="galaxyTip" onclick="switchTopbarMode('galaxy')" title="Overview">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><line x1="6.7" y1="7.3" x2="9.6" y2="10"/><circle cx="19" cy="6" r="2"/><line x1="17.3" y1="7.3" x2="14.4" y2="10"/><circle cx="5" cy="18" r="2"/><line x1="6.7" y1="16.7" x2="9.6" y2="14"/><circle cx="19" cy="18" r="2"/><line x1="17.3" y1="16.7" x2="14.4" y2="14"/></svg>
+      <svg viewBox="0 0 256 256" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M231.38,46.54a12,12,0,0,0-10.29-2.18L161.4,59.28l-60-30a12,12,0,0,0-8.28-.91l-64,16A12,12,0,0,0,20,56V200a12,12,0,0,0,14.91,11.64L94.6,196.72l60,30a12,12,0,0,0,8.28.91l64-16A12,12,0,0,0,236,200V56A12,12,0,0,0,231.38,46.54ZM108,59.42l40,20V196.58l-40-20Zm-64,6,40-10V174.63l-40,10ZM212,190.63l-40,10V81.37l40-10Z"/></svg>
       <span data-i18n="galaxy">Overview</span>
     </button>
     <button id="dashboard-btn" class="rail-btn topbar-mode-btn" type="button" data-i18n-attr="data-tip" data-i18n="dashboardTip" onclick="switchTopbarMode('dashboard')" title="Dashboard">
@@ -95,7 +95,7 @@ HTML_SKELETON = """\
       <span data-i18n="explorer">Explorer</span>
     </button>
     <button id="rail-filter-btn" class="rail-btn" type="button" title="Filter" onclick="(function(){{var s=document.getElementById('sidebar');var isCollapsed=s&&s.classList.contains('sb-collapsed');var onFilters=typeof _sbActiveTab!=='undefined'&&_sbActiveTab==='filters';if(!isCollapsed&&onFilters){{document.getElementById('sb-collapse-btn').click();return;}}if(typeof _sbActiveTab!=='undefined'){{_sbActiveTab='filters';}}if(isCollapsed){{document.getElementById('sb-collapse-btn').click();}}else if(typeof _applySidebarTab==='function'){{_applySidebarTab();}}}})()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+      <svg viewBox="0 0 256 256" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M40,92H70.06a36,36,0,0,0,67.88,0H216a12,12,0,0,0,0-24H137.94a36,36,0,0,0-67.88,0H40a12,12,0,0,0,0,24Zm64-24A12,12,0,1,1,92,80,12,12,0,0,1,104,68Zm112,96H201.94a36,36,0,0,0-67.88,0H40a12,12,0,0,0,0,24h94.06a36,36,0,0,0,67.88,0H216a12,12,0,0,0,0-24Zm-48,24a12,12,0,1,1,12-12A12,12,0,0,1,168,188Z"/></svg>
       <span data-i18n="filters">Filters</span>
     </button>
 
