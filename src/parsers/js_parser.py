@@ -63,6 +63,21 @@ RE_JS_METHOD = re.compile(
 # Call sites
 RE_JS_CALL = re.compile(r'\b([A-Za-z_$][\w$]*)\s*\(')
 
+# Decorator lines:  @Component  /  @Injectable()  /  @Input  (one per line)
+RE_JS_DECORATOR = re.compile(r'^\s*@([A-Za-z_$][\w$]*)', re.MULTILINE)
+
+# Relative import/require with an explicit file extension:
+#   import x from './a.css'  |  require('./a.json')  |  import './styles.scss'
+RE_JS_IMPORT_PATH = re.compile(
+    r"""(?:^|;|\})\s*import\s+(?:[^'"]*from\s+)?['"](\.[^'"]+)['"]""",
+    re.MULTILINE
+)
+RE_JS_REQUIRE_PATH = re.compile(r"""\brequire\s*\(\s*['"](\.[^'"]+)['"]\s*\)""")
+# templateUrl: './x.html'  (Angular component metadata)
+RE_JS_TEMPLATEURL = re.compile(
+    r"""\btemplateUrl\s*:\s*['"]([^'"]+)['"]"""
+)
+
 # Global-namespace assignment (export):  window.X = ...  /  globalThis.X = ...
 # Single `=` only (negative lookahead rejects ==, ===).
 RE_JS_GLOBAL_DEF = re.compile(
@@ -254,7 +269,201 @@ def _count_complexity_js(body: str) -> int:
     return count
 
 
-def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
+# ─── L3 type_usage support: project-type references in TS annotations ────────
+# TS/stdlib generic & utility types that are NOT user types — never become
+# `type_usage` edges. Lowercase primitives (string/number/boolean/...) are
+# already excluded by the PascalCase filter.
+TS_TYPE_BUILTINS = frozenset({
+    'Array', 'Promise', 'Map', 'Set', 'WeakMap', 'WeakSet', 'Record', 'Partial',
+    'Readonly', 'Required', 'Pick', 'Omit', 'Exclude', 'Extract', 'ReturnType',
+    'Parameters', 'Awaited', 'Date', 'RegExp', 'Error', 'Object', 'Function',
+    'Boolean', 'Number', 'String', 'Symbol', 'BigInt', 'ReadonlyArray',
+    'Iterable', 'Iterator', 'Generator',
+})
+
+# Identifier tokens inside a type annotation. We only keep PascalCase names.
+_RE_TS_TYPE_IDENT = re.compile(r'[A-Za-z_$][\w$]*')
+
+
+def _collect_ts_type_names(annotation: str, out: set) -> None:
+    """Collect candidate type identifiers from a TS type-annotation string."""
+    if not annotation:
+        return
+    for m in _RE_TS_TYPE_IDENT.finditer(annotation):
+        out.add(m.group(0))
+
+
+def _filter_ts_type_refs(names: set) -> list:
+    """Keep only plausible user-defined TS type names (PascalCase, >=3 chars)."""
+    out = []
+    for name in sorted(names):
+        if not name or len(name) < 3 or not name[0].isupper():
+            continue
+        if name in TS_TYPE_BUILTINS:
+            continue
+        out.append(name)
+    return out
+
+
+# ─── L1 edge_hints: asset/config file references ─────────────────────────────
+_CONFIG_EXTS = {'.json', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.env'}
+_ASSET_EXTS = {'.html', '.htm', '.css', '.scss', '.sass', '.less', '.svg', '.png',
+               '.jpg', '.jpeg', '.gif', '.csv', '.sql', '.xml'}
+
+
+def _classify_ref(ref: str):
+    """Return 'config_ref' / 'asset_ref' for a known file extension, else None."""
+    if not ref or '\n' in ref:
+        return None
+    base = ref.split('?')[0].split('#')[0].strip()
+    dot = base.rfind('.')
+    if dot < 0:
+        return None
+    ext = base[dot:].lower()
+    if ext in _CONFIG_EXTS:
+        return 'config_ref'
+    if ext in _ASSET_EXTS:
+        return 'asset_ref'
+    return None
+
+
+def _collect_edge_hints(src: str, clean: str) -> list:
+    """Asset/config refs from relative import/require paths + Angular templateUrl.
+
+    Only quoted string literals with a known extension qualify; resolve_ref()
+    in the analyzer additionally drops anything that is not a real project file.
+    """
+    hints = []
+    seen = set()
+
+    def _add(target, via, pos):
+        etype = _classify_ref(target)
+        if not etype:
+            return
+        key = (target, via)
+        if key in seen:
+            return
+        seen.add(key)
+        hints.append({
+            'type': etype,
+            'target': target.strip(),
+            'via': via,
+            'line': src[:pos].count('\n') + 1,
+            'origin': 'parser',
+            'confidence': 'high',
+        })
+
+    for m in RE_JS_IMPORT_PATH.finditer(clean):
+        _add(m.group(1), 'import', m.start())
+    for m in RE_JS_REQUIRE_PATH.finditer(clean):
+        _add(m.group(1), 'require', m.start())
+    for m in RE_JS_TEMPLATEURL.finditer(clean):
+        _add(m.group(1), 'templateUrl', m.start())
+
+    return hints
+
+
+def _decorators_above(src: str, decl_pos: int) -> list:
+    """Collect '@Decorator' names on the lines immediately above ``decl_pos``.
+
+    Scans upward over contiguous decorator lines (skipping blank lines), so a
+    class/method preceded by ``@Component``/``@Input`` etc. carries them.
+    """
+    line_start = src.rfind('\n', 0, decl_pos) + 1
+    decorators = []
+    cur = line_start
+    pending = ''   # accumulated continuation lines of a multiline decorator call
+    bal = 0        # paren/brace balance of the pending block
+    while cur > 0:
+        prev_end = cur - 1                      # index of the '\n' before this line
+        prev_start = src.rfind('\n', 0, prev_end) + 1
+        line = src[prev_start:prev_end]
+        stripped = line.strip()
+        if stripped == '' and bal == 0:
+            cur = prev_start
+            continue
+        bal += stripped.count(')') + stripped.count('}')
+        bal -= stripped.count('(') + stripped.count('{')
+        m = RE_JS_DECORATOR.match(line)
+        if m and bal == 0:
+            decorators.append(m.group(1))
+            pending = ''
+            cur = prev_start
+            continue
+        if bal > 0:
+            # Inside a multiline decorator call body — keep walking up.
+            cur = prev_start
+            continue
+        break
+    decorators.reverse()
+    return decorators
+
+
+def _signature_from_method_match(match_text: str, ts_mode: bool) -> str:
+    """Build a signature from a full RE_JS_METHOD match (name(...)[: Ret] {)."""
+    paren = match_text.find('(')
+    if paren == -1:
+        return ''
+    depth = 0
+    end = -1
+    for i in range(paren, len(match_text)):
+        c = match_text[i]
+        if c == '(':
+            depth += 1
+        elif c == ')':
+            depth -= 1
+            if depth == 0:
+                end = i
+                break
+    if end == -1:
+        return ''
+    params = ' '.join(match_text[paren + 1:end].split())
+    sig = f'({params})'
+    if ts_mode:
+        rm = re.match(r'\s*:\s*([^{;=\n]+)', match_text[end + 1:])
+        if rm:
+            ret = rm.group(1).strip().rstrip(' =>').strip()
+            if ret:
+                sig += f' -> {ret}'
+    return sig
+
+
+def _signature_from_decl(clean: str, decl_end: int, ts_mode: bool) -> str:
+    """Build a "(params) -> ret" signature starting at the '(' after decl_end.
+
+    Reads the balanced parameter list; for TS, appends the ': ReturnType' that
+    follows the closing ')' (up to the body '{' or end of statement).
+    """
+    paren = clean.find('(', decl_end - 1)
+    if paren == -1:
+        return ''
+    depth = 0
+    end = -1
+    for i in range(paren, len(clean)):
+        c = clean[i]
+        if c == '(':
+            depth += 1
+        elif c == ')':
+            depth -= 1
+            if depth == 0:
+                end = i
+                break
+    if end == -1:
+        return ''
+    params = ' '.join(clean[paren + 1:end].split())
+    sig = f'({params})'
+    if ts_mode:
+        # Capture an explicit return-type annotation: ') : Ret {' or ') : Ret;'.
+        rest = clean[end + 1:]
+        rm = re.match(r'\s*:\s*([^{;=\n]+)', rest)
+        if rm:
+            ret = rm.group(1).strip().rstrip(' =>').strip()
+            if ret:
+                sig += f' -> {ret}'
+    return sig
+
+
+def _parse_symbol_defs(src: str, clean: str, doc_map: dict, ts_mode: bool) -> list:
     """Extract class + method + interface + enum + type symbols from JS/TS source."""
     symbols = []
 
@@ -275,14 +484,15 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
         open_idx = clean.find('{', m.end() - 1)
         end_line = _brace_end_line(clean, open_idx, line_no) if open_idx != -1 else line_no
         symbols.append({
-            'kind':      'class',
-            'name':      name,
-            'line':      line_no,
-            'end_line':  end_line,
-            'bases':     bases,
-            'parent':    None,
-            'is_public': not name.startswith('_'),
-            'doc':       doc_map.get(line_no, None),
+            'kind':       'class',
+            'name':       name,
+            'line':       line_no,
+            'end_line':   end_line,
+            'bases':      bases,
+            'parent':     None,
+            'is_public':  not name.startswith('_'),
+            'doc':        doc_map.get(line_no, None),
+            'decorators': _decorators_above(clean, m.start(1)),
         })
         # Methods inside the class body
         body = _brace_body(clean, open_idx) if open_idx != -1 else ''
@@ -296,6 +506,14 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
             method_brace = body.find('{', mm.end() - 1)
             m_end = _brace_end_line(body, method_brace, mline) if method_brace != -1 else mline
             method_body = _brace_body(body, method_brace) if method_brace != -1 else ''
+            sig = _signature_from_method_match(mm.group(0), ts_mode)
+            mtype_refs = []
+            if ts_mode:
+                _names = set()
+                _collect_ts_type_names(sig, _names)
+                mtype_refs = _filter_ts_type_refs(_names)
+            # Decorator position is the absolute offset of this method in src.
+            m_abs = open_idx + 1 + mm.start() if open_idx != -1 else mm.start()
             symbols.append({
                 'kind':       'method',
                 'name':       mname,
@@ -306,6 +524,9 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
                 'is_public':  not mname.startswith('_') and not mname.startswith('#'),
                 'doc':        doc_map.get(mline, None),
                 'complexity': _count_complexity_js(method_body),
+                'decorators': _decorators_above(clean, m_abs),
+                'signature':  sig,
+                'type_refs':  mtype_refs,
             })
 
     # ── Top-level functions ──────────────────────────────────────────────────
@@ -318,6 +539,12 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
         open_idx = clean.find('{', m.end())
         end_line = _brace_end_line(clean, open_idx, line_no) if open_idx != -1 else line_no
         fbody = _brace_body(clean, open_idx) if open_idx != -1 else ''
+        sig = _signature_from_decl(clean, m.end(), ts_mode)
+        ftype_refs = []
+        if ts_mode:
+            _names = set()
+            _collect_ts_type_names(sig, _names)
+            ftype_refs = _filter_ts_type_refs(_names)
         symbols.append({
             'kind':       'function',
             'name':       fname,
@@ -328,6 +555,9 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
             'is_public':  not fname.startswith('_'),
             'doc':        doc_map.get(line_no, None),
             'complexity': _count_complexity_js(fbody),
+            'decorators': _decorators_above(clean, m.start(1)),
+            'signature':  sig,
+            'type_refs':  ftype_refs,
         })
         seen_names.add(fname)
 
@@ -341,6 +571,13 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
             open_idx = clean.find('{', m.end())
             end_line = _brace_end_line(clean, open_idx, line_no) if open_idx != -1 else line_no
             fbody = _brace_body(clean, open_idx) if open_idx != -1 else ''
+            # Signature: find the '(' that opens this expression's param list.
+            sig = _signature_from_decl(clean, m.start(), ts_mode)
+            ftype_refs = []
+            if ts_mode:
+                _names = set()
+                _collect_ts_type_names(sig, _names)
+                ftype_refs = _filter_ts_type_refs(_names)
             symbols.append({
                 'kind':       'function',
                 'name':       fname,
@@ -351,6 +588,9 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
                 'is_public':  not fname.startswith('_'),
                 'doc':        doc_map.get(line_no, None),
                 'complexity': _count_complexity_js(fbody),
+                'decorators': _decorators_above(clean, m.start()),
+                'signature':  sig,
+                'type_refs':  ftype_refs,
             })
             seen_names.add(fname)
 
@@ -364,6 +604,14 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
         line_no = src[:m.start()].count('\n') + 1
         open_idx = clean.find('{', m.end() - 1)
         end_line = _brace_end_line(clean, open_idx, line_no) if open_idx != -1 else line_no
+        # Property type annotations inside the interface body feed type_refs.
+        itype_refs = []
+        if ts_mode and open_idx != -1:
+            ibody = _brace_body(clean, open_idx)
+            _names = set()
+            for pm in re.finditer(r':\s*([^;,\n{}]+)', ibody):
+                _collect_ts_type_names(pm.group(1), _names)
+            itype_refs = _filter_ts_type_refs(_names)
         symbols.append({
             'kind':      'interface',
             'name':      name,
@@ -373,6 +621,7 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
             'parent':    None,
             'is_public': not name.startswith('_'),
             'doc':       doc_map.get(line_no, None),
+            'type_refs': itype_refs,
         })
         seen_names.add(name)
 
@@ -456,9 +705,12 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
     return symbols
 
 
-def scan_js(src: str) -> tuple:
+def scan_js(src: str, _ts_mode: bool = False) -> tuple:
     """
     JavaScript file analysis.
+
+    ``_ts_mode`` (set by :func:`scan_ts`) enables TypeScript-only enrichment:
+    return-type signatures and ``type_refs`` from ``: TypeName`` annotations.
 
     Returns: (imports, funcdefs, all_calls, extra_dict, func_calls_by_func, symbol_defs)
     """
@@ -515,7 +767,7 @@ def scan_js(src: str) -> tuple:
         func_calls_by_func.append(_extract_calls(body))
 
     all_calls = _extract_calls(clean)
-    symbol_defs = _parse_symbol_defs(src, clean, doc_map)
+    symbol_defs = _parse_symbol_defs(src, clean, doc_map, _ts_mode)
 
     # Collect docstrings into extra
     docstrings = {}
@@ -534,11 +786,15 @@ def scan_js(src: str) -> tuple:
     if global_uses:
         extra['global_uses'] = global_uses
 
+    edge_hints = _collect_edge_hints(src, clean)
+    if edge_hints:
+        extra['edge_hints'] = edge_hints
+
     return imports, funcdefs, all_calls, extra, func_calls_by_func, symbol_defs
 
 
 def scan_ts(src: str) -> tuple:
     """TypeScript — delegate to JS scanner (TS is a superset)."""
-    imports, funcdefs, calls, extra, fcbf, sym_defs = scan_js(src)
+    imports, funcdefs, calls, extra, fcbf, sym_defs = scan_js(src, _ts_mode=True)
     extra['lang'] = 'typescript'
     return imports, funcdefs, calls, extra, fcbf, sym_defs

@@ -157,9 +157,42 @@ function _svEdgeAccessSummary(ed) {
     return `${_svAccessTitle(ed.sourceAccess)} ${_svEdgeVerb(ed.type)} ${_svAccessTitle(ed.targetAccess)}`;
 }
 
+// ── Card content enrichment (layout-locked: no new sections) ─────────────────
+// Richer L3 detail is folded into the EXISTING signature and metrics sections.
+function _svSymHasSig(sym) {
+    return !!(sym && (sym.signature
+        || (Array.isArray(sym.decorators) && sym.decorators.length)
+        || (Array.isArray(sym.bases) && sym.bases.length)));
+}
+
+// Decorators (@dec) + bases (: Base1, Base2) folded into the signature line.
+function _svSymSigText(sym) {
+    const parts = [];
+    if (sym && Array.isArray(sym.decorators) && sym.decorators.length) {
+        parts.push(sym.decorators.map(d => '@' + d).join(' '));
+    }
+    let core = (sym && sym.signature) || '';
+    if (sym && Array.isArray(sym.bases) && sym.bases.length) {
+        core = (core ? core + ' ' : '') + ': ' + sym.bases.join(', ');
+    }
+    if (core) parts.push(core);
+    return parts.join('  ');
+}
+
+// Extra metric chips ([key, label]) folded into the existing metrics section.
+// Note: the data model overloads `is_static` to mean "private/internal", so we
+// surface visibility via `is_public` and never emit a separate (misleading)
+// "static" chip. True `@staticmethod`/static markers appear in the decorators.
+function _svSymMetaChips(sym) {
+    const chips = [];
+    if (sym && sym.complexity != null) chips.push(['complexity', 'cx ' + sym.complexity]);
+    if (sym && typeof sym.is_public === 'boolean') chips.push(['visibility', sym.is_public ? 'public' : 'private']);
+    return chips;
+}
+
 function _svEstimateDetailCardHeight(sym, collapsed) {
     let height = 96;
-    if (sym && sym.signature) height += collapsed.has('signature') ? 30 : _SV_FOCUS_SIG_H;
+    if (_svSymHasSig(sym)) height += collapsed.has('signature') ? 30 : _SV_FOCUS_SIG_H;
     if (sym && sym.docstring) height += collapsed.has('docstring') ? 30 : _SV_FOCUS_DOC_H;
     height += collapsed.has('metrics') ? 30 : (_SV_FOCUS_MET_H + 12);
     return _svClamp(height, _SV_DETAIL_MIN_H, _SV_DETAIL_MAX_H);
@@ -2000,13 +2033,13 @@ function _svFocusCardMarkup(sym, opts = {}) {
           ${_svEsc(sym.file || '')}${sym.line ? ':' + sym.line : ''}
           ${sym.module ? ' &middot; ' + _svEsc(sym.module) : ''}
         </div>
-        ${sym.signature ? `
+        ${_svSymHasSig(sym) ? `
           <div class="sv-fd-section ${sigHidden ? 'sv-fd-collapsed' : ''}" data-section="signature">
             <div class="sv-fd-section-hd" data-section="signature">
               <span class="sv-fd-chev">${sigHidden ? '&#9656;' : '&#9662;'}</span>
               <span class="sv-fd-section-title">signature</span>
             </div>
-            <div class="sv-fd-section-body"><code>${_svEsc(sym.signature)}</code></div>
+            <div class="sv-fd-section-body"><code>${_svEsc(_svSymSigText(sym))}</code></div>
           </div>` : ''}
         ${sym.docstring ? `
           <div class="sv-fd-section ${docHidden ? 'sv-fd-collapsed' : ''}" data-section="docstring">
@@ -2025,6 +2058,7 @@ function _svFocusCardMarkup(sym, opts = {}) {
             <span class="sv-fd-metric" data-metric="lines">${lineCount} lines</span>
             <span class="sv-fd-metric sv-fd-metric-clickable" data-metric="callers">${callers} callers</span>
             <span class="sv-fd-metric sv-fd-metric-clickable" data-metric="callees">${callees} callees</span>
+            ${_svSymMetaChips(sym).map(([k, label]) => `<span class="sv-fd-metric" data-metric="${k}">${_svEsc(label)}</span>`).join('')}
           </div>
         </div>
       </div>`;
@@ -2172,12 +2206,12 @@ function _svCreateFocusCardEl(n) {
 
     let y = 66;
     const maxBodyW = n.w - 48;
-    if (sym.signature) {
+    if (_svSymHasSig(sym)) {
         y = _svAppendFocusSection(
             g,
             'signature',
             'SIGNATURE',
-            _svTextLines(sym.signature, maxBodyW, 3),
+            _svTextLines(_svSymSigText(sym), maxBodyW, 3),
             y,
             { w: n.w, mono: true }
         );
@@ -2192,18 +2226,25 @@ function _svCreateFocusCardEl(n) {
             { w: n.w, mono: false }
         );
     }
+    const metricsStartY = y;
+    const metricsBody = [`${lineCount} lines   ${callers} callers   ${callees} callees`];
+    const metaChips = _svSymMetaChips(sym);
+    if (metaChips.length) metricsBody.push(metaChips.map(([, label]) => label).join('   ·   '));
     y = _svAppendFocusSection(
         g,
         'metrics',
         'METRICS',
-        [`${lineCount} lines   ${callers} callers   ${callees} callees`],
-        y,
+        metricsBody,
+        metricsStartY,
         { w: n.w, mono: false }
     );
 
+    // Hit-rects anchor to the first metrics body line (stable regardless of the
+    // optional second extras line), matching the legacy single-line offset.
+    const metricHitY = Math.max(80, metricsStartY + 19);
     const metricHits = [
-        { key: 'callers', x: 110, y: Math.max(80, y - 28), w: 70 },
-        { key: 'callees', x: 184, y: Math.max(80, y - 28), w: 70 },
+        { key: 'callers', x: 110, y: metricHitY, w: 70 },
+        { key: 'callees', x: 184, y: metricHitY, w: 70 },
     ];
     for (const hit of metricHits) {
         const h = _svSvgEl('rect', {

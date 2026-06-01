@@ -2094,6 +2094,10 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                 # Cyclomatic complexity for function-shaped kinds. None when
                 # the parser doesn't compute it (e.g. BIOS / common fallback).
                 'complexity': sym.get('complexity'),
+                # Project type names this symbol references (param/return/field
+                # annotations). Drives L3 `type_usage` edges. Empty when the
+                # parser doesn't extract type references.
+                'type_refs': sym.get('type_refs', []),
                 # Flag set when the parser had to fall back (e.g. ast.parse failed).
                 # Truthy value is a short diagnostic message; falsy → clean symbol.
                 'parse_error': file_parse_error,
@@ -2102,7 +2106,8 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             _file_sym_key[(rel, sym['name'])] = sid
 
     # kind mapping for symbol edge types → A2 unified vocabulary
-    _SYMBOL_KIND = {'inheritance': 'inherit', 'implements': 'inherit', 'override': 'inherit', 'call': 'call'}
+    _SYMBOL_KIND = {'inheritance': 'inherit', 'implements': 'inherit', 'override': 'inherit',
+                    'call': 'call', 'type_usage': 'type_usage', 'member': 'member'}
 
     # Inheritance / implements edges
     for sid, sym in symbol_index.items():
@@ -2140,6 +2145,31 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                         break
             if base_method_id and base_method_id != sid:
                 symbol_edges.append({'from': sid, 'to': base_method_id, 'type': 'override', 'kind': 'inherit'})
+
+    # Type-usage edges (a symbol references a project TYPE in its signature/fields).
+    # Precision-first: resolve only to type-kind symbols, same-file first, else a
+    # single unambiguous project definition. Parsers pre-filter builtins/short names.
+    _TYPE_KINDS = {'class', 'struct', 'interface', 'enum', 'record', 'trait', 'typedef'}
+    _type_name_to_ids: dict = defaultdict(list)
+    for _tid, _tsym in symbol_index.items():
+        if _tsym.get('kind') in _TYPE_KINDS:
+            _type_name_to_ids[_tsym['name']].append(_tid)
+    for sid, sym in symbol_index.items():
+        seen_type: set = set()
+        for type_name in sym.get('type_refs') or []:
+            if not type_name or len(type_name) < 3:
+                continue
+            # Same-file definition first, but only if it is actually a type.
+            tgt = _file_sym_key.get((sym['file'], type_name))
+            if tgt is not None and symbol_index.get(tgt, {}).get('kind') not in _TYPE_KINDS:
+                tgt = None
+            if tgt is None:
+                candidates = _type_name_to_ids.get(type_name, [])
+                if len(candidates) == 1:
+                    tgt = candidates[0]
+            if tgt and tgt != sid and tgt not in seen_type:
+                seen_type.add(tgt)
+                symbol_edges.append({'from': sid, 'to': tgt, 'type': 'type_usage', 'kind': 'type_usage'})
 
     # Call edges (cross-file using func_name lookup)
     for rel, func_list in funcs_by_file.items():

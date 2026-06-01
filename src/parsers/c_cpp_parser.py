@@ -37,9 +37,37 @@ C_KEYWORDS = {
     'strlen', 'strcmp', 'strncmp', 'malloc', 'calloc', 'realloc', 'free',
 }
 
+# ─── L3 type_usage support: builtin / primitive types to exclude ─────────────
+# Names here never become `type_usage` edges. Includes C/C++ scalars and the
+# common UEFI scalar typedefs. User types (PascalCase / CamelCase) survive.
+C_TYPE_BUILTINS = frozenset({
+    'int', 'char', 'short', 'long', 'float', 'double', 'void', 'bool',
+    'unsigned', 'signed', 'size_t', 'ssize_t', 'intptr_t', 'uintptr_t',
+    'int8_t', 'int16_t', 'int32_t', 'int64_t',
+    'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t', 'wchar_t',
+    # common UEFI scalars
+    'UINTN', 'INTN', 'UINT8', 'UINT16', 'UINT32', 'UINT64',
+    'INT8', 'INT16', 'INT32', 'INT64', 'BOOLEAN', 'CHAR8', 'CHAR16',
+    'VOID', 'EFI_STATUS',
+})
+
+# ─── L1 edge_hints: asset/config file references from string literals ─────────
+_CONFIG_EXTS = {'.json', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.env'}
+_ASSET_EXTS = {'.html', '.htm', '.css', '.scss', '.sass', '.less', '.svg', '.png',
+               '.jpg', '.jpeg', '.gif', '.csv', '.sql', '.xml'}
+
 RE_INCLUDE = re.compile(r'^[ \t]*#[ \t]*include[ \t]+[<"]([^>"]+)[>"]')
 RE_CALL = re.compile(r'\b([A-Za-z_]\w*)\s*\(')
 RE_STATIC = re.compile(r'\bstatic\b')
+# Branch keywords / operators counted for cyclomatic complexity.
+RE_COMPLEXITY = re.compile(r'\b(?:if|for|while|case)\b|&&|\|\||\?')
+# Type-identifier extractor (after stripping pointers/refs/const/templates).
+RE_TYPE_IDENT = re.compile(r'[A-Za-z_]\w*')
+# fopen("x.json", ...) / std::ifstream("x.csv") style explicit file references.
+# Captures the call/marker name and the first quoted string literal argument.
+RE_FILE_REF = re.compile(
+    r'\b(fopen|freopen|ifstream|ofstream|fstream|open)\s*\(\s*"([^"\n]+)"',
+)
 RE_TEMPLATE_PREFIX = re.compile(r'^[ \t]*template\s*<[^;{}]*>\s*$', re.MULTILINE)
 RE_CLASS = re.compile(
     r'^[ \t]*(?:template\s*<[^;{}]*>\s*)?'
@@ -247,6 +275,182 @@ def _call_names(text: str) -> list:
     return calls
 
 
+def _classify_ref(ref: str):
+    """Return 'config_ref' / 'asset_ref' for a known file extension, else None."""
+    if not ref or '\n' in ref:
+        return None
+    base = ref.split('?')[0].split('#')[0].strip()
+    dot = base.rfind('.')
+    if dot < 0:
+        return None
+    ext = base[dot:].lower()
+    if ext in _CONFIG_EXTS:
+        return 'config_ref'
+    if ext in _ASSET_EXTS:
+        return 'asset_ref'
+    return None
+
+
+def _collect_edge_hints(src: str, masked: str) -> list:
+    """Extract very explicit file references from fopen/ifstream string literals.
+
+    Operates over the ORIGINAL source so the literal text survives; the masked
+    source is only used to confirm the match isn't inside a comment/string by
+    checking the call name token is still present there.
+    """
+    hints = []
+    for m in RE_FILE_REF.finditer(src):
+        # Confirm the call site is real code (not commented out): the marker
+        # name must still be present at the same offset in the masked source.
+        if masked[m.start(1):m.end(1)] != m.group(1):
+            continue
+        target = m.group(2).strip()
+        etype = _classify_ref(target)
+        if not etype:
+            continue
+        line = src[:m.start()].count('\n') + 1
+        hints.append({
+            'type': etype,
+            'target': target,
+            'via': m.group(1),
+            'line': line,
+            'origin': 'parser',
+            'confidence': 'high',
+        })
+    return hints
+
+
+def _base_type_idents(type_str: str) -> list:
+    """Reduce a C/C++ type expression to its base user-type identifiers.
+
+    Strips pointers/refs (`*`, `&`), const/volatile and other type qualifiers,
+    and template argument identifiers are pulled out too (e.g. ``std::vector<Foo>``
+    yields ``Foo``). Builtins and short/lowercase names are filtered by the
+    caller via :func:`_filter_type_refs`.
+    """
+    if not type_str:
+        return []
+    out = []
+    for ident in RE_TYPE_IDENT.findall(type_str):
+        out.append(ident.split('::')[-1] if '::' in ident else ident)
+    return out
+
+
+def _filter_type_refs(names) -> list:
+    """Keep only plausible user-defined type names (PascalCase/CamelCase, ≥3)."""
+    out = []
+    seen = set()
+    for name in names:
+        if not name or len(name) < 3 or name in seen:
+            continue
+        if name in C_KEYWORDS or name in C_TYPE_BUILTINS:
+            continue
+        # Require a leading uppercase letter (PascalCase / CamelCase user types).
+        # Excludes lowercase builtins (int, char) and most local identifiers.
+        if not name[0].isupper():
+            continue
+        seen.add(name)
+        out.append(name)
+    return sorted(out)
+
+
+def _param_clause(masked: str, name_end: int):
+    """Return (clause_text, after_idx) for the (...) parameter list at name_end.
+
+    ``name_end`` is the offset just past the function name. Scans the masked
+    source for the matching outer parenthesis. Returns ('', name_end) on failure.
+    """
+    open_idx = masked.find('(', name_end)
+    if open_idx == -1:
+        return '', name_end
+    depth = 0
+    for idx in range(open_idx, len(masked)):
+        ch = masked[idx]
+        if ch == '(':
+            depth += 1
+        elif ch == ')':
+            depth -= 1
+            if depth == 0:
+                return masked[open_idx + 1:idx], idx + 1
+    return '', name_end
+
+
+def _split_params(clause: str) -> list:
+    """Split a parameter clause on top-level commas (ignoring template/paren depth)."""
+    params = []
+    depth = 0
+    cur = []
+    for ch in clause:
+        if ch in '(<[':
+            depth += 1
+        elif ch in ')>]':
+            depth -= 1
+        if ch == ',' and depth == 0:
+            params.append(''.join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    if ''.join(cur).strip():
+        params.append(''.join(cur))
+    return params
+
+
+def _func_signature(ret: str, clause: str) -> str:
+    """Build a compact "(params) -> ret" signature string."""
+    clause = ' '.join(clause.split())
+    sig = f'({clause})'
+    ret = ' '.join((ret or '').split()).strip()
+    if ret and ret not in ('', '~'):
+        sig += f' -> {ret}'
+    return sig
+
+
+def _func_complexity(body: str) -> int:
+    """Cyclomatic-style branch count over a (comment-masked) function body."""
+    return 1 + len(RE_COMPLEXITY.findall(body))
+
+
+def _func_type_refs(ret: str, clause: str) -> list:
+    """Collect user-type identifiers from a function's return type and params."""
+    names = []
+    names.extend(_base_type_idents(ret or ''))
+    for param in _split_params(clause):
+        # Drop a trailing parameter NAME (and default value) — keep only the type
+        # portion. Heuristic: the last identifier before '=' / end is the param
+        # name when there are >=2 identifiers; everything earlier is the type.
+        seg = param.split('=')[0]
+        idents = _base_type_idents(seg)
+        if len(idents) >= 2:
+            idents = idents[:-1]  # strip param name
+        names.extend(idents)
+    return _filter_type_refs(names)
+
+
+def _field_type_refs(class_body: str) -> list:
+    """Collect user-type identifiers from a class/struct member field declarations.
+
+    Conservative line-oriented scan over the masked class body: a field decl is a
+    statement ending in ';' that is not a function (no '(' before the ';') and not
+    a nested type definition. The first token(s) form the type, the last the name.
+    """
+    names = []
+    for raw_stmt in class_body.split(';'):
+        stmt = raw_stmt.strip()
+        if not stmt or '(' in stmt or '{' in stmt or '}' in stmt:
+            continue
+        # Skip access specifiers / using / typedef lines.
+        first = stmt.split()[0] if stmt.split() else ''
+        if first in ('public', 'private', 'protected', 'using', 'typedef',
+                     'friend', 'return', 'template'):
+            continue
+        seg = stmt.split('=')[0]
+        idents = _base_type_idents(seg)
+        if len(idents) >= 2:
+            idents = idents[:-1]  # strip the field name token
+        names.extend(idents)
+    return _filter_type_refs(names)
+
+
 def _function_matches(masked: str) -> list:
     matches = []
     spans = []
@@ -276,6 +480,12 @@ def _extract_symbols(src: str, masked: str, func_matches: list) -> list:
         seen.add(name)
         line = src[:m.start()].count('\n') + 1
         open_idx = masked.find('{', m.end() - 1)
+        # Member field types feed type_usage edges (bases stay in 'bases').
+        type_refs = []
+        if open_idx != -1:
+            close_idx = _find_matching_brace(masked, open_idx)
+            if close_idx > open_idx:
+                type_refs = _field_type_refs(masked[open_idx + 1:close_idx])
         symbols.append({
             'kind': 'class' if kind == 'class' else kind,
             'name': name,
@@ -284,6 +494,8 @@ def _extract_symbols(src: str, masked: str, func_matches: list) -> list:
             'bases': _base_names(bases),
             'parent': None,
             'is_public': not name.startswith('_'),
+            'decorators': [],
+            'type_refs': type_refs,
         })
 
     for m in RE_TYPEDEF_COMPOUND.finditer(masked):
@@ -322,10 +534,15 @@ def _extract_symbols(src: str, masked: str, func_matches: list) -> list:
         open_idx = masked.find('{', m.end() - 1)
         prefix = m.groupdict().get('prefix') or ''
         is_static = bool(RE_STATIC.search(prefix))
+        ret = m.groupdict().get('ret') or ''
         key = (parent, name, line)
         if key in seen:
             continue
         seen.add(key)
+        # Parameter clause + body (masked) drive signature / complexity / type_refs.
+        clause, _ = _param_clause(masked, m.end('name'))
+        close_idx = _find_matching_brace(masked, open_idx) if open_idx != -1 else -1
+        body = masked[open_idx + 1:close_idx] if close_idx > open_idx else ''
         symbols.append({
             'kind': 'method' if parent else 'function',
             'name': name,
@@ -334,6 +551,11 @@ def _extract_symbols(src: str, masked: str, func_matches: list) -> list:
             'bases': [],
             'parent': parent,
             'is_public': not is_static and not name.startswith('_'),
+            'is_static': is_static,
+            'decorators': [],
+            'signature': _func_signature(ret, clause),
+            'complexity': _func_complexity(body),
+            'type_refs': _func_type_refs(ret, clause),
         })
 
     symbols.sort(key=lambda item: (item.get('line', 0), item.get('kind', ''), item.get('name', '')))
@@ -366,4 +588,7 @@ def scan_c_cpp(src: str, ext: str = '') -> tuple:
     funccalls = _dedupe(call for calls in func_calls_by_func for call in calls)
     symbol_defs = _extract_symbols(src, masked, func_matches)
     extra = {'lang': 'cpp' if ext.lower() in ('.cpp', '.cc', '.cxx', '.hpp', '.hh', '.hxx') else 'c'}
+    edge_hints = _collect_edge_hints(src, masked)
+    if edge_hints:
+        extra['edge_hints'] = edge_hints
     return imports, funcdefs, funccalls, extra, func_calls_by_func, symbol_defs

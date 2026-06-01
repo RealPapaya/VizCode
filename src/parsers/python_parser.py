@@ -110,6 +110,90 @@ def _compute_complexity(node) -> int:
     return bc.count
 
 
+# ─── L3 type_usage support: project-type references in annotations ───────────
+# typing constructs and capitalized stdlib generics that are NOT user types —
+# never become `type_usage` edges. (Lowercase builtins like str/int are already
+# excluded by the Capitalized filter.)
+PY_TYPE_BUILTINS = frozenset({
+    'List', 'Dict', 'Set', 'FrozenSet', 'Tuple', 'Optional', 'Union', 'Any',
+    'Callable', 'Iterable', 'Iterator', 'Sequence', 'Mapping', 'MutableMapping',
+    'MutableSequence', 'MutableSet', 'Type', 'Awaitable', 'Coroutine', 'Generator',
+    'AsyncGenerator', 'AsyncIterable', 'AsyncIterator', 'ClassVar', 'Final',
+    'Literal', 'Annotated', 'Protocol', 'TypeVar', 'Generic', 'NoReturn', 'None',
+    'Ellipsis', 'Text', 'AnyStr', 'ByteString', 'Hashable', 'Sized', 'Collection',
+    'Container', 'Deque', 'DefaultDict', 'OrderedDict', 'Counter', 'ChainMap',
+    'Self', 'Never', 'Concatenate', 'ParamSpec', 'TypeAlias', 'Path', 'Pattern',
+    'Match', 'IO', 'TextIO', 'BinaryIO',
+})
+
+
+def _collect_type_names(node, out: set) -> None:
+    """Walk a type-annotation AST node, collecting referenced type identifiers."""
+    if node is None:
+        return
+    if isinstance(node, ast.Name):
+        out.add(node.id)
+    elif isinstance(node, ast.Attribute):
+        out.add(node.attr)
+    elif isinstance(node, ast.Subscript):
+        _collect_type_names(node.value, out)
+        _collect_type_names(node.slice, out)
+    elif isinstance(node, getattr(ast, 'Index', ())):  # py<3.9 wrapped subscript
+        _collect_type_names(getattr(node, 'value', None), out)
+    elif isinstance(node, (ast.Tuple, ast.List)):
+        for elt in node.elts:
+            _collect_type_names(elt, out)
+    elif isinstance(node, ast.BinOp):  # PEP 604 unions: X | Y
+        _collect_type_names(node.left, out)
+        _collect_type_names(node.right, out)
+    elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+        # Forward reference string, e.g. "MyClass" or "pkg.MyClass".
+        name = node.value.strip().split('[')[0].split('.')[-1]
+        if name.isidentifier():
+            out.add(name)
+
+
+def _filter_type_refs(names: set) -> list:
+    """Keep only plausible user-defined type names (Capitalized, ≥3 chars)."""
+    out = []
+    for name in sorted(names):
+        if not name or len(name) < 3 or not name[0].isupper():
+            continue
+        if name in PY_TYPE_BUILTINS:
+            continue
+        out.append(name)
+    return out
+
+
+# ─── L1 edge_hints: asset/config file references from string literals ────────
+_CONFIG_EXTS = {'.json', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.env'}
+_ASSET_EXTS = {'.html', '.htm', '.css', '.scss', '.sass', '.less', '.svg', '.png',
+               '.jpg', '.jpeg', '.gif', '.csv', '.sql', '.xml'}
+# Only these call targets are trusted to carry a file-path first argument. Paired
+# with a known extension, this double-gates against false positives; the analyzer
+# additionally drops any ref that does not resolve to a project file.
+_PY_ASSET_CALLERS = {
+    'open', 'Path', 'read_text', 'read_bytes', 'render_template', 'send_file',
+    'send_from_directory', 'get_template', 'ParseFiles', 'ParseGlob',
+}
+
+
+def _classify_ref(ref: str) -> str | None:
+    """Return 'config_ref' / 'asset_ref' for a known file extension, else None."""
+    if not ref or '\n' in ref:
+        return None
+    base = ref.split('?')[0].split('#')[0].strip()
+    dot = base.rfind('.')
+    if dot < 0:
+        return None
+    ext = base[dot:].lower()
+    if ext in _CONFIG_EXTS:
+        return 'config_ref'
+    if ext in _ASSET_EXTS:
+        return 'asset_ref'
+    return None
+
+
 # ─── AST-based analyzer ─────────────────────────────────────────────────────
 
 class _PyAnalyzer(ast.NodeVisitor):
@@ -121,6 +205,7 @@ class _PyAnalyzer(ast.NodeVisitor):
         self.all_calls = []
         self.func_calls_by_func = []
         self.symbol_defs = []
+        self.edge_hints = []            # L1 asset/config file references
         self._scope_stack = []          # [(kind, name), ...] — 'class' or 'func'
         self._current_func_calls = None # list when inside a function, None otherwise
         self._seen_imports = set()
@@ -149,6 +234,13 @@ class _PyAnalyzer(ast.NodeVisitor):
         parent = self._current_class()
         doc = ast.get_docstring(node)
 
+        # Class-level annotated fields contribute type references (e.g. dataclass
+        # fields, attrs). Bases stay separate (they drive inheritance edges).
+        _type_names = set()
+        for stmt in node.body:
+            if isinstance(stmt, ast.AnnAssign):
+                _collect_type_names(stmt.annotation, _type_names)
+
         self.symbol_defs.append({
             'kind':      'class',
             'name':      node.name,
@@ -158,6 +250,7 @@ class _PyAnalyzer(ast.NodeVisitor):
             'parent':    parent,
             'is_public': not node.name.startswith('_'),
             'doc':       doc,
+            'type_refs': _filter_type_refs(_type_names),
         })
 
         self._scope_stack.append(('class', node.name))
@@ -207,6 +300,18 @@ class _PyAnalyzer(ast.NodeVisitor):
             except Exception:
                 signature = ''
 
+        # Type references from parameter annotations + return annotation.
+        _type_names = set()
+        _args = node.args
+        for arg in (list(getattr(_args, 'posonlyargs', [])) + list(_args.args)
+                    + list(_args.kwonlyargs)):
+            _collect_type_names(getattr(arg, 'annotation', None), _type_names)
+        if _args.vararg:
+            _collect_type_names(getattr(_args.vararg, 'annotation', None), _type_names)
+        if _args.kwarg:
+            _collect_type_names(getattr(_args.kwarg, 'annotation', None), _type_names)
+        _collect_type_names(node.returns, _type_names)
+
         self.funcdefs.append({
             'label':     node.name,
             'is_efiapi': False,
@@ -227,6 +332,7 @@ class _PyAnalyzer(ast.NodeVisitor):
             'decorators': decorators,
             'signature':  signature,
             'complexity': _compute_complexity(node),
+            'type_refs':  _filter_type_refs(_type_names),
         })
 
         # Track calls inside this function body
@@ -253,6 +359,22 @@ class _PyAnalyzer(ast.NodeVisitor):
             self.all_calls.append(name)
             if self._current_func_calls is not None:
                 self._current_func_calls.append(name)
+
+        # L1 hint: a trusted I/O call with a string-literal path that has a known
+        # asset/config extension. resolve_ref() drops it if it isn't a real file.
+        if name in _PY_ASSET_CALLERS and node.args:
+            first = node.args[0]
+            if isinstance(first, ast.Constant) and isinstance(first.value, str):
+                etype = _classify_ref(first.value)
+                if etype:
+                    self.edge_hints.append({
+                        'type': etype,
+                        'target': first.value.strip(),
+                        'via': name,
+                        'line': getattr(node, 'lineno', None),
+                        'origin': 'parser',
+                        'confidence': 'high',
+                    })
 
         self.generic_visit(node)
 
@@ -314,6 +436,8 @@ def _scan_python_ast(src: str) -> tuple:
             docstrings[key] = sym['doc']
     if docstrings:
         extra['docstrings'] = docstrings
+    if analyzer.edge_hints:
+        extra['edge_hints'] = analyzer.edge_hints
 
     return (
         analyzer.imports,

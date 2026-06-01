@@ -46,8 +46,196 @@ RE_GO_FUNCDEF = re.compile(
     re.MULTILINE,
 )
 
+
+# ─── L3 type_usage support: project-type references ──────────────────────────
+# Go predeclared types + the universe identifiers that must never become a
+# `type_usage` edge. Most are lowercase and already excluded by the Capitalized
+# filter, but they're listed for clarity / safety.
+GO_TYPE_BUILTINS = frozenset({
+    'error', 'string', 'bool', 'byte', 'rune', 'any',
+    'int', 'int8', 'int16', 'int32', 'int64',
+    'uint', 'uint8', 'uint16', 'uint32', 'uint64', 'uintptr',
+    'float32', 'float64', 'complex64', 'complex128',
+})
+
+
+def _base_type_ident(token: str) -> str:
+    """Reduce a Go type token to its base identifier.
+
+    Strips leading '[]', 'map[...]', '*', 'chan ', '...', '<-chan' / 'chan<-',
+    array sizes '[N]', and parentheses; for 'pkg.Type' keeps the final
+    identifier. Returns '' if no plain identifier remains.
+    """
+    t = token.strip()
+    if not t:
+        return ''
+    # Drop func types / channels-of-func and other composites we can't reduce.
+    # Iteratively peel known prefixes.
+    changed = True
+    while changed and t:
+        changed = False
+        t = t.strip()
+        if t.startswith('...'):
+            t = t[3:]
+            changed = True
+            continue
+        if t.startswith('*'):
+            t = t[1:]
+            changed = True
+            continue
+        if t.startswith('[]'):
+            t = t[2:]
+            changed = True
+            continue
+        if t.startswith('<-chan'):
+            t = t[6:]
+            changed = True
+            continue
+        if t.startswith('chan<-'):
+            t = t[6:]
+            changed = True
+            continue
+        if t.startswith('chan ') or t.startswith('chan\t'):
+            t = t[4:]
+            changed = True
+            continue
+        # Fixed-size or empty array prefix: [N]Type or [...]Type
+        if t.startswith('['):
+            close = t.find(']')
+            if close != -1:
+                t = t[close + 1:]
+                changed = True
+                continue
+        # map[K]V -> value type V (key types are usually builtins/strings)
+        if t.startswith('map['):
+            close = t.find(']')
+            if close != -1:
+                t = t[close + 1:]
+                changed = True
+                continue
+    t = t.strip()
+    # Take the leading identifier only (stop at any non-identifier char other
+    # than '.'); then keep the final dotted segment for 'pkg.Type'.
+    m = re.match(r'([A-Za-z_][\w.]*)', t)
+    if not m:
+        return ''
+    ident = m.group(1)
+    return ident.split('.')[-1]
+
+
+def _add_type_ref(out: set, token: str) -> None:
+    base = _base_type_ident(token)
+    if base:
+        out.add(base)
+
+
+def _filter_type_refs(names: set) -> list:
+    """Keep only plausible user-defined Go type names (exported, ≥3 chars)."""
+    out = []
+    for name in sorted(names):
+        if not name or len(name) < 3 or not name[0].isupper():
+            continue
+        if name in GO_TYPE_BUILTINS:
+            continue
+        out.append(name)
+    return out
+
 # Call sites
 RE_GO_CALL = re.compile(r'\b([A-Za-z_]\w*)\s*\(')
+
+
+# ─── L1 edge_hints: asset/config file references ─────────────────────────────
+_CONFIG_EXTS = {'.json', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.env'}
+_ASSET_EXTS = {'.html', '.htm', '.css', '.scss', '.sass', '.less', '.svg', '.png',
+               '.jpg', '.jpeg', '.gif', '.csv', '.sql', '.xml'}
+# Trusted call targets whose first string-literal argument is a file path. The
+# matched name is the final identifier of a (possibly qualified) call, e.g.
+# os.Open -> 'Open'. Paired with a known extension this double-gates against
+# false positives; the analyzer additionally drops refs that aren't real files.
+_GO_ASSET_CALLERS = {
+    'Open', 'ReadFile', 'ParseFiles', 'ParseGlob',
+}
+# The body of a //go:embed line comment (the scanner strips the leading '//').
+RE_GO_EMBED = re.compile(r'^go:embed[ \t]+(.+?)[ \t]*$')
+# os.Open / os.ReadFile / ioutil.ReadFile / template.ParseFiles("x") with a
+# string literal first argument. Captures the call's final identifier + literal.
+RE_GO_ASSET_CALL = re.compile(
+    r'\b([A-Za-z_]\w*)\s*\(\s*"((?:[^"\\]|\\.)*)"',
+)
+
+
+def _classify_ref(ref: str) -> str | None:
+    """Return 'config_ref' / 'asset_ref' for a known file extension, else None."""
+    if not ref or '\n' in ref:
+        return None
+    base = ref.split('?')[0].split('#')[0].strip()
+    dot = base.rfind('.')
+    if dot < 0:
+        return None
+    ext = base[dot:].lower()
+    if ext in _CONFIG_EXTS:
+        return 'config_ref'
+    if ext in _ASSET_EXTS:
+        return 'asset_ref'
+    return None
+
+
+def _extract_edge_hints(src: str, clean: str) -> list:
+    """Collect L1 asset/config edge hints from embeds + trusted I/O calls.
+
+    `src` is the original source (used for //go:embed directives, which live in
+    comments that `clean` has masked). `clean` has comments + literals masked,
+    so trusted I/O calls are matched against the comment-masked-but-literal-kept
+    source instead.
+    """
+    hints = []
+
+    # //go:embed directives — scan real line comments (the scanner already
+    # excludes comment-like sequences inside strings/raw strings/runes). A
+    # directive comment has no space between '//' and 'go:embed'; embed targets
+    # may be multiple space-separated globs/paths.
+    for comment in _scan_go_comments(src):
+        if comment['kind'] != 'line':
+            continue
+        em = RE_GO_EMBED.match(comment['body'])
+        if not em:
+            continue
+        line = comment['start_line']
+        for tok in em.group(1).split():
+            tok = tok.strip().strip('"')
+            if not tok:
+                continue
+            etype = _classify_ref(tok)
+            if etype:
+                hints.append({
+                    'type': etype,
+                    'target': tok,
+                    'via': '//go:embed',
+                    'line': line,
+                    'origin': 'parser',
+                    'confidence': 'high',
+                })
+
+    # Trusted I/O calls with a string-literal path. Use source with comments
+    # masked but string literals INTACT so we can read the path.
+    lit_src = _strip_comments(src)
+    for m in RE_GO_ASSET_CALL.finditer(lit_src):
+        name = m.group(1)
+        if name not in _GO_ASSET_CALLERS:
+            continue
+        path = m.group(2)
+        etype = _classify_ref(path)
+        if etype:
+            hints.append({
+                'type': etype,
+                'target': path.strip(),
+                'via': name,
+                'line': _line_no(lit_src, m.start()),
+                'origin': 'parser',
+                'confidence': 'high',
+            })
+
+    return hints
 
 # Struct / interface declarations
 RE_GO_STRUCT = re.compile(r'^type\s+(\w+)\s+struct\s*\{', re.MULTILINE)
@@ -391,6 +579,99 @@ def _count_complexity_go(body: str) -> int:
     return count
 
 
+def _match_paren(src: str, open_idx: int) -> int:
+    """Return index of the ')' matching the '(' at open_idx, or -1."""
+    if open_idx < 0 or open_idx >= len(src) or src[open_idx] != '(':
+        return -1
+    depth = 0
+    for i in range(open_idx, len(src)):
+        c = src[i]
+        if c == '(':
+            depth += 1
+        elif c == ')':
+            depth -= 1
+            if depth == 0:
+                return i
+    return -1
+
+
+def _split_top_level(text: str, sep: str = ',') -> list:
+    """Split on `sep` ignoring separators nested in (), [], {}."""
+    parts = []
+    depth = 0
+    cur = []
+    for c in text:
+        if c in '([{':
+            depth += 1
+            cur.append(c)
+        elif c in ')]}':
+            depth -= 1
+            cur.append(c)
+        elif c == sep and depth == 0:
+            parts.append(''.join(cur))
+            cur = []
+        else:
+            cur.append(c)
+    if cur:
+        parts.append(''.join(cur))
+    return parts
+
+
+def _extract_func_signature(clean: str, paren_open_idx: int):
+    """Parse a Go func/method param + result clause.
+
+    `paren_open_idx` points at the '(' opening the parameter list. Returns
+    (signature_str, type_refs_set). Signature is '(params) -> result' style with
+    whitespace collapsed; result is omitted when there is none.
+    """
+    type_names = set()
+    params_close = _match_paren(clean, paren_open_idx)
+    if params_close < 0:
+        return '', type_names
+    params_src = clean[paren_open_idx + 1:params_close]
+
+    # Result clause: everything between the params ')' and the function body '{'
+    # (or a newline / end for declarations without a body).
+    rest = clean[params_close + 1:]
+    brace = rest.find('{')
+    nl = rest.find('\n')
+    cut_candidates = [x for x in (brace, nl) if x != -1]
+    cut = min(cut_candidates) if cut_candidates else len(rest)
+    result_src = rest[:cut].strip()
+
+    # Collect type refs from each param. Go params look like:
+    #   name Type | name1, name2 Type | Type (unnamed) | name ...Type
+    for part in _split_top_level(params_src):
+        part = part.strip()
+        if not part:
+            continue
+        toks = part.split()
+        # The type is the trailing token(s); for 'a, b Type' the names share one
+        # type. Simplest robust heuristic: feed every token through the base-type
+        # reducer — only exported identifiers survive the later filter, names are
+        # lowercase and dropped.
+        for tok in toks:
+            _add_type_ref(type_names, tok)
+
+    # Result clause: may be a single type, or a parenthesized list.
+    if result_src:
+        rsrc = result_src
+        if rsrc.startswith('('):
+            rclose = _match_paren(rsrc, 0)
+            if rclose != -1:
+                rsrc = rsrc[1:rclose]
+        for part in _split_top_level(rsrc):
+            for tok in part.split():
+                _add_type_ref(type_names, tok)
+
+    # Build a compact signature string.
+    sig_params = ' '.join(params_src.split())
+    signature = f'({sig_params})'
+    if result_src:
+        signature += ' -> ' + ' '.join(result_src.split())
+    return signature, type_names
+
+
 def _extract_struct_embedding(clean: str, struct_start: int) -> list:
     """Extract embedded types from a struct body for composition tracking."""
     open_idx = clean.find('{', struct_start)
@@ -410,6 +691,43 @@ def _extract_struct_embedding(clean: str, struct_start: int) -> list:
     return bases
 
 
+def _extract_struct_field_types(clean: str, struct_start: int) -> set:
+    """Collect referenced type names from a struct's named field declarations.
+
+    Fields look like `Name Type` / `Name1, Name2 Type` / `Name Type \`tag\``.
+    Embedded fields (a single token) are handled separately as bases and skipped
+    here. Returns the raw base-identifier set (filtered later).
+    """
+    type_names = set()
+    open_idx = clean.find('{', struct_start)
+    if open_idx == -1:
+        return type_names
+    body = _brace_body(clean, open_idx)
+    for line in body.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        # Drop a struct tag (backtick-delimited) if present.
+        bt = line.find('`')
+        if bt != -1:
+            line = line[:bt].strip()
+        if not line:
+            continue
+        parts = line.split(None, 1)
+        if len(parts) < 2:
+            continue  # embedded field -> handled as a base
+        # parts[1] is the type expression (possibly preceded by more field names
+        # for the `A, B Type` form — strip a trailing comma list off the name).
+        type_expr = parts[1]
+        # If the field-name token list had commas (multiple names), the real type
+        # is after the last name; re-split on whitespace and take the final group.
+        if ',' in parts[0] or parts[1].lstrip().startswith(','):
+            toks = line.replace(',', ' ').split()
+            type_expr = toks[-1] if toks else type_expr
+        _add_type_ref(type_names, type_expr)
+    return type_names
+
+
 def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
     """Extract struct, interface, type alias, and function symbols from Go source."""
     symbols = []
@@ -420,6 +738,7 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
         open_idx = clean.find('{', m.end() - 1)
         end_line = _brace_end_line(clean, open_idx, line_no)
         bases = _extract_struct_embedding(clean, m.start())
+        field_types = _extract_struct_field_types(clean, m.start())
         symbols.append({
             'kind': 'struct',
             'name': name,
@@ -429,6 +748,8 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
             'parent': None,
             'is_public': name[0].isupper(),
             'doc': doc_map.get(line_no, None),
+            'decorators': [],
+            'type_refs': _filter_type_refs(field_types),
         })
 
     for m in RE_GO_INTERFACE.finditer(clean):
@@ -495,6 +816,7 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
         open_idx = clean.find('{', m.end())
         end_line = _brace_end_line(clean, open_idx, line_no)
         mbody = _brace_body(clean, open_idx)
+        signature, type_names = _extract_func_signature(clean, m.end() - 1)
         symbols.append({
             'kind': 'method',
             'name': mname,
@@ -504,7 +826,10 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
             'parent': receiver,
             'is_public': mname[0].isupper(),
             'doc': doc_map.get(line_no, None),
+            'decorators': [],
+            'signature': signature,
             'complexity': _count_complexity_go(mbody),
+            'type_refs': _filter_type_refs(type_names),
         })
 
     for m in RE_GO_FUNCDEF.finditer(clean):
@@ -517,6 +842,7 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
         open_idx = clean.find('{', m.end())
         end_line = _brace_end_line(clean, open_idx, line_no)
         fbody = _brace_body(clean, open_idx)
+        signature, type_names = _extract_func_signature(clean, m.end() - 1)
         symbols.append({
             'kind': 'function',
             'name': name,
@@ -526,7 +852,10 @@ def _parse_symbol_defs(src: str, clean: str, doc_map: dict) -> list:
             'parent': None,
             'is_public': name[0].isupper(),
             'doc': doc_map.get(line_no, None),
+            'decorators': [],
+            'signature': signature,
             'complexity': _count_complexity_go(fbody),
+            'type_refs': _filter_type_refs(type_names),
         })
 
     return symbols
@@ -585,5 +914,9 @@ def scan_go(src: str) -> tuple:
     }
     if docstrings:
         extra['docstrings'] = docstrings
+
+    edge_hints = _extract_edge_hints(src, clean)
+    if edge_hints:
+        extra['edge_hints'] = edge_hints
 
     return imports, funcdefs, all_calls, extra, func_calls_by_func, symbol_defs

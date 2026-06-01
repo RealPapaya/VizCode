@@ -416,6 +416,8 @@ const LEGEND_EDGES = [
     // elKey = value stored in edge.data('el')
     { type: 'include', label: 'Include', color: '#c084fc', style: 'solid', elKey: 'Inc' },
     { type: 'import', label: 'Import', color: '#10b981', style: 'dashed', elKey: 'Import' },
+    { type: 'asset_ref', label: 'Asset', color: '#22d3ee', style: 'dashed', elKey: 'Asset' },
+    { type: 'config_ref', label: 'Config', color: '#f59e0b', style: 'dashed', elKey: 'Config' },
     { type: 'sources', label: 'Src', color: '#ffd700', style: 'solid', elKey: 'Src' },
     { type: 'package', label: 'Pkg', color: '#dfa745', style: 'dashed', elKey: 'Pkg' },
     { type: 'library', label: 'Lib', color: '#a78bfa', style: 'dashed', elKey: 'Lib' },
