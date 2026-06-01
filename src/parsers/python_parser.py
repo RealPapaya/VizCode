@@ -35,6 +35,13 @@ PY_KEYWORDS = {
     'property', 'object', 'NotImplemented',
 }
 
+_PY_CONFIG_EXTS = {'.json', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.env'}
+_PY_ASSET_EXTS = {
+    '.css', '.scss', '.sass', '.less', '.styl',
+    '.svg', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico',
+    '.txt', '.md', '.html', '.htm', '.xml', '.csv',
+}
+
 
 # ─── Cyclomatic branch counter (Python AST) ──────────────────────────────────
 
@@ -121,6 +128,7 @@ class _PyAnalyzer(ast.NodeVisitor):
         self.all_calls = []
         self.func_calls_by_func = []
         self.symbol_defs = []
+        self.edge_hints = []
         self._scope_stack = []          # [(kind, name), ...] — 'class' or 'func'
         self._current_func_calls = None # list when inside a function, None otherwise
         self._seen_imports = set()
@@ -243,6 +251,7 @@ class _PyAnalyzer(ast.NodeVisitor):
     # ── Calls ────────────────────────────────────────────────────────────────
 
     def visit_Call(self, node):
+        self._maybe_add_file_hint(node)
         name = None
         if isinstance(node.func, ast.Name):
             name = node.func.id
@@ -255,6 +264,83 @@ class _PyAnalyzer(ast.NodeVisitor):
                 self._current_func_calls.append(name)
 
         self.generic_visit(node)
+
+    def _maybe_add_file_hint(self, node):
+        via = ''
+        target = None
+        if isinstance(node.func, ast.Name) and node.func.id == 'open' and node.args:
+            target = self._literal_str(node.args[0])
+            via = 'open'
+        elif isinstance(node.func, ast.Attribute) and node.func.attr in ('read_text', 'read_bytes'):
+            target = self._path_constructor_literal(node.func.value)
+            via = f'Path.{node.func.attr}'
+        elif isinstance(node.func, ast.Attribute) and node.func.attr == 'joinpath' and node.args:
+            if self._is_importlib_resources_files(node.func.value):
+                target = self._literal_str(node.args[0])
+                via = 'importlib.resources.files.joinpath'
+        hint = self._edge_hint(target, via, getattr(node, 'lineno', 0))
+        if hint:
+            self.edge_hints.append(hint)
+
+    def _literal_str(self, node):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        return None
+
+    def _path_constructor_literal(self, node):
+        if not isinstance(node, ast.Call) or not node.args:
+            return None
+        func = node.func
+        is_path = (
+            isinstance(func, ast.Name) and func.id == 'Path'
+        ) or (
+            isinstance(func, ast.Attribute) and func.attr == 'Path'
+        )
+        return self._literal_str(node.args[0]) if is_path else None
+
+    def _is_importlib_resources_files(self, node):
+        if not isinstance(node, ast.Call):
+            return False
+        func = node.func
+        if not isinstance(func, ast.Attribute) or func.attr != 'files':
+            return False
+        value = func.value
+        if isinstance(value, ast.Name) and value.id == 'resources':
+            return True
+        return (
+            isinstance(value, ast.Attribute)
+            and value.attr == 'resources'
+            and isinstance(value.value, ast.Name)
+            and value.value.id == 'importlib'
+        )
+
+    def _edge_hint(self, target, via, line):
+        ref = (target or '').strip().replace('\\', '/')
+        if not ref or not via:
+            return None
+        low = ref.lower()
+        if low.startswith(('http://', 'https://', '//', 'data:')):
+            return None
+        if ref.startswith('$') or any(ch in ref for ch in '*?[]{}'):
+            return None
+        ext = ''
+        last = ref.rstrip('/').rsplit('/', 1)[-1]
+        if '.' in last:
+            ext = '.' + last.rsplit('.', 1)[-1].lower()
+        if ext in _PY_CONFIG_EXTS:
+            edge_type, subtype = 'config_ref', ext[1:]
+        elif ext in _PY_ASSET_EXTS:
+            edge_type, subtype = 'asset_ref', ext[1:]
+        else:
+            return None
+        return {
+            'type': edge_type,
+            'target': ref,
+            'subtype': subtype,
+            'via': via,
+            'line': line,
+            'confidence': 1.0,
+        }
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -314,6 +400,11 @@ def _scan_python_ast(src: str) -> tuple:
             docstrings[key] = sym['doc']
     if docstrings:
         extra['docstrings'] = docstrings
+    if analyzer.edge_hints:
+        deduped = {}
+        for hint in analyzer.edge_hints:
+            deduped[(hint['type'], hint['target'], hint['subtype'], hint['via'], hint['line'])] = hint
+        extra['edge_hints'] = list(deduped.values())
 
     return (
         analyzer.imports,

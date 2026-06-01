@@ -66,6 +66,7 @@ RE_RUST_IMPL = re.compile(
 
 RE_RUST_CALL = re.compile(r'\b([A-Za-z_]\w*)\s*\(')
 RE_RUST_MACRO = re.compile(r'\b([a-z_]\w*)\s*!(?!=)')
+RE_RUST_INCLUDE_MACRO = re.compile(r'\b(include_str|include_bytes|include)\s*!\s*\(')
 
 _RE_RUST_BRANCH_KW = re.compile(r'\b(?:if|while|for|loop|match)\b')
 
@@ -213,6 +214,101 @@ def _strip_comments(src: str) -> str:
 
 def _line_no(src: str, idx: int) -> int:
     return src[:idx].count('\n') + 1
+
+
+_RUST_CONFIG_EXTS = {'.rs', '.toml', '.json', '.yaml', '.yml'}
+
+
+def _clean_local_path(path: str):
+    ref = (path or '').strip().replace('\\', '/')
+    if not ref:
+        return None
+    low = ref.lower()
+    if low.startswith(('http://', 'https://', '//', 'data:')):
+        return None
+    if ref.startswith('$') or any(ch in ref for ch in '*?[]{}'):
+        return None
+    return ref
+
+
+def _path_ext(ref: str) -> str:
+    last = ref.rstrip('/').rsplit('/', 1)[-1]
+    if '.' not in last:
+        return ''
+    return '.' + last.rsplit('.', 1)[-1].lower()
+
+
+def _parse_rust_string_literal(src: str, idx: int):
+    n = len(src)
+    if idx >= n:
+        return None, idx
+    if src[idx] == '"':
+        out = []
+        i = idx + 1
+        while i < n:
+            ch = src[i]
+            if ch == '\\':
+                if i + 1 < n:
+                    out.append(src[i + 1])
+                    i += 2
+                    continue
+                return None, i
+            if ch == '"':
+                return ''.join(out), i + 1
+            out.append(ch)
+            i += 1
+        return None, n
+    if src[idx] == 'r':
+        i = idx + 1
+        hashes = 0
+        while i < n and src[i] == '#':
+            hashes += 1
+            i += 1
+        if i >= n or src[i] != '"':
+            return None, idx
+        close = '"' + '#' * hashes
+        body_start = i + 1
+        end = src.find(close, body_start)
+        if end == -1:
+            return None, n
+        return src[body_start:end], end + len(close)
+    return None, idx
+
+
+def _hint(edge_type: str, target: str, subtype: str, via: str, line: int) -> dict:
+    return {
+        'type': edge_type,
+        'target': target,
+        'subtype': subtype,
+        'via': via,
+        'line': line,
+        'confidence': 1.0,
+    }
+
+
+def _parse_include_edge_hints(src: str) -> list:
+    hints = []
+    n = len(src)
+    for m in RE_RUST_INCLUDE_MACRO.finditer(src):
+        i = m.end()
+        while i < n and src[i].isspace():
+            i += 1
+        raw, _end = _parse_rust_string_literal(src, i)
+        ref = _clean_local_path(raw or '')
+        if not ref:
+            continue
+        macro = m.group(1)
+        line = _line_no(src, m.start())
+        if macro == 'include_str':
+            hints.append(_hint('asset_ref', ref, 'embedded_text', 'include_str!', line))
+        elif macro == 'include_bytes':
+            hints.append(_hint('asset_ref', ref, 'embedded_bytes', 'include_bytes!', line))
+        elif _path_ext(ref) in _RUST_CONFIG_EXTS:
+            hints.append(_hint('config_ref', ref, 'rust_include', 'include!', line))
+    deduped = {}
+    for hint in hints:
+        deduped[(hint['type'], hint['target'], hint['subtype'], hint['via'], hint['line'])] = hint
+    return list(deduped.values())
 
 
 def _brace_range(src: str, open_idx: int) -> int:
@@ -545,5 +641,8 @@ def scan_rust(src: str, ext: str = '.rs') -> tuple:
     }
     if docstrings:
         extra['docstrings'] = docstrings
+    edge_hints = _parse_include_edge_hints(import_src)
+    if edge_hints:
+        extra['edge_hints'] = edge_hints
 
     return imports, funcdefs, all_calls, extra, func_calls_by_func, symbol_defs

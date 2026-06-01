@@ -23,10 +23,101 @@ TOML_EXTENSIONS = {'.toml'}
 
 # Table header at line start: [table] or [[array.table]]
 RE_TOML_TABLE = re.compile(r'(?m)^[ \t]*(\[\[?)\s*([^\[\]]+?)\s*(\]\]?)')
+RE_TOML_SECTION = re.compile(r'^[ \t]*\[\[?\s*([^\[\]]+?)\s*\]\]?[ \t]*(?:#.*)?$')
+RE_TOML_STRING = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"|\'([^\']*)\'')
 
 
 def _line_no(src: str, idx: int) -> int:
     return src[:idx].count('\n') + 1
+
+
+def _clean_local_path(value: str):
+    ref = (value or '').strip().replace('\\', '/')
+    if not ref:
+        return None
+    low = ref.lower()
+    if low.startswith(('http://', 'https://', '//', 'data:')):
+        return None
+    if ref.startswith('$') or any(ch in ref for ch in '*?[]{}'):
+        return None
+    return ref
+
+
+def _path_ext(ref: str) -> str:
+    last = ref.rstrip('/').rsplit('/', 1)[-1]
+    if '.' not in last:
+        return ''
+    return '.' + last.rsplit('.', 1)[-1].lower()
+
+
+def _cargo_manifest_target(ref: str) -> str:
+    if _path_ext(ref):
+        return ref
+    return ref.rstrip('/') + '/Cargo.toml'
+
+
+def _hint(target: str, subtype: str, via: str, line: int) -> dict:
+    return {
+        'type': 'config_ref',
+        'target': target,
+        'subtype': subtype,
+        'via': via,
+        'line': line,
+        'confidence': 1.0,
+    }
+
+
+def _extract_strings(value_src: str) -> list:
+    values = []
+    for m in RE_TOML_STRING.finditer(value_src):
+        value = m.group(1) if m.group(1) is not None else m.group(2)
+        if value is not None:
+            values.append(value)
+    return values
+
+
+def _parse_edge_hints(src: str) -> list:
+    hints = []
+    section = ''
+    offset = 0
+    for line_no, line in enumerate(src.splitlines(), start=1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
+            offset += len(line) + 1
+            continue
+        sec = RE_TOML_SECTION.match(line)
+        if sec:
+            section = sec.group(1).strip()
+            offset += len(line) + 1
+            continue
+        if '=' not in line:
+            offset += len(line) + 1
+            continue
+        key, raw_value = line.split('=', 1)
+        key = key.strip()
+        values = _extract_strings(raw_value)
+        for raw in values:
+            ref = _clean_local_path(raw)
+            if not ref:
+                continue
+            if section == 'workspace' and key in ('members', 'exclude'):
+                hints.append(_hint(_cargo_manifest_target(ref), 'cargo_workspace', f'workspace.{key}', line_no))
+            elif key == 'path' and (
+                section.endswith('dependencies')
+                or section.endswith('dev-dependencies')
+                or section.endswith('build-dependencies')
+                or '.dependencies.' in section
+            ):
+                hints.append(_hint(_cargo_manifest_target(ref), 'cargo_path_dependency', f'{section}.path', line_no))
+            elif section == 'package' and key in ('include', 'exclude', 'license-file', 'readme'):
+                hints.append(_hint(ref, 'cargo_package', f'package.{key}', line_no))
+            elif section.startswith('tool.') and _path_ext(ref):
+                hints.append(_hint(ref, 'tool_config', f'{section}.{key}', line_no))
+        offset += len(line) + 1
+    deduped = {}
+    for hint in hints:
+        deduped[(hint['target'], hint['subtype'], hint['via'], hint['line'])] = hint
+    return list(deduped.values())
 
 
 def _blank(out: list, start: int, end: int) -> None:
@@ -111,4 +202,7 @@ def scan_toml(src: str, ext: str = '.toml') -> tuple:
         })
 
     extra = {'imports': [], 'lang': 'toml'}
+    edge_hints = _parse_edge_hints(src)
+    if edge_hints:
+        extra['edge_hints'] = edge_hints
     return [], [], [], extra, [], symbol_defs

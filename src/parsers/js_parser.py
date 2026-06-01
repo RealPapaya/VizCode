@@ -37,6 +37,7 @@ RE_JS_IMPORT = re.compile(
 )
 # CommonJS: require('module')
 RE_JS_REQUIRE = re.compile(r"""\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)""")
+RE_JS_DYNAMIC_IMPORT = re.compile(r"""\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)""")
 
 # Named function declarations:  function myFunc(  /  async function* myFunc(
 RE_JS_FUNC_DECL = re.compile(
@@ -148,6 +149,82 @@ def _extract_jsdoc_map(src: str) -> dict:
         for offset in range(4):
             doc_map[next_line + offset] = clean_doc
     return doc_map
+
+
+_JS_CONFIG_EXTS = {'.json', '.yaml', '.yml', '.toml'}
+_JS_ASSET_EXTS = {
+    '.css', '.scss', '.sass', '.less', '.styl',
+    '.svg', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.avif',
+    '.txt', '.md', '.wasm', '.mp3', '.wav', '.ogg', '.mp4', '.webm',
+}
+_JS_SOURCE_EXTS = {'.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx'}
+
+
+def _line_no(src: str, idx: int) -> int:
+    return src[:idx].count('\n') + 1
+
+
+def _clean_local_spec(spec: str):
+    ref = (spec or '').strip().replace('\\', '/')
+    if not ref or not ref.startswith(('.', '/')):
+        return None
+    low = ref.lower()
+    if low.startswith(('http://', 'https://', '//', 'data:', 'node:')):
+        return None
+    ref = ref.split('#', 1)[0].split('?', 1)[0].strip()
+    if not ref or any(ch in ref for ch in '*?[]{}'):
+        return None
+    return ref
+
+
+def _path_ext(ref: str) -> str:
+    last = ref.rstrip('/').rsplit('/', 1)[-1]
+    if '.' not in last:
+        return ''
+    return '.' + last.rsplit('.', 1)[-1].lower()
+
+
+def _edge_hint_for_spec(spec: str, via: str, line: int, dynamic: bool = False):
+    ref = _clean_local_spec(spec)
+    if not ref:
+        return None
+    ext = _path_ext(ref)
+    if ext in _JS_CONFIG_EXTS:
+        edge_type, subtype = 'config_ref', ext[1:]
+    elif ext in _JS_ASSET_EXTS:
+        edge_type, subtype = 'asset_ref', ext[1:]
+    elif dynamic and (not ext or ext in _JS_SOURCE_EXTS):
+        edge_type, subtype = 'asset_ref', 'module'
+    else:
+        return None
+    return {
+        'type': edge_type,
+        'target': ref,
+        'subtype': subtype,
+        'via': via,
+        'line': line,
+        'confidence': 1.0,
+    }
+
+
+def _parse_edge_hints(src: str) -> list:
+    hints = []
+    for m in RE_JS_IMPORT.finditer(src):
+        hint = _edge_hint_for_spec(m.group(1), 'import', _line_no(src, m.start()))
+        if hint:
+            hints.append(hint)
+    for m in RE_JS_REQUIRE.finditer(src):
+        hint = _edge_hint_for_spec(m.group(1), 'require', _line_no(src, m.start()))
+        if hint:
+            hints.append(hint)
+    for m in RE_JS_DYNAMIC_IMPORT.finditer(src):
+        hint = _edge_hint_for_spec(m.group(1), 'import()', _line_no(src, m.start()), dynamic=True)
+        if hint:
+            hints.append(hint)
+    deduped = {}
+    for hint in hints:
+        deduped[(hint['type'], hint['target'], hint['subtype'], hint['via'], hint['line'])] = hint
+    return list(deduped.values())
 
 
 def _parse_imports(src: str) -> list:
@@ -527,6 +604,9 @@ def scan_js(src: str) -> tuple:
     extra = {'imports': imports, 'lang': 'javascript'}
     if docstrings:
         extra['docstrings'] = docstrings
+    edge_hints = _parse_edge_hints(clean)
+    if edge_hints:
+        extra['edge_hints'] = edge_hints
 
     global_defs, global_uses = _parse_globals(clean)
     if global_defs:
