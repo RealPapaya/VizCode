@@ -35,6 +35,17 @@
     display: block;
 }
 
+.overview-mode-host {
+    position: absolute;
+    inset: 0;
+    display: none;
+    z-index: 1;
+}
+
+.overview-mode-host.active {
+    display: block;
+}
+
 /* Galactic core glow — radial gradient at center */
 #galaxy-container::before {
     content: '';
@@ -91,6 +102,122 @@
     -webkit-mask-image: radial-gradient(ellipse at center, transparent 5%, black 15%, black 70%, transparent 95%);
     pointer-events: none;
     z-index: 0;
+}
+
+.overview-treemap {
+    position: absolute;
+    inset: 0;
+    padding: 14px;
+    background: var(--panel);
+    overflow: hidden;
+    user-select: none;
+}
+
+.overview-treemap-grid {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 220px;
+    overflow: hidden;
+    cursor: grab;
+    touch-action: none;
+}
+
+.overview-treemap-grid.dragging {
+    cursor: grabbing;
+}
+
+.overview-treemap-canvas {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+}
+
+.overview-treemap-canvas.is-animating {
+    transition: transform 0.22s ease;
+}
+
+.overview-treemap-group {
+    position: absolute;
+    display: none;
+    pointer-events: none;
+}
+
+.overview-treemap-cell {
+    position: absolute;
+    overflow: hidden;
+    padding: 0;
+    border: 1px solid color-mix(in srgb, var(--panel) 78%, #000 22%);
+    border-radius: 4px;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    color: #fff;
+    transition: filter 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.overview-treemap-cell:hover,
+.overview-treemap-cell.active {
+    filter: brightness(1.12);
+    transform: scale(1.012);
+    z-index: 3;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+}
+
+.overview-treemap-cell.active {
+    outline: 2px solid rgba(255, 255, 255, 0.9);
+    outline-offset: -3px;
+}
+
+.overview-treemap-cell.search-hit {
+    filter: brightness(1.18) saturate(1.12);
+    z-index: 2;
+}
+
+.overview-treemap-cell.search-dim {
+    filter: grayscale(0.35) brightness(0.48);
+    opacity: 0.55;
+}
+
+.overview-treemap-label {
+    position: absolute;
+    left: 7px;
+    right: 7px;
+    top: 7px;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.15;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+.overview-treemap-meta {
+    position: absolute;
+    left: 7px;
+    right: 7px;
+    top: 21px;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 9px;
+    line-height: 1.1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.overview-treemap-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 12px;
 }
 
 .galaxy-stats-badge {

@@ -48,6 +48,9 @@ function initIconRail() {
 }
 
 function _applySidebarTab() {
+    if (_sbActiveTab === 'filters' && typeof window.isOverviewTreemapActive === 'function' && window.isOverviewTreemapActive()) {
+        _sbActiveTab = 'explorer';
+    }
     document.querySelectorAll('.sb-tab').forEach(t =>
         t.classList.toggle('active', t.dataset.tab === _sbActiveTab));
     const expl = document.getElementById('sb-body-explorer');
@@ -79,7 +82,8 @@ function updateFilterTabEnabled() {
     if (!filterTab) return;
     const isL0 = (typeof state !== 'undefined' && state.level === 0);
     const isGalaxy = (typeof state !== 'undefined' && !!state.galaxyActive);
-    const shouldDisable = isL0 && !isGalaxy;
+    const isTreemap = typeof window.isOverviewTreemapActive === 'function' && window.isOverviewTreemapActive();
+    const shouldDisable = (isL0 && !isGalaxy) || isTreemap;
     filterTab.disabled = shouldDisable;
     if (shouldDisable && _sbActiveTab === 'filters') {
         _sbActiveTab = 'explorer';

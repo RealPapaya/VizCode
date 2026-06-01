@@ -43,11 +43,47 @@ let _lswActualIdx = 0;  // last committed index (action fired)
 let _lswDragStart = null;
 let _lswDragStartIdx = 0;
 let _lswDragging = false;
-const _LSW_SEG_COUNT = 4;
+let _lswMode = 'levels';
+let _lswSegCount = 4;
+const _LSW_LEVEL_LABELS = [
+    { label: 'L0 Map', title: 'Module Graph' },
+    { label: 'L1 Graph', title: 'File Graph' },
+    { label: 'L2 Flow', title: 'Call Flow' },
+    { label: 'L3 Structure', title: 'Structure' },
+];
+const _LSW_OVERVIEW_LABELS = [
+    { label: 'Galaxy', title: 'Galaxy Graph' },
+    { label: 'Treemap', title: 'Treemap' },
+];
+
+function _lswApplyLabels(labels) {
+    const bar = document.getElementById('level-switcher');
+    if (!bar) return;
+    const segs = bar.querySelectorAll('.lsw-seg');
+    segs.forEach((seg, i) => {
+        const def = labels[i];
+        seg.style.display = def ? '' : 'none';
+        seg.classList.remove('lsw-unavailable');
+        if (!def) return;
+        seg.title = def.title;
+        const label = seg.querySelector('.lsw-label');
+        if (label) label.textContent = def.label;
+    });
+    bar.style.setProperty('--lsw-seg-count', String(labels.length));
+}
+
+function _lswTriggerOverview(idx) {
+    const mode = idx === 1 ? 'treemap' : 'galaxy';
+    if (typeof window.setOverviewMode === 'function') {
+        window.setOverviewMode(mode);
+    }
+}
 
 function _lswSetActive(idx, trigger) {
     const bar = document.getElementById('level-switcher');
     if (!bar) return;
+    const maxIdx = Math.max(0, _lswSegCount - 1);
+    idx = Math.max(0, Math.min(maxIdx, idx));
 
     // During trigger: check availability before committing
     if (trigger) {
@@ -71,6 +107,11 @@ function _lswSetActive(idx, trigger) {
     if (pill) pill.style.transform = `translateX(${idx * 100}%)`;
 
     if (!trigger) return;
+
+    if (_lswMode === 'overview') {
+        _lswTriggerOverview(idx);
+        return;
+    }
 
     if (idx === 0) {
         if (window._sv && window._sv.active) symViewClose();
@@ -104,9 +145,10 @@ function _lswSetActive(idx, trigger) {
 }
 
 // External API — update visual state without triggering navigation
-window._lswUpdate = function (opts) {
+window._lswUpdate = function (opts = {}) {
     const bar = document.getElementById('level-switcher');
     if (!bar) return;
+    if (_lswMode === 'overview' && !opts.force) return;
     if (opts.disabled !== undefined) bar.classList.toggle('lsw-disabled', !!opts.disabled);
     const segs = bar.querySelectorAll('.lsw-seg');
     if (opts.l1Available !== undefined) segs[1]?.classList.toggle('lsw-unavailable', !opts.l1Available);
@@ -120,9 +162,34 @@ window._lswUpdate = function (opts) {
 };
 window._lswGetActive = () => _lswActualIdx;
 
+window._lswEnterOverview = function (activeMode = 'galaxy') {
+    const bar = document.getElementById('level-switcher');
+    if (!bar) return;
+    _lswMode = 'overview';
+    _lswSegCount = 2;
+    _lswApplyLabels(_LSW_OVERVIEW_LABELS);
+    bar.classList.remove('lsw-disabled');
+    bar.classList.add('lsw-overview');
+    _lswSetActive(activeMode === 'treemap' ? 1 : 0, false);
+};
+
+window._lswExitOverview = function () {
+    const bar = document.getElementById('level-switcher');
+    if (!bar || _lswMode !== 'overview') return;
+    _lswMode = 'levels';
+    _lswSegCount = 4;
+    bar.classList.remove('lsw-overview');
+    _lswApplyLabels(_LSW_LEVEL_LABELS);
+    const fallback = window._sv && window._sv.active ? 3 : (state?.level >= 2 ? 2 : (state?.level === 1 ? 1 : 0));
+    _lswActualIdx = fallback;
+    window._lswCurrentIdx = fallback;
+    _lswSetActive(fallback, false);
+};
+
 function initLevelSwitcher() {
     const bar = document.getElementById('level-switcher');
     if (!bar) return;
+    _lswApplyLabels(_LSW_LEVEL_LABELS);
 
     bar.addEventListener('pointerdown', e => {
         if (bar.classList.contains('lsw-disabled')) return;
@@ -137,8 +204,8 @@ function initLevelSwitcher() {
         if (_lswDragStart === null) return;
         if (Math.abs(e.clientX - _lswDragStart) > 5) _lswDragging = true;
         if (!_lswDragging) return;
-        const segW = bar.offsetWidth / _LSW_SEG_COUNT;
-        const newIdx = Math.max(0, Math.min(_LSW_SEG_COUNT - 1, _lswDragStartIdx + Math.round((e.clientX - _lswDragStart) / segW)));
+        const segW = bar.offsetWidth / _lswSegCount;
+        const newIdx = Math.max(0, Math.min(_lswSegCount - 1, _lswDragStartIdx + Math.round((e.clientX - _lswDragStart) / segW)));
         if (newIdx !== _lswIdx) _lswSetActive(newIdx, false);
     });
 
@@ -147,7 +214,7 @@ function initLevelSwitcher() {
         const dx = Math.abs(e.clientX - _lswDragStart);
         if (!_lswDragging || dx < 5) {
             const rect = bar.getBoundingClientRect();
-            const idx = Math.min(_LSW_SEG_COUNT - 1, Math.max(0, Math.floor((e.clientX - rect.left) / (rect.width / _LSW_SEG_COUNT))));
+            const idx = Math.min(_lswSegCount - 1, Math.max(0, Math.floor((e.clientX - rect.left) / (rect.width / _lswSegCount))));
             _lswSetActive(idx, true);
         } else {
             _lswSetActive(_lswIdx, true);
@@ -376,6 +443,7 @@ async function loadFileInPanel(filePath, funcName) {
         showCpLoading(false);
         if (funcName) jumpToFunc(funcName);
         if (state.level >= 1 && window.svUpdateStructureBtn) svUpdateStructureBtn(filePath, ext);
+        if (typeof window.overviewTreemapSyncCurrentFile === 'function') window.overviewTreemapSyncCurrentFile(filePath);
         return;
     }
 
@@ -400,6 +468,7 @@ async function loadFileInPanel(filePath, funcName) {
         showCpLoading(false);
         if (funcName) setTimeout(() => jumpToFunc(funcName), 80);
         if (state.level >= 1 && window.svUpdateStructureBtn) svUpdateStructureBtn(filePath, ext);
+        if (typeof window.overviewTreemapSyncCurrentFile === 'function') window.overviewTreemapSyncCurrentFile(filePath);
     } catch (e) {
         showCpError(T('fetchError', { error: e.message }));
     }

@@ -769,7 +769,7 @@ body.rail-expanded #app-rail #rail-toggle-btn .rail-toggle-collapse-icon {
     top: 4px;
     bottom: 4px;
     left: 4px;
-    width: calc((100% - 8px) / 4);
+    width: calc((100% - 8px) / var(--lsw-seg-count, 4));
     height: auto;
     border-radius: 999px;
     background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 96%, #fff 4%), var(--accent2));

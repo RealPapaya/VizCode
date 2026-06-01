@@ -78,9 +78,9 @@ HTML_SKELETON = """\
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
       <span data-i18n="graphHome">Graph</span>
     </button>
-    <button id="galaxy-btn" class="rail-btn topbar-mode-btn" type="button" data-i18n-attr="data-tip" data-i18n="galaxyTip" onclick="switchTopbarMode('galaxy')" title="Galaxy">
+    <button id="galaxy-btn" class="rail-btn topbar-mode-btn" type="button" data-i18n-attr="data-tip" data-i18n="galaxyTip" onclick="switchTopbarMode('galaxy')" title="Overview">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><line x1="6.7" y1="7.3" x2="9.6" y2="10"/><circle cx="19" cy="6" r="2"/><line x1="17.3" y1="7.3" x2="14.4" y2="10"/><circle cx="5" cy="18" r="2"/><line x1="6.7" y1="16.7" x2="9.6" y2="14"/><circle cx="19" cy="18" r="2"/><line x1="17.3" y1="16.7" x2="14.4" y2="14"/></svg>
-      <span data-i18n="galaxy">Galaxy</span>
+      <span data-i18n="galaxy">Overview</span>
     </button>
     <button id="dashboard-btn" class="rail-btn topbar-mode-btn" type="button" data-i18n-attr="data-tip" data-i18n="dashboardTip" onclick="switchTopbarMode('dashboard')" title="Dashboard">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
@@ -243,7 +243,10 @@ HTML_SKELETON = """\
     </div>
     <button id="l2-toggle-ext-lines" class="l2-btn" style="position: absolute; bottom: 16px; left: 16px; z-index: 50; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5); border: 1px solid var(--border); background: var(--panel2);" data-i18n="extLinesOn">External Lines: On</button>
     <div id="cy"></div>
-    <div id="galaxy-container"></div>
+    <div id="galaxy-container">
+      <div id="galaxy-graph-host" class="overview-mode-host active"></div>
+      <div id="overview-treemap-host" class="overview-mode-host"></div>
+    </div>
     <div id="func-view"></div>
     <div id="sv-view"></div>
     <div id="sym-view"></div>
@@ -621,6 +624,7 @@ def build_html(data: dict, job_id: str = None) -> str:
         base / 'features' / 'galaxy_view' / 'viz_galaxy.js',          # state, constants, UI, Sigma, reducers
         base / 'features' / 'galaxy_view' / 'viz_galaxy_physics.js',  # FA2 physics (BH, FA2, Noverlap)
         base / 'features' / 'galaxy_view' / 'viz_galaxy_graph.js',    # graph building + initial positions
+        base / 'features' / 'galaxy_view' / 'viz_treemap.js',         # Overview treemap layout + interactions
         # ── ui (layout — must come after graph initCy) ────────────────────────
         base / 'ui' / 'viz_layout.js',
         # ── features (continued) ──────────────────────────────────────────────

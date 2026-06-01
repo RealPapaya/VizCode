@@ -1335,6 +1335,14 @@ function _srSelectResult(r) {
     const filePath = r.filePath || r.path;
     const module = r.module || (filePath ? filePath.split('/')[0] : null);
     const funcName = r._type === 'func' ? r.name : null;
+    if (filePath && typeof window.isOverviewTreemapActive === 'function' && window.isOverviewTreemapActive()) {
+        if (typeof window.overviewTreemapSelectFile === 'function') {
+            window.overviewTreemapSelectFile(filePath, { funcName, openCode: true, revealExplorer: true, center: true });
+        } else {
+            loadFileInPanel(filePath, funcName);
+        }
+        return;
+    }
     // Ensure grey nodes are visible before navigating
     if (r._isOther) {
         const ft = r.file_type || 'other';
@@ -1358,6 +1366,23 @@ function _srSelectResult(r) {
 
 function _srSelectContentLine(filePath, line) {
     // Keep panel open for continued browsing
+    if (filePath && typeof window.isOverviewTreemapActive === 'function' && window.isOverviewTreemapActive()) {
+        if (typeof window.overviewTreemapSelectFile === 'function') {
+            window.overviewTreemapSelectFile(filePath, { openCode: false, revealExplorer: true, center: true });
+        }
+        setTimeout(async () => {
+            await loadFileInPanel(filePath);
+            if (line) setTimeout(() => {
+                const el = document.getElementById(`cl-${line - 1}`);
+                if (el) {
+                    document.querySelectorAll('.code-line.fn-highlight').forEach(e => e.classList.remove('fn-highlight'));
+                    el.classList.add('fn-highlight');
+                    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                }
+            }, 320);
+        }, 80);
+        return;
+    }
     const module = filePath ? filePath.split('/')[0] : null;
     if (filePath && module) {
         if (state.level !== 1 || state.activeModule !== module) {
@@ -1413,6 +1438,9 @@ function onSearch(e) {
     _srState.query = q;
     _srState.activeIdx = -1;
     _srState._openGroups = new Set();
+    if (typeof window.overviewTreemapSetSearchQuery === 'function') {
+        window.overviewTreemapSetSearchQuery(q);
+    }
 
     if (!q) {
         // Clear query but DON'T close panel — user may still want to see it
