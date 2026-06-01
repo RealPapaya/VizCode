@@ -37,6 +37,17 @@ def _line_no(src: str, idx: int) -> int:
     return src[:idx].count('\n') + 1
 
 
+def _hint(target: str, via: str, line: int) -> dict:
+    return {
+        'type': 'config_ref',
+        'target': target,
+        'subtype': 'yaml',
+        'via': via,
+        'line': line,
+        'confidence': 1.0,
+    }
+
+
 def _mask_comments(src: str) -> str:
     """Blank `#` line comments, preserving offsets. A `#` is a comment only at
     line start or when preceded by whitespace, and never inside a quoted scalar."""
@@ -98,12 +109,21 @@ def scan_yaml(src: str, ext: str = '.yaml') -> tuple:
     clean = _mask_comments(src)
 
     imports = []
-    for rx in (RE_YAML_REF, RE_YAML_INCLUDE, RE_YAML_FILE):
+    edge_hints = []
+    for rx, via in (
+        (RE_YAML_REF, '$ref'),
+        (RE_YAML_INCLUDE, '!include'),
+        (RE_YAML_FILE, 'file'),
+    ):
         for m in rx.finditer(clean):
             ref = _yaml_local(m.group(1))
             if ref:
                 imports.append(ref)
+                edge_hints.append(_hint(ref, via, _line_no(src, m.start())))
     imports = list(dict.fromkeys(imports))
+    edge_hints = list({
+        (h['target'], h['via'], h['line']): h for h in edge_hints
+    }.values())
 
     symbol_defs = []
     seen = set()
@@ -125,4 +145,6 @@ def scan_yaml(src: str, ext: str = '.yaml') -> tuple:
         })
 
     extra = {'imports': imports, 'lang': 'yaml'}
+    if edge_hints:
+        extra['edge_hints'] = edge_hints
     return imports, [], [], extra, [], symbol_defs

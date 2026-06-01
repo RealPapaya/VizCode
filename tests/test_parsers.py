@@ -19,6 +19,13 @@ from parsers.go_parser import scan_go
 from parsers.c_cpp_parser import scan_c_cpp
 from parsers.csharp_parser import scan_csharp
 from parsers.uefi_parser import scan_uefi
+from parsers.html_parser import scan_html
+from parsers.css_parser import scan_css
+from parsers.yaml_parser import scan_yaml
+from parsers.json_parser import scan_json
+from parsers.powershell_parser import scan_powershell
+from parsers.graphql_parser import scan_graphql
+from parsers.protobuf_parser import scan_protobuf
 
 
 # ─── Helper ──────────────────────────────────────────────────────────────────
@@ -598,3 +605,139 @@ class TestUefiParser:
         assert extra is None
         assert func_calls_by_func == []
         assert symbol_defs == []
+
+
+class TestParserEdgeHints:
+    def test_html_edge_hints_distinguish_assets_and_documents(self):
+        src = '''\
+<!-- <script src="fake.js"></script> -->
+<script src="./app.js"></script>
+<link rel="stylesheet" href="styles/site.css">
+<link rel="preload" href="manifest.json">
+<a href="docs/readme.html">Docs</a>
+<iframe src="frame.html"></iframe>
+<img src="logo.png">
+'''
+        imports, _, _, extra, _, _ = scan_html(src, '.html')
+        hints = extra['edge_hints']
+
+        assert './app.js' in imports
+        assert 'fake.js' not in imports
+        assert {
+            (h['type'], h['target'], h['subtype'], h['via'])
+            for h in hints
+        } >= {
+            ('asset_ref', './app.js', 'script', 'src'),
+            ('asset_ref', 'styles/site.css', 'stylesheet', 'href'),
+            ('import', 'manifest.json', 'link', 'href'),
+            ('import', 'docs/readme.html', 'document', 'href'),
+            ('asset_ref', 'frame.html', 'iframe', 'src'),
+            ('asset_ref', 'logo.png', 'image', 'src'),
+        }
+
+    def test_css_edge_hints_skip_external_urls(self):
+        src = '''\
+@import "base.css";
+@use "./tokens";
+@import url("https://cdn.example/reset.css");
+'''
+        imports, _, _, extra, _, _ = scan_css(src, '.scss')
+        hints = extra['edge_hints']
+
+        assert imports == ['base', 'tokens']
+        assert [(h['type'], h['target'], h['subtype']) for h in hints] == [
+            ('asset_ref', 'base', 'stylesheet'),
+            ('asset_ref', 'tokens', 'stylesheet'),
+        ]
+
+    def test_yaml_and_json_edge_hints_only_local_config_refs(self):
+        yaml_src = '''\
+$ref: ./schema.json#/defs/Thing
+remote:
+  $ref: https://example.test/schema.json
+internal:
+  $ref: '#/defs/Local'
+file: configs/app.yaml
+'''
+        _, _, _, yaml_extra, _, _ = scan_yaml(yaml_src, '.yaml')
+        yaml_hints = yaml_extra['edge_hints']
+
+        assert [(h['type'], h['target'], h['via']) for h in yaml_hints] == [
+            ('config_ref', './schema.json', '$ref'),
+            ('config_ref', 'configs/app.yaml', 'file'),
+        ]
+
+        json_src = '''{
+  "extends": "./base.json",
+  "references": [{"path": "./tsconfig.app.json"}],
+  "$ref": "schemas/widget.json#/defs/Widget",
+  "internal": {"$ref": "#/defs/Local"},
+  "remote": {"$ref": "https://example.test/schema.json"},
+  "dependencies": {"left-pad": "1.0.0"}
+}'''
+        _, _, _, json_extra, _, _ = scan_json(json_src, '.json')
+        json_hints = json_extra['edge_hints']
+
+        assert {
+            (h['type'], h['target'], h['subtype'], h['via'])
+            for h in json_hints
+        } == {
+            ('config_ref', './base.json', 'json', 'extends'),
+            ('config_ref', './tsconfig.app.json', 'json', 'references.path'),
+            ('config_ref', 'schemas/widget.json', 'schema', '$ref'),
+        }
+
+    def test_powershell_edge_hints_skip_dynamic_and_package_modules(self):
+        src = r'''\
+Import-Module Pester
+Import-Module .\LocalModule.psm1
+. .\shared.ps1
+using module './Types.psm1'
+. $dynamicPath
+'''
+        imports, _, _, extra, _, _ = scan_powershell(src, '.ps1')
+        hints = extra['edge_hints']
+
+        assert 'Pester' in imports
+        assert {
+            (h['type'], h['target'], h['via'])
+            for h in hints
+        } == {
+            ('import', './LocalModule.psm1', 'Import-Module'),
+            ('include', './shared.ps1', 'dot-source'),
+            ('import', './Types.psm1', 'using module'),
+        }
+        assert all('$dynamicPath' not in h['target'] for h in hints)
+
+    def test_graphql_and_protobuf_schema_edge_hints(self):
+        gql_src = '''\
+#import "fragments/user.graphql"
+# import "comment_only.graphql"
+type Query { user(id: ID!): User }
+'''
+        gql_imports, _, _, gql_extra, _, _ = scan_graphql(gql_src, '.graphql')
+        assert gql_imports == ['user']
+        assert gql_extra['edge_hints'] == [{
+            'type': 'import',
+            'target': 'user',
+            'subtype': 'schema',
+            'via': '#import',
+            'line': 1,
+            'confidence': 1.0,
+        }]
+
+        proto_src = '''\
+syntax = "proto3";
+import "common/types.proto";
+message Widget {}
+'''
+        proto_imports, _, _, proto_extra, _, _ = scan_protobuf(proto_src, '.proto')
+        assert proto_imports == ['types']
+        assert proto_extra['edge_hints'] == [{
+            'type': 'import',
+            'target': 'types',
+            'subtype': 'proto',
+            'via': 'import',
+            'line': 2,
+            'confidence': 1.0,
+        }]

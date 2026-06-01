@@ -136,6 +136,13 @@ def _parse_bases(kind: str, rest: str) -> list:
 
 def _parse_imports(raw: str) -> list:
     refs = []
+    for ref, _line in _parse_import_entries(raw):
+        refs.append(ref)
+    return list(dict.fromkeys(refs))
+
+
+def _parse_import_entries(raw: str) -> list:
+    refs = []
     for m in RE_GQL_IMPORT.finditer(raw):
         base = re.split(r'[/\\]', m.group(1))[-1]
         for ext in ('.graphql', '.gql'):
@@ -143,13 +150,25 @@ def _parse_imports(raw: str) -> list:
                 base = base[:-len(ext)]
                 break
         if base and len(base) >= 2:
-            refs.append(base)
-    return list(dict.fromkeys(refs))
+            refs.append((base, _line_no(raw, m.start())))
+    return refs
+
+
+def _hint(target: str, line: int) -> dict:
+    return {
+        'type': 'import',
+        'target': target,
+        'subtype': 'schema',
+        'via': '#import',
+        'line': line,
+        'confidence': 1.0,
+    }
 
 
 def scan_graphql(src: str, ext: str = '.graphql') -> tuple:
     """GraphQL SDL analysis. Returns the standard VIZCODE 6-tuple."""
-    imports = _parse_imports(src)        # imports live in `#import` comments
+    import_entries = _parse_import_entries(src)        # imports live in `#import` comments
+    imports = list(dict.fromkeys(ref for ref, _line in import_entries))
     clean = _mask_gql(src)
 
     symbol_defs = []
@@ -201,4 +220,6 @@ def scan_graphql(src: str, ext: str = '.graphql') -> tuple:
         })
 
     extra = {'imports': imports, 'lang': 'graphql'}
+    if import_entries:
+        extra['edge_hints'] = [_hint(ref, line) for ref, line in import_entries]
     return imports, funcdefs, [], extra, func_calls_by_func, symbol_defs

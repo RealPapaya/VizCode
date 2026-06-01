@@ -25,14 +25,8 @@ HTML_EXTENSIONS = {'.html', '.htm', '.xhtml'}
 
 RE_HTML_COMMENT = re.compile(r'<!--.*?-->', re.DOTALL)
 
-RE_SCRIPT_SRC = re.compile(
-    r'<script\b[^>]*?\bsrc\s*=\s*["\']([^"\']+)["\']', re.IGNORECASE)
-RE_LINK_HREF = re.compile(
-    r'<link\b[^>]*?\bhref\s*=\s*["\']([^"\']+)["\']', re.IGNORECASE)
-RE_A_HREF = re.compile(
-    r'<a\b[^>]*?\bhref\s*=\s*["\']([^"\']+)["\']', re.IGNORECASE)
-RE_IFRAME_SRC = re.compile(
-    r'<iframe\b[^>]*?\bsrc\s*=\s*["\']([^"\']+)["\']', re.IGNORECASE)
+RE_TAG = re.compile(r'<(?P<tag>[A-Za-z][\w-]*)\b(?P<attrs>[^>]*)>', re.IGNORECASE)
+RE_ATTR = re.compile(r'\b([\w:-]+)\s*=\s*["\']([^"\']+)["\']', re.IGNORECASE)
 
 # <tag ... id="name" ...>  → (tag, id)
 RE_ELEM_ID = re.compile(
@@ -68,17 +62,72 @@ def _local_path(url: str):
     return u or None
 
 
+def _hint(edge_type: str, target: str, subtype: str, via: str, line: int) -> dict:
+    return {
+        'type': edge_type,
+        'target': target,
+        'subtype': subtype,
+        'via': via,
+        'line': line,
+        'confidence': 1.0,
+    }
+
+
 def scan_html(src: str, ext: str = '.html') -> tuple:
     """HTML file analysis. Returns the standard 6-tuple."""
     clean = _mask_comments(src)
 
     imports = []
-    for rx in (RE_SCRIPT_SRC, RE_LINK_HREF, RE_A_HREF, RE_IFRAME_SRC):
-        for m in rx.finditer(clean):
-            ref = _local_path(m.group(1))
+    edge_hints = []
+    hint_seen = set()
+    asset_tags = {
+        'img': ('src', 'image'),
+        'source': ('src', 'media'),
+        'video': ('src', 'media'),
+        'audio': ('src', 'media'),
+        'embed': ('src', 'embed'),
+        'object': ('data', 'embed'),
+    }
+    for m in RE_TAG.finditer(clean):
+        tag = m.group('tag').lower()
+        attrs = {k.lower(): v for k, v in RE_ATTR.findall(m.group('attrs'))}
+        line = _line_no(src, m.start())
+        if tag == 'script':
+            ref = _local_path(attrs.get('src', ''))
             if ref:
                 imports.append(ref)
+                edge_hints.append(_hint('asset_ref', ref, 'script', 'src', line))
+        elif tag == 'link':
+            ref = _local_path(attrs.get('href', ''))
+            if ref:
+                imports.append(ref)
+                rel = attrs.get('rel', '').lower()
+                subtype = 'stylesheet' if 'stylesheet' in rel else 'link'
+                edge_type = 'asset_ref' if subtype == 'stylesheet' else 'import'
+                edge_hints.append(_hint(edge_type, ref, subtype, 'href', line))
+        elif tag == 'a':
+            ref = _local_path(attrs.get('href', ''))
+            if ref:
+                imports.append(ref)
+                edge_hints.append(_hint('import', ref, 'document', 'href', line))
+        elif tag == 'iframe':
+            ref = _local_path(attrs.get('src', ''))
+            if ref:
+                imports.append(ref)
+                edge_hints.append(_hint('asset_ref', ref, 'iframe', 'src', line))
+        elif tag in asset_tags:
+            via, subtype = asset_tags[tag]
+            ref = _local_path(attrs.get(via, ''))
+            if ref:
+                edge_hints.append(_hint('asset_ref', ref, subtype, via, line))
     imports = list(dict.fromkeys(imports))
+    deduped_hints = []
+    for hint in edge_hints:
+        key = (hint['type'], hint['target'], hint['subtype'], hint['via'], hint['line'])
+        if key in hint_seen:
+            continue
+        hint_seen.add(key)
+        deduped_hints.append(hint)
 
     symbol_defs = []
     seen_ids = set()
@@ -101,4 +150,6 @@ def scan_html(src: str, ext: str = '.html') -> tuple:
         })
 
     extra = {'imports': imports, 'lang': 'html'}
+    if deduped_hints:
+        extra['edge_hints'] = deduped_hints
     return imports, [], [], extra, [], symbol_defs

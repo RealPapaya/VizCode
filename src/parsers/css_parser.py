@@ -31,7 +31,7 @@ _LANG_BY_EXT = {
 
 # @import / @use / @forward / @require, capturing every quoted target on the rule.
 RE_CSS_AT_IMPORT = re.compile(
-    r'@(?:import|use|forward|require)\b([^;{\n]*)', re.IGNORECASE)
+    r'@(?P<kw>import|use|forward|require)\b(?P<body>[^;{\n]*)', re.IGNORECASE)
 RE_CSS_QUOTED = re.compile(r'''['"]([^'"]+)['"]''')
 
 RE_SCSS_MIXIN = re.compile(r'@mixin\s+([A-Za-z_][\w-]*)', re.IGNORECASE)
@@ -55,6 +55,17 @@ _CALL_BUILTINS = {
 
 def _line_no(src: str, idx: int) -> int:
     return src[:idx].count('\n') + 1
+
+
+def _hint(target: str, via: str, line: int) -> dict:
+    return {
+        'type': 'asset_ref',
+        'target': target,
+        'subtype': 'stylesheet',
+        'via': via,
+        'line': line,
+        'confidence': 1.0,
+    }
 
 
 def _mask_css(src: str, lang: str, mask_strings: bool = True) -> str:
@@ -165,10 +176,13 @@ def scan_css(src: str, ext: str = '.css') -> tuple:
     import_src = _mask_css(src, lang, mask_strings=False)  # keep quoted paths
 
     imports = []
+    edge_hints = []
     for m in RE_CSS_AT_IMPORT.finditer(import_src):
         if m.start() < len(clean) and clean[m.start()] == ' ':
             continue   # the `@import` token lives inside a value string
-        for qm in RE_CSS_QUOTED.finditer(m.group(1)):
+        via = '@' + m.group('kw').lower()
+        line = _line_no(src, m.start())
+        for qm in RE_CSS_QUOTED.finditer(m.group('body')):
             target = qm.group(1).strip()
             if not target or target.startswith(('http://', 'https://', '//')):
                 continue
@@ -177,7 +191,11 @@ def scan_css(src: str, ext: str = '.css') -> tuple:
             stem = stem.lstrip('_')   # SCSS partials begin with `_`
             if stem:
                 imports.append(stem)
+                edge_hints.append(_hint(stem, via, line))
     imports = list(dict.fromkeys(imports))
+    edge_hints = list({
+        (h['target'], h['via'], h['line']): h for h in edge_hints
+    }.values())
 
     funcdefs = []
     func_calls_by_func = []
@@ -221,5 +239,7 @@ def scan_css(src: str, ext: str = '.css') -> tuple:
     all_calls = _extract_calls(clean, decl_name_starts)
 
     extra = {'imports': imports, 'lang': lang}
+    if edge_hints:
+        extra['edge_hints'] = edge_hints
 
     return imports, funcdefs, all_calls, extra, func_calls_by_func, symbol_defs

@@ -55,6 +55,18 @@ def _all_dashboard_paths(graph):
     return paths
 
 
+def _file_edge_paths(graph):
+    id_to_path = {}
+    for files in graph.get('files_by_module', {}).values():
+        for item in files:
+            id_to_path[item['id']] = item['path']
+    edges = []
+    for module_edges in graph.get('file_edges_by_module', {}).values():
+        for edge in module_edges:
+            edges.append((id_to_path.get(edge['s']), id_to_path.get(edge['t']), edge))
+    return edges
+
+
 # ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 @pytest.fixture(scope='module')
@@ -158,6 +170,121 @@ class TestBuildGraphContent:
             and e.get('via') == 'href'
             and e.get('origin') == 'parser'
             for e in root_edges
+        )
+
+    def test_html_css_yaml_json_edge_hints_resolve_to_typed_l1_edges(self, tmp_path):
+        _write(tmp_path / 'index.html', '''\
+<script src="./app.js"></script>
+<link rel="stylesheet" href="./site.css">
+<a href="./doc.html">Doc</a>
+''')
+        _write(tmp_path / 'app.js', 'function run() {}\n')
+        _write(tmp_path / 'site.css', '@import "./base.css";\n')
+        _write(tmp_path / 'base.css', 'body { color: black; }\n')
+        _write(tmp_path / 'doc.html', '<main id="doc"></main>\n')
+        _write(tmp_path / 'schema.yaml', '$ref: ./defs.json#/Thing\nfile: ./settings.yaml\n')
+        _write(tmp_path / 'defs.json', '{}\n')
+        _write(tmp_path / 'settings.yaml', 'enabled: true\n')
+        _write(tmp_path / 'tsconfig.json', '''{
+  "extends": "./base.json",
+  "references": [{"path": "./tsconfig.app.json"}],
+  "$ref": "./schema.json#/defs/Thing"
+}''')
+        _write(tmp_path / 'base.json', '{}\n')
+        _write(tmp_path / 'tsconfig.app.json', '{}\n')
+        _write(tmp_path / 'schema.json', '{}\n')
+
+        graph = build_graph(str(tmp_path), skip_health_snapshot=True)
+        edges = _file_edge_paths(graph)
+
+        assert any(
+            src == 'index.html' and tgt == 'app.js'
+            and edge['type'] == 'asset_ref'
+            and edge.get('subtype') == 'script'
+            and edge.get('via') == 'src'
+            and edge.get('origin') == 'parser'
+            and edge.get('line') == 1
+            for src, tgt, edge in edges
+        )
+        assert not any(
+            src == 'index.html' and tgt == 'app.js'
+            and edge['type'] == 'import'
+            and edge.get('origin') != 'parser'
+            for src, tgt, edge in edges
+        )
+        assert any(
+            src == 'index.html' and tgt == 'site.css'
+            and edge['type'] == 'asset_ref'
+            and edge.get('subtype') == 'stylesheet'
+            for src, tgt, edge in edges
+        )
+        assert any(
+            src == 'index.html' and tgt == 'doc.html'
+            and edge['type'] == 'import'
+            and edge.get('subtype') == 'document'
+            for src, tgt, edge in edges
+        )
+        assert any(
+            src == 'site.css' and tgt == 'base.css'
+            and edge['type'] == 'asset_ref'
+            and edge.get('subtype') == 'stylesheet'
+            for src, tgt, edge in edges
+        )
+        assert any(
+            src == 'schema.yaml' and tgt == 'defs.json'
+            and edge['type'] == 'config_ref'
+            and edge.get('via') == '$ref'
+            for src, tgt, edge in edges
+        )
+        assert any(
+            src == 'tsconfig.json' and tgt == 'base.json'
+            and edge['type'] == 'config_ref'
+            and edge.get('via') == 'extends'
+            for src, tgt, edge in edges
+        )
+
+    def test_shell_schema_edge_hints_resolve_to_l1_edges(self, tmp_path):
+        _write(tmp_path / 'build.ps1', '''\
+Import-Module Pester
+Import-Module ./LocalModule.psm1
+. ./shared.ps1
+using module './Types.psm1'
+''')
+        _write(tmp_path / 'LocalModule.psm1', 'function Invoke-Local {}\n')
+        _write(tmp_path / 'shared.ps1', 'function Invoke-Shared {}\n')
+        _write(tmp_path / 'Types.psm1', 'class Widget {}\n')
+        _write(tmp_path / 'schema.graphql', '#import "user.graphql"\ntype Query { user: User }\n')
+        _write(tmp_path / 'user.graphql', 'type User { id: ID! }\n')
+        _write(tmp_path / 'widget.proto', 'syntax = "proto3";\nimport "types.proto";\nmessage Widget {}\n')
+        _write(tmp_path / 'types.proto', 'syntax = "proto3";\nmessage Types {}\n')
+
+        graph = build_graph(str(tmp_path), skip_health_snapshot=True)
+        edges = _file_edge_paths(graph)
+
+        assert any(
+            src == 'build.ps1' and tgt == 'shared.ps1'
+            and edge['type'] == 'include'
+            and edge.get('via') == 'dot-source'
+            and edge.get('origin') == 'parser'
+            for src, tgt, edge in edges
+        )
+        assert any(
+            src == 'build.ps1' and tgt == 'LocalModule.psm1'
+            and edge['type'] == 'import'
+            and edge.get('via') == 'Import-Module'
+            for src, tgt, edge in edges
+        )
+        assert any(
+            src == 'schema.graphql' and tgt == 'user.graphql'
+            and edge['type'] == 'import'
+            and edge.get('subtype') == 'schema'
+            for src, tgt, edge in edges
+        )
+        assert any(
+            src == 'widget.proto' and tgt == 'types.proto'
+            and edge['type'] == 'import'
+            and edge.get('subtype') == 'proto'
+            for src, tgt, edge in edges
         )
 
 
