@@ -21,7 +21,8 @@
       "PowerShell(Get-ChildItem *)",
       "Edit(/.claude/skills/**)",
       "Bash(\"/c/Users/morris_hsueh/AppData/Roaming/Python/Python311/Scripts/vizcode.exe\" testproject *)",
-      "Bash(bash launch.sh testproject --scan-only)"
+      "Bash(bash launch.sh testproject --scan-only)",
+      "PowerShell($c = Get-NetTCPConnection -LocalPort 7799 -State Listen -ErrorAction SilentlyContinue; if \\($c\\) { $c.OwningProcess | Select-Object -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue; \"killed PID $_\" } } else { \"no listener on 7799\" })"
     ]
   }
 }

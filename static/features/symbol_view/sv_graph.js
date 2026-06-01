@@ -434,35 +434,41 @@ function _svClearCompoundSections(classId) {
     }
 }
 
-function _svSetCompoundSectionsExpanded(classId) {
-    if (!classId || !_svState.compoundSectionExpanded) return;
-    _svClearCompoundSections(classId);
+// Section keys for a class, in canonical render order (PUBLIC before PRIVATE).
+function _svOrderedSectionKeys(classId) {
+    const ordered = [];
+    const seen = new Set();
+    const addKey = (k) => { if (k && !seen.has(k)) { seen.add(k); ordered.push(k); } };
 
-    const sectionKeys = new Set();
     const models = [_svState.currentGraph, _svState.baseLayoutSnapshot, _svState.focusLayoutSnapshot];
     for (const model of models) {
         const node = model && model.byNodeId ? model.byNodeId[classId] : null;
         if (!node || !Array.isArray(node.sections)) continue;
-        for (const section of node.sections) {
-            if (section && section.key) sectionKeys.add(section.key);
-        }
+        for (const section of node.sections) addKey(section && section.key);
     }
 
-    if (!sectionKeys.size && _svState.currentData && Array.isArray(_svState.currentData.symbols)) {
+    if (!ordered.length && _svState.currentData && Array.isArray(_svState.currentData.symbols)) {
         const symbols = _svState.currentData.symbols;
         const cls = symbols.find(s => s && s.id === classId);
         if (cls) {
             const methods = symbols.filter(s =>
                 s && !_SV_CARD_KINDS.has(s.kind) && s.parent === cls.name && s.file === cls.file
             );
-            for (const section of _svBuildMethodSections(methods)) {
-                if (section && section.key) sectionKeys.add(section.key);
-            }
+            for (const section of _svBuildMethodSections(methods)) addKey(section && section.key);
         }
     }
+    return ordered;
+}
 
-    for (const sectionKey of sectionKeys) {
-        _svState.compoundSectionExpanded.add(_svSectionKey(classId, sectionKey));
+// Accordion invariant: open at most ONE section per class. When a class is
+// expanded we default to its first section (PUBLIC when present) so the card
+// shows content immediately while staying contained within its boundaries.
+function _svSetCompoundSectionsExpanded(classId) {
+    if (!classId || !_svState.compoundSectionExpanded) return;
+    _svClearCompoundSections(classId);
+    const ordered = _svOrderedSectionKeys(classId);
+    if (ordered.length) {
+        _svState.compoundSectionExpanded.add(_svSectionKey(classId, ordered[0]));
     }
 }
 
@@ -489,8 +495,15 @@ function _svToggleCompoundSection(classId, sectionKey) {
     if (!classId || !sectionKey || !_svState.fileRel) return;
     _svState.compoundCollapsed.delete(classId);
     const key = _svSectionKey(classId, sectionKey);
-    if (_svState.compoundSectionExpanded.has(key)) _svState.compoundSectionExpanded.delete(key);
-    else _svState.compoundSectionExpanded.add(key);
+    if (_svState.compoundSectionExpanded.has(key)) {
+        // Clicking the open section collapses it.
+        _svState.compoundSectionExpanded.delete(key);
+    } else {
+        // Accordion: open this section and collapse any sibling section of the
+        // same class so only one (PUBLIC or PRIVATE) is ever expanded at a time.
+        _svClearCompoundSections(classId);
+        _svState.compoundSectionExpanded.add(key);
+    }
     _svState.focusId = null;
     _svState.edgeJumpCursor.clear();
     _svState.selectedEdgeId = null;
@@ -669,6 +682,58 @@ function _svCollectFocusBuckets(model, resp, focusId) {
     };
 }
 
+// Recompute a class compound's interior (section labelY/dividerY/methodRows and
+// its height) from its sections' visibleMethods — mirrors the per-class layout in
+// _svBuildFileGraphModel. Used by focus mode to re-flow a class after one of its
+// methods is extracted into a standalone focus card, so the card stays contained
+// and the remaining rows pack cleanly with no holes.
+function _svLayoutCompoundSections(node) {
+    const sections = node.sections || [];
+    const hasMethods = sections.some(s => (s.methods || []).length);
+    if (node.collapsed || !hasMethods) {
+        node.h = _SV_CLASS_PAD_TOP + _SV_CLASS_PAD_BOT + 18;
+        return node.h;
+    }
+    let cursorY = _SV_CLASS_PAD_TOP;   // relative to the node's top-left
+    sections.forEach((section, idx) => {
+        cursorY += _SV_SECTION_GAP;
+        section.labelY = cursorY;
+        section.dividerY = cursorY + _SV_SECTION_DIVIDER_GAP;
+        cursorY += _SV_SECTION_LABEL_H + _SV_SECTION_BODY_GAP + _SV_SECTION_DIVIDER_GAP;
+        section.methodRows = [];
+        const vis = section.visibleMethods || [];
+        vis.forEach((m, mi) => {
+            const methodW = _svMeasureMethodWidth(m);
+            section.methodRows.push({
+                id: m.id, sym: m, kind: m.kind, isMethod: true, parentId: node.id,
+                x: _SV_CLASS_INNER_LEFT, y: cursorY, w: methodW, h: _SV_METHOD_H,
+            });
+            cursorY += _SV_METHOD_H;
+            if (mi !== vis.length - 1) cursorY += _SV_METHOD_GAP;
+        });
+        if (idx !== sections.length - 1) cursorY += _SV_SECTION_SPLIT_GAP;
+    });
+    node.h = cursorY + _SV_CLASS_PAD_BOT;
+    return node.h;
+}
+
+// Remove a method from its parent compound's rendered rows (deep-cloning the shared
+// section objects first so the base snapshot is never mutated) and re-flow the
+// compound. Returns the parent node, or null when the method has no compound parent.
+function _svExtractMethodFromCompound(model, methodId) {
+    const method = model.byNodeId[methodId];
+    if (!method || !method.parentId) return null;
+    const parent = model.byNodeId[method.parentId];
+    if (!parent || !parent.isCompound || !Array.isArray(parent.sections)) return null;
+    parent.sections = parent.sections.map(s => ({
+        ...s,
+        visibleMethods: (s.visibleMethods || []).filter(m => m.id !== methodId),
+        methodRows: undefined,
+    }));
+    _svLayoutCompoundSections(parent);
+    return parent;
+}
+
 function _svBuildFocusLayoutModel(baseModel, resp, focusOpts) {
     const model = _svCloneGraphModel(baseModel);
     for (const node of model.nodes) {
@@ -679,6 +744,11 @@ function _svBuildFocusLayoutModel(baseModel, resp, focusOpts) {
     }
     const focusNode = model.byNodeId[focusOpts.focusId];
     if (!focusNode) return model;
+
+    // If the focused node is a method, pull it out of its class card so it renders
+    // only as the standalone detail card (re-flow the class to its new height first
+    // so lane placement below uses the corrected geometry).
+    _svExtractMethodFromCompound(model, focusOpts.focusId);
 
     const centerCx = focusNode.cx;
     const centerCy = focusNode.cy;
@@ -1560,7 +1630,18 @@ function _svRenderFileGraph(newModel) {
             let el = was.el;
             if (needRebuild) {
                 const fresh = _svCreateNodeEl(n);
-                el.replaceWith(fresh);
+                // The old element may have been an inline row nested inside a class
+                // compound <g> (e.g. a method promoted to a standalone focus card).
+                // Replacing in place would leave the standalone card parented to the
+                // compound, rendering it far outside the class boundary. Re-home it to
+                // the correct top-level group instead.
+                const targetG = n.isGhost ? ghostsG : cardsG;
+                if (el.parentNode === targetG) {
+                    el.replaceWith(fresh);
+                } else {
+                    el.remove();
+                    targetG.appendChild(fresh);
+                }
                 el = fresh;
             } else {
                 el.setAttribute('class', _svNodeClass(n));
@@ -2743,8 +2824,10 @@ function _svExpandAll() {
     const model = _svState.currentGraph;
     if (model) {
         for (const n of model.nodes) {
-            if (!n.isCompound || !Array.isArray(n.sections)) continue;
-            n.sections.forEach(section => _svState.compoundSectionExpanded.add(_svSectionKey(n.id, section.key)));
+            if (!n.isCompound || !Array.isArray(n.sections) || !n.sections.length) continue;
+            // Accordion invariant: at most one section open per class (the first / PUBLIC).
+            const first = n.sections[0];
+            if (first && first.key) _svState.compoundSectionExpanded.add(_svSectionKey(n.id, first.key));
         }
     }
     if (_svState.fileRel) _svLoadFileGraph(_svState.fileRel, { pendingFocus: _svState.focusId });

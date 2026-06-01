@@ -888,18 +888,9 @@ function buildFullTreeRows(container, node, depth) {
             if (modId && modId !== '_root') {
                 drillToModule(modId, { focusFile: f.path });
                 
-                // Wait for graph to render, then select node and open code panel
+                // Let drillToModule's focusFile flow own the graph highlight/center animation.
+                // This timeout only preserves the existing side-panel updates after navigation.
                 setTimeout(() => {
-                    const nodeId = `f${f.id}`;
-                    const node = cy?.$id(nodeId);
-                    if (node && node.length) {
-                        // Select and center on the node
-                        cy.elements().unselect();
-                        node.select();
-                        cy.animate({ center: { eles: node }, duration: 300 });
-                    }
-                    
-                    // Always open code panel and update buttons
                     if (typeof loadFileInPanel === 'function') {
                         loadFileInPanel(f.path);
                     }
