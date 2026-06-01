@@ -14,6 +14,7 @@ Tools exposed:
     vizcode_path(source, target)  — shortest dependency path (BFS)
     vizcode_explain(symbol)       — module role + direct connections
     vizcode_report()              — full Markdown codebase report (token-saving overview)
+    vizcode_l3(file)              — detailed per-file symbol browser
 """
 
 import argparse
@@ -414,6 +415,134 @@ def _tool_l2(file_key: str, modules: dict) -> str:
     return "\n".join(lines)
 
 
+def _tool_l3(file_key: str, modules: dict) -> str:
+    """L3: detailed symbol browser for a single file."""
+    import os.path
+
+    if file_key not in modules:
+        candidates = [k for k in modules if file_key.lower() in k.lower()]
+        if not candidates:
+            return (
+                f"File not found: {file_key!r}\n"
+                "Tip: use vizcode_l1(module) to list exact file paths."
+            )
+        exact = [c for c in candidates
+                 if os.path.basename(c).lower() == file_key.lower()]
+        file_key = (exact or candidates)[0]
+
+    m = modules[file_key]
+    symdefs = m.get("symdefs", []) or []
+    funcdefs = m.get("funcdefs", []) or []
+    func_calls = m.get("func_calls_by_func", []) or []
+    extras = m.get("extras") or {}
+    docstrings = extras.get("docstrings", {}) if isinstance(extras, dict) else {}
+
+    lines = [
+        f"=== {file_key} (L3) ===",
+        f"{len(symdefs)} symbols | detailed symbol browser",
+    ]
+
+    if isinstance(extras, dict) and extras.get("file_error"):
+        lines.extend(["", "Parse notes:", f"  {extras.get('file_error')}"])
+
+    if not symdefs:
+        lines.extend(["", "No symbols were extracted for this file."])
+        return "\n".join(lines)
+
+    by_name: dict[str, dict] = {}
+    by_parent: dict[str, list] = {}
+    top_level: list = []
+    for sd in symdefs:
+        name = sd.get("name", "")
+        if name and name not in by_name:
+            by_name[name] = sd
+        parent = sd.get("parent")
+        if parent:
+            by_parent.setdefault(parent, []).append(sd)
+        else:
+            top_level.append(sd)
+
+    lines.extend(["", "Symbols:"])
+    ordered = sorted(top_level, key=lambda s: (s.get("line", 0), s.get("name", "")))
+    for sd in ordered[:80]:
+        kind = sd.get("kind", "?")
+        name = sd.get("name", "?")
+        bases = sd.get("bases", []) or []
+        line_r = f"L{sd.get('line')}-{sd.get('end_line')}"
+        sig = sd.get("signature") or ""
+        decos = sd.get("decorators") or []
+        vis = "+" if sd.get("is_public", True) else "-"
+        bases_str = f"({', '.join(bases)})" if bases else ""
+        sig_str = f" {sig}" if sig else ""
+        deco_str = f" @{', @'.join(decos)}" if decos else ""
+        lines.append(f"  {vis}{kind} {name}{bases_str}{sig_str} [{line_r}]{deco_str}")
+
+        members = sorted(by_parent.get(name, []), key=lambda s: (s.get("line", 0), s.get("name", "")))
+        for child in members[:20]:
+            c_kind = child.get("kind", "?")
+            c_name = child.get("name", "?")
+            c_line = f"L{child.get('line')}-{child.get('end_line')}"
+            c_sig = child.get("signature") or ""
+            c_sig_str = f" {c_sig}" if c_sig else ""
+            c_vis = "+" if child.get("is_public", True) else "-"
+            lines.append(f"    {c_vis}{c_kind} {c_name}{c_sig_str} [{c_line}]")
+        if len(members) > 20:
+            lines.append(f"    ...+{len(members) - 20} more members")
+
+    if len(top_level) > 80:
+        lines.append(f"  ...+{len(top_level) - 80} more top-level symbols")
+
+    orphan_members = [
+        s for s in symdefs
+        if s.get("parent") and s.get("parent") not in by_name
+    ]
+    if orphan_members:
+        lines.extend(["", "External or unresolved parents:"])
+        for sd in orphan_members[:30]:
+            lines.append(
+                f"  {sd.get('kind', '?')} {sd.get('name', '?')} "
+                f"(parent: {sd.get('parent')})"
+            )
+
+    relationships: list[str] = []
+    for sd in symdefs:
+        src = sd.get("name", "")
+        for base in sd.get("bases", []) or []:
+            if src and base:
+                relationships.append(f"  {src} --inheritance/implements--> {base}")
+
+    labels = [
+        fd.get("label") if isinstance(fd, dict) else str(fd)
+        for fd in funcdefs
+    ]
+    for idx, label in enumerate(labels):
+        calls = func_calls[idx] if idx < len(func_calls) else []
+        for callee in dict.fromkeys(calls):
+            if callee in by_name:
+                relationships.append(f"  {label} --call--> {callee}")
+
+    if relationships:
+        lines.extend(["", "Symbol relationships:"])
+        lines.extend(relationships[:80])
+        if len(relationships) > 80:
+            lines.append(f"  ...+{len(relationships) - 80} more relationships")
+
+    docs = []
+    for sd in symdefs:
+        name = sd.get("name", "")
+        doc = sd.get("doc") or docstrings.get(name, "")
+        if doc:
+            first = doc.strip().split("\n")[0][:120]
+            if first:
+                docs.append((name, first))
+    if docs:
+        lines.extend(["", "Docs:"])
+        for name, first in docs[:20]:
+            lines.append(f"  {name}: {first}")
+
+    return "\n".join(lines)
+
+
 def _tool_health(modules: dict, stem_to_key: dict) -> str:
     """Health: god files, heavy files, dead code candidates, possible circular imports."""
     # ── inbound count per file ────────────────────────────────────────────────
@@ -712,7 +841,7 @@ TOOLS = [
         "description": (
             "Return a codebase-level module overview: top-level module groups, file counts, "
             "and inter-module dependency edges. "
-            "Use this first to orient yourself before calling vizcode_l1 or vizcode_l2. "
+            "Use this first to orient yourself before calling vizcode_l1, vizcode_l2, or vizcode_l3. "
             "~200 tokens. No parameters required."
         ),
         "inputSchema": {"type": "object", "properties": {}, "required": []},
@@ -748,6 +877,30 @@ TOOLS = [
             "Also shows class inheritance. More detailed than vizcode_explain. "
             "Use vizcode_l1(module) to get exact file paths first. "
             "~300-1200 tokens depending on file size."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "file": {
+                    "type": "string",
+                    "description": (
+                        "File path as shown in vizcode_l1 output, "
+                        "e.g. 'analyze_viz.py', 'parsers/python_parser.py'. "
+                        "Partial names are also accepted."
+                    ),
+                },
+            },
+            "required": ["file"],
+        },
+    },
+    {
+        "name": "vizcode_l3",
+        "description": (
+            "Return a detailed per-file symbol browser report. Shows symbols grouped "
+            "by structure, enriched symbol attributes such as signature/doc/decorators, "
+            "and conservative symbol relationships derivable from scan_cache. Use after "
+            "vizcode_l2(file) when you need finer structure than the call graph. "
+            "~500-1500 tokens depending on file size."
         ),
         "inputSchema": {
             "type": "object",
@@ -852,6 +1005,8 @@ def _serve(scan_path: str, sem_path: str, report_path: str) -> None:
                 text = _tool_l1(args.get("module", "."), modules, mod_to_files, stem_to_key)
             elif name == "vizcode_l2":
                 text = _tool_l2(args.get("file", ""), modules)
+            elif name == "vizcode_l3":
+                text = _tool_l3(args.get("file", ""), modules)
             elif name == "vizcode_health":
                 text = _tool_health(modules, stem_to_key)
             else:

@@ -12,10 +12,11 @@ VizCode is a local-first code visualization tool that scans your project and ren
 
 - **Zero dependencies** — pure Python standard library on the backend. Nothing to install.
 - **Multi-language** — deep parsers for Python, JavaScript/TypeScript, Go, C/C++/BIOS/EDK2. 50+ additional languages via a universal fallback parser (Java, Rust, Swift, Kotlin, Ruby, PHP, and more).
-- **Three zoom levels**
+- **Four zoom levels**
   - **L0 — Module Map** : high-level overview of your project's module structure
   - **L1 — File Dependency Graph** : file-level import/include relationships
   - **L2 — Function Call Flow** : call-graph inside a single file
+  - **L3 — Symbol Browser** : detailed class/member/signature and symbol-edge view
 - **Symbol View** — class-level graph with compound `PUBLIC / PRIVATE` member cards, bundled edges, expand/collapse, and Back/Forward navigation
 - **Galaxy View** — full-codebase WebGL graph (Sigma.js) showing every module, file, and function in one canvas
 - **Live search** — streaming fuzzy search across all symbols and file contents
@@ -69,6 +70,7 @@ python ai/install.py --list        # show install status
 | `vizcode_l0()` | Module overview + cross-module dependencies |
 | `vizcode_l1(module)` | File list + import edges for a module |
 | `vizcode_l2(file)` | Function call graph + docstrings for a file |
+| `vizcode_l3(file)` | Detailed symbols, members, signatures, and symbol edges |
 | `vizcode_query(q)` | Keyword search across modules and edges |
 | `vizcode_path(a, b)` | Shortest dependency path from A to B |
 | `vizcode_health()` | Dead code, god files, circular deps |
@@ -132,9 +134,9 @@ launch.bat  (or /vizcode --parse)
 
 python vizcode.py <path> --scan-only   (headless scan for AI tools)
   └─▶ .vizcode/scan_cache.json
-  └─▶ .vizcode/INDEX.md + L1/ + L2/     (hierarchical report tree)
+  └─▶ .vizcode/INDEX.md + L1/ + L2/ + L3/ (hierarchical report tree)
   └─▶ mcp_server.py                   (MCP stdio, used by all AI tools)
-        └─▶ vizcode_l0 / l1 / l2 / query / path / health / …
+        └─▶ vizcode_l0 / l1 / l2 / l3 / query / path / health / …
 
 /vizcode --ai  (Claude Code only — semantic enrichment)
   └─▶ Claude infers non-static relationships from scan_cache
@@ -196,7 +198,8 @@ VizCode/
 │   ├── semantic_cache.json    # AI-inferred edges (written by /vizcode --ai)
 │   ├── INDEX.md               # L0 report (~100-200 lines, always start here)
 │   ├── L1/<module>.md         # Per-module file map
-│   └── L2/<module>/<file>.md  # Per-file function call graph
+│   ├── L2/<module>/<file>.md  # Per-file function call graph
+│   └── L3/<module>/<file>.md  # Per-file symbol browser
 ├── launch.bat           # One-click launcher (Windows)
 ├── launch.sh            # One-click launcher (macOS / Linux)
 └── pyproject.toml       # Packaging — `pip install -e .` for a `vizcode` command

@@ -61,6 +61,8 @@ const _SV_KIND_COLOR = {
     method:    '#fbbf24',   // yellow
     function:  '#fbbf24',
     field:     '#60a5fa',   // blue
+    key:       '#60a5fa',
+    keyframes: '#a855f7',
     variable:  '#60a5fa',
     constant:  '#38bdf8',   // sky — distinct from variable
     property:  '#60a5fa',

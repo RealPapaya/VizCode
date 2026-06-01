@@ -124,6 +124,42 @@ class TestBuildGraphContent:
         assert analyze_viz._get_parser_fn('.asl').__name__ == 'scan_acpi'
         assert analyze_viz._get_parser_fn('.nasm').__name__ == 'scan_asm'
 
+    def test_parser_edge_hints_enrich_l1_edges(self, tmp_path, monkeypatch):
+        src = tmp_path / 'src.py'
+        target = tmp_path / 'target.css'
+        src.write_text('SRC\n', encoding='utf-8')
+        target.write_text('body {}\n', encoding='utf-8')
+
+        def fake_parse(file_bytes, ext):
+            if file_bytes.decode('utf-8', errors='replace').startswith('SRC'):
+                return (
+                    [], [], [],
+                    {
+                        'edge_hints': [{
+                            'type': 'asset_ref',
+                            'target': 'target.css',
+                            'subtype': 'stylesheet',
+                            'via': 'href',
+                            'line': 1,
+                            'confidence': 1.0,
+                        }]
+                    },
+                    [], [],
+                )
+            return [], [], [], {}, [], []
+
+        monkeypatch.setattr(analyze_viz, '_compute_parse_result', fake_parse)
+        graph = build_graph(str(tmp_path), skip_health_snapshot=True)
+        root_edges = graph['file_edges_by_module'].get('_root', [])
+
+        assert any(
+            e['type'] == 'asset_ref'
+            and e.get('subtype') == 'stylesheet'
+            and e.get('via') == 'href'
+            and e.get('origin') == 'parser'
+            for e in root_edges
+        )
+
 
 # ─── Symbol index structure ───────────────────────────────────────────────────
 
@@ -142,6 +178,7 @@ class TestSymbolIndex:
             'global_var', 'macro', 'union', 'namespace',
             'record', 'module', 'trait', 'type', 'abstract',
             'impl', 'object', 'message', 'service', 'table', 'view',
+            'key', 'keyframes',
         }
         for sym in graph['symbol_index'].values():
             assert sym['kind'] in known_kinds, (

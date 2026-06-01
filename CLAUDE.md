@@ -117,8 +117,8 @@ Three parallel tracks:
 
 ### 2.2 AI Report / MCP Context
 Low-token project understanding for external AI agents.
-- `src/server/mcp_server.py` — tools: `vizcode_l0/l1/l2/query/path/explain/health/report`
-- Data: `.vizcode/scan_cache.json` · `INDEX.md` · `L1/` · `L2/`
+- `src/server/mcp_server.py` — tools: `vizcode_l0/l1/l2/l3/query/path/explain/health/report`
+- Data: `.vizcode/scan_cache.json` · `INDEX.md` · `L1/` · `L2/` · `L3/`
 
 ### 2.3 CLI AI
 ```bash

@@ -252,6 +252,17 @@ function renderFilesFlat(modId, files, subPath) {
         };
         // Global-script JS edges carry the linking symbol (no import line to show).
         if (e.via) edgeData.via = e.via;
+        if (e.subtype) edgeData.subtype = e.subtype;
+        if (e.origin) edgeData.origin = e.origin;
+        if (e.line) edgeData.line = e.line;
+        if (e.subtype || e.origin || e.line) {
+            edgeData.tt = [
+                `${es.label}${e.subtype ? ` (${e.subtype})` : ''}`,
+                e.origin ? `origin: ${e.origin}` : '',
+                e.line ? `line: ${e.line}` : '',
+                e.via ? `via: ${e.via}` : '',
+            ].filter(Boolean).join('\n');
+        }
         if (isInferred) {
             const conf = typeof e.confidence === 'number' ? e.confidence.toFixed(2) : '?';
             const reason = e.reason || '';

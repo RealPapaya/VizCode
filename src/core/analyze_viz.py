@@ -410,6 +410,8 @@ EDGE_TYPES = {
     'hii_pkg':       {'label': 'HII-Pkg',   'color': '#94a3b8', 'style': 'solid',  'kind': 'import'},
     # ── Universal import edge (all analysed languages) ─────────────────────
     'import':        {'label': 'Import',    'color': '#10b981', 'style': 'solid',  'kind': 'import'},
+    'asset_ref':     {'label': 'Asset',     'color': '#22d3ee', 'style': 'dashed', 'kind': 'import'},
+    'config_ref':    {'label': 'Config',    'color': '#f59e0b', 'style': 'dashed', 'kind': 'import'},
     # ── Semantic kind edges ─────────────────────────────────────────────────
     'call':          {'label': 'Call',      'color': '#38bdf8', 'style': 'solid',  'kind': 'call'},
     'inherit':       {'label': 'Inherit',   'color': '#818cf8', 'style': 'solid',  'kind': 'inherit'},
@@ -1770,7 +1772,8 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     module_edge_counts = defaultdict(int)
     seen_file_edges    = set()
 
-    def add_edge(src_rel, tgt_rel, edge_type, via=None):
+    def add_edge(src_rel, tgt_rel, edge_type, via=None, subtype=None,
+                 origin=None, confidence=None, line=None):
         src_id  = rel_to_id[src_rel]
         tgt_id  = rel_to_id[tgt_rel]
         src_mod = file_meta[src_rel]['module']
@@ -1780,7 +1783,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         if src_mod != tgt_mod:
             key = (min(src_mod, tgt_mod), max(src_mod, tgt_mod))
             module_edge_counts[key] += 1
-        ekey = (src_id, tgt_id, edge_type)
+        ekey = (src_id, tgt_id, edge_type, subtype or '')
         if ekey not in seen_file_edges:
             seen_file_edges.add(ekey)
             edge = {'s': src_id, 't': tgt_id, 'type': edge_type}
@@ -1789,6 +1792,14 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             # symbol-use line instead).
             if via:
                 edge['via'] = via
+            if subtype:
+                edge['subtype'] = subtype
+            if origin:
+                edge['origin'] = origin
+            if confidence is not None:
+                edge['confidence'] = confidence
+            if line:
+                edge['line'] = line
             file_edges_by_module[src_mod].append(edge)
 
     for src_rel, extra in file_extra.items():
@@ -1931,6 +1942,33 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             for inc in extra.get('includes', []):
                 for tgt in resolve_ref(inc, src_dir):
                     add_edge(src_rel, tgt, 'asl_include')
+
+        # Optional parser-provided file-edge hints. Precise parsers can enrich
+        # L1 without changing the parser 6-tuple contract.
+        if isinstance(extra, dict):
+            for hint in extra.get('edge_hints') or []:
+                if not isinstance(hint, dict):
+                    continue
+                edge_type = hint.get('type') or hint.get('edge_type') or 'import'
+                if edge_type not in EDGE_TYPES:
+                    edge_type = 'import'
+                ref = (hint.get('target') or hint.get('ref') or hint.get('path')
+                       or hint.get('name') or '')
+                if not ref:
+                    continue
+                for tgt in resolve_ref(str(ref), src_dir):
+                    if tgt == src_rel:
+                        continue
+                    add_edge(
+                        src_rel,
+                        tgt,
+                        edge_type,
+                        via=hint.get('via'),
+                        subtype=hint.get('subtype'),
+                        origin=hint.get('origin') or 'parser',
+                        confidence=hint.get('confidence'),
+                        line=hint.get('line'),
+                    )
 
     _cb(
         _stage_pct('edge', 0.5),

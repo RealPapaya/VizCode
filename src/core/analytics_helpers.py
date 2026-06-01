@@ -383,6 +383,8 @@ def _report_module_tree(data: dict) -> list:
 
 MAX_FILES_PER_L1 = 50   # modules with more files get sub-directory L1 files
 MAX_FUNCS_PER_L2 = 60   # files with more functions are truncated in L2
+MAX_SYMBOLS_PER_L3 = 120
+MAX_EDGES_PER_L3 = 120
 
 
 def _write_file(path: str, lines: list) -> None:
@@ -506,7 +508,8 @@ def _write_index(data: dict, output_dir: str) -> None:
         '|------|-----------|',
         '| Module file list | `.vizcode/L1/<module>.md` |',
         '| File function graph | `.vizcode/L2/<module>/<file>.md` |',
-        '| MCP (on-demand) | `vizcode_l0()` \u2192 `vizcode_l1(mod)` \u2192 `vizcode_l2(file)` |',
+        '| File symbol browser | `.vizcode/L3/<module>/<file>.md` |',
+        '| MCP (on-demand) | `vizcode_l0()` \u2192 `vizcode_l1(mod)` \u2192 `vizcode_l2(file)` \u2192 `vizcode_l3(file)` |',
         '',
         '> Do not read `scan_cache.json` or `semantic_cache.json` directly.',
     ]
@@ -558,7 +561,11 @@ def _l1_content(scope_label: str, files: list, all_file_edges: list,
 
     stem_hint = os.path.splitext(files[0].get('path', '?').replace('\\', '/'))[0]
     mod_hint  = stem_hint.split('/')[0] if '/' in stem_hint else '.'
-    lines += ['', f'> Function call graphs: `.vizcode/L2/{mod_hint}/<file>.md`']
+    lines += [
+        '',
+        f'> Function call graphs: `.vizcode/L2/{mod_hint}/<file>.md`',
+        f'> Symbol browser reports: `.vizcode/L3/{mod_hint}/<file>.md`',
+    ]
     return lines
 
 
@@ -734,6 +741,104 @@ def _write_l2_tree(data: dict, output_dir: str, scan_entries: dict) -> None:
             _write_l2_file(file_info, entry, output_dir)
 
 
+def _write_l3_file(file_info: dict, symbols: list, edges: list,
+                   symbol_by_id: dict, output_dir: str) -> None:
+    """Write L3/<path-stem>.md for one source file."""
+    src_path = file_info.get('path', '').replace('\\', '/')
+    if not src_path:
+        return
+    stem = os.path.splitext(src_path)[0]
+    out_path = os.path.join(output_dir, 'L3', stem + '.md')
+
+    internal_ids = {s.get('id') for s in symbols if s.get('id')}
+    internal_edges = [
+        e for e in edges
+        if e.get('from') in internal_ids or e.get('to') in internal_ids
+    ]
+    type_counts = Counter(e.get('type', 'call') for e in internal_edges)
+    parse_errors = sorted({
+        s.get('parse_error') for s in symbols if s.get('parse_error')
+    })
+
+    lines = [
+        f'# {src_path} (L3)\n',
+        f'{len(symbols)} symbols | {len(internal_edges)} symbol edges\n',
+    ]
+
+    if parse_errors:
+        lines += ['## Parse Notes\n']
+        for msg in parse_errors[:5]:
+            lines.append(f'- {msg}')
+        lines.append('')
+
+    if type_counts:
+        lines += ['## Edge Type Summary\n']
+        for etype, count in sorted(type_counts.items()):
+            lines.append(f'- `{etype}`: {count}')
+        lines.append('')
+
+    if symbols:
+        lines += [
+            '## Symbols\n',
+            '| Name | Kind | Parent | Lines | Signature |',
+            '|------|------|--------|-------|-----------|',
+        ]
+        ordered = sorted(symbols, key=lambda s: (s.get('line', 0), s.get('name', '')))
+        for sym in ordered[:MAX_SYMBOLS_PER_L3]:
+            name = sym.get('name', '?')
+            kind = sym.get('kind', '?')
+            parent = sym.get('parent') or ''
+            line = sym.get('line', 0)
+            end = sym.get('end_line', 0)
+            linestr = f'L{line}-{end}' if end and end != line else f'L{line}'
+            sig = (sym.get('signature') or '').replace('|', '\\|')
+            lines.append(f'| `{name}` | {kind} | `{parent}` | {linestr} | `{sig}` |')
+        if len(symbols) > MAX_SYMBOLS_PER_L3:
+            lines.append(f'\n...+{len(symbols) - MAX_SYMBOLS_PER_L3} more symbols')
+
+    if internal_edges:
+        lines += ['', '## Symbol Edges\n']
+        for edge in internal_edges[:MAX_EDGES_PER_L3]:
+            src = symbol_by_id.get(edge.get('from'), {})
+            tgt = symbol_by_id.get(edge.get('to'), {})
+            src_name = src.get('name', edge.get('from', '?'))
+            tgt_name = tgt.get('name', edge.get('to', '?'))
+            etype = edge.get('type', 'call')
+            tgt_file = tgt.get('file', '')
+            suffix = f' ({tgt_file})' if tgt_file and tgt_file != src_path else ''
+            lines.append(f'- `{src_name}` --{etype}--> `{tgt_name}`{suffix}')
+        if len(internal_edges) > MAX_EDGES_PER_L3:
+            lines.append(f'- ...+{len(internal_edges) - MAX_EDGES_PER_L3} more edges')
+
+    if not symbols:
+        lines.append('_No symbols were extracted for this file._')
+
+    _write_file(out_path, lines)
+
+
+def _write_l3_tree(data: dict, output_dir: str) -> None:
+    """Write L3/<path>.md for every source file with symbol detail."""
+    files_by_module = data.get('files_by_module', {})
+    symbol_index = data.get('symbol_index', {}) or {}
+    symbol_edges = data.get('symbol_edges', []) or []
+    symbols_by_file: dict = defaultdict(list)
+    for sym in symbol_index.values():
+        rel = sym.get('file')
+        if rel:
+            symbols_by_file[rel].append(sym)
+
+    for file_list in files_by_module.values():
+        for file_info in file_list:
+            src_path = file_info.get('path', '').replace('\\', '/')
+            _write_l3_file(
+                file_info,
+                symbols_by_file.get(src_path, []),
+                symbol_edges,
+                symbol_index,
+                output_dir,
+            )
+
+
 def generate_report_tree(data: dict, output_dir: str,
                          scan_entries: dict = None) -> None:
     """
@@ -744,6 +849,7 @@ def generate_report_tree(data: dict, output_dir: str,
       vizcode_report.md     — backward compat alias for INDEX.md
       L1/<module>.md        — per-module file dependency map
       L2/<path>.md          — per-file function call graph
+      L3/<path>.md          — per-file symbol browser detail
 
     scan_entries: dict from scan_cache['entries']; enables docstrings,
                   class hierarchy, and call detail in L2 files.
@@ -752,6 +858,7 @@ def generate_report_tree(data: dict, output_dir: str,
     _write_index(data, output_dir)
     _write_l1_tree(data, output_dir)
     _write_l2_tree(data, output_dir, scan_entries)
+    _write_l3_tree(data, output_dir)
 
 
 def generate_report(data: dict, output_path: str) -> None:

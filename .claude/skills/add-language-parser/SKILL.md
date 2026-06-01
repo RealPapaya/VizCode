@@ -210,6 +210,31 @@ A parser change is incomplete without adversarial validation.
 
 ---
 
+## Required enrichment pass: L1 edge types and L3 symbols
+
+After any parser precision improvement, run the L1/L3 enrichment pass before shipping.
+
+Read `references/l1-l3-enrichment.md` when the change affects any of:
+
+- import/include/dependency extraction
+- symbol definitions, parents, bases, signatures, decorators, docs, or complexity
+- call extraction or per-function call lists
+- file-level references that are not ordinary imports
+- language-specific constructs that should appear in L3 Symbol View
+
+The parser 6-tuple contract remains stable. Put optional enrichment in `extra`
+and `symbol_defs`; do not add tuple slots unless the architecture is explicitly
+changed.
+
+Required output before implementation:
+
+- Whether L1 edge output changes
+- Whether L3 symbol output changes
+- Which canonical edge/symbol fields are used
+- Which language-specific details are stored as metadata instead of new primary types
+
+---
+
 ## Step 1: Add Import Patterns - `src/parsers/common_parser.py`
 
 Use this section for languages handled by the common regex parser.

@@ -128,6 +128,7 @@ AI 分成三條線：
 - `.vizcode/INDEX.md`
 - `.vizcode/L1/...`
 - `.vizcode/L2/...`
+- `.vizcode/L3/...`
 
 ### CLI AI support
 

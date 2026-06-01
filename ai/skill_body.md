@@ -11,7 +11,7 @@ python "<VIZCODE_ROOT>/vizcode.py" "<PROJECT_PATH>" --scan-only
 > `<VIZCODE_ROOT>` = VizCode 安裝目錄（含 `vizcode.py` 的資料夾）  
 > `<PROJECT_PATH>` = 目標 codebase 的根目錄
 
-## 探索策略：L0 → L1 → L2
+## 探索策略：L0 → L1 → L2 → L3
 
 **絕對禁止**一開始就讀原始碼。遵循由上而下策略：
 
@@ -20,6 +20,7 @@ python "<VIZCODE_ROOT>/vizcode.py" "<PROJECT_PATH>" --scan-only
 | `vizcode_l0()` | **第一步**：全局模組分群 + 跨模組依賴 | ~200 |
 | `vizcode_l1(module)` | 鎖定模組後展開檔案依賴圖 | ~150/模組 |
 | `vizcode_l2(file)` | 鎖定檔案後取得函式呼叫圖 | ~300–1200 |
+| `vizcode_l3(file)` | 需要更細節時瀏覽 symbol、class/member、signature、symbol edge | ~500–1500 |
 | `vizcode_query(q)` | 關鍵字搜尋模組與語意邊 | ~200 |
 | `vizcode_path(a, b)` | A→B 最短依賴路徑 | ~100 |
 | `vizcode_explain(sym)` | 模組角色快速摘要 | ~150 |
@@ -31,6 +32,7 @@ python "<VIZCODE_ROOT>/vizcode.py" "<PROJECT_PATH>" --scan-only
 1. `vizcode_l0()` — 看懂整體模組邊界
 2. `vizcode_l1("parsers")` — 深入某個模組
 3. `vizcode_l2("parsers/c_cpp_parser.py")` — 看特定檔案的函式圖
-4. `vizcode_query("cache")` — 找所有跟 cache 相關的模組/邊
+4. `vizcode_l3("parsers/c_cpp_parser.py")` — 需要 class/member/signature/edge type 細節時再進 L3
+5. `vizcode_query("cache")` — 找所有跟 cache 相關的模組/邊
 
 **禁止**直接讀取 `.vizcode/scan_cache.json` 或 `.vizcode/semantic_cache.json` 原始檔案。

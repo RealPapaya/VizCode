@@ -240,6 +240,8 @@ const EDGE_TYPE_STYLE = {
     'hii_pkg':      { color: '#94a3b8', style: 'solid',  label: 'HII-Pkg',   kind: 'import' },
     // ── Universal import (all analysed languages) ─────────────────────────
     'import':       { color: '#10b981', style: 'solid',  label: 'Import',    kind: 'import' },
+    'asset_ref':    { color: '#22d3ee', style: 'dashed', label: 'Asset',     kind: 'import' },
+    'config_ref':   { color: '#f59e0b', style: 'dashed', label: 'Config',    kind: 'import' },
     // ── Semantic kind edges ───────────────────────────────────────────────
     'call':         { color: '#38bdf8', style: 'solid',  label: 'Call',      kind: 'call'   },
     'inherit':      { color: '#818cf8', style: 'solid',  label: 'Inherit',   kind: 'inherit'},
