@@ -719,6 +719,7 @@ function updateCallGraphBtn(filePath) {
 function restoreL1FromCallGraph() {
     const snap = l2State._l1Snapshot;
     const prevHistory = [...state.history];   // preserve nav history
+    const lastFile = state.activeFile;        // remember file we're leaving (codeState.currentFile is preserved too)
 
     // hideFuncView clears L2 DOM and cy classes, but does NOT reload L1 nodes.
     // We then need to re-render L1 (cy was replaced during L2).
@@ -761,8 +762,16 @@ function restoreL1FromCallGraph() {
             cy?.$id(snap.selectedNodeId).select();
         }, 50);
     }
-    // Button state is already reset by hideFuncView/svHideStructureBtn/drillToModule above.
-    // Do NOT re-enable here — the user has not re-selected any file.
+    // Keep L2/L3 reachable for the file we just left so a single click on the
+    // level switcher re-drills to it (codeState.currentFile is preserved, and the
+    // file node is re-selected above). Without this, drillToModule's reset leaves
+    // the segments greyed out and the user must re-click the file node.
+    if (lastFile && window._lswUpdate) {
+        const hasFuncs = (DATA.funcs_by_file?.[lastFile]?.length || 0) > 0;
+        const hasSymbols = !!(DATA.symbol_index &&
+            Object.values(DATA.symbol_index).some(s => s.file === lastFile));
+        window._lswUpdate({ l2Available: hasFuncs, l3Available: hasSymbols });
+    }
 
     l2State._l1Snapshot = null;
     updateBreadcrumb();

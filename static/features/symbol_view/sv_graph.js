@@ -101,6 +101,16 @@ function _svBuildMethodSections(methods) {
     return sections;
 }
 
+function _svSectionDisplayLabel(section) {
+    if (!section) return '';
+    const total = Array.isArray(section.methods) ? section.methods.length : 0;
+    const visible = Array.isArray(section.visibleMethods) ? section.visibleMethods.length : 0;
+    const hidden = Math.max(0, total - visible);
+    const marker = section.expanded ? `-${total}` : `+${hidden || total}`;
+    const related = !section.expanded && visible ? ` · ${visible} linked` : '';
+    return `${section.label} ${marker}${related}`;
+}
+
 function _svAccessGroup(sym) {
     if (!sym || typeof sym.is_public !== 'boolean') return '';
     return sym.is_public ? 'public' : 'private';
@@ -401,28 +411,90 @@ function _svFindOwnerNode(model, node) {
     ) || null;
 }
 
-function _svBuildSyntheticMemberNode(sym, originNode) {
-    const w = _svMeasurePillWidth(sym);
-    const h = _SV_PILL_H;
-    return {
-        id: sym.id,
-        sym,
-        kind: sym.kind,
-        isMethod: true,
-        isField: false,
-        isTopLevel: false,
-        parentId: originNode.id,
-        synthetic: true,
-        isFocusPill: true,
-        x: originNode.cx - w / 2,
-        y: originNode.cy - h / 2,
-        w,
-        h,
-        cx: originNode.cx,
-        cy: originNode.cy,
-        enterCx: originNode.cx,
-        enterCy: originNode.cy,
-    };
+function _svIsCompoundSymbol(sym) {
+    return !!(sym && _SV_CARD_KINDS.has(sym.kind));
+}
+
+function _svIsCompoundSymbolId(symId) {
+    const model = _svState.currentGraph || _svState.baseLayoutSnapshot;
+    const node = model && model.byNodeId ? model.byNodeId[symId] : null;
+    if (node && (node.isCompound || _svIsCompoundSymbol(node.sym))) return true;
+    const sym = (window.DATA && DATA.symbol_index && DATA.symbol_index[symId]) || null;
+    return _svIsCompoundSymbol(sym);
+}
+
+function _svSectionKey(classId, sectionKey) {
+    return `${classId}:${sectionKey}`;
+}
+
+function _svClearCompoundSections(classId) {
+    if (!classId || !_svState.compoundSectionExpanded) return;
+    for (const key of Array.from(_svState.compoundSectionExpanded)) {
+        if (key.startsWith(`${classId}:`)) _svState.compoundSectionExpanded.delete(key);
+    }
+}
+
+function _svSetCompoundSectionsExpanded(classId) {
+    if (!classId || !_svState.compoundSectionExpanded) return;
+    _svClearCompoundSections(classId);
+
+    const sectionKeys = new Set();
+    const models = [_svState.currentGraph, _svState.baseLayoutSnapshot, _svState.focusLayoutSnapshot];
+    for (const model of models) {
+        const node = model && model.byNodeId ? model.byNodeId[classId] : null;
+        if (!node || !Array.isArray(node.sections)) continue;
+        for (const section of node.sections) {
+            if (section && section.key) sectionKeys.add(section.key);
+        }
+    }
+
+    if (!sectionKeys.size && _svState.currentData && Array.isArray(_svState.currentData.symbols)) {
+        const symbols = _svState.currentData.symbols;
+        const cls = symbols.find(s => s && s.id === classId);
+        if (cls) {
+            const methods = symbols.filter(s =>
+                s && !_SV_CARD_KINDS.has(s.kind) && s.parent === cls.name && s.file === cls.file
+            );
+            for (const section of _svBuildMethodSections(methods)) {
+                if (section && section.key) sectionKeys.add(section.key);
+            }
+        }
+    }
+
+    for (const sectionKey of sectionKeys) {
+        _svState.compoundSectionExpanded.add(_svSectionKey(classId, sectionKey));
+    }
+}
+
+function _svOpenCompoundInline(classId, opts = {}) {
+    if (!classId || !_svState.fileRel) return;
+    const toggle = opts.toggle !== false;
+    if (toggle && !_svState.compoundCollapsed.has(classId)) {
+        _svState.compoundCollapsed.add(classId);
+        _svClearCompoundSections(classId);
+    } else {
+        _svState.compoundCollapsed.delete(classId);
+        if (opts.expandSections !== false) _svSetCompoundSectionsExpanded(classId);
+        else if (opts.resetSections !== false) _svClearCompoundSections(classId);
+    }
+    _svState.focusId = null;
+    _svState.detailSectionCollapsed.clear();
+    _svState.edgeJumpCursor.clear();
+    _svState.selectedEdgeId = null;
+    _svState.metricHighlight = null;
+    _svLoadFileGraph(_svState.fileRel);
+}
+
+function _svToggleCompoundSection(classId, sectionKey) {
+    if (!classId || !sectionKey || !_svState.fileRel) return;
+    _svState.compoundCollapsed.delete(classId);
+    const key = _svSectionKey(classId, sectionKey);
+    if (_svState.compoundSectionExpanded.has(key)) _svState.compoundSectionExpanded.delete(key);
+    else _svState.compoundSectionExpanded.add(key);
+    _svState.focusId = null;
+    _svState.edgeJumpCursor.clear();
+    _svState.selectedEdgeId = null;
+    _svLoadFileGraph(_svState.fileRel);
 }
 
 function _svPlaceVerticalLane(nodes, x, centerY) {
@@ -481,57 +553,16 @@ function _svPlaceHorizontalWrappedLane(nodes, startY, centerX, wrapCount) {
     return rects;
 }
 
-function _svSplitBottomFocusNodes(nodes, focusId) {
-    const pub = [];
-    const pri = [];
-    const related = [];
-    for (const node of (nodes || [])) {
-        if (node && node.parentId === focusId) {
-            node.isFocusPill = true;
-            if (node.sym && node.sym.is_public === false) pri.push(node);
-            else pub.push(node);
-        } else {
-            related.push(node);
-        }
-    }
-    return { pub, pri, related };
-}
-
-function _svPlaceBottomFocusGroups(nodes, startY, centerX, focusId) {
-    const { pub, pri, related } = _svSplitBottomFocusNodes(nodes, focusId);
-    const rects = [];
-    let y = startY;
-
-    function placeGroup(groupNodes, label) {
-        if (!groupNodes.length) return;
-        groupNodes.forEach(node => {
-            node.focusPillGroup = label.toLowerCase();
-            node.isFocusPill = true;
-        });
-        rects.push(..._svPlaceHorizontalWrappedLane(groupNodes, y, centerX, _SV_FOCUS_BOTTOM_WRAP));
-        const bounds = _svComputeRectBounds(groupNodes, 0);
-        if (bounds) {
-            y = bounds.maxY + _SV_FOCUS_LANE_GAP + 10;
-        }
-    }
-
-    placeGroup(pub, 'PUB');
-    placeGroup(pri, 'PRI');
-
-    if (related.length) {
-        related.forEach(node => {
-            node.isFocusPill = false;
-            node.focusPillGroup = '';
-        });
-        rects.push(..._svPlaceHorizontalWrappedLane(related, y, centerX, _SV_FOCUS_BOTTOM_WRAP));
-    }
-
-    return rects;
-}
-
 function _svGetCompoundGroupNodes(model, rootNode, fixedIds) {
     if (!rootNode || !rootNode.isCompound) return [rootNode].filter(Boolean);
     return model.nodes.filter(n => n.id === rootNode.id || (n.parentId === rootNode.id && !fixedIds.has(n.id)));
+}
+
+function _svFocusLaneNode(model, node, focusId) {
+    if (!node || node.id === focusId) return node;
+    if (!node.parentId) return node;
+    const owner = model && model.byNodeId ? model.byNodeId[node.parentId] : null;
+    return owner || node;
 }
 
 function _svRectFromBounds(bounds) {
@@ -605,6 +636,7 @@ function _svCollectFocusBuckets(model, resp, focusId) {
     }
 
     function assign(node, bucketName) {
+        node = _svFocusLaneNode(model, node, focusId);
         if (!node || node.id === focusId) return;
         const nextPrio = priority[bucketName];
         const prev = assigned.get(node.id);
@@ -616,24 +648,6 @@ function _svCollectFocusBuckets(model, resp, focusId) {
 
     const owner = _svFindOwnerNode(model, focusNode);
     if (owner) assign(owner, 'parents');
-
-    if (_SV_CARD_KINDS.has(focusNode.kind) && resp && Array.isArray(resp.symbols)) {
-        const focusSym = focusNode.sym || {};
-        const children = resp.symbols
-            .filter(s => s.parent === focusSym.name && s.file === focusSym.file)
-            .sort((a, b) => (a.line || 0) - (b.line || 0));
-        for (const sym of children) {
-            let childNode = model.byNodeId[sym.id];
-            if (!childNode) {
-                childNode = _svBuildSyntheticMemberNode(sym, focusNode);
-                model.nodes.push(childNode);
-                model.byNodeId[childNode.id] = childNode;
-                model.byId[childNode.id] = sym;
-            }
-            _svEnsureAdjLink(model, focusId, childNode.id);
-            assign(childNode, 'children');
-        }
-    }
 
     for (const ed of model.edges) {
         const touchesOut = ed.from === focusId || ed.origFrom === focusId;
@@ -713,11 +727,11 @@ function _svBuildFocusLayoutModel(baseModel, resp, focusOpts) {
         );
     }
     if (bottomNodes.length) {
-        _svPlaceBottomFocusGroups(
+        _svPlaceHorizontalWrappedLane(
             bottomNodes,
             focusNode.y + focusNode.h + _SV_FOCUS_RING_GAP,
             centerCx,
-            focusOpts.focusId
+            _SV_FOCUS_BOTTOM_WRAP
         );
     }
 
@@ -805,6 +819,20 @@ async function _svLoadFileGraph(fileRel, opts) {
         _svState.focusLayoutSnapshot = null;
 
         if (opts && opts.pendingFocus && _svState.baseLayoutSnapshot.byNodeId[opts.pendingFocus]) {
+            const pendingNode = _svState.baseLayoutSnapshot.byNodeId[opts.pendingFocus];
+            if (pendingNode && (pendingNode.isCompound || _svIsCompoundSymbol(pendingNode.sym))) {
+                _svState.focusId = null;
+                _svState.compoundCollapsed.delete(opts.pendingFocus);
+                _svSetCompoundSectionsExpanded(opts.pendingFocus);
+                _svState.detailSectionCollapsed.clear();
+                const expandedModel = _svBuildFileGraphModel(data, fileRel);
+                expandedModel.fileRel = fileRel;
+                expandedModel.layoutMode = 'base';
+                _svState.baseLayoutSnapshot = _svCloneGraphModel(expandedModel);
+                _svUpdateBreadcrumbFile(fileRel, expandedModel);
+                _svRenderFileGraph(_svCloneGraphModel(_svState.baseLayoutSnapshot));
+                return;
+            }
             _svState.focusId = opts.pendingFocus;
             const fNode = _svState.baseLayoutSnapshot.byNodeId[opts.pendingFocus];
             const fSym = fNode.sym || {};
@@ -841,6 +869,10 @@ function _svRebuildForFocus() {
     const data = _svState.currentData;
     const fileRel = _svState.fileRel;
     if (!data || !fileRel) { _svApplyFocus(); return; }
+    if (_svIsCompoundSymbolId(focusId)) {
+        _svOpenCompoundInline(focusId, { toggle: false });
+        return;
+    }
 
     let baseModel = _svState.baseLayoutSnapshot;
     if (!baseModel || baseModel.fileRel !== fileRel) {
@@ -960,6 +992,23 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
         }
     }
 
+    const methodParentById = new Map(methods.map(m => [m.id, m._parentId]));
+    const externallyLinkedMethods = new Set();
+    function markLinkedMethod(a, b) {
+        const parentA = methodParentById.get(a);
+        if (!parentA) return;
+        const parentB = methodParentById.get(b);
+        if (parentB !== parentA) externallyLinkedMethods.add(a);
+    }
+    for (const e of edges) {
+        markLinkedMethod(e.from, e.to);
+        markLinkedMethod(e.to, e.from);
+    }
+    for (const e of extEdges) {
+        markLinkedMethod(e.from, e.to);
+        markLinkedMethod(e.to, e.from);
+    }
+
     // Default: collapse all classes when first loading a file.
     if (_svState._collapseAllOnLoad) {
         _svState._collapseAllOnLoad = false;
@@ -983,14 +1032,27 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
     for (const cls of classes) {
         const collapsed = _svState.compoundCollapsed.has(cls.id);
         const clsMethods = methods.filter(m => m._parentId === cls.id);
-        const sections = _svBuildMethodSections(clsMethods);
+        const sections = _svBuildMethodSections(clsMethods).map(section => {
+            const expanded = _svState.compoundSectionExpanded.has(_svSectionKey(cls.id, section.key));
+            const visibleMethods = collapsed
+                ? []
+                : section.methods.filter(m => expanded || externallyLinkedMethods.has(m.id));
+            return {
+                ...section,
+                expanded,
+                visibleMethods,
+                hiddenCount: Math.max(0, section.methods.length - visibleMethods.length),
+                relatedCount: section.methods.filter(m => externallyLinkedMethods.has(m.id)).length,
+            };
+        });
+        const visibleClsMethods = sections.flatMap(section => section.visibleMethods);
         const methodWidths = new Map(clsMethods.map(m => [m.id, _svMeasureMethodWidth(m)]));
-        const innerW = clsMethods.length
-            ? Math.max(...clsMethods.map(m => methodWidths.get(m.id) || _SV_METHOD_W))
+        const innerW = visibleClsMethods.length
+            ? Math.max(...visibleClsMethods.map(m => methodWidths.get(m.id) || _SV_METHOD_W))
             : _SV_METHOD_W;
         const headerW = _svMeasureText(cls.name, 15) + 96;
         const sectionLabelW = sections.length
-            ? Math.max(...sections.map(section => _svMeasureText(section.label, 10) + 24))
+            ? Math.max(...sections.map(section => _svMeasureText(_svSectionDisplayLabel(section), 10) + 44))
             : 0;
         const w = _svClamp(
             Math.max(headerW, innerW + _SV_CLASS_PAD_X * 2, sectionLabelW + _SV_CLASS_PAD_X * 2),
@@ -1009,8 +1071,8 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
                 h += _SV_SECTION_LABEL_H;
                 h += _SV_SECTION_BODY_GAP;
                 h += _SV_SECTION_DIVIDER_GAP;   // matches position calc: was missing
-                h += section.methods.length * _SV_METHOD_H;
-                h += Math.max(0, section.methods.length - 1) * _SV_METHOD_GAP;
+                h += section.visibleMethods.length * _SV_METHOD_H;
+                h += Math.max(0, section.visibleMethods.length - 1) * _SV_METHOD_GAP;
                 h += idx === sections.length - 1 ? 0 : _SV_SECTION_SPLIT_GAP;
             });
         }
@@ -1020,6 +1082,7 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
             methods: clsMethods,
             sections,
             collapsed,
+            visibleMethodIds: new Set(visibleClsMethods.map(m => m.id)),
             methodWidths,
             innerW: Math.max(innerW, Math.min(_SV_METHOD_MAX_W, w - _SV_CLASS_PAD_X * 2)),
         };
@@ -1179,16 +1242,29 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
             section.labelY = cursorY - clsY;
             section.dividerY = cursorY - clsY + _SV_SECTION_DIVIDER_GAP;
             cursorY += _SV_SECTION_LABEL_H + _SV_SECTION_BODY_GAP + _SV_SECTION_DIVIDER_GAP;
-            section.methods.forEach((m, methodIdx) => {
+            section.visibleMethods.forEach((m, methodIdx) => {
                 const methodW = d.methodWidths.get(m.id) || _SV_METHOD_W;
+                const relY = cursorY - clsY;
+                if (!section.methodRows) section.methodRows = [];
+                section.methodRows.push({
+                    id: m.id,
+                    sym: m,
+                    kind: m.kind,
+                    isMethod: true,
+                    parentId: cls.id,
+                    x: _SV_CLASS_INNER_LEFT,
+                    y: relY,
+                    w: methodW,
+                    h: _SV_METHOD_H,
+                });
                 methodPos.set(m.id, {
                     x: clsX + _SV_CLASS_INNER_LEFT,
-                    y: cursorY,         // method nodes are top-level SVG elements, need absolute
+                    y: cursorY,
                     w: methodW,
                     h: _SV_METHOD_H,
                 });
                 cursorY += _SV_METHOD_H;
-                if (methodIdx !== section.methods.length - 1) cursorY += _SV_METHOD_GAP;
+                if (methodIdx !== section.visibleMethods.length - 1) cursorY += _SV_METHOD_GAP;
             });
             if (sectionIdx !== d.sections.length - 1) cursorY += _SV_SECTION_SPLIT_GAP;
         });
@@ -1278,23 +1354,26 @@ function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
 
     // Adjacency map for 1-hop focus scope.
     const adj = new Map();
+    function addAdjLink(a, b) {
+        if (!a || !b || a === b) return;
+        if (!adj.has(a)) adj.set(a, new Set());
+        if (!adj.has(b)) adj.set(b, new Set());
+        adj.get(a).add(b);
+        adj.get(b).add(a);
+    }
     for (const e of modelEdges) {
-        if (!adj.has(e.from)) adj.set(e.from, new Set());
-        if (!adj.has(e.to)) adj.set(e.to, new Set());
-        adj.get(e.from).add(e.to);
-        adj.get(e.to).add(e.from);
-        // Methods also count as 1-hop from their class compound when focus is
-        // the class, so mirror that relation.
+        addAdjLink(e.from, e.to);
         if (e.origFrom && e.origFrom !== e.from) {
-            if (!adj.has(e.origFrom)) adj.set(e.origFrom, new Set());
-            adj.get(e.origFrom).add(e.to);
-            adj.get(e.to).add(e.origFrom);
+            addAdjLink(e.origFrom, e.to);
         }
         if (e.origTo && e.origTo !== e.to) {
-            if (!adj.has(e.origTo)) adj.set(e.origTo, new Set());
-            adj.get(e.origTo).add(e.from);
-            adj.get(e.from).add(e.origTo);
+            addAdjLink(e.origTo, e.from);
         }
+        const fromParent = methodParentById.get(e.from) || methodParentById.get(e.origFrom);
+        const toParent = methodParentById.get(e.to) || methodParentById.get(e.origTo);
+        addAdjLink(fromParent, e.to);
+        addAdjLink(toParent, e.from);
+        addAdjLink(fromParent, toParent);
     }
     // Parent-child adjacency (class ↔ its methods).
     for (const m of methods) {
@@ -1347,6 +1426,7 @@ function _svRedirectIfCollapsed(symId, methods, classDims) {
     if (!m) return symId;
     const dim = classDims[m._parentId];
     if (dim && dim.collapsed) return m._parentId;
+    if (dim && dim.visibleMethodIds && !dim.visibleMethodIds.has(symId)) return m._parentId;
     return symId;
 }
 
@@ -1359,6 +1439,21 @@ function _svToCompoundId(symId, methods, classDims) {
 
 // ── Render + animate ──────────────────────────────────────────────────────
 let _svCurRenderModel = null;  // set at start of each _svRenderFileGraph call
+
+function _svCompoundSectionRenderKey(node) {
+    if (!node || !Array.isArray(node.sections)) return '';
+    return node.sections.map(section => {
+        const visibleIds = (section.visibleMethods || []).map(m => m.id).join(',');
+        return [
+            section.key,
+            section.expanded ? '1' : '0',
+            section.hiddenCount || 0,
+            section.relatedCount || 0,
+            visibleIds,
+            _svSectionDisplayLabel(section),
+        ].join(':');
+    }).join('|');
+}
 
 function _svAnimateCameraToModel(model, token, immediate) {
     const targetZoom = _svComputeTargetZoom(model);
@@ -1398,11 +1493,6 @@ function _svRenderFileGraph(newModel) {
     const ghostsG = viewport.querySelector('.sv-ghosts');
     if (!cardsG || !edgesG || !ghostsG) return;
 
-    // Chip overlay layer — sits above sv-cards and sv-ghosts so compound toggle
-    // buttons always render on top of method-row pill nodes.
-    const chipsG = viewport.querySelector('.sv-chip-layer');
-    if (chipsG) chipsG.innerHTML = '';
-
     // Remove any residual floating focus card from the old overlay approach.
     const oldFocusCard = viewport.querySelector('.sv-focus-detail');
     if (oldFocusCard) oldFocusCard.remove();
@@ -1431,27 +1521,45 @@ function _svRenderFileGraph(newModel) {
     // Diff nodes: create / update / fade-out.
     const live = new Map();
     for (const n of newModel.nodes) {
+        const inlineInCompound = !!(n.parentId && newModel.byNodeId[n.parentId] && !n.isFocusCard);
+        if (inlineInCompound) {
+            const was = oldById.get(n.id);
+            if (was && was.el && was.el.parentNode === cardsG) was.el.remove();
+            live.set(n.id, {
+                x0: was ? was.x : n.x,
+                y0: was ? was.y : n.y,
+                x1: n.x,
+                y1: n.y,
+                w0: was ? was.w : n.w,
+                h0: was ? was.h : n.h,
+                w1: n.w,
+                h1: n.h,
+                w: n.w,
+                h: n.h,
+                currentX: n.x,
+                currentY: n.y,
+                fadeIn: false,
+                el: null,
+                data: n,
+                inlineInCompound: true,
+            });
+            continue;
+        }
         const was = oldById.get(n.id);
         if (was && was.el) {
             const wasFocusCard = !!was.isFocusCard;
             const nowFocusCard = !!n.isFocusCard;
             const needRebuild = (was.isCompound !== !!n.isCompound)
                 || (n.isCompound && was.collapsed !== n.collapsed)
+                || (n.isCompound && _svCompoundSectionRenderKey(was) !== _svCompoundSectionRenderKey(n))
                 || (was.sym && n.sym && was.sym.name !== n.sym.name)
                 || (wasFocusCard !== nowFocusCard)
+                || (was.w !== n.w || was.h !== n.h)
                 || (n.isCompound && was.methods && n.methods && was.methods.length !== n.methods.length);
             let w0 = was.w, h0 = was.h;
             let el = was.el;
             if (needRebuild) {
                 const fresh = _svCreateNodeEl(n);
-                // Start focus card foreignObject at old (small) node size so it grows.
-                if (nowFocusCard) {
-                    const fo = fresh.querySelector('.sv-focus-card-fo');
-                    if (fo) {
-                        fo.setAttribute('width', String(was.w));
-                        fo.setAttribute('height', String(was.h));
-                    }
-                }
                 el.replaceWith(fresh);
                 el = fresh;
             } else {
@@ -1483,6 +1591,7 @@ function _svRenderFileGraph(newModel) {
     if (canReusePrev && prev) {
         const newIds = new Set(newModel.nodes.map(n => n.id));
         for (const o of prev.nodes) {
+            if (o.parentId && newModel.byNodeId[o.parentId]) continue;
             if (!newIds.has(o.id) && o.el) {
                 exits.push({ el: o.el, startOpacity: parseFloat(o.el.style.opacity) || 1 });
             }
@@ -1493,20 +1602,6 @@ function _svRenderFileGraph(newModel) {
     edgesG.innerHTML = '';
     labelsG.innerHTML = '';
 
-    // Attach compound toggle chips to the chip overlay layer. Each chip carries
-    // its own absolute transform (node position + fixed offset within the header).
-    if (chipsG) {
-        for (const [, L] of live) {
-            const chip = L.el._chipEl;
-            if (!chip) continue;
-            L.chip = chip;
-            L.chipOX = typeof L.el._chipOX === 'number' ? L.el._chipOX : 0;
-            L.chipOY = typeof L.el._chipOY === 'number' ? L.el._chipOY : 0;
-            chip.setAttribute('transform', `translate(${L.x0 + L.chipOX},${L.y0 + L.chipOY})`);
-            chipsG.appendChild(chip);
-        }
-    }
-
     const DUR = _SV_DUR_MS;
     const t0 = performance.now();
     function frame(now) {
@@ -1514,23 +1609,17 @@ function _svRenderFileGraph(newModel) {
         const t = Math.min(1, (now - t0) / DUR);
         const e = _svEase(t);
         for (const [, L] of live) {
+            if (!L.el) {
+                L.currentX = L.x1;
+                L.currentY = L.y1;
+                continue;
+            }
             const x = L.x0 + (L.x1 - L.x0) * e;
             const y = L.y0 + (L.y1 - L.y0) * e;
             L.currentX = x;
             L.currentY = y;
             L.el.setAttribute('transform', `translate(${x},${y})`);
-            if (L.chip) L.chip.setAttribute('transform', `translate(${x + L.chipOX},${y + L.chipOY})`);
             if (L.fadeIn) L.el.style.opacity = String(e);
-            // Animate foreignObject size for focus card morphing.
-            if (L.data.isFocusCard && L.w0 !== L.w1) {
-                const fw = L.w0 + (L.w1 - L.w0) * e;
-                const fh = L.h0 + (L.h1 - L.h0) * e;
-                const fo = L.el.querySelector('.sv-focus-card-fo');
-                if (fo) {
-                    fo.setAttribute('width', String(fw));
-                    fo.setAttribute('height', String(fh));
-                }
-            }
         }
         for (const X of exits) {
             X.el.style.opacity = String(X.startOpacity * (1 - e));
@@ -1541,24 +1630,30 @@ function _svRenderFileGraph(newModel) {
             if (animToken !== _svState.activeAnimationToken) return;
             for (const X of exits) X.el.remove();
             for (const [, L] of live) {
+                if (!L.el) continue;
                 L.el.setAttribute('transform', `translate(${L.x1},${L.y1})`);
                 L.el.style.opacity = '1';
                 L.data.el = L.el;
-                if (L.chip) L.chip.setAttribute('transform', `translate(${L.x1 + L.chipOX},${L.y1 + L.chipOY})`);
-                // Snap focus card foreignObject to final size.
-                if (L.data.isFocusCard) {
-                    const fo = L.el.querySelector('.sv-focus-card-fo');
-                    if (fo) {
-                        fo.setAttribute('width', String(L.w1));
-                        fo.setAttribute('height', String(L.h1));
-                    }
-                }
             }
             _svState.currentGraph = newModel;
             for (const n of newModel.nodes) {
                 const L = live.get(n.id);
-                if (L) n.el = L.el;
+                if (L && L.el) n.el = L.el;
             }
+            cardsG.querySelectorAll('.sv-node[data-symid]').forEach(el => {
+                const node = newModel.byNodeId[el.dataset.symid];
+                if (!node) return;
+                node.el = el;
+                const L = live.get(node.id);
+                if (L) L.el = el;
+            });
+            ghostsG.querySelectorAll('.sv-node[data-symid]').forEach(el => {
+                const node = newModel.byNodeId[el.dataset.symid];
+                if (!node) return;
+                node.el = el;
+                const L = live.get(node.id);
+                if (L) L.el = el;
+            });
             _svBindNodeClicks();
             _svApplyFocus({ noHistory: true });
 
@@ -1613,7 +1708,7 @@ function _svComputeTargetZoom(model) {
     if (!bounds) return { ..._svState.zoom };
     const w = Math.max(1, bounds.maxX - bounds.minX);
     const h = Math.max(1, bounds.maxY - bounds.minY);
-    const maxScale = 1.0;  // cap at 1× — focus card uses foreignObject HTML which blurs above 1×
+    const maxScale = 1.6;
     const k = Math.max(0.15, Math.min(maxScale, rect.width / w, rect.height / h));
     return {
         k,
@@ -1854,62 +1949,42 @@ function _svFocusCardMarkup(sym, opts = {}) {
       </div>`;
 }
 
-function _svUpdateFocusCardInPlace(fo, n, focusId) {
-    const sym = n.sym || {};
-    const model = _svState.currentGraph;
-    let callers = 0, callees = 0;
-    if (model) {
-        for (const e of model.edges) {
-            const out = e.from === focusId || e.origFrom === focusId;
-            const inc = e.to === focusId || e.origTo === focusId;
-            if (out && !inc) callees++;
-            else if (inc && !out) callers++;
+function _svSvgEl(tag, attrs = {}) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+    return el;
+}
+
+function _svAppendSvgText(parent, text, attrs = {}) {
+    const el = _svSvgEl('text', attrs);
+    el.textContent = text == null ? '' : String(text);
+    parent.appendChild(el);
+    return el;
+}
+
+function _svTextLines(text, maxPx, maxLines) {
+    const raw = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!raw) return [];
+    const maxChars = Math.max(8, Math.floor(maxPx / _SV_CH_W));
+    const words = raw.split(' ');
+    const lines = [];
+    let cur = '';
+    for (const word of words) {
+        const next = cur ? `${cur} ${word}` : word;
+        if (next.length <= maxChars) {
+            cur = next;
+            continue;
         }
+        if (cur) lines.push(cur);
+        cur = word.length > maxChars ? word.slice(0, Math.max(0, maxChars - 1)) + '…' : word;
+        if (lines.length >= maxLines) break;
     }
-    const lineCount = Math.max(1, (sym.end_line || sym.line || 1) - (sym.line || 1) + 1);
-    fo.innerHTML = _svFocusCardMarkup(sym, { callers, callees, lineCount, collapsed: _svState.detailSectionCollapsed, isMethod: n.isMethod });
-    const card = fo.firstElementChild;
-    if (card) {
-        const newH = _svClamp(Math.ceil(card.scrollHeight + 2), _SV_DETAIL_MIN_H, _SV_DETAIL_MAX_H);
-        fo.setAttribute('height', String(newH));
-    }
-    _svBindFocusCardEvents(fo, n, focusId);
+    if (cur && lines.length < maxLines) lines.push(cur);
+    return lines;
 }
 
-function _svBindFocusCardEvents(fo, n, focusId) {
-    fo.querySelectorAll('.sv-fd-section-hd').forEach(hd => {
-        hd.addEventListener('click', ev => {
-            ev.stopPropagation();
-            const key = hd.dataset.section;
-            if (!key) return;
-            if (_svState.detailSectionCollapsed.has(key)) _svState.detailSectionCollapsed.delete(key);
-            else _svState.detailSectionCollapsed.add(key);
-            _svUpdateFocusCardInPlace(fo, n, focusId);
-        });
-    });
-    fo.querySelectorAll('.sv-fd-metric[data-metric]').forEach(el => {
-        el.addEventListener('click', ev => {
-            ev.stopPropagation();
-            const metric = el.dataset.metric;
-            if (metric === 'callers' || metric === 'callees') {
-                _svState.metricHighlight = _svState.metricHighlight === metric ? null : metric;
-                _svApplyFocus();
-            }
-        });
-    });
-}
-
-function _svCreateFocusCardEl(n) {
-    const NS = 'http://www.w3.org/2000/svg';
-    const g = document.createElementNS(NS, 'g');
-    g.setAttribute('class', _svNodeClass(n));
-    g.dataset.symid = n.id;
-    g.setAttribute('transform', `translate(${n.x},${n.y})`);
-
-    const sym = n.sym || {};
-    const focusId = n.id;
-    const model = _svCurRenderModel;
-
+function _svFocusCardCounts(focusId) {
+    const model = _svCurRenderModel || _svState.currentGraph;
     let callers = 0, callees = 0;
     if (model) {
         for (const e of model.edges) {
@@ -1920,19 +1995,187 @@ function _svCreateFocusCardEl(n) {
             else callers++;
         }
     }
+    return { callers, callees };
+}
+
+function _svAppendFocusSection(g, key, title, bodyLines, y, opts = {}) {
+    const collapsed = _svState.detailSectionCollapsed.has(key);
+    const section = _svSvgEl('g', { class: 'sv-fd-svg-section', 'data-section': key });
+    section.style.cursor = 'pointer';
+    section.addEventListener('click', ev => {
+        ev.stopPropagation();
+        if (_svState.detailSectionCollapsed.has(key)) _svState.detailSectionCollapsed.delete(key);
+        else _svState.detailSectionCollapsed.add(key);
+        _svRebuildForFocus();
+    });
+    g.appendChild(section);
+
+    section.appendChild(_svSvgEl('line', {
+        class: 'sv-fd-svg-rule',
+        x1: 12,
+        y1: y,
+        x2: opts.w - 12,
+        y2: y,
+    }));
+    y += 16;
+    _svAppendSvgText(section, collapsed ? '▸' : '▾', {
+        class: 'sv-fd-svg-chev',
+        x: 14,
+        y,
+    });
+    _svAppendSvgText(section, title, {
+        class: 'sv-fd-svg-section-title',
+        x: 30,
+        y,
+    });
+    y += 12;
+    if (!collapsed) {
+        for (const line of bodyLines) {
+            _svAppendSvgText(section, line, {
+                class: opts.mono ? 'sv-fd-svg-body sv-fd-svg-mono' : 'sv-fd-svg-body',
+                x: 30,
+                y,
+            });
+            y += 15;
+        }
+    }
+    return y + 4;
+}
+
+function _svCreateFocusCardEl(n) {
+    const g = _svSvgEl('g', { class: _svNodeClass(n), transform: `translate(${n.x},${n.y})` });
+    g.dataset.symid = n.id;
+
+    const sym = n.sym || {};
+    const focusId = n.id;
+    const { callers, callees } = _svFocusCardCounts(focusId);
     const lineCount = Math.max(1, (sym.end_line || sym.line || 1) - (sym.line || 1) + 1);
+    const dotColor = _svSymDotColor(sym, n.isMethod);
 
-    const fo = document.createElementNS(NS, 'foreignObject');
-    fo.setAttribute('class', 'sv-focus-card-fo');
-    fo.setAttribute('x', '0'); fo.setAttribute('y', '0');
-    fo.setAttribute('width', String(n.w));
-    fo.setAttribute('height', String(n.h));
+    const rect = _svSvgEl('rect', {
+        class: 'sv-node-bg sv-fd-svg-bg',
+        x: 0,
+        y: 0,
+        width: n.w,
+        height: n.h,
+        rx: 10,
+    });
+    rect.style.stroke = dotColor;
+    g.appendChild(rect);
 
-    fo.innerHTML = _svFocusCardMarkup(sym, { callers, callees, lineCount, collapsed: _svState.detailSectionCollapsed, isMethod: n.isMethod });
+    g.appendChild(_svSvgEl('circle', {
+        class: 'sv-node-dot',
+        cx: 18,
+        cy: 20,
+        r: 4,
+        fill: dotColor,
+    }));
+    _svAppendSvgText(g, _svClipText(sym.name || '', n.w - 92), {
+        class: 'sv-fd-svg-name',
+        x: 30,
+        y: 25,
+    });
+    _svAppendSvgText(g, (sym.kind || '').toUpperCase(), {
+        class: 'sv-fd-svg-kind',
+        x: n.w - 12,
+        y: 24,
+        'text-anchor': 'end',
+    });
 
-    _svBindFocusCardEvents(fo, n, focusId);
+    const sub = `${sym.file || ''}${sym.line ? ':' + sym.line : ''}${sym.module ? ' · ' + sym.module : ''}`;
+    _svAppendSvgText(g, _svClipText(sub, n.w - 24), {
+        class: 'sv-fd-svg-sub',
+        x: 12,
+        y: 48,
+    });
 
-    g.appendChild(fo);
+    let y = 66;
+    const maxBodyW = n.w - 48;
+    if (sym.signature) {
+        y = _svAppendFocusSection(
+            g,
+            'signature',
+            'SIGNATURE',
+            _svTextLines(sym.signature, maxBodyW, 3),
+            y,
+            { w: n.w, mono: true }
+        );
+    }
+    if (sym.docstring) {
+        y = _svAppendFocusSection(
+            g,
+            'docstring',
+            'DOCSTRING',
+            _svTextLines(sym.docstring, maxBodyW, 3),
+            y,
+            { w: n.w, mono: false }
+        );
+    }
+    y = _svAppendFocusSection(
+        g,
+        'metrics',
+        'METRICS',
+        [`${lineCount} lines   ${callers} callers   ${callees} callees`],
+        y,
+        { w: n.w, mono: false }
+    );
+
+    const metricHits = [
+        { key: 'callers', x: 110, y: Math.max(80, y - 28), w: 70 },
+        { key: 'callees', x: 184, y: Math.max(80, y - 28), w: 70 },
+    ];
+    for (const hit of metricHits) {
+        const h = _svSvgEl('rect', {
+            class: 'sv-fd-svg-hit',
+            x: hit.x,
+            y: hit.y,
+            width: hit.w,
+            height: 20,
+            rx: 10,
+            'data-metric': hit.key,
+        });
+        h.addEventListener('click', ev => {
+            ev.stopPropagation();
+            _svState.metricHighlight = _svState.metricHighlight === hit.key ? null : hit.key;
+            _svApplyFocus();
+        });
+        g.appendChild(h);
+    }
+    return g;
+}
+
+function _svCreateInlineMethodEl(row) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('class', _svNodeClass(row));
+    g.dataset.symid = row.id;
+    g.setAttribute('transform', `translate(${row.x},${row.y})`);
+
+    const rect = document.createElementNS(NS, 'rect');
+    rect.setAttribute('class', 'sv-node-bg');
+    rect.setAttribute('x', '0');
+    rect.setAttribute('y', '0');
+    rect.setAttribute('width', String(row.w));
+    rect.setAttribute('height', String(row.h));
+    rect.setAttribute('rx', '15');
+    g.appendChild(rect);
+
+    const dot = document.createElementNS(NS, 'circle');
+    dot.setAttribute('class', 'sv-node-dot');
+    dot.setAttribute('cx', '14');
+    dot.setAttribute('cy', String(row.h / 2));
+    dot.setAttribute('r', '4');
+    dot.setAttribute('fill', _svSymDotColor(row.sym, true));
+    g.appendChild(dot);
+
+    const name = document.createElementNS(NS, 'text');
+    name.setAttribute('class', 'sv-node-name sv-mono');
+    name.setAttribute('x', '24');
+    name.setAttribute('y', String(row.h / 2));
+    name.setAttribute('dominant-baseline', 'middle');
+    name.textContent = _svClipText(row.sym && row.sym.name, row.w - 38);
+    g.appendChild(name);
+
     return g;
 }
 
@@ -2009,15 +2252,28 @@ function _svCreateNodeEl(n) {
 
         if (!n.collapsed && n.sections && n.sections.length) {
             for (const section of n.sections) {
+                const hot = document.createElementNS(NS, 'rect');
+                hot.setAttribute('class', 'sv-section-toggle-hit');
+                hot.setAttribute('x', String(_SV_CLASS_INNER_LEFT - 6));
+                hot.setAttribute('y', String(section.labelY - 3));
+                hot.setAttribute('width', String(n.w - _SV_CLASS_INNER_LEFT * 2 + 12));
+                hot.setAttribute('height', String(_SV_SECTION_LABEL_H + 8));
+                hot.setAttribute('rx', '7');
+                hot.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    _svToggleCompoundSection(n.id, section.key);
+                });
+                g.appendChild(hot);
+
                 const labelEl = document.createElementNS(NS, 'text');
                 labelEl.setAttribute('class', `sv-section-label sv-section-label-${section.key}`);
                 labelEl.setAttribute('x', String(_SV_CLASS_INNER_LEFT));
                 labelEl.setAttribute('y', String(section.labelY));
                 labelEl.setAttribute('dominant-baseline', 'hanging');
-                labelEl.textContent = section.label;
+                labelEl.textContent = _svSectionDisplayLabel(section);
                 g.appendChild(labelEl);
 
-                const lineX = _SV_CLASS_INNER_LEFT + _svMeasureText(section.label, 10) + 12;
+                const lineX = _SV_CLASS_INNER_LEFT + _svMeasureText(_svSectionDisplayLabel(section), 10) + 12;
                 const divider = document.createElementNS(NS, 'line');
                 divider.setAttribute('class', `sv-section-divider sv-section-divider-${section.key}`);
                 divider.setAttribute('x1', String(lineX));
@@ -2025,6 +2281,10 @@ function _svCreateNodeEl(n) {
                 divider.setAttribute('x2', String(n.w - 16));
                 divider.setAttribute('y2', String(section.dividerY));
                 g.appendChild(divider);
+
+                for (const row of (section.methodRows || [])) {
+                    g.appendChild(_svCreateInlineMethodEl(row));
+                }
             }
         }
 
@@ -2057,11 +2317,7 @@ function _svCreateNodeEl(n) {
                 ev.stopPropagation();
                 _svToggleCompound(n.id);
             });
-            // Store chip for the dedicated sv-chip-layer (rendered above method rows,
-            // fixing the z-order occlusion of the toggle button by the top method node).
-            g._chipEl = chip;
-            g._chipOX = n.w - 32;
-            g._chipOY = 34;
+            g.appendChild(chip);
 
             if (n.collapsed) {
                 const hint = document.createElementNS(NS, 'text');
@@ -2169,8 +2425,11 @@ function _svAppendEdge(edgesG, labelsG, ed, from, to, nodeRects) {
     // Build obstacle list for routing: every node except the two endpoints.
     const obstacles = [];
     if (nodeRects) {
+        const skipObstacles = new Set([ed.from, ed.to]);
+        if (fromNode.parentId) skipObstacles.add(fromNode.parentId);
+        if (toNode.parentId) skipObstacles.add(toNode.parentId);
         for (const [nid, nr] of nodeRects) {
-            if (nid === ed.from || nid === ed.to) continue;
+            if (skipObstacles.has(nid)) continue;
             obstacles.push({ x: nr.currentX, y: nr.currentY, w: nr.w, h: nr.h });
         }
     }
@@ -2383,7 +2642,8 @@ function _svBindNodeClicks() {
         if (el.dataset.boundClick === '1') return;
         el.dataset.boundClick = '1';
         el.addEventListener('click', (e) => {
-            // Compound toggle and in-card method hits propagate via stopPropagation.
+            // Nested member rows live inside class cards; stop before the class handles it.
+            e.stopPropagation();
             const sid = el.dataset.symid;
             if (!sid) return;
             _svHandleNodeClick(sid, el);
@@ -2400,6 +2660,12 @@ function _svHandleNodeClick(symId, el) {
     if (node.isGhost) {
         // Switch to that file and focus the ghost symbol
         symViewActivate(symId);
+        return;
+    }
+
+    if (node.isCompound || _svIsCompoundSymbol(node.sym)) {
+        if (!isGlobalNavRestoring()) pushGlobalNavSnapshot('sv-compound-toggle');
+        _svOpenCompoundInline(symId, { toggle: true });
         return;
     }
 
@@ -2468,22 +2734,24 @@ async function _svHandleEdgeClick(ed) {
 
 // Compound class toggle (expand/collapse methods)
 function _svToggleCompound(classId) {
-    if (_svState.compoundCollapsed.has(classId)) {
-        _svState.compoundCollapsed.delete(classId);
-    } else {
-        _svState.compoundCollapsed.add(classId);
-    }
-    if (_svState.fileRel) {
-        _svLoadFileGraph(_svState.fileRel, { pendingFocus: _svState.focusId });
-    }
+    _svOpenCompoundInline(classId, { toggle: true });
 }
 
 function _svExpandAll() {
     _svState.compoundCollapsed.clear();
+    _svState.compoundSectionExpanded.clear();
+    const model = _svState.currentGraph;
+    if (model) {
+        for (const n of model.nodes) {
+            if (!n.isCompound || !Array.isArray(n.sections)) continue;
+            n.sections.forEach(section => _svState.compoundSectionExpanded.add(_svSectionKey(n.id, section.key)));
+        }
+    }
     if (_svState.fileRel) _svLoadFileGraph(_svState.fileRel, { pendingFocus: _svState.focusId });
 }
 
 function _svCollapseAll() {
+    _svState.compoundSectionExpanded.clear();
     const model = _svState.currentGraph;
     if (model) {
         for (const n of model.nodes) {
@@ -2541,15 +2809,6 @@ function _svApplyHideUnrelated() {
     for (const n of model.nodes) {
         if (!n.el) continue;
         n.el.classList.toggle('sv-hidden-by-filter', active && !inScope.has(n.id));
-    }
-
-    // Hide/show compound toggle chips
-    const chipsG = viewport.querySelector('.sv-chip-layer');
-    if (chipsG) {
-        chipsG.querySelectorAll('.sv-compound-toggle').forEach(chip => {
-            const cid = chip.dataset.classid;
-            chip.classList.toggle('sv-hidden-by-filter', active && !!cid && !inScope.has(cid));
-        });
     }
 
     // Hide/show edges (both visible path and hit-area path)

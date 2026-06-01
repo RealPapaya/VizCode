@@ -341,7 +341,7 @@
 
 /* Compound class container */
 .sv-node.sv-compound .sv-node-bg {
-    fill: var(--panel, #161715);
+    fill: rgba(22, 23, 21, 0.42);
     stroke-width: 1.5;
     filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.35));
 }
@@ -390,6 +390,16 @@
 .sv-section-divider {
     pointer-events: none;
     user-select: none;
+}
+
+.sv-section-toggle-hit {
+    fill: transparent;
+    pointer-events: all;
+    cursor: pointer;
+}
+
+.sv-section-toggle-hit:hover {
+    fill: rgba(223, 167, 69, 0.08);
 }
 
 .sv-section-label {
@@ -637,19 +647,66 @@
 .sv-edge.sv-edge-external { opacity: 0.55; }
 .sv-edge.sv-edge-external.sv-edge-in-scope { opacity: 0.9; }
 
-/* ── Focus detail card (foreignObject HTML) ───────────────────────── */
-.sv-focus-detail {
-    overflow: visible;
-    pointer-events: auto;
+/* SVG focus detail card: stays vector-sharp under canvas zoom. */
+.sv-node.sv-focus-card .sv-node-bg {
+    fill: var(--panel, #161715);
+    stroke-width: 1.4;
+    filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.46));
 }
 
-.sv-focus-card-fo {
-    overflow: hidden;
-    pointer-events: auto;
-    will-change: width, height;
-    transform: translateZ(0);
+.sv-fd-svg-name {
+    font-size: 14px;
+    font-weight: 700;
+    fill: var(--accent, #dfa745);
+    dominant-baseline: middle;
 }
 
+.sv-fd-svg-kind,
+.sv-fd-svg-section-title {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    fill: var(--muted, #93918b);
+    dominant-baseline: middle;
+}
+
+.sv-fd-svg-sub,
+.sv-fd-svg-body {
+    font-size: 11px;
+    fill: var(--muted, #93918b);
+}
+
+.sv-fd-svg-body {
+    fill: var(--text, #eae8e3);
+}
+
+.sv-fd-svg-mono {
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    font-size: 10.5px;
+}
+
+.sv-fd-svg-chev {
+    font-size: 11px;
+    fill: var(--muted, #93918b);
+    dominant-baseline: middle;
+}
+
+.sv-fd-svg-rule {
+    stroke: var(--border, #2c2d2a);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+}
+
+.sv-fd-svg-hit {
+    fill: transparent;
+    pointer-events: all;
+    cursor: pointer;
+}
+
+.sv-fd-svg-section:hover .sv-fd-svg-section-title,
+.sv-fd-svg-section:hover .sv-fd-svg-chev {
+    fill: var(--accent, #dfa745);
+}
 
 .sv-fd-card {
     background: var(--panel, #161715);

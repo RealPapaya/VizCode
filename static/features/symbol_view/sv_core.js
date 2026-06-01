@@ -36,6 +36,7 @@ const _svState = {
     focusCardHeightOverrides: new Map(),
     detailSectionCollapsed: new Set(),   // "signature" | "docstring" | "metrics"
     compoundCollapsed: new Set(),        // class compound ids whose methods are hidden
+    compoundSectionExpanded: new Set(),  // `${classId}:${public|private}` sections expanded inside class cards
     _collapseAllOnLoad: true,            // when true, next load collapses all classes by default
     showExternal: false,                 // when false, ghost (external) nodes are hidden
     _legendSnap: null,
@@ -135,7 +136,6 @@ function _svEnsureDom() {
           <g class="sv-edge-labels"></g>
           <g class="sv-cards"></g>
           <g class="sv-ghosts"></g>
-          <g class="sv-chip-layer"></g>
         </g>
       </svg>
                   <div id="sv-empty" hidden>
@@ -285,6 +285,7 @@ function symViewOpen(fileRel) {
     _svState.focusId = null;
     _svState.detailSectionCollapsed.clear();
     _svState.compoundCollapsed.clear();
+    _svState.compoundSectionExpanded.clear();
     _svState._collapseAllOnLoad = true;
     _svState.edgeJumpCursor.clear();
     _svState.selectedEdgeId = null;
@@ -327,6 +328,7 @@ function symViewActivate(symId) {
         _svState.focusId = symId;
         _svState.detailSectionCollapsed.clear();
         _svState.compoundCollapsed.clear();
+        _svState.compoundSectionExpanded.clear();
         _svState._collapseAllOnLoad = true;
         _svState.edgeJumpCursor.clear();
         _svState.selectedEdgeId = null;
@@ -407,6 +409,7 @@ function _svJumpTo(snap) {
     _svState.focusId = snap.focusId || null;
     _svState.detailSectionCollapsed.clear();
     _svState.compoundCollapsed.clear();
+    _svState.compoundSectionExpanded.clear();
     _svState.edgeJumpCursor.clear();
     _svState.focusLayoutSnapshot = null;
     _svSyncActive();
@@ -423,6 +426,11 @@ function _svJumpTo(snap) {
 }
 
 function _svSetFocus(symId) {
+    if (typeof _svIsCompoundSymbolId === 'function' && _svIsCompoundSymbolId(symId)) {
+        if (!isGlobalNavRestoring()) pushGlobalNavSnapshot('sv-compound-open');
+        if (typeof _svOpenCompoundInline === 'function') _svOpenCompoundInline(symId, { toggle: false });
+        return;
+    }
     if (!isGlobalNavRestoring()) pushGlobalNavSnapshot('sv-focus');
     _svPushHistory();
     _svState.focusId = symId;
@@ -470,6 +478,7 @@ function svRestoreNavSnapshot(snap) {
     _svState.focusId = snap.focusId || null;
     _svState.detailSectionCollapsed.clear();
     _svState.compoundCollapsed.clear();
+    _svState.compoundSectionExpanded.clear();
     _svState.edgeJumpCursor.clear();
     _svState.selectedEdgeId = null;
     _svState.baseLayoutSnapshot = null;
@@ -498,8 +507,8 @@ function svApplyNavSnapshot(snap) {
 
 function _svUpdateStructBtn(isOpen) {
     if (!window._lswUpdate) return;
-    const isL2 = !!(window.state && window.state.level >= 2);
-    window._lswUpdate({ active: isOpen ? 3 : (isL2 ? 2 : (window.state && window.state.level === 1 ? 1 : 0)) });
+    const isL2 = !!(state && state.level >= 2);
+    window._lswUpdate({ active: isOpen ? 3 : (isL2 ? 2 : (state && state.level === 1 ? 1 : 0)) });
 }
 
 // ── Legend save / restore ─────────────────────────────────────────────────
@@ -563,7 +572,7 @@ window.svHideStructureBtn = function () {
     if (!window._lswUpdate) return;
     window._lswUpdate({ l3Available: false });
     if (window._lswGetActive && window._lswGetActive() === 3) {
-        const fallback = (window.state && window.state.level >= 2) ? 2 : (window.state && window.state.level === 1 ? 1 : 0);
+        const fallback = (state && state.level >= 2) ? 2 : (state && state.level === 1 ? 1 : 0);
         window._lswUpdate({ active: fallback });
     }
 };
@@ -590,6 +599,10 @@ window.svHighlightLine = function (lineIdx) {
     }
     if (!best) return;
     if (best.id === _svState.focusId) return;
+    if (typeof _svIsCompoundSymbolId === 'function' && _svIsCompoundSymbolId(best.id)) {
+        if (typeof _svOpenCompoundInline === 'function') _svOpenCompoundInline(best.id, { toggle: false });
+        return;
+    }
     _svState.focusId = best.id;
     _svState.detailSectionCollapsed.clear();
     _svState.edgeJumpCursor.clear();
