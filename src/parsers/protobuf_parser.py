@@ -124,14 +124,32 @@ def _enclosing(ranges, idx, exclude_start=None):
 
 def _parse_imports(src: str) -> list:
     refs = []
+    for ref, _line in _parse_import_entries(src):
+        refs.append(ref)
+    return list(dict.fromkeys(refs))
+
+
+def _parse_import_entries(src: str) -> list:
+    refs = []
     for m in RE_PROTO_IMPORT.finditer(src):
         path = m.group(1)
         base = re.split(r'[/\\]', path)[-1] if path else ''
         # strip trailing .proto extension, keep the stem
         ref = base[:-6] if base.endswith('.proto') else base
         if ref and len(ref) >= 2:
-            refs.append(ref)
-    return list(dict.fromkeys(refs))
+            refs.append((ref, _line_no(src, m.start())))
+    return refs
+
+
+def _hint(target: str, line: int) -> dict:
+    return {
+        'type': 'import',
+        'target': target,
+        'subtype': 'proto',
+        'via': 'import',
+        'line': line,
+        'confidence': 1.0,
+    }
 
 
 def scan_protobuf(src: str, ext: str = '.proto') -> tuple:
@@ -139,7 +157,8 @@ def scan_protobuf(src: str, ext: str = '.proto') -> tuple:
     import_src = _mask_proto(src, mask_literals=False)
     clean = _mask_proto(src, mask_literals=True)
 
-    imports = _parse_imports(import_src)
+    import_entries = _parse_import_entries(import_src)
+    imports = list(dict.fromkeys(ref for ref, _line in import_entries))
     package = (RE_PROTO_PACKAGE.search(import_src) or None)
     package = package.group(1) if package else ''
 
@@ -207,5 +226,7 @@ def scan_protobuf(src: str, ext: str = '.proto') -> tuple:
     extra = {'imports': imports, 'lang': 'protobuf'}
     if package:
         extra['package'] = package
+    if import_entries:
+        extra['edge_hints'] = [_hint(ref, line) for ref, line in import_entries]
 
     return imports, funcdefs, [], extra, func_calls_by_func, symbol_defs

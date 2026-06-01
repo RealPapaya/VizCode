@@ -1846,9 +1846,18 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             # Vendor BIOS formats relocated to common_parser (best-effort)
             '.sdl', '.sd', '.cif', '.hfr', '.mak',
         ):
+            hinted_targets = set()
+            if isinstance(extra, dict):
+                for hint in extra.get('edge_hints') or []:
+                    if not isinstance(hint, dict):
+                        continue
+                    ref = (hint.get('target') or hint.get('ref') or hint.get('path')
+                           or hint.get('name') or '')
+                    if ref:
+                        hinted_targets.update(resolve_ref(str(ref), src_dir))
             for imp in file_incs.get(src_rel, []):
                 for tgt in resolve_ref(imp, src_dir):
-                    if tgt != src_rel:
+                    if tgt != src_rel and tgt not in hinted_targets:
                         add_edge(src_rel, tgt, 'import')
 
             # ── Global-symbol fallback (non-ESM JS/TS) ───────────────────────

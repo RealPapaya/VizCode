@@ -59,6 +59,32 @@ def _line_no(src: str, idx: int) -> int:
     return src[:idx].count('\n') + 1
 
 
+def _path_like_ref(ref: str):
+    value = ref.strip().strip('"\'')
+    if not value or value.startswith('$'):
+        return None
+    low = value.lower()
+    if (
+        value.startswith(('.', '/', '\\'))
+        or '/' in value
+        or '\\' in value
+        or low.endswith(('.ps1', '.psm1', '.psd1'))
+    ):
+        return value.replace('\\', '/')
+    return None
+
+
+def _hint(edge_type: str, target: str, via: str, line: int) -> dict:
+    return {
+        'type': edge_type,
+        'target': target,
+        'subtype': 'powershell',
+        'via': via,
+        'line': line,
+        'confidence': 1.0,
+    }
+
+
 def _blank(out: list, start: int, end: int) -> None:
     n = len(out)
     for k in range(start, min(end, n)):
@@ -164,12 +190,23 @@ def scan_powershell(src: str, ext: str = '.ps1') -> tuple:
 
     # ── Imports / includes ───────────────────────────────────────────────────
     imports = []
-    for rx in (RE_PS_IMPORT_MODULE, RE_PS_DOTSOURCE, RE_PS_USING_MODULE):
+    edge_hints = []
+    for rx, via, edge_type in (
+        (RE_PS_IMPORT_MODULE, 'Import-Module', 'import'),
+        (RE_PS_DOTSOURCE, 'dot-source', 'include'),
+        (RE_PS_USING_MODULE, 'using module', 'import'),
+    ):
         for m in rx.finditer(code):
             ref = m.group(1).strip()
             if ref and not ref.startswith('$'):   # skip dynamic ($var) refs
                 imports.append(ref)
+                target = _path_like_ref(ref)
+                if target:
+                    edge_hints.append(_hint(edge_type, target, via, _line_no(src, m.start())))
     imports = list(dict.fromkeys(imports))
+    edge_hints = list({
+        (h['type'], h['target'], h['via'], h['line']): h for h in edge_hints
+    }.values())
 
     # ── Collect definitions (functions, filters, class methods) ──────────────
     funcdefs = []
@@ -261,4 +298,6 @@ def scan_powershell(src: str, ext: str = '.ps1') -> tuple:
     all_calls = _extract_calls(clean)
 
     extra = {'imports': imports, 'lang': 'powershell'}
+    if edge_hints:
+        extra['edge_hints'] = edge_hints
     return imports, funcdefs, all_calls, extra, func_calls_by_func, symbol_defs

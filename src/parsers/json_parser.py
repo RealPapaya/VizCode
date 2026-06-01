@@ -15,6 +15,51 @@ Returns the standard VIZCODE parser 6-tuple:
 import re
 import json as json_lib
 
+
+def _line_no(src: str, idx: int) -> int:
+    return src[:idx].count('\n') + 1
+
+
+def _line_for_value(src: str, value: str) -> int:
+    idx = src.find(json_lib.dumps(value))
+    return _line_no(src, idx) if idx >= 0 else 0
+
+
+def _local_config_ref(value: str):
+    ref = (value or '').strip()
+    if not ref or ref.startswith('#'):
+        return None
+    ref = ref.split('#', 1)[0].strip()
+    if not ref:
+        return None
+    low = ref.lower()
+    if low.startswith(('http://', 'https://', '//')):
+        return None
+    if ref.startswith('@') and not ref.startswith(('@/', '@\\')):
+        return None
+    if (
+        ref.startswith(('.', '/', '\\'))
+        or '/' in ref
+        or '\\' in ref
+        or low.endswith(('.json', '.yaml', '.yml', '.toml'))
+    ):
+        return ref
+    return None
+
+
+def _hint(target: str, via: str, line: int, subtype: str = 'json') -> dict:
+    hint = {
+        'type': 'config_ref',
+        'target': target,
+        'subtype': subtype,
+        'via': via,
+        'confidence': 1.0,
+    }
+    if line:
+        hint['line'] = line
+    return hint
+
+
 def scan_json(src, ext):
     """
     Parse JSON configuration files and extract dependency references.
@@ -28,6 +73,7 @@ def scan_json(src, ext):
     """
     imports = []
     extra_dict = {}
+    edge_hints = []
     
     try:
         data = json_lib.loads(src)
@@ -48,12 +94,18 @@ def scan_json(src, ext):
         # ── tsconfig.json extends ──────────────────────────────────────────
         if 'extends' in data and isinstance(data['extends'], str):
             imports.append(('extends', data['extends'], 0))
+            ref = _local_config_ref(data['extends'])
+            if ref:
+                edge_hints.append(_hint(ref, 'extends', _line_for_value(src, data['extends'])))
         
         # ── tsconfig.json project references ───────────────────────────────
         if 'references' in data and isinstance(data['references'], list):
             for ref in data['references']:
                 if isinstance(ref, dict) and 'path' in ref:
                     imports.append(('reference', ref['path'], 0))
+                    target = _local_config_ref(ref['path'])
+                    if target:
+                        edge_hints.append(_hint(target, 'references.path', _line_for_value(src, ref['path'])))
         
         # ── JSON Schema $ref references ────────────────────────────────────
         # Use regex to find all "$ref" values in the JSON source
@@ -64,6 +116,9 @@ def scan_json(src, ext):
             # Skip internal references like "#/definitions/Something"
             if not ref_path.startswith('#'):
                 imports.append(('reference', ref_path, 0))
+                target = _local_config_ref(ref_path)
+                if target:
+                    edge_hints.append(_hint(target, '$ref', _line_no(src, match.start()), 'schema'))
         
         # ── Store package metadata ─────────────────────────────────────────
         if 'name' in data:
@@ -80,6 +135,12 @@ def scan_json(src, ext):
         # Any other parsing error — silently ignore
         pass
     
+    if edge_hints:
+        deduped = {}
+        for hint in edge_hints:
+            deduped[(hint['target'], hint['via'], hint.get('line', 0))] = hint
+        extra_dict['edge_hints'] = list(deduped.values())
+
     # JSON files don't have functions or calls in the traditional sense
     funcdefs = []
     funccalls = []
