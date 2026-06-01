@@ -46,6 +46,10 @@
     display: block;
 }
 
+#galaxy-container.overview-treemap-active #galaxy-layout-badge {
+    display: none !important;
+}
+
 /* Galactic core glow — radial gradient at center */
 #galaxy-container::before {
     content: '';
@@ -107,8 +111,8 @@
 .overview-treemap {
     position: absolute;
     inset: 0;
-    padding: 14px;
-    background: var(--panel);
+    padding: 13px 27px 28px 23px;
+    background: #050505;
     overflow: hidden;
     user-select: none;
 }
@@ -149,26 +153,25 @@
     position: absolute;
     overflow: hidden;
     padding: 0;
-    border: 1px solid color-mix(in srgb, var(--panel) 78%, #000 22%);
-    border-radius: 4px;
+    border: 0;
+    border-radius: 3px;
     cursor: pointer;
-    font: inherit;
+    font-family: var(--code-font);
     text-align: left;
     color: #fff;
-    transition: filter 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+    transition: filter 0.12s ease, box-shadow 0.12s ease;
 }
 
 .overview-treemap-cell:hover,
 .overview-treemap-cell.active {
-    filter: brightness(1.12);
-    transform: scale(1.012);
+    filter: brightness(1.08);
     z-index: 3;
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.36);
 }
 
 .overview-treemap-cell.active {
-    outline: 2px solid rgba(255, 255, 255, 0.9);
-    outline-offset: -3px;
+    outline: 1px solid rgba(255, 255, 255, 0.88);
+    outline-offset: -2px;
 }
 
 .overview-treemap-cell.search-hit {
@@ -183,31 +186,32 @@
 
 .overview-treemap-label {
     position: absolute;
-    left: 7px;
-    right: 7px;
-    top: 7px;
+    left: 5px;
+    right: 5px;
+    top: 5px;
     color: #fff;
-    font-size: 11px;
-    font-weight: 700;
-    line-height: 1.15;
+    font-size: 8px;
+    font-weight: 800;
+    line-height: 1.05;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+    text-shadow: none;
 }
 
 .overview-treemap-meta {
     position: absolute;
-    left: 7px;
-    right: 7px;
-    top: 21px;
-    color: rgba(255, 255, 255, 0.72);
-    font-size: 9px;
-    line-height: 1.1;
+    left: 5px;
+    right: 5px;
+    top: 16px;
+    color: rgba(255, 255, 255, 0.86);
+    font-size: 7px;
+    font-weight: 700;
+    line-height: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+    text-shadow: none;
 }
 
 .overview-treemap-empty {

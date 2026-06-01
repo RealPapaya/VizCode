@@ -243,10 +243,7 @@ HTML_SKELETON = """\
     </div>
     <button id="l2-toggle-ext-lines" class="l2-btn" style="position: absolute; bottom: 16px; left: 16px; z-index: 50; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5); border: 1px solid var(--border); background: var(--panel2);" data-i18n="extLinesOn">External Lines: On</button>
     <div id="cy"></div>
-    <div id="galaxy-container">
-      <div id="galaxy-graph-host" class="overview-mode-host active"></div>
-      <div id="overview-treemap-host" class="overview-mode-host"></div>
-    </div>
+    <div id="galaxy-container"></div>
     <div id="func-view"></div>
     <div id="sv-view"></div>
     <div id="sym-view"></div>
@@ -624,6 +621,7 @@ def build_html(data: dict, job_id: str = None) -> str:
         base / 'features' / 'galaxy_view' / 'viz_galaxy.js',          # state, constants, UI, Sigma, reducers
         base / 'features' / 'galaxy_view' / 'viz_galaxy_physics.js',  # FA2 physics (BH, FA2, Noverlap)
         base / 'features' / 'galaxy_view' / 'viz_galaxy_graph.js',    # graph building + initial positions
+        base / 'features' / 'galaxy_view' / 'viz_overview_flow.js',   # Overview shell flow (Galaxy/Treemap)
         base / 'features' / 'galaxy_view' / 'viz_treemap.js',         # Overview treemap layout + interactions
         # ── ui (layout — must come after graph initCy) ────────────────────────
         base / 'ui' / 'viz_layout.js',

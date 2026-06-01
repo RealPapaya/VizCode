@@ -31,7 +31,6 @@ let _gBackgroundPrecomputeMode = false;
 let _gLayoutNeedsNoverlap = false;
 let _gBackgroundHooksInstalled = false;
 let _gLastUserActionAt = 0;
-let _overviewMode = 'galaxy';
 
 // Performance: cache graph+layout between open/close cycles
 let _gLayoutDone = false;
@@ -726,57 +725,6 @@ function _galaxyHideChangeFoldersBtn() {
 
 // ── Galaxy lifecycle ──────────────────────────────────────────────────────────
 
-function _overviewEnsureHosts() {
-    const container = document.getElementById('galaxy-container');
-    if (!container) return {};
-    let graphHost = document.getElementById('galaxy-graph-host');
-    let treemapHost = document.getElementById('overview-treemap-host');
-    if (!graphHost) {
-        graphHost = document.createElement('div');
-        graphHost.id = 'galaxy-graph-host';
-        graphHost.className = 'overview-mode-host active';
-        container.prepend(graphHost);
-    }
-    if (!treemapHost) {
-        treemapHost = document.createElement('div');
-        treemapHost.id = 'overview-treemap-host';
-        treemapHost.className = 'overview-mode-host';
-        container.appendChild(treemapHost);
-    }
-    return { container, graphHost, treemapHost };
-}
-
-function _overviewSetHostMode(mode) {
-    const { graphHost, treemapHost } = _overviewEnsureHosts();
-    if (!graphHost || !treemapHost) return;
-    graphHost.classList.toggle('active', mode === 'galaxy');
-    treemapHost.classList.toggle('active', mode === 'treemap');
-    if (mode === 'galaxy' && _gSig) requestAnimationFrame(() => { try { _gSig.refresh(); } catch (_) {} });
-}
-
-function _overviewDestroyTreemap() {
-    if (typeof window.overviewTreemapDestroy === 'function') {
-        window.overviewTreemapDestroy();
-        return;
-    }
-    const host = document.getElementById('overview-treemap-host');
-    if (host) host.innerHTML = '';
-}
-window.setOverviewMode = function (mode) {
-    _overviewMode = mode === 'treemap' ? 'treemap' : 'galaxy';
-    if (typeof window._lswEnterOverview === 'function') window._lswEnterOverview(_overviewMode);
-    _overviewSetHostMode(_overviewMode);
-    if (_overviewMode === 'treemap') {
-        if (typeof window.overviewTreemapOpen === 'function') window.overviewTreemapOpen();
-    } else {
-        if (typeof window.overviewTreemapClose === 'function') window.overviewTreemapClose();
-        else _galaxyHideTooltip();
-        _galaxyBuildFilterPanel();
-        if (!_gSig && _gGraph) requestAnimationFrame(_galaxyInitSigma);
-    }
-    if (typeof refreshGraphZoomControls === 'function') refreshGraphZoomControls();
-};
-
 async function openGalaxy() {
     if (!window.DATA) {
         if (typeof showToast === 'function') showToast('No analysis data loaded', 'error');
@@ -802,11 +750,6 @@ async function openGalaxy() {
     if (!container) return;
 
     // ── Folder-select gate: show picker when codebase is too large ────────────
-    _overviewEnsureHosts();
-    _overviewMode = 'galaxy';
-    if (typeof window._lswEnterOverview === 'function') window._lswEnterOverview('galaxy');
-    _overviewSetHostMode('galaxy');
-
     const estTotal = _gEstimateTotalNodes(window.DATA);
     // Restore saved folder selection from previous session (persists across open/close)
     if (_gAllowedMods === null && _gSavedAllowedMods !== null) {
@@ -918,9 +861,6 @@ function closeGalaxy() {
     if (chatCard) chatCard.style.display = '';
     
     state.galaxyActive = false;
-    if (typeof window._lswExitOverview === 'function') window._lswExitOverview();
-    _overviewMode = 'galaxy';
-    _overviewDestroyTreemap();
     _galaxySyncButtonComputing();
     _galaxyHideLayoutBadge();
     _galaxyHideChangeFoldersBtn();
@@ -948,10 +888,6 @@ function closeGalaxy() {
 }
 
 window.zoomGalaxyByStep = function (direction) {
-    if (_overviewMode === 'treemap') {
-        if (typeof window.overviewTreemapZoomByStep === 'function' && window.overviewTreemapZoomByStep(direction)) return;
-        return;
-    }
     if (!_gSig) return;
     const camera = _gSig.getCamera();
     const factor = direction > 0 ? 1 / 1.5 : 1.5;
@@ -1613,14 +1549,8 @@ function scheduleGalaxyPrecompute() {
 // ── Sigma initialization ─────────────────────────────────────────────────────
 
 function _galaxyInitSigma() {
-    const container = document.getElementById('galaxy-graph-host') || document.getElementById('galaxy-container');
+    const container = document.getElementById('galaxy-container');
     if (!container || !_gGraph) return;
-    if (_overviewMode !== 'galaxy') return;
-    const rect = container.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) {
-        if (state?.galaxyActive) requestAnimationFrame(_galaxyInitSigma);
-        return;
-    }
     const SigmaClass = window.Sigma;
     if (!SigmaClass) {
         console.error('[galaxy] Sigma not loaded');
@@ -2298,7 +2228,7 @@ function _galaxyRefreshThemeColors() {
             });
         });
     }
-    if (state?.galaxyActive && _overviewMode !== 'treemap') _galaxyBuildFilterPanel();
+    if (state?.galaxyActive) _galaxyBuildFilterPanel();
 
     // Update Sigma label color to match the new theme
     if (_gSig) {
@@ -2310,12 +2240,6 @@ function _galaxyRefreshThemeColors() {
 // ── Public API: Highlight node from Explorer click ────────────────────────────
 
 function galaxyHighlightByPath(filePath) {
-    if (_overviewMode === 'treemap') {
-        if (typeof window.overviewTreemapSelectFile === 'function') {
-            return window.overviewTreemapSelectFile(filePath, { openCode: true, revealExplorer: false });
-        }
-        return false;
-    }
     if (!state?.galaxyActive || !_gGraph) return false;
     
     // Find node with matching file path

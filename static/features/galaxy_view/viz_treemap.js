@@ -2,8 +2,8 @@
 
 // Overview Treemap
 // Owns the file-centric treemap model, layout, viewport, and selection sync.
-// Galaxy owns the surrounding Overview mode shell; this module owns everything
-// specific to drawing and interacting with the treemap.
+// viz_overview_flow.js owns the surrounding Overview mode shell; this module
+// owns everything specific to drawing and interacting with the treemap.
 
 let _overviewTreemapResizeObserver = null;
 let _overviewTreemapResizeTimer = null;
@@ -17,6 +17,10 @@ let _overviewTreemapSuppressClick = false;
 
 const _OVERVIEW_TREEMAP_MIN_ZOOM = 0.35;
 const _OVERVIEW_TREEMAP_MAX_ZOOM = 5;
+const _OVERVIEW_TREEMAP_PALETTE = [
+    '#0ecf86', '#3f8bdd', '#73b60b', '#8d74d0',
+    '#df8b35', '#df4f57', '#c83d88', '#23b7cc',
+];
 
 function _overviewTreemapFmtBytes(bytes) {
     const n = Number(bytes || 0);
@@ -77,14 +81,52 @@ function _overviewTreemapModuleColor(path) {
     return mod?.color || _G_COMMUNITY_PALETTE[Math.abs(_overviewTreemapHashString(modId)) % _G_COMMUNITY_PALETTE.length];
 }
 
+function _overviewTreemapGroupColor(group, index) {
+    const key = String(group?.key || '');
+    const label = String(group?.label || '');
+    const text = `${key}/${label}`.toLowerCase();
+    if (text.includes('parser')) return '#0ecf86';
+    if (text.includes('style') || text.includes('css')) return '#c83d88';
+    if (text.includes('dashboard')) return '#df4f57';
+    if (text.includes('server') || text.includes('mcp')) return '#df8b35';
+    if (text.includes('core')) return '#3f8bdd';
+    if (text.includes('symbol') || text.includes('preference') || text.includes('toolbar')) return '#73b60b';
+    if (text.includes('galaxy') || text.includes('treemap') || text.includes('graph')) return '#8d74d0';
+    if (text.includes('chat') || text.includes('ui')) return '#23b7cc';
+    return _OVERVIEW_TREEMAP_PALETTE[index % _OVERVIEW_TREEMAP_PALETTE.length];
+}
+
+function _overviewTreemapGroupPriority(group) {
+    const text = `${group?.key || ''}/${group?.label || ''}`.toLowerCase();
+    if (text.includes('parser')) return 0;
+    if (text.includes('style') || text.includes('css')) return 1;
+    if (text.includes('core')) return 2;
+    if (text.includes('server') || text.includes('mcp')) return 3;
+    if (text.includes('search') || text.includes('chat')) return 4;
+    if (text.includes('ui') || text.includes('preference') || text.includes('toolbar')) return 5;
+    if (text.includes('symbol')) return 6;
+    if (text.includes('galaxy') || text.includes('treemap') || text.includes('graph')) return 7;
+    if (text.includes('dashboard')) return 8;
+    return 20;
+}
+
 function _overviewTreemapModuleLabel(key) {
     const mod = (window.DATA?.modules || []).find(m => m.id === key);
     return mod?.label || (key === '_root' ? _gRootLabel() : key);
 }
 
 function _overviewTreemapGroupKey(file, path) {
-    const moduleKey = _overviewTreemapNormPath(file?._module || '');
     const parts = path.split('/').filter(Boolean);
+    if (parts[0] === 'static' && parts[1] === 'features' && parts.length > 2) {
+        return parts.slice(0, 3).join('/');
+    }
+    if ((parts[0] === 'static' || parts[0] === 'src' || parts[0] === 'tests') && parts.length > 1) {
+        return parts.slice(0, 2).join('/');
+    }
+    if (parts[0] === 'ai' && parts[1] === 'providers') return 'ai/providers';
+    if (parts[0] === 'ai') return 'ai';
+    if (parts[0] === 'testproject' && parts.length > 2) return parts.slice(0, 2).join('/');
+    const moduleKey = _overviewTreemapNormPath(file?._module || '');
     if (moduleKey && moduleKey !== '_root') return moduleKey;
     if (parts.length > 1) return parts[0];
     const ext = (file?.ext || '').replace(/^\./, '').toLowerCase();
@@ -146,6 +188,46 @@ function _overviewTreemapSquarify(items, rect) {
     return out;
 }
 
+function _overviewTreemapBinary(items, rect) {
+    if (!items.length) return [];
+    if (items.length === 1) return [{ ...items[0], ...rect }];
+
+    const total = items.reduce((sum, item) => sum + item.value, 0) || 1;
+    const half = total / 2;
+    let split = 1;
+    let acc = items[0].value;
+    while (split < items.length - 1 && acc + items[split].value <= half) {
+        acc += items[split].value;
+        split++;
+    }
+    if (split < items.length - 1) {
+        const withNext = Math.abs((acc + items[split].value) - half);
+        const withoutNext = Math.abs(acc - half);
+        if (withNext < withoutNext) {
+            acc += items[split].value;
+            split++;
+        }
+    }
+
+    const first = items.slice(0, split);
+    const second = items.slice(split);
+    const firstValue = first.reduce((sum, item) => sum + item.value, 0) || 1;
+    const ratio = Math.max(0.04, Math.min(0.96, firstValue / total));
+
+    if (rect.w >= rect.h) {
+        const w1 = rect.w * ratio;
+        return [
+            ..._overviewTreemapBinary(first, { x: rect.x, y: rect.y, w: w1, h: rect.h }),
+            ..._overviewTreemapBinary(second, { x: rect.x + w1, y: rect.y, w: rect.w - w1, h: rect.h }),
+        ];
+    }
+    const h1 = rect.h * ratio;
+    return [
+        ..._overviewTreemapBinary(first, { x: rect.x, y: rect.y, w: rect.w, h: h1 }),
+        ..._overviewTreemapBinary(second, { x: rect.x, y: rect.y + h1, w: rect.w, h: rect.h - h1 }),
+    ];
+}
+
 function _overviewTreemapBuildLayout(files, w, h) {
     const groupsByKey = new Map();
     files.forEach(file => {
@@ -169,11 +251,16 @@ function _overviewTreemapBuildLayout(files, w, h) {
 
     const groups = Array.from(groupsByKey.values())
         .filter(group => group.value > 0 && group.files.length)
-        .sort((a, b) => b.value - a.value);
-    const groupRects = _overviewTreemapSquarify(groups, { x: 0, y: 0, w, h });
+        .sort((a, b) => {
+            const pa = _overviewTreemapGroupPriority(a);
+            const pb = _overviewTreemapGroupPriority(b);
+            return pa === pb ? b.value - a.value : pa - pb;
+        });
+    groups.forEach((group, index) => { group.color = _overviewTreemapGroupColor(group, index); });
+    const groupRects = _overviewTreemapBinary(groups, { x: 0, y: 0, w, h });
     const cells = [];
     groupRects.forEach(group => {
-        const pad = group.w > 40 && group.h > 40 ? 4 : 2;
+        const pad = group.w > 40 && group.h > 40 ? 3 : 1.5;
         const inner = {
             x: group.x + pad,
             y: group.y + pad,
@@ -183,7 +270,7 @@ function _overviewTreemapBuildLayout(files, w, h) {
         const fileItems = group.files
             .map(item => ({ file: item.file, value: item.value, color: group.color, group: group.label }))
             .sort((a, b) => b.value - a.value);
-        _overviewTreemapSquarify(fileItems, inner).forEach(cell => cells.push(cell));
+        _overviewTreemapBinary(fileItems, inner).forEach(cell => cells.push(cell));
     });
     return { groups: groupRects, cells };
 }
@@ -419,16 +506,16 @@ function _overviewRenderTreemap() {
         el.setAttribute('aria-label', cell.file.path || cell.file.label || 'file');
         cell.el = el;
         _overviewTreemapCellsByPath.set(filePath, cell);
-        if (cw > 42 && ch > 22) {
+        if (cw > 34 && ch > 18) {
             const label = document.createElement('span');
             label.className = 'overview-treemap-label';
             label.textContent = cell.file.label || _gLastSegment(cell.file.path);
             el.appendChild(label);
         }
-        if (cw > 64 && ch > 40) {
+        if (cw > 42 && ch > 30) {
             const meta = document.createElement('span');
             meta.className = 'overview-treemap-meta';
-            meta.textContent = lines ? `${lines} lines` : _overviewTreemapFmtBytes(cell.file.size);
+            meta.textContent = lines ? `${lines} Lines` : _overviewTreemapFmtBytes(cell.file.size);
             el.appendChild(meta);
         }
         el.addEventListener('mouseenter', e => _overviewTreemapTooltip(cell, e));
