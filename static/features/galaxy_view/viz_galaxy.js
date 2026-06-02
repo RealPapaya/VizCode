@@ -165,6 +165,52 @@ const _G_EDGE_DEFS = [
     { key: 'override', label: 'Override', color: _G_COLORS.override },
 ];
 
+function _galaxyPresentNodeDefs() {
+    const defs = _gNodeDefs();
+    if (!_gGraph) return defs;
+
+    const present = new Set();
+    _gGraph.forEachNode((_, attrs) => {
+        if (attrs && attrs._t) present.add(attrs._t);
+    });
+
+    const known = new Set(defs.map(def => def.key));
+    const visible = defs.filter(def => present.has(def.key));
+    present.forEach(type => {
+        if (!known.has(type)) {
+            visible.push({
+                key: type,
+                label: type,
+                color: _G_COLORS[type] || _G_COLORS.file,
+                icon: (type || '?').slice(0, 2),
+            });
+        }
+    });
+    return visible;
+}
+
+function _galaxyPresentEdgeDefs() {
+    if (!_gGraph) return _G_EDGE_DEFS;
+
+    const present = new Set();
+    _gGraph.forEachEdge((_, attrs) => {
+        if (attrs && attrs._t) present.add(attrs._t);
+    });
+
+    const known = new Set(_G_EDGE_DEFS.map(def => def.key));
+    const visible = _G_EDGE_DEFS.filter(def => present.has(def.key));
+    present.forEach(type => {
+        if (!known.has(type)) {
+            visible.push({
+                key: type,
+                label: type,
+                color: _G_COLORS[type] || _G_COLORS.import,
+            });
+        }
+    });
+    return visible;
+}
+
 // ── Utilities ────────────────────────────────────────────────────────────────
 
 function _gDebounce(fn, ms) {
@@ -498,10 +544,12 @@ function _galaxyBuildFilterPanel() {
     const searchHtml =
         `<div class="gf-search-wrap"><input type="text" class="gf-search-input" id="gf-search-input" ` +
         `placeholder="Search nodes..." value="${_gEsc(_galaxyFilter.searchQuery || '')}"></div>`;
-    const nodeRows = _gNodeDefs()
+    const nodeDefs = _galaxyPresentNodeDefs();
+    const edgeDefs = _galaxyPresentEdgeDefs();
+    const nodeRows = nodeDefs
         .map(def => row(def.key, def.label, def.color, def.icon, 'data-gf-node', _galaxyFilter.nodeTypes))
         .join('');
-    const edgeRows = _G_EDGE_DEFS.map(def =>
+    const edgeRows = edgeDefs.map(def =>
         `<div class="ef-row gf-row${_galaxyFilter.edgeTypes.has(def.key) ? ' active' : ''}" data-gf-edge="${def.key}" style="--ef-col:${def.color}">` +
         `<div class="ef-icon-bg"><span class="ef-indicator"><svg width="28" height="10" viewBox="0 0 28 10">` +
         `<line x1="2" y1="5" x2="26" y2="5" stroke="${def.color}" stroke-width="2" stroke-linecap="round"></line>` +
@@ -574,7 +622,7 @@ function _galaxyBuildFilterPanel() {
             const action = btn.dataset.gfNodeAction;
             if (action === 'all') {
                 _galaxyFilter.nodeTypes.clear();
-                _gNodeDefs().forEach(d => _galaxyFilter.nodeTypes.add(d.key));
+                nodeDefs.forEach(d => _galaxyFilter.nodeTypes.add(d.key));
                 wrap.querySelectorAll('[data-gf-node]').forEach(row => row.classList.add('active'));
             } else if (action === 'none') {
                 _galaxyFilter.nodeTypes.clear();
@@ -590,7 +638,7 @@ function _galaxyBuildFilterPanel() {
             const action = btn.dataset.gfEdgeAction;
             if (action === 'all') {
                 _galaxyFilter.edgeTypes.clear();
-                _G_EDGE_DEFS.forEach(d => _galaxyFilter.edgeTypes.add(d.key));
+                edgeDefs.forEach(d => _galaxyFilter.edgeTypes.add(d.key));
                 wrap.querySelectorAll('[data-gf-edge]').forEach(row => row.classList.add('active'));
             } else if (action === 'none') {
                 _galaxyFilter.edgeTypes.clear();

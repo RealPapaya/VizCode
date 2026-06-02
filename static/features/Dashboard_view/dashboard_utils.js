@@ -190,13 +190,18 @@ function _dashForceGraphMode() {
     if (typeof _dashCloseGroupDrilldown === 'function') _dashCloseGroupDrilldown();
     if (typeof _dashCloseDrilldown === 'function') _dashCloseDrilldown();
     if (typeof closeDashboard === 'function') closeDashboard();
-    if (window.state && state.galaxyActive && typeof closeGalaxy === 'function') closeGalaxy();
+    if (typeof closeGalaxy === 'function') closeGalaxy();
     // Overview state lives in two places — state.galaxyActive AND the level-switcher's
     // overview mode (_lswMode). When the dashboard is opened on top of Overview the two
     // can desync, leaving the switcher stuck in overview so it re-triggers Galaxy. Reset
     // it explicitly (no-ops when not in overview) so a widget file link always lands in
     // graph mode rather than snapping back to Overview.
     if (typeof window._lswExitOverview === 'function') window._lswExitOverview();
+    if (window.state) state.galaxyActive = false;
+    document.getElementById('galaxy-container')?.classList.remove('active');
+    const cyEl = document.getElementById('cy');
+    if (cyEl) cyEl.style.display = '';
+    document.body.dataset.topMode = 'graph';
     if (window._sv && window._sv.active) {
         if (typeof symViewClose === 'function') symViewClose();
         else if (typeof svHideSvView === 'function') svHideSvView();
@@ -242,6 +247,28 @@ function _dashFocusL2Node(filePath, funcName, lineNo) {
     _dashFocusCodePanel(filePath, funcName, lineNo);
 }
 
+function _dashOpenGraphFile(rel, fnName, lineNo) {
+    document.getElementById('cy')?.classList.add('l2-view');
+    if (typeof setL1ToolbarVisible === 'function') setL1ToolbarVisible(false);
+    if (window.updateFilterTabEnabled) updateFilterTabEnabled();
+    const ftWrap = document.getElementById('ft-filter');
+    if (ftWrap) ftWrap.style.display = 'none';
+
+    if (typeof openL2File === 'function') {
+        openL2File(rel, { newSession: true, pushHistory: true, focusFunc: fnName || null });
+    } else if (typeof drillToFile === 'function') {
+        drillToFile(rel);
+    }
+
+    if (typeof updateCallGraphBtn === 'function') updateCallGraphBtn(rel);
+    if (window._lswUpdate) {
+        window._lswUpdate({ force: true, active: 2, l1Available: true, l2Available: true });
+    }
+
+    if (fnName) _dashFocusL2Node(rel, fnName, lineNo);
+    else _dashFocusCodePanel(rel, null, lineNo);
+}
+
 function _dashGoToGraphFile(filePath, funcName, line) {
     if (!filePath) return;
     const rel = String(filePath).replace(/\\/g, '/');
@@ -253,27 +280,9 @@ function _dashGoToGraphFile(filePath, funcName, line) {
 
     if (modId && typeof drillToModule === 'function') {
         drillToModule(modId, { focusFile: rel });
-        if (fnName) {
-            setTimeout(() => {
-                if (typeof openL2File === 'function') {
-                    document.getElementById('cy')?.classList.add('l2-view');
-                    if (typeof setL1ToolbarVisible === 'function') setL1ToolbarVisible(false);
-                    if (window.updateFilterTabEnabled) updateFilterTabEnabled();
-                    const ftWrap = document.getElementById('ft-filter');
-                    if (ftWrap) ftWrap.style.display = 'none';
-                    openL2File(rel, { newSession: true, pushHistory: true, focusFunc: fnName });
-                    if (typeof updateCallGraphBtn === 'function') updateCallGraphBtn(rel);
-                    _dashFocusL2Node(rel, fnName, lineNo);
-                } else if (typeof drillToFile === 'function') {
-                    drillToFile(rel);
-                    _dashFocusCodePanel(rel, fnName, lineNo);
-                }
-            }, 220);
-        } else {
-            _dashFocusCodePanel(rel, null, lineNo);
-        }
+        setTimeout(() => _dashOpenGraphFile(rel, fnName, lineNo), 220);
     } else {
-        _dashFocusCodePanel(rel, fnName || null, lineNo);
+        _dashOpenGraphFile(rel, fnName, lineNo);
     }
 }
 
