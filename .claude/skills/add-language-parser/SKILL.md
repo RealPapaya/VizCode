@@ -233,6 +233,25 @@ Required output before implementation:
 - Which canonical edge/symbol fields are used
 - Which language-specific details are stored as metadata instead of new primary types
 
+Required verification before shipping:
+
+- Run a graph-level test through `build_graph(...)`; parser-only tests are not enough.
+- Confirm L1 edge types actually appear in `file_edges_by_module` with a count delta, not only in parser `extra['edge_hints']`.
+- Confirm L3 edge types actually appear in `symbol_edges` with a count delta, not only in raw `symbol_defs`.
+- Confirm enriched L3 fields are visible in `symbol_index` (`signature`, `decorators`, `complexity`, `type_refs`, `bases`, `parent`) when the change claims to populate them.
+- When edge hints target files, create real target files in the fixture. The analyzer intentionally drops unresolved or ambiguous targets.
+- For path-like references, include at least one source-relative path case and one ambiguous-name suppression case if duplicate basenames/stems are possible.
+
+Example graph-level assertion shape:
+
+```python
+res = build_graph(str(tmp_path))
+l1_types = {e.get('type') for edges in res['file_edges_by_module'].values() for e in edges}
+l3_types = {e.get('type') for e in res.get('symbol_edges', [])}
+assert {'asset_ref', 'config_ref'} <= l1_types
+assert {'type_usage', 'implements'} <= l3_types
+```
+
 ---
 
 ## Step 1: Add Import Patterns - `src/parsers/common_parser.py`
@@ -317,9 +336,18 @@ Examples:
 
 ---
 
-## Step 5: Update Frontend - `static/core/viz_constants.js`
+## Step 5: Update Frontend Visuals
 
-Only do this if a new file type key was added or the visual representation should be distinct.
+Do this whenever a parser or analyzer change introduces a new visible node type,
+file type key, edge type, symbol kind, or edge vocabulary that can reach the UI.
+
+Do not let new nodes render as the generic white/fallback style. VIZCODE graphs
+must remain visually scannable: distinct languages, schemas, configs, assets,
+and semantic edge types need distinct colors and shapes where practical.
+
+Primary L1/L2 file graph file:
+
+- `static/core/viz_constants.js`
 
 ### 5a. File extension color - `extColor()`
 
@@ -336,6 +364,54 @@ Add the display name.
 ### 5d. Legend entry - `LEGEND_NODES`
 
 Add the label/shape/color entry if the UI needs to show it.
+
+### 5e. Edge style - `EDGE_TYPE_STYLE` and `LEGEND_EDGES`
+
+If a new L1 edge type is introduced, add:
+
+- a non-fallback color
+- a line style (`solid`, `dashed`, or `dotted`)
+- a short label
+- a legend entry
+
+Existing canonical L1 enrichment edge types already have styles:
+
+- `asset_ref` - cyan dashed
+- `config_ref` - amber dashed
+
+If these appear white, gray, unlabeled, or indistinguishable from `import`, fix
+the frontend mapping before shipping.
+
+### 5f. L3 Symbol View style
+
+If a new L3 symbol edge type or symbol kind is introduced, update the Symbol View
+styling instead of relying on fallback colors:
+
+- `static/features/symbol_view/sv_core.js` for `_SV_EDGE_COLOR`
+- `static/features/symbol_view/sv_graph.js` for edge verbs / card metadata when needed
+- `static/features/symbol_view/symbol_view.css` if a new class needs distinct rendering
+
+Existing canonical L3 edge types should remain visually distinct:
+
+- `call`
+- `inheritance`
+- `implements`
+- `override`
+- `type_usage`
+- `member`
+
+When adding a symbol kind (for example `trait`, `record`, `module`, `typedef`),
+verify the card/header/badge does not render as a generic white fallback.
+
+### 5g. Visual verification
+
+Before shipping a visual change:
+
+- Run a sample project that actually emits the new node/edge types.
+- Inspect the graph data and the rendered UI.
+- Verify new L1 node borders/backgrounds use meaningful colors from `extColor()`.
+- Verify L1 and L3 edges use distinct colors/styles and appear in legends/filters.
+- Do not accept "all new nodes have white border" as a pass.
 
 ---
 
@@ -387,8 +463,22 @@ Before shipping a parser change, verify all of the following:
 3. **Regression test** - existing supported languages still work
 4. **UI sanity** - file type and legend remain correct if a frontend change was made
 5. **Graph sanity** - edge count changes match expectation and do not explode unexpectedly
+6. **L1 type assertion** - `file_edges_by_module` contains the expected new edge type(s)
+7. **L3 type assertion** - `symbol_edges` contains the expected new edge type(s)
+8. **Visual assertion** - new node/edge types are not using generic fallback colors or white-only borders
 
 If a change increases edges dramatically, inspect for false positives before merging.
+
+Do not claim enrichment succeeded based only on comments in a fixture, parser
+metadata, or expected labels in source code. The final check is the actual graph
+output.
+
+For demo fixtures, make references real:
+
+- If a Java/Rust file references `config.json`, `app.yaml`, or `index.html`, add that target file.
+- Avoid fixture paths that are ignored by project rules.
+- Avoid duplicate basenames unless the test is explicitly checking ambiguity suppression.
+- Prefer trusted file APIs (`new File("...")`, `Files.readString(Path.of("..."))`, `include_str!("...")`, `std::fs::read_to_string("...")`) over arbitrary string assignments. Plain strings should not create L1 edges.
 
 ---
 
@@ -424,5 +514,8 @@ When you finish, include:
 - Which source documented it
 - Which parser files changed
 - What adversarial cases were tested
+- Which L1 edge types increased, with counts or an exact fixture assertion
+- Which L3 edge types increased, with counts or an exact fixture assertion
+- Which frontend color/shape/legend mappings were checked or updated
 - Whether any edge resolution was intentionally skipped
 - Whether the change affects the frontend

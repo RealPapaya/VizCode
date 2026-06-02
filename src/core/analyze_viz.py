@@ -1678,6 +1678,10 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
 
     def resolve_ref(ref: str, src_dir: str = '') -> list:
         """Try to resolve a reference string to known rel_paths."""
+        if src_dir and ('/' in ref or '\\' in ref or '.' in ref):
+            candidate = os.path.normpath(os.path.join(src_dir, ref)).replace('\\', '/')
+            if candidate in file_meta:
+                return [candidate]
         # 1. Try exact basename first
         base = os.path.basename(ref)
         if base in label_to_paths:
@@ -1688,9 +1692,6 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             return stem_to_paths[stem]
         # 3. Try relative path from source directory
         if src_dir and ('/' in ref or '\\' in ref or '.' in ref):
-            candidate = os.path.normpath(os.path.join(src_dir, ref)).replace('\\', '/')
-            if candidate in file_meta:
-                return [candidate]
             # Try without extension
             cand_stem = Path(candidate).stem.lower()
             if cand_stem in stem_to_paths:
@@ -2125,7 +2126,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                    or (_sym_name_to_ids[base_name][0] if _sym_name_to_ids[base_name] else None))
             if tgt and tgt != sid:
                 tgt_kind = symbol_index[tgt].get('kind', '') if tgt in symbol_index else ''
-                edge_type = 'implements' if tgt_kind == 'interface' else 'inheritance'
+                edge_type = 'implements' if tgt_kind in ('interface', 'trait') else 'inheritance'
                 symbol_edges.append({'from': sid, 'to': tgt, 'type': edge_type, 'kind': _SYMBOL_KIND[edge_type]})
 
     # Override edges (child method overrides parent class method of same name)
@@ -2137,6 +2138,14 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         if sym.get('kind') not in ('method', 'function') or not sym.get('parent'):
             continue
         parent_class_id = _file_sym_key.get((sym['file'], sym['parent']))
+        if parent_class_id and symbol_index.get(parent_class_id, {}).get('kind') not in ('class', 'struct', 'interface', 'enum', 'record', 'trait', 'typedef'):
+            parent_class_id = None
+        if not parent_class_id:
+            for candidate_id in _sym_name_to_ids.get(sym['parent'], []):
+                c = symbol_index.get(candidate_id, {})
+                if c.get('file') == sym['file'] and c.get('kind') in ('class', 'struct', 'interface', 'enum', 'record', 'trait', 'typedef'):
+                    parent_class_id = candidate_id
+                    break
         if not parent_class_id:
             continue
         parent_sym = symbol_index.get(parent_class_id, {})

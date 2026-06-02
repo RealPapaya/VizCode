@@ -67,8 +67,17 @@ RE_RUST_IMPL = re.compile(
 RE_RUST_CALL = re.compile(r'\b([A-Za-z_]\w*)\s*\(')
 RE_RUST_MACRO = re.compile(r'\b([a-z_]\w*)\s*!(?!=)')
 RE_RUST_INCLUDE_MACRO = re.compile(r'\b(include_str|include_bytes|include)\s*!\s*\(')
+RE_RUST_REF_CALL = re.compile(r'\b(?:[A-Za-z_]\w*::)*(?P<call>[A-Za-z_]\w*)\s*\(')
 
 _RE_RUST_BRANCH_KW = re.compile(r'\b(?:if|while|for|loop|match)\b')
+_RE_RUST_IDENT = re.compile(r'[A-Za-z_]\w*')
+
+RUST_TYPE_BUILTINS = frozenset({
+    'Self', 'Box', 'Vec', 'String', 'str', 'Option', 'Result', 'HashMap',
+    'BTreeMap', 'HashSet', 'BTreeSet', 'Cow', 'Arc', 'Rc', 'RefCell',
+    'Cell', 'Pin', 'PhantomData', 'Error', 'Duration', 'Path', 'PathBuf',
+    'OsStr', 'OsString',
+})
 
 
 def _ident_char(ch: str) -> bool:
@@ -217,6 +226,10 @@ def _line_no(src: str, idx: int) -> int:
 
 
 _RUST_CONFIG_EXTS = {'.rs', '.toml', '.json', '.yaml', '.yml'}
+_RUST_ASSET_EXTS = {'.html', '.htm', '.css', '.scss', '.sass', '.less', '.svg',
+                    '.png', '.jpg', '.jpeg', '.gif', '.csv', '.sql', '.xml',
+                    '.txt'}
+_RUST_FILE_CALLERS = {'read_to_string', 'read', 'open'}
 
 
 def _clean_local_path(path: str):
@@ -286,6 +299,15 @@ def _hint(edge_type: str, target: str, subtype: str, via: str, line: int) -> dic
     }
 
 
+def _classify_file_ref(ref: str) -> str | None:
+    ext = _path_ext(ref)
+    if ext in _RUST_CONFIG_EXTS:
+        return 'config_ref'
+    if ext in _RUST_ASSET_EXTS:
+        return 'asset_ref'
+    return None
+
+
 def _parse_include_edge_hints(src: str) -> list:
     hints = []
     n = len(src)
@@ -311,6 +333,33 @@ def _parse_include_edge_hints(src: str) -> list:
     return list(deduped.values())
 
 
+def _parse_file_edge_hints(src: str, masked_full: str) -> list:
+    hints = []
+    n = len(src)
+    for m in RE_RUST_REF_CALL.finditer(src):
+        call = m.group('call')
+        if call not in _RUST_FILE_CALLERS:
+            continue
+        cs = m.start('call')
+        if masked_full[cs:cs + len(call)] != call:
+            continue
+        i = m.end()
+        while i < n and src[i].isspace():
+            i += 1
+        raw, _end = _parse_rust_string_literal(src, i)
+        ref = _clean_local_path(raw or '')
+        if not ref:
+            continue
+        etype = _classify_file_ref(ref)
+        if not etype:
+            continue
+        hints.append(_hint(etype, ref, 'file_io', call, _line_no(src, m.start())))
+    deduped = {}
+    for hint in hints:
+        deduped[(hint['type'], hint['target'], hint['via'], hint['line'])] = hint
+    return list(deduped.values())
+
+
 def _brace_range(src: str, open_idx: int) -> int:
     if open_idx < 0 or open_idx >= len(src) or src[open_idx] != '{':
         return open_idx
@@ -324,6 +373,13 @@ def _brace_range(src: str, open_idx: int) -> int:
             if depth == 0:
                 return i + 1
     return len(src)
+
+
+def _brace_body(src: str, open_idx: int) -> str:
+    end = _brace_range(src, open_idx)
+    if end <= open_idx:
+        return ''
+    return src[open_idx + 1:end - 1]
 
 
 def _body_open_after(src: str, start: int) -> int:
@@ -454,6 +510,190 @@ def _count_complexity(body: str) -> int:
     return count
 
 
+def _match_paren(src: str, open_idx: int) -> int:
+    if open_idx < 0 or open_idx >= len(src) or src[open_idx] != '(':
+        return -1
+    depth = 0
+    for i in range(open_idx, len(src)):
+        if src[i] == '(':
+            depth += 1
+        elif src[i] == ')':
+            depth -= 1
+            if depth == 0:
+                return i
+    return -1
+
+
+def _item_body_open(src: str, start: int) -> int:
+    depth_angle = 0
+    depth_paren = 0
+    i = start
+    while i < len(src):
+        c = src[i]
+        if c == '<':
+            depth_angle += 1
+        elif c == '>':
+            depth_angle = max(0, depth_angle - 1)
+        elif c == '(':
+            depth_paren += 1
+        elif c == ')':
+            depth_paren = max(0, depth_paren - 1)
+        elif c == '{' and depth_angle == 0 and depth_paren == 0:
+            return i
+        elif c == ';' and depth_angle == 0 and depth_paren == 0:
+            return -1
+        i += 1
+    return -1
+
+
+def _split_commas_top_level(text: str) -> list:
+    parts = []
+    buf = []
+    depth_angle = depth_paren = depth_bracket = 0
+    for ch in text:
+        if ch == '<':
+            depth_angle += 1
+        elif ch == '>':
+            depth_angle = max(0, depth_angle - 1)
+        elif ch == '(':
+            depth_paren += 1
+        elif ch == ')':
+            depth_paren = max(0, depth_paren - 1)
+        elif ch == '[':
+            depth_bracket += 1
+        elif ch == ']':
+            depth_bracket = max(0, depth_bracket - 1)
+        if ch == ',' and depth_angle == depth_paren == depth_bracket == 0:
+            parts.append(''.join(buf))
+            buf = []
+        else:
+            buf.append(ch)
+    if buf:
+        parts.append(''.join(buf))
+    return parts
+
+
+def _filter_type_refs(names) -> list:
+    out = []
+    for name in sorted(set(names)):
+        if not name or len(name) < 3 or not name[0].isupper():
+            continue
+        if name in RUST_TYPE_BUILTINS or name in RUST_KEYWORDS:
+            continue
+        out.append(name)
+    return out
+
+
+def _collect_type_names(type_src: str, out: set) -> None:
+    if not type_src:
+        return
+    cleaned = re.sub(r"'[A-Za-z_]\w*", ' ', type_src)
+    cleaned = re.sub(r'\b(?:mut|ref|dyn|impl|where|for|const|pub)\b', ' ', cleaned)
+    for ident in _RE_RUST_IDENT.findall(cleaned):
+        if ident in RUST_KEYWORDS:
+            continue
+        out.add(ident.split('::')[-1])
+
+
+def _extract_signature(clean: str, paren_open_idx: int):
+    type_names = set()
+    params_close = _match_paren(clean, paren_open_idx)
+    if params_close == -1:
+        return '', type_names
+    params_src = clean[paren_open_idx + 1:params_close]
+    body_open = _body_open_after(clean, params_close)
+    semi = clean.find(';', params_close)
+    end = body_open if body_open != -1 else semi
+    if end == -1:
+        end = clean.find('\n', params_close)
+    if end == -1:
+        end = len(clean)
+    result_src = clean[params_close + 1:end].strip()
+    result_src = result_src.split('where')[0].strip()
+    if result_src.startswith('->'):
+        result_type = result_src[2:].strip()
+    else:
+        result_type = ''
+
+    for part in _split_commas_top_level(params_src):
+        part = part.strip()
+        if not part or part in ('self', '&self', '&mut self'):
+            continue
+        part = re.sub(r'#\s*\[[^\]]*\]\s*', '', part)
+        if ':' in part:
+            _collect_type_names(part.split(':', 1)[1], type_names)
+        else:
+            _collect_type_names(part, type_names)
+    _collect_type_names(result_type, type_names)
+
+    sig = f"({' '.join(params_src.split())})"
+    if result_type:
+        sig += ' -> ' + ' '.join(result_type.split())
+    return sig, type_names
+
+
+def _decorators_before(masked: str, decl_start: int) -> list:
+    line_start = masked.rfind('\n', 0, decl_start) + 1
+    names = []
+    cursor = line_start
+    while cursor > 0:
+        prev_line_start = masked.rfind('\n', 0, cursor - 1) + 1
+        line = masked[prev_line_start:cursor - 1]
+        stripped = line.strip()
+        if not stripped:
+            cursor = prev_line_start
+            continue
+        if not (stripped.startswith('#[') and stripped.endswith(']')):
+            break
+        body = stripped[2:-1].strip()
+        name = body.split('(', 1)[0].split('=', 1)[0].strip()
+        name = name.split('::')[-1]
+        if name and name not in RUST_KEYWORDS:
+            names.insert(0, name)
+        cursor = prev_line_start
+    return list(dict.fromkeys(names))
+
+
+def _struct_type_refs(clean: str, start: int, open_idx: int) -> list:
+    names = set()
+    if open_idx != -1:
+        body = _brace_body(clean, open_idx)
+        for line in body.splitlines():
+            line = line.split('//', 1)[0].strip().rstrip(',')
+            if not line or line.startswith('#['):
+                continue
+            if ':' in line:
+                _collect_type_names(line.split(':', 1)[1], names)
+        return _filter_type_refs(names)
+    semi = clean.find(';', start)
+    header = clean[start:semi] if semi != -1 else clean[start:]
+    paren = header.find('(')
+    if paren != -1:
+        close = _match_paren(header, paren)
+        fields = header[paren + 1:close if close != -1 else len(header)]
+        for part in _split_commas_top_level(fields):
+            _collect_type_names(part, names)
+    return _filter_type_refs(names)
+
+
+def _enum_type_refs(clean: str, open_idx: int) -> list:
+    names = set()
+    if open_idx == -1:
+        return []
+    body = _brace_body(clean, open_idx)
+    for line in body.splitlines():
+        line = line.strip().rstrip(',')
+        if not line or line.startswith('#['):
+            continue
+        if '(' in line:
+            start = line.find('(')
+            end = _match_paren(line, start)
+            _collect_type_names(line[start + 1:end if end != -1 else len(line)], names)
+        elif '{' in line and '}' in line:
+            _collect_type_names(line[line.find('{') + 1:line.rfind('}')], names)
+    return _filter_type_refs(names)
+
+
 def _trait_bases(rest: str) -> list:
     rest = rest.strip()
     if not rest.startswith(':'):
@@ -489,22 +729,23 @@ def _scan_doc_lines(src: str) -> dict:
 
 
 def _parse_impl_ranges(src: str, clean: str):
-    """Return list of (start, end, type_name) for impl blocks."""
+    """Return list of (start, end, type_name, trait_name) for impl blocks."""
     ranges = []
     for m in RE_RUST_IMPL.finditer(clean):
         type_name = m.group('type').split('::')[-1]
+        trait_name = (m.group('trait') or '').split('::')[-1]
         open_idx = clean.find('{', m.end())
         if open_idx == -1:
             continue
         end = _brace_range(clean, open_idx)
-        ranges.append((m.start(), end, type_name))
+        ranges.append((m.start(), end, type_name, trait_name))
     return ranges
 
 
 def _enclosing_impl(ranges: list, idx: int) -> str | None:
     best = None
     best_span = None
-    for start, end, name in ranges:
+    for start, end, name, _trait in ranges:
         if start <= idx < end:
             span = end - start
             if best_span is None or span < best_span:
@@ -528,7 +769,7 @@ def scan_rust(src: str, ext: str = '.rs') -> tuple:
     symbol_defs = []
     type_name_starts = set()
 
-    def add_type(kind, name, start, end_idx, bases=None):
+    def add_type(kind, name, start, end_idx, bases=None, type_refs=None):
         line_no = _line_no(src, start)
         symbol_defs.append({
             'kind': kind,
@@ -539,22 +780,27 @@ def scan_rust(src: str, ext: str = '.rs') -> tuple:
             'parent': None,
             'is_public': _is_pub(clean, start),
             'doc': _doc_above(src, line_no, doc_lines),
+            'decorators': _decorators_before(clean, start),
+            'type_refs': type_refs or [],
         })
 
     for m in RE_RUST_STRUCT.finditer(clean):
-        open_idx = clean.find('{', m.end())
+        open_idx = _item_body_open(clean, m.end())
         end = _brace_range(clean, open_idx) if open_idx != -1 else m.end()
-        add_type('struct', m.group(1), m.start(), end)
+        add_type('struct', m.group(1), m.start(), end,
+                 type_refs=_struct_type_refs(clean, m.start(), open_idx))
         type_name_starts.add(m.start(1))
     for m in RE_RUST_ENUM.finditer(clean):
-        open_idx = clean.find('{', m.end())
+        open_idx = _item_body_open(clean, m.end())
         end = _brace_range(clean, open_idx) if open_idx != -1 else m.end()
-        add_type('enum', m.group(1), m.start(), end)
+        add_type('enum', m.group(1), m.start(), end,
+                 type_refs=_enum_type_refs(clean, open_idx))
         type_name_starts.add(m.start(1))
     for m in RE_RUST_UNION.finditer(clean):
-        open_idx = clean.find('{', m.end())
+        open_idx = _item_body_open(clean, m.end())
         end = _brace_range(clean, open_idx) if open_idx != -1 else m.end()
-        add_type('union', m.group(1), m.start(), end)
+        add_type('union', m.group(1), m.start(), end,
+                 type_refs=_struct_type_refs(clean, m.start(), open_idx))
         type_name_starts.add(m.start(1))
     for m in RE_RUST_TRAIT.finditer(clean):
         open_idx = clean.find('{', m.end() - 1)
@@ -565,6 +811,8 @@ def scan_rust(src: str, ext: str = '.rs') -> tuple:
         target = m.group(2).strip().split('::')[-1].split('<')[0].strip()
         line_no = _line_no(src, m.start())
         type_name_starts.add(m.start(1))
+        alias_type_names = set()
+        _collect_type_names(m.group(2), alias_type_names)
         symbol_defs.append({
             'kind': 'typedef',
             'name': m.group(1),
@@ -574,11 +822,21 @@ def scan_rust(src: str, ext: str = '.rs') -> tuple:
             'parent': None,
             'is_public': _is_pub(clean, m.start()),
             'doc': _doc_above(src, line_no, doc_lines),
+            'decorators': _decorators_before(clean, m.start()),
+            'type_refs': _filter_type_refs(alias_type_names),
         })
     for m in RE_RUST_MOD_INLINE.finditer(clean):
         open_idx = clean.find('{', m.end() - 1)
         end = _brace_range(clean, open_idx) if open_idx != -1 else m.end()
         add_type('module', m.group(1), m.start(), end)
+
+    symbol_by_name = {s['name']: s for s in symbol_defs if s.get('kind') in ('struct', 'enum', 'union', 'typedef')}
+    for _start, _end, type_name, trait_name in impl_ranges:
+        if not trait_name or trait_name in RUST_KEYWORDS:
+            continue
+        target = symbol_by_name.get(type_name)
+        if target and trait_name not in target['bases']:
+            target['bases'].append(trait_name)
 
     # Functions / methods.
     funcdefs = []
@@ -607,6 +865,7 @@ def scan_rust(src: str, ext: str = '.rs') -> tuple:
             end_line = line_no
         calls = _extract_calls(body)
         is_public = _is_pub(clean, start)
+        signature, type_names = _extract_signature(clean, m.end() - 1)
 
         funcdefs.append({
             'label': name,
@@ -625,6 +884,9 @@ def scan_rust(src: str, ext: str = '.rs') -> tuple:
             'is_public': is_public,
             'doc': _doc_above(src, line_no, doc_lines),
             'complexity': _count_complexity(body),
+            'decorators': _decorators_before(clean, m.start()),
+            'signature': signature,
+            'type_refs': _filter_type_refs(type_names),
         })
 
     all_calls = _extract_calls(clean, decl_name_starts | type_name_starts)
@@ -642,6 +904,7 @@ def scan_rust(src: str, ext: str = '.rs') -> tuple:
     if docstrings:
         extra['docstrings'] = docstrings
     edge_hints = _parse_include_edge_hints(import_src)
+    edge_hints += _parse_file_edge_hints(import_src, clean)
     if edge_hints:
         extra['edge_hints'] = edge_hints
 

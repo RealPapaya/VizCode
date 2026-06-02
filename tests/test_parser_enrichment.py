@@ -150,6 +150,76 @@ def test_csharp_enrichment(tmp_path):
     assert _field_present(res, 'decorators')
 
 
+# ── Batch 1 positive: Java / Rust ─────────────────────────────────────────────
+
+def test_java_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'Types.java': (
+            'public class Base {\n'
+            '    public Settings run(Request req) { return new Settings(); }\n'
+            '}\n'
+            'interface Store {}\n'
+            'class Settings {}\n'
+            'class Request {}\n'
+        ),
+        'Engine.java': (
+            'import java.nio.file.Files;\n'
+            'import java.nio.file.Path;\n'
+            '@Deprecated\n'
+            'public class Engine extends Base implements Store {\n'
+            '    private Settings settings;\n'
+            '    public Engine(Request req) {}\n'
+            '    @Override\n'
+            '    public Settings run(Request req) throws ServiceException {\n'
+            '        var local = new File("conf/local.json");\n'
+            '        var cfg = Files.readString(Path.of("conf/app.json"));\n'
+            '        var page = getClass().getResourceAsStream("template.html");\n'
+            '        return new Settings();\n'
+            '    }\n'
+            '}\n'
+            'class ServiceException extends Exception {}\n'
+        ),
+        'conf/local.json': '{}\n',
+        'conf/app.json': '{}\n',
+        'template.html': '<html></html>\n',
+    })
+    assert {'inheritance', 'implements', 'override', 'type_usage'} <= _sym_edge_types(res)
+    assert {'config_ref', 'asset_ref'} <= _file_edge_types(res)
+    assert _field_present(res, 'decorators')
+    assert _field_present(res, 'signature')
+
+
+def test_rust_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'lib.rs': (
+            'pub trait Store {\n'
+            '    fn save(&self, req: Request) -> Settings;\n'
+            '}\n'
+            'pub struct Request {}\n'
+            'pub struct Settings {}\n'
+            '#[derive(Debug)]\n'
+            'pub struct Engine {\n'
+            '    req: Request,\n'
+            '    settings: Settings,\n'
+            '}\n'
+            'impl Store for Engine {\n'
+            '    #[inline]\n'
+            '    pub fn save(&self, req: Request) -> Settings {\n'
+            '        let _cfg = std::fs::read_to_string("config/app.yaml").unwrap();\n'
+            '        let _template = include_str!("template.html");\n'
+            '        Settings {}\n'
+            '    }\n'
+            '}\n'
+        ),
+        'config/app.yaml': 'name: demo\n',
+        'template.html': '<html></html>\n',
+    })
+    assert {'implements', 'type_usage'} <= _sym_edge_types(res)
+    assert {'asset_ref', 'config_ref'} <= _file_edge_types(res)
+    assert _field_present(res, 'decorators')
+    assert _field_present(res, 'signature')
+
+
 # ── Adversarial: must produce NO bogus edges ──────────────────────────────────
 
 def test_adversarial_ambiguous_type_no_type_usage(tmp_path):
@@ -215,6 +285,41 @@ def test_adversarial_go_structural_interface_no_implements(tmp_path):
     })
     imp = [e for e in (res.get('symbol_edges') or []) if e['type'] == 'implements']
     assert imp == [], 'Go structural interface satisfaction must not create implements edges'
+
+
+# ── Batch 1 adversarial: Java / Rust ──────────────────────────────────────────
+
+def test_adversarial_java_comments_strings_builtins():
+    """Java edge/type hints: real calls detected; comments + in-string calls ignored."""
+    from parsers.java_parser import scan_java
+    src = (
+        'class Engine {\n'
+        '  String name;\n'
+        '  void run(int n, String s) throws Exception {\n'
+        '    var cfg = java.nio.file.Path.of("app.json");\n'
+        '    // var hidden = Path.of("hidden.json");\n'
+        '    var fake = "Path.of(\\"inside.json\\")";\n'
+        '  }\n'
+        '}\n'
+    )
+    _imports, _funcdefs, _calls, extra, _by_func, symbols = scan_java(src)
+    targets = {h['target'] for h in (extra.get('edge_hints') or [])}
+    assert 'app.json' in targets
+    assert 'hidden.json' not in targets
+    assert 'inside.json' not in targets
+    refs = {r for s in symbols for r in (s.get('type_refs') or [])}
+    assert 'String' not in refs and 'Exception' not in refs
+
+
+def test_adversarial_rust_cross_file_impl_no_synthetic_type(tmp_path):
+    res = _build(tmp_path, {
+        'traits.rs': 'pub trait Store {}\n',
+        'impls.rs': 'use crate::traits::Store;\nimpl Store for Engine {}\n',
+    })
+    names = [s.get('name') for s in (res.get('symbol_index') or {}).values()]
+    assert 'Engine' not in names, 'cross-file impl must not synthesize a type symbol'
+    imp = [e for e in (res.get('symbol_edges') or []) if e['type'] == 'implements']
+    assert imp == []
 
 
 # ── Edge-count delta / explosion guard ────────────────────────────────────────

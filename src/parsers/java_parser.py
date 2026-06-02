@@ -60,12 +60,12 @@ _JAVA_RET_SKIP = {
 # Method declaration: requires an explicit return type before the name, which
 # keeps control-flow constructs (if/while/for) and plain calls out.
 RE_JAVA_METHOD = re.compile(
-    r'(?P<mods>(?:' + _JAVA_MODIFIERS + r'\s+)*)'
+    r'^[ \t]*(?P<mods>(?:' + _JAVA_MODIFIERS + r'\s+)*)'
     r'(?:<[^>{};]+>\s*)?'
     r'(?P<ret>[\w$][\w$.<>\[\],?\s]*?\s+)'
     r'(?P<name>[\w$]+)\s*'
     r'\((?P<params>[^;{}]*?)\)\s*'
-    r'(?:throws\s[\w$.,\s]+?)?'
+    r'(?:throws\s+(?P<throws>[\w$.,\s]+?))?'
     r'(?P<term>[{;])',
     re.MULTILINE,
 )
@@ -73,10 +73,10 @@ RE_JAVA_METHOD = re.compile(
 # Constructor: visibility modifier + Capitalized name + '(' + body. Gated on the
 # name actually being a type defined in the file.
 RE_JAVA_CTOR = re.compile(
-    r'(?:public|private|protected)\s+'
+    r'^[ \t]*(?P<mods>(?:public|private|protected)\s+)'
     r'(?P<name>[A-Z][\w$]*)\s*'
-    r'\([^;{}]*\)\s*'
-    r'(?:throws\s[\w$.,\s]+?)?'
+    r'\((?P<params>[^;{}]*)\)\s*'
+    r'(?:throws\s+(?P<throws>[\w$.,\s]+?))?'
     r'\{',
     re.MULTILINE,
 )
@@ -94,19 +94,44 @@ RE_JAVA_TYPE = re.compile(
     r'(?P<kind>class|interface|enum|record|@interface)\s+'
     r'(?P<name>[\w$]+)'
     r'(?:\s*<[^>{]*>)?'                       # generic params
-    r'(?:\s*\([^)]*\))?'                      # record header
+    r'(?P<header>\s*\([^)]*\))?'              # record header
     r'(?P<rest>[^{;]*)'                       # extends/implements clause
     r'[{;]',
     re.MULTILINE,
 )
 
 RE_JAVA_CALL = re.compile(r'\b([A-Za-z_$][\w$]*)\s*\(')
+RE_JAVA_REF_CALL = re.compile(
+    r'\b(?P<call>[A-Za-z_$][\w$]*)\s*\(\s*"(?P<path>(?:[^"\\\r\n]|\\.)+)"'
+)
 
 # Identifiers that look like calls but are statements / operators.
 _JAVA_CALL_SKIP = JAVA_KEYWORDS | {'value', 'get', 'set'}
 
 _RE_JAVA_STRINGS = re.compile(r'"(?:[^"\\]|\\.)*"', re.DOTALL)
 _RE_JAVA_BRANCH_KW = re.compile(r'\b(?:if|for|while|case|catch)\b')
+_RE_JAVA_ANNOTATION = re.compile(r'@\s*([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)')
+_RE_JAVA_IDENT = re.compile(r'[A-Za-z_$][\w$]*')
+
+JAVA_TYPE_BUILTINS = frozenset({
+    'boolean', 'byte', 'char', 'double', 'float', 'int', 'long', 'short',
+    'void', 'var', 'String', 'Object', 'Class', 'Enum', 'Record', 'Integer',
+    'Long', 'Short', 'Byte', 'Boolean', 'Character', 'Double', 'Float',
+    'Number', 'Iterable', 'Collection', 'List', 'ArrayList', 'LinkedList',
+    'Set', 'HashSet', 'Map', 'HashMap', 'Optional', 'Stream', 'Iterator',
+    'Path', 'File', 'URI', 'URL', 'InputStream', 'OutputStream', 'Reader',
+    'Writer', 'Exception', 'RuntimeException', 'Throwable', 'Error',
+})
+
+_CONFIG_EXTS = {'.json', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf',
+                '.properties', '.xml', '.env'}
+_ASSET_EXTS = {'.html', '.htm', '.css', '.scss', '.sass', '.less', '.svg',
+               '.png', '.jpg', '.jpeg', '.gif', '.csv', '.sql', '.txt'}
+_JAVA_ASSET_CALLERS = {
+    'getResource', 'getResourceAsStream', 'newInputStream', 'newOutputStream',
+    'readString', 'readAllBytes', 'readAllLines', 'lines', 'of',
+    'File',
+}
 
 
 def _mask_java_source(src: str, mask_literals: bool = False) -> str:
@@ -294,6 +319,162 @@ def _count_complexity(body: str) -> int:
     return count
 
 
+def _classify_ref(ref: str) -> str | None:
+    base = (ref or '').split('?')[0].split('#')[0].strip()
+    if not base or '\n' in base:
+        return None
+    dot = base.rfind('.')
+    if dot < 0:
+        return None
+    ext = base[dot:].lower()
+    if ext in _CONFIG_EXTS:
+        return 'config_ref'
+    if ext in _ASSET_EXTS:
+        return 'asset_ref'
+    return None
+
+
+def _filter_type_refs(names) -> list:
+    out = []
+    for name in sorted(set(names)):
+        if not name or len(name) < 3 or not name[0].isupper():
+            continue
+        if name in JAVA_TYPE_BUILTINS:
+            continue
+        out.append(name)
+    return out
+
+
+def _collect_type_names(type_src: str, out: set) -> None:
+    if not type_src:
+        return
+    cleaned = re.sub(r'@\s*[A-Za-z_$][\w$.]*(?:\([^)]*\))?', ' ', type_src)
+    cleaned = re.sub(r'\b(?:extends|super)\b', ' ', cleaned)
+    for ident in _RE_JAVA_IDENT.findall(cleaned):
+        if ident in JAVA_KEYWORDS:
+            continue
+        out.add(ident.split('.')[-1])
+
+
+def _param_type_names(params: str, out: set) -> None:
+    if not params:
+        return
+    for raw in params.split(','):
+        part = raw.strip()
+        if not part:
+            continue
+        part = part.split('=')[0].strip()
+        part = re.sub(r'^(?:final\s+|@\s*[A-Za-z_$][\w$.]*(?:\([^)]*\))?\s+)*', '', part)
+        depth = 0
+        split_at = -1
+        for idx, ch in enumerate(part):
+            if ch == '<':
+                depth += 1
+            elif ch == '>':
+                depth = max(0, depth - 1)
+            elif ch.isspace() and depth == 0:
+                split_at = idx
+        type_src = part[:split_at] if split_at != -1 else part
+        type_src = type_src.rstrip('.')
+        _collect_type_names(type_src, out)
+
+
+def _signature(ret: str, params: str, is_ctor: bool = False) -> str:
+    param_src = ' '.join((params or '').split())
+    sig = f'({param_src})'
+    ret_src = ' '.join((ret or '').split()).strip()
+    if ret_src and not is_ctor and ret_src != 'void':
+        sig += f' -> {ret_src}'
+    return sig
+
+
+def _decorators_before(masked: str, decl_start: int) -> list:
+    line_start = masked.rfind('\n', 0, decl_start) + 1
+    names = []
+    cursor = line_start
+    while cursor > 0:
+        prev_line_start = masked.rfind('\n', 0, cursor - 1) + 1
+        line = masked[prev_line_start:cursor - 1]
+        stripped = line.strip()
+        if not stripped:
+            cursor = prev_line_start
+            continue
+        remainder = _RE_JAVA_ANNOTATION.sub('', line).strip()
+        if remainder:
+            break
+        block_names = []
+        for m in _RE_JAVA_ANNOTATION.finditer(line):
+            name = m.group(1).split('.')[-1]
+            if name and name not in JAVA_KEYWORDS:
+                block_names.append(name)
+        names = block_names + names
+        cursor = prev_line_start
+    return list(dict.fromkeys(names))
+
+
+def _top_level_member_lines(body: str) -> list:
+    lines = []
+    depth = 0
+    buf = []
+    for ch in body:
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth = max(0, depth - 1)
+        if ch == '\n':
+            if depth == 0 and buf:
+                lines.append(''.join(buf))
+            buf = []
+        elif depth == 0:
+            buf.append(ch)
+    if buf:
+        lines.append(''.join(buf))
+    return lines
+
+
+def _type_member_type_refs(clean: str, open_idx: int, end_idx: int, header: str) -> list:
+    names = set()
+    if header:
+        _param_type_names(header.strip()[1:-1], names)
+    if open_idx != -1 and end_idx > open_idx:
+        body = clean[open_idx + 1:end_idx - 1]
+        for line in _top_level_member_lines(body):
+            stripped = line.strip()
+            if not stripped or '(' in stripped or not stripped.endswith(';'):
+                continue
+            stripped = stripped.split('=')[0].strip()
+            stripped = re.sub(r'^(?:public|private|protected|static|final|transient|volatile)\s+', '', stripped)
+            parts = stripped.split()
+            if len(parts) < 2:
+                continue
+            _collect_type_names(parts[0], names)
+    return _filter_type_refs(names)
+
+
+def _edge_hints(masked_code: str, masked_full: str) -> list:
+    hints = []
+    for m in RE_JAVA_REF_CALL.finditer(masked_code):
+        call = m.group('call')
+        if call not in _JAVA_ASSET_CALLERS:
+            continue
+        cs = m.start('call')
+        if masked_full[cs:cs + len(call)] != call:
+            continue
+        path = m.group('path').replace('\\"', '"').strip()
+        etype = _classify_ref(path)
+        if not etype:
+            continue
+        hints.append({
+            'type': etype,
+            'target': path,
+            'via': call,
+            'line': _line_no(masked_code, m.start()),
+            'origin': 'parser',
+            'confidence': 'high',
+        })
+    return hints
+
+
 def _scan_block_comments(src: str) -> dict:
     """Map a declaration's preceding-line number -> javadoc/line-comment text.
 
@@ -371,6 +552,7 @@ def _parse_types(src: str, clean: str):
         else:
             end_idx = _brace_range(clean, open_idx)
         end_line = _line_no(src, max(m.start('name'), end_idx - 1))
+        header = m.group('header') or ''
         symbols.append({
             'kind': kind,
             'name': name,
@@ -380,6 +562,8 @@ def _parse_types(src: str, clean: str):
             'parent': None,
             'is_public': 'public' in m.group(0),
             'doc': None,
+            'decorators': _decorators_before(clean, m.start('name')),
+            'type_refs': _type_member_type_refs(clean, open_idx, end_idx, header),
         })
         ranges.append((m.start('name'), end_idx, name))
     return symbols, ranges
@@ -420,7 +604,7 @@ def scan_java(src: str, ext: str = '.java') -> tuple:
     decl_name_starts = set()
     seen = set()
 
-    def add_method(name, start_idx, mods, body_open, is_ctor=False):
+    def add_method(name, start_idx, mods, body_open, params='', ret='', throws='', is_ctor=False):
         line_no = _line_no(src, start_idx)
         key = (name, line_no)
         if key in seen:
@@ -436,6 +620,11 @@ def scan_java(src: str, ext: str = '.java') -> tuple:
             body = ''
             end_line = line_no
         calls = _extract_calls(body)
+        type_names = set()
+        _param_type_names(params, type_names)
+        if ret and not is_ctor:
+            _collect_type_names(ret, type_names)
+        _collect_type_names(throws or '', type_names)
         funcdefs.append({
             'label': name,
             'is_efiapi': False,
@@ -452,6 +641,9 @@ def scan_java(src: str, ext: str = '.java') -> tuple:
             'is_public': is_public,
             'doc': docs.get(line_no - 1),
             'complexity': _count_complexity(body),
+            'decorators': _decorators_before(clean, start_idx),
+            'signature': _signature(ret, params, is_ctor=is_ctor),
+            'type_refs': _filter_type_refs(type_names),
         })
 
     for m in RE_JAVA_METHOD.finditer(clean):
@@ -462,14 +654,24 @@ def scan_java(src: str, ext: str = '.java') -> tuple:
         if ret_first in _JAVA_RET_SKIP:
             continue
         body_open = m.end() - 1 if m.group('term') == '{' else -1
-        add_method(name, m.start('name'), m.group('mods'), body_open)
+        add_method(
+            name, m.start('name'), m.group('mods'), body_open,
+            params=m.group('params') or '',
+            ret=m.group('ret') or '',
+            throws=m.group('throws') or '',
+        )
 
     for m in RE_JAVA_CTOR.finditer(clean):
         name = m.group('name')
         if name not in type_names:
             continue
         body_open = m.end() - 1
-        add_method(name, m.start('name'), m.group(0), body_open, is_ctor=True)
+        add_method(
+            name, m.start('name'), m.group('mods'), body_open,
+            params=m.group('params') or '',
+            throws=m.group('throws') or '',
+            is_ctor=True,
+        )
 
     for start, _end, _name in type_ranges:
         decl_name_starts.add(start)
@@ -490,5 +692,8 @@ def scan_java(src: str, ext: str = '.java') -> tuple:
     }
     if docstrings:
         extra['docstrings'] = docstrings
+    edge_hints = _edge_hints(import_src, clean)
+    if edge_hints:
+        extra['edge_hints'] = edge_hints
 
     return imports, funcdefs, all_calls, extra, func_calls_by_func, symbol_defs
