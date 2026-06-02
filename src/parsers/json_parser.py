@@ -15,6 +15,7 @@ Returns the standard VIZCODE parser 6-tuple:
 import re
 import json as json_lib
 
+_JSON_SCHEMA_KEYS = {'schema', 'schemaFile'}
 _JSON_CONFIG_KEYS = {
     'file', 'schema', 'schemaFile', 'config', 'configFile', 'template',
     'templateFile', 'values', 'valuesFile',
@@ -52,9 +53,10 @@ def _local_config_ref(value: str):
     return None
 
 
-def _hint(target: str, via: str, line: int, subtype: str = 'json') -> dict:
+def _hint(target: str, via: str, line: int, subtype: str = 'json',
+          edge_type: str = 'config_ref') -> dict:
     hint = {
-        'type': 'config_ref',
+        'type': edge_type,
         'target': target,
         'subtype': subtype,
         'via': via,
@@ -74,7 +76,7 @@ def _walk_config_refs(value, path=''):
                 if key in _JSON_CONFIG_KEYS:
                     ref = _local_config_ref(child)
                     if ref:
-                        refs.append((ref, child_path, child))
+                        refs.append((ref, child_path, child, key))
             else:
                 refs.extend(_walk_config_refs(child, child_path))
     elif isinstance(value, list):
@@ -141,11 +143,13 @@ def scan_json(src, ext):
                 imports.append(('reference', ref_path, 0))
                 target = _local_config_ref(ref_path)
                 if target:
-                    edge_hints.append(_hint(target, '$ref', _line_no(src, match.start()), 'schema'))
+                    edge_hints.append(_hint(target, '$ref', _line_no(src, match.start()), 'schema', 'schema_ref'))
         
         # ── Store package metadata ─────────────────────────────────────────
-        for target, via, raw_value in _walk_config_refs(data):
-            edge_hints.append(_hint(target, via, _line_for_value(src, raw_value)))
+        for target, via, raw_value, key in _walk_config_refs(data):
+            edge_type = 'schema_ref' if key in _JSON_SCHEMA_KEYS else 'config_ref'
+            subtype = 'schema' if edge_type == 'schema_ref' else 'json'
+            edge_hints.append(_hint(target, via, _line_for_value(src, raw_value), subtype, edge_type))
 
         if 'name' in data:
             extra_dict['package_name'] = data['name']
@@ -164,7 +168,7 @@ def scan_json(src, ext):
     if edge_hints:
         deduped = {}
         for hint in edge_hints:
-            deduped[(hint['target'], hint['via'], hint.get('line', 0))] = hint
+            deduped[(hint['type'], hint['target'], hint['via'], hint.get('line', 0))] = hint
         extra_dict['edge_hints'] = list(deduped.values())
 
     # JSON files don't have functions or calls in the traditional sense

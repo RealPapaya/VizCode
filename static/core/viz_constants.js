@@ -242,6 +242,8 @@ const EDGE_TYPE_STYLE = {
     'import':       { color: '#10b981', style: 'solid',  label: 'Import',    kind: 'import' },
     'asset_ref':    { color: '#22d3ee', style: 'dashed', label: 'Asset',     kind: 'import' },
     'config_ref':   { color: '#f59e0b', style: 'dashed', label: 'Config',    kind: 'import' },
+    'schema_ref':   { color: '#e10098', style: 'dashed', label: 'Schema',    kind: 'import' },
+    'resource_hint':{ color: '#14b8a6', style: 'dotted', label: 'Resource',  kind: 'import' },
     // ── Semantic kind edges ───────────────────────────────────────────────
     'call':         { color: '#38bdf8', style: 'solid',  label: 'Call',      kind: 'call'   },
     'inherit':      { color: '#818cf8', style: 'solid',  label: 'Inherit',   kind: 'inherit'},
@@ -418,6 +420,8 @@ const LEGEND_EDGES = [
     { type: 'import', label: 'Import', color: '#10b981', style: 'dashed', elKey: 'Import' },
     { type: 'asset_ref', label: 'Asset', color: '#22d3ee', style: 'dashed', elKey: 'Asset' },
     { type: 'config_ref', label: 'Config', color: '#f59e0b', style: 'dashed', elKey: 'Config' },
+    { type: 'schema_ref', label: 'Schema', color: '#e10098', style: 'dashed', elKey: 'Schema' },
+    { type: 'resource_hint', label: 'Resource', color: '#14b8a6', style: 'dotted', elKey: 'Resource' },
     { type: 'sources', label: 'Src', color: '#ffd700', style: 'solid', elKey: 'Src' },
     { type: 'package', label: 'Pkg', color: '#dfa745', style: 'dashed', elKey: 'Pkg' },
     { type: 'library', label: 'Lib', color: '#a78bfa', style: 'dashed', elKey: 'Lib' },

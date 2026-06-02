@@ -79,15 +79,15 @@ const _G_COMMUNITY_PALETTE = [
 ];
 
 const _G_ROOT_KEY = 'g-folder:__root__';
-const _G_CLASS_KINDS = new Set(['class', 'struct', 'interface', 'enum', 'typedef']);
+const _G_CLASS_KINDS = new Set(['class', 'struct', 'interface', 'enum', 'typedef', 'trait', 'protocol', 'mixin', 'module', 'impl']);
 const _G_FUNCTION_KINDS = new Set(['function']);
 const _G_METHOD_KINDS = new Set(['method']);
-const _G_CODE_NODE_TYPES = new Set(['class', 'struct', 'interface', 'enum', 'typedef', 'function', 'method']);
+const _G_CODE_NODE_TYPES = new Set(['class', 'struct', 'interface', 'enum', 'typedef', 'trait', 'protocol', 'mixin', 'module', 'impl', 'function', 'method']);
 const _G_NODE_THRESHOLD = 5000;
 
 const _galaxyFilter = {
-    nodeTypes: new Set(['folder', 'file', 'class', 'struct', 'interface', 'enum', 'typedef', 'function', 'method']),
-    edgeTypes: new Set(['contain', 'import', 'call', 'define', 'extend', 'implements', 'override']),
+    nodeTypes: new Set(['folder', 'file', 'class', 'struct', 'interface', 'enum', 'typedef', 'trait', 'protocol', 'mixin', 'module', 'impl', 'function', 'method']),
+    edgeTypes: new Set(['contain', 'import', 'call', 'define', 'extend', 'implements', 'mixin_include', 'mixin_extend', 'mixin_prepend', 'behaviour_impl', 'protocol_impl', 'override']),
     searchQuery: '',
     minDegree: 0,
     depthHops: 0,
@@ -99,6 +99,11 @@ const _G_COLORS = {
     class: '#f59e0b',
     struct: '#f59e0b',
     interface: '#ec4899',
+    trait: '#2dd4bf',
+    protocol: '#e879f9',
+    mixin: '#14b8a6',
+    module: '#818cf8',
+    impl: '#94a3b8',
     enum: '#f97316',
     typedef: '#a78bfa',
     function: '#10b981',
@@ -109,6 +114,11 @@ const _G_COLORS = {
     call: '#f87171',
     extend: '#a78bfa',
     implements: '#ec4899',
+    mixin_include: '#14b8a6',
+    mixin_extend: '#06b6d4',
+    mixin_prepend: '#f59e0b',
+    behaviour_impl: '#c084fc',
+    protocol_impl: '#e879f9',
     override: '#fb923c',
 };
 
@@ -128,6 +138,11 @@ function _gNodeDefs() {
         { key: 'class', label: 'Class', color: _G_COLORS.class, icon: 'C' },
         { key: 'struct', label: 'Struct', color: _G_COLORS.struct, icon: 'S' },
         { key: 'interface', label: 'Interface', color: _G_COLORS.interface, icon: 'I' },
+        { key: 'trait', label: 'Trait', color: _G_COLORS.trait, icon: 'Tr' },
+        { key: 'protocol', label: 'Protocol', color: _G_COLORS.protocol, icon: 'P' },
+        { key: 'mixin', label: 'Mixin', color: _G_COLORS.mixin, icon: 'Mx' },
+        { key: 'module', label: 'Module', color: _G_COLORS.module, icon: 'Md' },
+        { key: 'impl', label: 'Impl', color: _G_COLORS.impl, icon: 'Im' },
         { key: 'enum', label: 'Enum', color: _G_COLORS.enum, icon: 'E' },
         { key: 'typedef', label: 'Typedef', color: _G_COLORS.typedef, icon: 'T' },
         { key: 'function', label: 'Function', color: _G_COLORS.function, icon: 'Fn' },
@@ -142,6 +157,11 @@ const _G_EDGE_DEFS = [
     { key: 'define', label: 'Define', color: _G_COLORS.define },
     { key: 'extend', label: 'Extend', color: _G_COLORS.extend },
     { key: 'implements', label: 'Implements', color: _G_COLORS.implements },
+    { key: 'mixin_include', label: 'Mixin Include', color: _G_COLORS.mixin_include },
+    { key: 'mixin_extend', label: 'Mixin Extend', color: _G_COLORS.mixin_extend },
+    { key: 'mixin_prepend', label: 'Mixin Prepend', color: _G_COLORS.mixin_prepend },
+    { key: 'behaviour_impl', label: 'Behaviour Impl', color: _G_COLORS.behaviour_impl },
+    { key: 'protocol_impl', label: 'Protocol Impl', color: _G_COLORS.protocol_impl },
     { key: 'override', label: 'Override', color: _G_COLORS.override },
 ];
 

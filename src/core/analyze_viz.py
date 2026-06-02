@@ -412,6 +412,8 @@ EDGE_TYPES = {
     'import':        {'label': 'Import',    'color': '#10b981', 'style': 'solid',  'kind': 'import'},
     'asset_ref':     {'label': 'Asset',     'color': '#22d3ee', 'style': 'dashed', 'kind': 'import'},
     'config_ref':    {'label': 'Config',    'color': '#f59e0b', 'style': 'dashed', 'kind': 'import'},
+    'schema_ref':    {'label': 'Schema',    'color': '#e10098', 'style': 'dashed', 'kind': 'import'},
+    'resource_hint': {'label': 'Resource',  'color': '#14b8a6', 'style': 'dotted', 'kind': 'import'},
     # ── Semantic kind edges ─────────────────────────────────────────────────
     'call':          {'label': 'Call',      'color': '#38bdf8', 'style': 'solid',  'kind': 'call'},
     'inherit':       {'label': 'Inherit',   'color': '#818cf8', 'style': 'solid',  'kind': 'inherit'},
@@ -2108,6 +2110,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                 # annotations). Drives L3 `type_usage` edges. Empty when the
                 # parser doesn't extract type references.
                 'type_refs': sym.get('type_refs', []),
+                'symbol_edge_hints': sym.get('symbol_edge_hints', []),
                 # Flag set when the parser had to fall back (e.g. ast.parse failed).
                 # Truthy value is a short diagnostic message; falsy → clean symbol.
                 'parse_error': file_parse_error,
@@ -2116,19 +2119,63 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             _file_sym_key[(rel, sym['name'])] = sid
 
     # kind mapping for symbol edge types → A2 unified vocabulary
-    _SYMBOL_KIND = {'inheritance': 'inherit', 'implements': 'inherit', 'override': 'inherit',
-                    'call': 'call', 'type_usage': 'type_usage', 'member': 'member'}
+    _SYMBOL_KIND = {
+        'inheritance': 'inherit', 'implements': 'inherit', 'override': 'inherit',
+        'mixin_include': 'inherit', 'mixin_extend': 'inherit', 'mixin_prepend': 'inherit',
+        'behaviour_impl': 'inherit', 'protocol_impl': 'inherit',
+        'call': 'call', 'type_usage': 'type_usage', 'member': 'member',
+    }
+
+    _SEMANTIC_SYMBOL_EDGE_TYPES = {
+        'mixin_include', 'mixin_extend', 'mixin_prepend',
+        'behaviour_impl', 'protocol_impl',
+    }
+
+    def _resolve_symbol_ref(source_sym: dict, target_name: str):
+        target_name = (target_name or '').split('.')[-1].split('::')[-1]
+        if not target_name:
+            return None
+        tgt = _file_sym_key.get((source_sym.get('file'), target_name))
+        if not tgt:
+            candidates = _sym_name_to_ids.get(target_name, [])
+            tgt = candidates[0] if len(candidates) == 1 else None
+        return tgt
+
+    semantic_pairs: set = set()
+    for sid, sym in symbol_index.items():
+        for hint in sym.get('symbol_edge_hints') or []:
+            if not isinstance(hint, dict):
+                continue
+            edge_type = hint.get('type') or hint.get('edge_type')
+            if edge_type not in _SEMANTIC_SYMBOL_EDGE_TYPES:
+                continue
+            tgt = _resolve_symbol_ref(sym, hint.get('target') or hint.get('name') or '')
+            if not tgt or tgt == sid:
+                continue
+            key = (sid, tgt, edge_type)
+            if key in semantic_pairs:
+                continue
+            semantic_pairs.add(key)
+            symbol_edges.append({
+                'from': sid,
+                'to': tgt,
+                'type': edge_type,
+                'kind': _SYMBOL_KIND[edge_type],
+                'via': hint.get('via'),
+                'line': hint.get('line'),
+                'confidence': hint.get('confidence'),
+            })
+    semantic_pair_without_type = {(src, tgt) for src, tgt, _typ in semantic_pairs}
 
     # Inheritance / implements edges
     for sid, sym in symbol_index.items():
         for base_name in sym.get('bases', []):
-            tgt = _file_sym_key.get((sym['file'], base_name))
-            if not tgt:
-                candidates = _sym_name_to_ids.get(base_name, [])
-                tgt = candidates[0] if len(candidates) == 1 else None
+            tgt = _resolve_symbol_ref(sym, base_name)
             if tgt and tgt != sid:
                 tgt_kind = symbol_index[tgt].get('kind', '') if tgt in symbol_index else ''
                 edge_type = 'implements' if tgt_kind in ('interface', 'trait', 'protocol', 'mixin') else 'inheritance'
+                if edge_type == 'implements' and (sid, tgt) in semantic_pair_without_type:
+                    continue
                 symbol_edges.append({'from': sid, 'to': tgt, 'type': edge_type, 'kind': _SYMBOL_KIND[edge_type]})
 
     # Override edges (child method overrides parent class method of same name)

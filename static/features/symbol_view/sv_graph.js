@@ -150,6 +150,11 @@ function _svEdgeVerb(type) {
     if (type === 'call') return 'calls';
     if (type === 'inheritance') return 'inherits from';
     if (type === 'implements') return 'implements';
+    if (type === 'mixin_include') return 'includes mixin';
+    if (type === 'mixin_extend') return 'extends with mixin';
+    if (type === 'mixin_prepend') return 'prepends mixin';
+    if (type === 'behaviour_impl') return 'implements behaviour';
+    if (type === 'protocol_impl') return 'implements protocol';
     if (type === 'override') return 'overrides';
     if (type === 'import') return 'imports';
     if (type === 'include') return 'includes';
@@ -2985,6 +2990,11 @@ const _SV_EDGE_TYPE_DEFS = [
     { key: 'call',        label: 'Calls' },
     { key: 'inheritance', label: 'Inheritance' },
     { key: 'implements',  label: 'Implements' },
+    { key: 'mixin_include', label: 'Mixin Include' },
+    { key: 'mixin_extend',  label: 'Mixin Extend' },
+    { key: 'mixin_prepend', label: 'Mixin Prepend' },
+    { key: 'behaviour_impl', label: 'Behaviour Impl' },
+    { key: 'protocol_impl',  label: 'Protocol Impl' },
     { key: 'override',    label: 'Override' },
     { key: 'type_usage',  label: 'Type Usage' },
     { key: 'member',      label: 'Member' },

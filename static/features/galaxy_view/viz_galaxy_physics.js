@@ -151,7 +151,12 @@ async function _galaxyFA2RunAsync(token) {
         nodes[ti].inDegree++;
         // Structural edges (contain/define) should barely attract — they create trees
         // that crush everything into a ball if given weight. Semantic edges matter more.
-        const edgeTypeWeight = { contain: 0.08, define: 0.06, import: 0.3, call: 0.1, extend: 0.7, implements: 0.7, override: 0.3 };
+        const edgeTypeWeight = {
+            contain: 0.08, define: 0.06, import: 0.3, call: 0.1,
+            extend: 0.7, implements: 0.7, mixin_include: 0.7,
+            mixin_extend: 0.7, mixin_prepend: 0.7, behaviour_impl: 0.7,
+            protocol_impl: 0.7, override: 0.3,
+        };
         edgeList.push({ si, ti, w: (eAttrs.size || 1) * (edgeTypeWeight[eAttrs._t] || 0.5) });
     });
 

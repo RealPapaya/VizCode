@@ -44,11 +44,12 @@ def _line_no(src: str, idx: int) -> int:
     return src[:idx].count('\n') + 1
 
 
-def _hint(target: str, via: str, line: int) -> dict:
+def _hint(target: str, via: str, line: int, edge_type: str = 'config_ref',
+          subtype: str = 'yaml') -> dict:
     return {
-        'type': 'config_ref',
+        'type': edge_type,
         'target': target,
-        'subtype': 'yaml',
+        'subtype': subtype,
         'via': via,
         'line': line,
         'confidence': 1.0,
@@ -127,16 +128,20 @@ def scan_yaml(src: str, ext: str = '.yaml') -> tuple:
             ref = _yaml_local(m.group(1))
             if ref:
                 imports.append(ref)
-                edge_hints.append(_hint(ref, via, _line_no(src, m.start())))
+                edge_type = 'schema_ref' if via == '$ref' else 'config_ref'
+                subtype = 'schema' if edge_type == 'schema_ref' else 'yaml'
+                edge_hints.append(_hint(ref, via, _line_no(src, m.start()), edge_type, subtype))
     for m in RE_YAML_KEY_REF.finditer(clean):
         ref = _yaml_local(m.group(2))
         if ref:
             via = m.group(1)
             imports.append(ref)
-            edge_hints.append(_hint(ref, via, _line_no(src, m.start())))
+            edge_type = 'schema_ref' if via.lower() in ('schema', 'schemafile') else 'config_ref'
+            subtype = 'schema' if edge_type == 'schema_ref' else 'yaml'
+            edge_hints.append(_hint(ref, via, _line_no(src, m.start()), edge_type, subtype))
     imports = list(dict.fromkeys(imports))
     edge_hints = list({
-        (h['target'], h['via'], h['line']): h for h in edge_hints
+        (h['type'], h['target'], h['via'], h['line']): h for h in edge_hints
     }.values())
 
     symbol_defs = []

@@ -1,5 +1,21 @@
 # Parser Enrichment Roadmap (L1 edges + L3 symbols)
 
+## Progress Checklist
+
+- [x] Reference parsers: Python, JS/TS, Go, C/C++, C#
+- [x] Batch 1: Java, Rust
+- [x] Batch 2: GraphQL, Protobuf, SQL
+- [x] Batch 3: Kotlin, Swift, PHP, Scala, Dart, Objective-C, VB.NET
+- [x] Batch 4: Crystal, Nim, Julia, F#, Haskell, OCaml, Elm
+- [x] Batch 5: Ruby, Elixir/Erlang, PowerShell, HTML/CSS/YAML/TOML/JSON
+- [ ] Semantic vocabulary expansion
+  - [ ] L1 `schema_ref`
+  - [ ] L1 `resource_hint`
+  - [ ] L3 `mixin_include`, `mixin_extend`, `mixin_prepend`
+  - [ ] L3 `behaviour_impl`
+  - [ ] L3 `protocol_impl`
+- [ ] Batch 6: conservative common_parser breadth uplift
+
 Planning document. **No implementation** — this scopes, groups, and prioritizes the
 work of bringing the remaining ~40 parsers up to the richness of the five enriched
 dedicated parsers. Pair with `l1-l3-enrichment.md` (the field/vocabulary contract)
@@ -236,3 +252,29 @@ Reuse the pattern in `tests/test_parser_enrichment.py`:
 - Cross-language symbol resolution (a Python caller → a Go callee).
 - Any L3 layout/card-design change (content-only enrichment, as established).
 - Firmware parsers' L3 type modeling (their value is domain-specific L1).
+
+## 11. Vocabulary expansion backlog
+
+This roadmap originally prioritized quick parser-side enrichment. The next pass
+should review language-specific constructs that were intentionally collapsed into
+canonical edges and decide whether product value justifies first-class graph
+vocabulary.
+
+Suggested review order:
+
+1. **Schema references:** split generic `config_ref` into `schema_ref` where JSON
+   Schema, OpenAPI, GraphQL, Protobuf, or YAML manifests point to schemas rather
+   than ordinary config files.
+2. **Behaviour/protocol/mixin semantics:** evaluate separate L3 edge types for
+   Ruby mixin forms, Elixir protocols/behaviours, and Erlang behaviours if the UI
+   should teach those differences instead of presenting them all as `implements`.
+3. **Runtime loading and resource hints:** evaluate HTML/CSS/PowerShell/Ruby cases
+   where load order or runtime module loading is meaningfully different from a
+   static import or asset reference.
+4. **Framework-owned config graphs:** only after parser-level language syntax is
+   stable, consider official framework schemas where the framework defines the
+   reference semantics, for example OpenAPI or Kubernetes manifests. Treat these
+   as separate, documented parser enrichments, not generic YAML/JSON guessing.
+
+Every accepted vocabulary expansion must update analyzer builders, frontend styles,
+legends/filters, parser docs, and graph-level tests in the same change.

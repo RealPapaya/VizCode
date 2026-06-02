@@ -171,10 +171,18 @@ def scan_erlang(src: str, ext: str = '.erl') -> tuple:
                 exported.add(nm)
 
     behaviours = []
+    behaviour_edge_hints = []
     for m in RE_ERL_BEHAVIOUR.finditer(clean):
         name = m.group(1)
         if name not in behaviours:
             behaviours.append(name)
+            behaviour_edge_hints.append({
+                'type': 'behaviour_impl',
+                'target': name,
+                'via': '-behaviour',
+                'line': _line_no(src, m.start()),
+                'confidence': 1.0,
+            })
 
     symbol_defs = []
     mm = RE_ERL_MODULE.search(clean)
@@ -187,6 +195,7 @@ def scan_erlang(src: str, ext: str = '.erl') -> tuple:
             'end_line': _line_no(src, len(src) - 1),
             'bases': behaviours, 'parent': None, 'is_public': True,
             'doc': None,
+            'symbol_edge_hints': behaviour_edge_hints,
         })
 
     funcdefs = []

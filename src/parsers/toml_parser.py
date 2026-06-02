@@ -29,6 +29,7 @@ _TOML_CONFIG_KEYS = {
     'file', 'schema', 'schemafile', 'config', 'configfile', 'template',
     'templatefile', 'values', 'valuesfile',
 }
+_TOML_SCHEMA_KEYS = {'schema', 'schemafile'}
 
 
 def _line_no(src: str, idx: int) -> int:
@@ -60,9 +61,10 @@ def _cargo_manifest_target(ref: str) -> str:
     return ref.rstrip('/') + '/Cargo.toml'
 
 
-def _hint(target: str, subtype: str, via: str, line: int) -> dict:
+def _hint(target: str, subtype: str, via: str, line: int,
+          edge_type: str = 'config_ref') -> dict:
     return {
-        'type': 'config_ref',
+        'type': edge_type,
         'target': target,
         'subtype': subtype,
         'via': via,
@@ -119,11 +121,13 @@ def _parse_edge_hints(src: str) -> list:
                 hints.append(_hint(ref, 'tool_config', f'{section}.{key}', line_no))
             elif key.lower() in _TOML_CONFIG_KEYS and _path_ext(ref):
                 via = f'{section}.{key}' if section else key
-                hints.append(_hint(ref, 'config_value', via, line_no))
+                edge_type = 'schema_ref' if key.lower() in _TOML_SCHEMA_KEYS else 'config_ref'
+                subtype = 'schema' if edge_type == 'schema_ref' else 'config_value'
+                hints.append(_hint(ref, subtype, via, line_no, edge_type))
         offset += len(line) + 1
     deduped = {}
     for hint in hints:
-        deduped[(hint['target'], hint['subtype'], hint['via'], hint['line'])] = hint
+        deduped[(hint['type'], hint['target'], hint['subtype'], hint['via'], hint['line'])] = hint
     return list(deduped.values())
 
 

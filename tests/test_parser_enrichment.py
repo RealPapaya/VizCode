@@ -654,25 +654,31 @@ def test_ruby_family_ruby_enrichment(tmp_path):
     assert any(e.get('line') == 4 for e in _file_edges(res, 'config_ref'))
 
 
-def test_batch5_ruby_mixins_produce_implements(tmp_path):
+def test_batch5_ruby_mixins_produce_semantic_edges(tmp_path):
     res = _build(tmp_path, {
         'types.rb': (
             'module Runnable\nend\n'
+            'module ClassMethods\nend\n'
+            'module FirstInLookup\nend\n'
             'class Base\nend\n'
         ),
         'engine.rb': (
             'require_relative "types.rb"\n'
             'class Engine < Base\n'
             '  include Runnable\n'
+            '  extend ClassMethods\n'
+            '  prepend FirstInLookup\n'
             '  def run(req)\n'
             '    req\n'
             '  end\n'
             'end\n'
         ),
     })
-    assert {'inheritance', 'implements'} <= _sym_edge_types(res)
-    pairs = _symbol_edge_name_pairs(res, 'implements')
-    assert ('Engine', 'Runnable') in pairs
+    assert {'inheritance', 'mixin_include', 'mixin_extend', 'mixin_prepend'} <= _sym_edge_types(res)
+    assert ('Engine', 'Runnable') in _symbol_edge_name_pairs(res, 'mixin_include')
+    assert ('Engine', 'ClassMethods') in _symbol_edge_name_pairs(res, 'mixin_extend')
+    assert ('Engine', 'FirstInLookup') in _symbol_edge_name_pairs(res, 'mixin_prepend')
+    assert ('Engine', 'Runnable') not in _symbol_edge_name_pairs(res, 'implements')
     assert not _symbol_edges(res, 'type_usage')
 
 
@@ -743,7 +749,7 @@ def test_ruby_family_elixir_enrichment(tmp_path):
     assert ('run', 'Settings') in pairs
 
 
-def test_batch5_elixir_behaviour_implements(tmp_path):
+def test_batch5_elixir_behaviour_impl(tmp_path):
     res = _build(tmp_path, {
         'engine.ex': (
             'defmodule Request do\nend\n'
@@ -760,11 +766,29 @@ def test_batch5_elixir_behaviour_implements(tmp_path):
             'end\n'
         ),
     })
-    assert {'implements', 'type_usage'} <= _sym_edge_types(res)
-    assert ('Engine', 'RunnerBehaviour') in _symbol_edge_name_pairs(res, 'implements')
+    assert {'behaviour_impl', 'type_usage'} <= _sym_edge_types(res)
+    assert ('Engine', 'RunnerBehaviour') in _symbol_edge_name_pairs(res, 'behaviour_impl')
+    assert ('Engine', 'RunnerBehaviour') not in _symbol_edge_name_pairs(res, 'implements')
 
 
-def test_batch5_erlang_behaviour_implements_and_signature(tmp_path):
+def test_batch5_elixir_protocol_impl(tmp_path):
+    res = _build(tmp_path, {
+        'engine.ex': (
+            'defmodule Engine do\nend\n'
+            'defprotocol RunnerProtocol do\n'
+            '  def run(value)\n'
+            'end\n'
+            'defimpl RunnerProtocol, for: Engine do\n'
+            '  def run(value), do: value\n'
+            'end\n'
+        ),
+    })
+    assert 'protocol_impl' in _sym_edge_types(res)
+    assert ('RunnerProtocol for Engine', 'RunnerProtocol') in _symbol_edge_name_pairs(res, 'protocol_impl')
+    assert ('RunnerProtocol for Engine', 'RunnerProtocol') not in _symbol_edge_name_pairs(res, 'implements')
+
+
+def test_batch5_erlang_behaviour_impl_and_signature(tmp_path):
     res = _build(tmp_path, {
         'worker_behaviour.erl': (
             '-module(worker_behaviour).\n'
@@ -777,8 +801,9 @@ def test_batch5_erlang_behaviour_implements_and_signature(tmp_path):
             'run(Req) -> Req.\n'
         ),
     })
-    assert 'implements' in _sym_edge_types(res)
-    assert ('engine', 'worker_behaviour') in _symbol_edge_name_pairs(res, 'implements')
+    assert 'behaviour_impl' in _sym_edge_types(res)
+    assert ('engine', 'worker_behaviour') in _symbol_edge_name_pairs(res, 'behaviour_impl')
+    assert ('engine', 'worker_behaviour') not in _symbol_edge_name_pairs(res, 'implements')
     assert _field_present(res, 'signature')
 
 
@@ -1024,9 +1049,11 @@ def test_batch5_data_and_markup_edge_coverage(tmp_path):
         'config/app.yaml': 'ok: true\n',
         'templates/card.html': '<html></html>\n',
     })
-    assert {'asset_ref', 'config_ref'} <= _file_edge_types(res)
-    assert len(_file_edges(res, 'asset_ref')) >= 6
+    assert {'asset_ref', 'config_ref', 'resource_hint', 'schema_ref'} <= _file_edge_types(res)
+    assert len(_file_edges(res, 'asset_ref')) >= 5
     assert len(_file_edges(res, 'config_ref')) >= 5
+    assert any(e.get('subtype') == 'modulepreload' for e in _file_edges(res, 'resource_hint'))
+    assert any(e.get('via') == 'schemaFile' for e in _file_edges(res, 'schema_ref'))
 
 
 def test_batch5_adversarial_comments_strings_dynamic_and_urls(tmp_path):

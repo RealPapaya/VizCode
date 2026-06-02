@@ -113,10 +113,14 @@ def scan_html(src: str, ext: str = '.html') -> tuple:
             if ref:
                 imports.append(ref)
                 rel = attrs.get('rel', '').lower()
-                if 'stylesheet' in rel:
+                rel_tokens = set(rel.split())
+                if 'stylesheet' in rel_tokens:
                     subtype = 'stylesheet'
                     edge_type = 'asset_ref'
-                elif any(token in rel for token in ('icon', 'manifest', 'preload', 'modulepreload')):
+                elif rel_tokens & {'preload', 'modulepreload', 'prefetch'}:
+                    subtype = next(token for token in ('modulepreload', 'preload', 'prefetch') if token in rel_tokens)
+                    edge_type = 'resource_hint'
+                elif rel_tokens & {'icon', 'manifest'}:
                     subtype = 'link'
                     edge_type = 'asset_ref'
                 else:

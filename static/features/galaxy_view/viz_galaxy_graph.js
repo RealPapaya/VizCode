@@ -366,7 +366,10 @@ function _galaxyBuildGraph(allowedMods) {
         .slice()
         .sort((a, b) => (a.file || '').localeCompare(b.file || '') || (a.line || 0) - (b.line || 0) || (a.name || '').localeCompare(b.name || ''));
 
-    const _classLikeSizes = { class: 8, struct: 8, interface: 7, enum: 5, typedef: 4 };
+    const _classLikeSizes = {
+        class: 8, struct: 8, interface: 7, enum: 5, typedef: 4,
+        trait: 7, protocol: 7, mixin: 7, module: 7, impl: 6,
+    };
     symbols.forEach(sym => {
         if (!_G_CLASS_KINDS.has(sym.kind)) return;
         const filePath = _gNormPath(sym.file || '');
@@ -545,28 +548,36 @@ function _galaxyBuildGraph(allowedMods) {
         });
     });
 
-    const implAgg = new Map();
-    symbolEdges.forEach(edge => {
-        if (edge.type !== 'implements') return;
-        const src = classNodeBySymbol.get(edge.from);
-        const tgt = classNodeBySymbol.get(edge.to);
-        if (!src || !tgt || src === tgt) return;
-        const key = `${src}=>${tgt}`;
-        implAgg.set(key, (implAgg.get(key) || 0) + 1);
-    });
-    implAgg.forEach((weight, key) => {
-        const [src, tgt] = key.split('=>');
-        _gGraph.addEdge(src, tgt, {
-            _t: 'implements',
-            type: 'curved',
-            curvature: 0.12 + Math.random() * 0.08,
-            color: _G_COLORS.implements,
-            _colorDim: _gBlendHex(_G_COLORS.implements, 0.08),
-            _colorDim2: _gBlendHex(_G_COLORS.implements, 0.10),
-            _colorBright: _gBrightHex(_G_COLORS.implements, 1.5),
-            size: Math.max(0.85, Math.min(2.0, 0.7 + weight * 0.15)),
+    function addSemanticClassEdges(edgeType) {
+        const agg = new Map();
+        symbolEdges.forEach(edge => {
+            if (edge.type !== edgeType) return;
+            const src = classNodeBySymbol.get(edge.from);
+            const tgt = classNodeBySymbol.get(edge.to);
+            if (!src || !tgt || src === tgt) return;
+            const key = `${src}=>${tgt}`;
+            agg.set(key, (agg.get(key) || 0) + 1);
         });
-    });
+        agg.forEach((weight, key) => {
+            const [src, tgt] = key.split('=>');
+            const color = _G_COLORS[edgeType] || _G_COLORS.implements;
+            _gGraph.addEdge(src, tgt, {
+                _t: edgeType,
+                type: 'curved',
+                curvature: 0.12 + Math.random() * 0.08,
+                color,
+                _colorDim: _gBlendHex(color, 0.08),
+                _colorDim2: _gBlendHex(color, 0.10),
+                _colorBright: _gBrightHex(color, 1.5),
+                size: Math.max(0.85, Math.min(2.0, 0.7 + weight * 0.15)),
+            });
+        });
+    }
+    [
+        'implements',
+        'mixin_include', 'mixin_extend', 'mixin_prepend',
+        'behaviour_impl', 'protocol_impl',
+    ].forEach(addSemanticClassEdges);
 
     const overrideAgg = new Map();
     symbolEdges.forEach(edge => {

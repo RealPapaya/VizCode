@@ -244,7 +244,7 @@ class TestBuildGraphContent:
         )
         assert any(
             src == 'schema.yaml' and tgt == 'defs.json'
-            and edge['type'] == 'config_ref'
+            and edge['type'] == 'schema_ref'
             and edge.get('via') == '$ref'
             for src, tgt, edge in edges
         )
@@ -357,6 +357,7 @@ class TestSymbolIndex:
             'record', 'module', 'trait', 'type', 'abstract',
             'impl', 'object', 'message', 'service', 'table', 'view',
             'input', 'scalar', 'fragment', 'key', 'keyframes',
+            'protocol', 'mixin',
         }
         for sym in graph['symbol_index'].values():
             assert sym['kind'] in known_kinds, (
@@ -377,6 +378,8 @@ class TestSymbolEdges:
         known_types = {
             'call', 'inheritance', 'implements', 'type_usage', 'import',
             'override', 'include', 'member',
+            'mixin_include', 'mixin_extend', 'mixin_prepend',
+            'behaviour_impl', 'protocol_impl',
             'type_argument', 'specialization',
         }
         for edge in graph['symbol_edges'][:100]:

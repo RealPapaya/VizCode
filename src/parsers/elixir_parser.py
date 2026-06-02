@@ -44,6 +44,7 @@ RE_EX_DEF = re.compile(
     r'\b(def|defp|defmacro|defmacrop)\s+([A-Za-z_]\w*[?!]?)')
 RE_EX_MODULE = re.compile(
     r'\b(defmodule|defprotocol|defimpl)\s+([A-Z][\w.]*)')
+RE_EX_DEFIMPL_FOR = re.compile(r'\bfor\s*:\s*([A-Z][\w.]*)')
 RE_EX_SPEC = re.compile(r'^[ \t]*@spec\s+([A-Za-z_]\w*[?!]?)([^\n]*)', re.MULTILINE)
 RE_EX_BEHAVIOUR = re.compile(r'^[ \t]*@behaviou?r\s+([A-Z][\w.]*)', re.MULTILINE)
 RE_EX_CALLBACK = re.compile(r'^[ \t]*@callback\b', re.MULTILINE)
@@ -200,6 +201,22 @@ def _behaviour_refs(text: str) -> list:
     return refs
 
 
+def _behaviour_edge_hints(text: str, src: str, offset: int = 0) -> list:
+    hints = []
+    for m in RE_EX_BEHAVIOUR.finditer(text):
+        name = m.group(1).split('.')[-1]
+        if not name or any(h['target'] == name for h in hints):
+            continue
+        hints.append({
+            'type': 'behaviour_impl',
+            'target': name,
+            'via': '@behaviour',
+            'line': _line_no(src, offset + m.start()),
+            'confidence': 1.0,
+        })
+    return hints
+
+
 def _block_end(clean: str, after_idx: int) -> int:
     depth = 1
     for m in RE_TOKEN.finditer(clean, after_idx):
@@ -290,16 +307,34 @@ def scan_elixir(src: str, ext: str = '.ex') -> tuple:
         else:
             end_idx = m.end()
         body_clean = clean[m.end():end_idx]
-        kind = 'module' if m.group(1) != 'defprotocol' else 'protocol'
-        if kind == 'module' and RE_EX_CALLBACK.search(body_clean):
+        decl = m.group(1)
+        kind = 'module' if decl != 'defprotocol' else 'protocol'
+        bases = _behaviour_refs(body_clean)
+        symbol_edge_hints = _behaviour_edge_hints(body_clean, src, m.end())
+        if decl == 'defimpl':
+            protocol = name
+            for_m = RE_EX_DEFIMPL_FOR.search(clean[m.end():src.find('\n', m.start()) if src.find('\n', m.start()) != -1 else end_idx])
+            impl_for = for_m.group(1).split('.')[-1] if for_m else ''
+            name = f'{protocol} for {impl_for}' if impl_for else f'{protocol} impl'
+            kind = 'impl'
+            bases = [protocol]
+            symbol_edge_hints = [{
+                'type': 'protocol_impl',
+                'target': protocol,
+                'via': 'defimpl',
+                'line': _line_no(src, start),
+                'confidence': 1.0,
+            }]
+        elif kind == 'module' and RE_EX_CALLBACK.search(body_clean):
             kind = 'protocol'
         symbol_defs.append({
             'kind': kind,
             'name': name, 'line': _line_no(src, start), 'end_line': end_line,
-            'bases': _behaviour_refs(body_clean), 'parent': None,
+            'bases': bases, 'parent': None,
             'is_public': True, 'doc': None,
             'signature': _normalize_signature(src, m.start(), src.find('\n', m.start()) if src.find('\n', m.start()) != -1 else m.end()),
             'type_refs': [],
+            'symbol_edge_hints': symbol_edge_hints,
         })
         type_ranges.append((start, end_idx, name))
 

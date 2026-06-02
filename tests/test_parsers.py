@@ -718,7 +718,7 @@ class TestParserEdgeHints:
         } >= {
             ('asset_ref', './app.js', 'script', 'src'),
             ('asset_ref', 'styles/site.css', 'stylesheet', 'href'),
-            ('asset_ref', 'manifest.json', 'link', 'href'),
+            ('resource_hint', 'manifest.json', 'preload', 'href'),
             ('import', 'docs/readme.html', 'document', 'href'),
             ('asset_ref', 'frame.html', 'iframe', 'src'),
             ('asset_ref', 'logo.png', 'image', 'src'),
@@ -752,7 +752,7 @@ file: configs/app.yaml
         yaml_hints = yaml_extra['edge_hints']
 
         assert [(h['type'], h['target'], h['via']) for h in yaml_hints] == [
-            ('config_ref', './schema.json', '$ref'),
+            ('schema_ref', './schema.json', '$ref'),
             ('config_ref', 'configs/app.yaml', 'file'),
         ]
 
@@ -773,7 +773,7 @@ file: configs/app.yaml
         } == {
             ('config_ref', './base.json', 'json', 'extends'),
             ('config_ref', './tsconfig.app.json', 'json', 'references.path'),
-            ('config_ref', 'schemas/widget.json', 'schema', '$ref'),
+            ('schema_ref', 'schemas/widget.json', 'schema', '$ref'),
         }
 
     def test_powershell_edge_hints_skip_dynamic_and_package_modules(self):

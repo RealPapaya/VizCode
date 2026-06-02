@@ -304,13 +304,25 @@ def _enclosing(ranges: list, idx: int):
     return best
 
 
-def _mixin_refs(body: str) -> list:
+def _mixin_refs(body: str, offset: int = 0, src: str = '') -> list:
     refs = []
     for m in RE_RUBY_MIXIN.finditer(body):
         for raw in m.group(2).split(','):
             name = raw.strip().split('::')[-1]
-            if name and name not in refs:
-                refs.append(name)
+            if not name or any(ref['target'] == name and ref['via'] == m.group(1) for ref in refs):
+                continue
+            edge_type = {
+                'include': 'mixin_include',
+                'extend': 'mixin_extend',
+                'prepend': 'mixin_prepend',
+            }[m.group(1)]
+            refs.append({
+                'type': edge_type,
+                'target': name,
+                'via': m.group(1),
+                'line': _line_no(src, offset + m.start(1)) if src else 0,
+                'confidence': 1.0,
+            })
     return refs
 
 
@@ -338,7 +350,8 @@ def scan_ruby(src: str, ext: str = '.rb') -> tuple:
         start = m.start(2)
         end_idx = _block_end(clean, m.end())
         bases = [m.group(4).split('::')[-1]] if m.group(4) else []
-        for mixin in _mixin_refs(clean[m.end():end_idx]):
+        symbol_edge_hints = _mixin_refs(clean[m.end():end_idx], m.end(), src)
+        for mixin in (hint['target'] for hint in symbol_edge_hints):
             if mixin not in bases:
                 bases.append(mixin)
         symbol_defs.append({
@@ -348,6 +361,7 @@ def scan_ruby(src: str, ext: str = '.rb') -> tuple:
             'bases': bases, 'parent': None, 'is_public': True, 'doc': None,
             'signature': _normalize_signature(src, m.start(), m.end()),
             'type_refs': [],
+            'symbol_edge_hints': symbol_edge_hints,
         })
         type_ranges.append((start, end_idx, name))
 
