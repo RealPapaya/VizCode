@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vizcode"
-version = "4.0.0"
+version = "1.0.0"
 description = "VizCode — local-first code visualization tool (pure Python stdlib backend + browser frontend)"
 readme = "README.md"
 requires-python = ">=3.6"

@@ -1,4 +1,4 @@
-﻿# ── Python ─────────────────────────────────────────────────────────────────
+# ── Python ─────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
@@ -11,6 +11,8 @@ venv/
 .vizcode/
 .local/
 *.log
+scan_result_debug.json
+parsers/
 
 # ── AI secrets (API keys live here — NEVER commit) ──────────────────────────
 ai/config.json
