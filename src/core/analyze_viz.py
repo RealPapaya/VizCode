@@ -2167,7 +2167,10 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     # Type-usage edges (a symbol references a project TYPE in its signature/fields).
     # Precision-first: resolve only to type-kind symbols, same-file first, else a
     # single unambiguous project definition. Parsers pre-filter builtins/short names.
-    _TYPE_KINDS = {'class', 'struct', 'interface', 'enum', 'record', 'trait', 'typedef'}
+    _TYPE_KINDS = {
+        'class', 'struct', 'interface', 'enum', 'record', 'trait', 'typedef',
+        'type', 'input', 'union', 'scalar', 'message', 'table', 'view',
+    }
     _type_name_to_ids: dict = defaultdict(list)
     for _tid, _tsym in symbol_index.items():
         if _tsym.get('kind') in _TYPE_KINDS:

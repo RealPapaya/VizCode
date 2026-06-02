@@ -71,6 +71,16 @@ RE_SQL_TYPE = re.compile(
 RE_SQL_CALL = re.compile(r'\b([A-Za-z_]\w*)\s*\(')
 RE_SQL_DOLLAR = re.compile(r'\$\w*\$')
 _RE_SQL_BRANCH_KW = re.compile(r'\b(?:IF|CASE|LOOP|WHILE|FOR|WHEN)\b', re.I)
+RE_SQL_CTE = re.compile(
+    r'(?:\bWITH\s+(?:RECURSIVE\s+)?|,)\s*(?P<name>[A-Za-z_][\w.]*)\s+AS\s*\(',
+    re.IGNORECASE)
+RE_SQL_REFERENCE_CLAUSES = (
+    re.compile(r'\bREFERENCES\s+(?:ONLY\s+)?(?P<name>[A-Za-z_][\w.]*)', re.IGNORECASE),
+    re.compile(r'\b(?:FROM|JOIN)\s+(?:ONLY\s+)?(?P<name>[A-Za-z_][\w.]*)', re.IGNORECASE),
+    re.compile(r'\bUPDATE\s+(?:ONLY\s+)?(?P<name>[A-Za-z_][\w.]*)', re.IGNORECASE),
+    re.compile(r'\bINSERT\s+INTO\s+(?P<name>[A-Za-z_][\w.]*)', re.IGNORECASE),
+    re.compile(r'\bDELETE\s+FROM\s+(?:ONLY\s+)?(?P<name>[A-Za-z_][\w.]*)', re.IGNORECASE),
+)
 
 
 def _line_no(src: str, idx: int) -> int:
@@ -199,6 +209,21 @@ def _leaf(qualified: str) -> str:
     return qualified.split('.')[-1].strip('"`[]')
 
 
+def _extract_type_refs(text: str) -> list:
+    ctes = {_leaf(m.group('name')) for m in RE_SQL_CTE.finditer(text or '')}
+    refs = []
+    seen = set()
+    for regex in RE_SQL_REFERENCE_CLAUSES:
+        for m in regex.finditer(text or ''):
+            name = _leaf(m.group('name'))
+            if (not name or len(name) < 2 or name.upper() in SQL_KEYWORDS
+                    or name in ctes or name in seen):
+                continue
+            seen.add(name)
+            refs.append(name)
+    return refs
+
+
 def scan_sql(src: str, ext: str = '.sql') -> tuple:
     """SQL file analysis. Returns the standard VIZCODE 6-tuple."""
     clean = _mask_sql(src)
@@ -233,10 +258,12 @@ def scan_sql(src: str, ext: str = '.sql') -> tuple:
             start = m.start('name')
             decl_name_starts.add(start)
             end_idx = _stmt_end(clean, m.end(), spans)
+            body = clean[m.end():end_idx]
             symbol_defs.append({
                 'kind': kind, 'name': name, 'line': _line_no(src, start),
                 'end_line': _line_no(src, max(start, end_idx - 1)),
                 'bases': [], 'parent': None, 'is_public': True, 'doc': None,
+                'type_refs': _extract_type_refs(body),
             })
 
     add_type_symbol('table', RE_SQL_TABLE)
@@ -265,6 +292,7 @@ def scan_sql(src: str, ext: str = '.sql') -> tuple:
                 'end_line': _line_no(src, max(start, end_idx - 1)),
                 'bases': [], 'parent': None, 'is_public': True, 'doc': None,
                 'complexity': _complexity(body),
+                'type_refs': _extract_type_refs(body),
             })
 
     add_routine(RE_SQL_FUNC)

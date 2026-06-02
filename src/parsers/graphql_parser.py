@@ -30,6 +30,7 @@ GQL_KEYWORDS = {
     'subscription', 'directive', 'true', 'false', 'null', 'repeatable',
     'Int', 'Float', 'String', 'Boolean', 'ID',
 }
+GQL_BUILTIN_SCALARS = {'Int', 'Float', 'String', 'Boolean', 'ID'}
 
 # #import "fragment.graphql"  — Apollo convention (canonical: no space after #),
 # parsed from RAW source. A spaced `# import ...` is a normal comment, not this.
@@ -41,6 +42,9 @@ RE_GQL_TYPE = re.compile(
     re.MULTILINE)
 # field with arguments: name(args): Type   — argument-bearing field = resolver
 RE_GQL_FIELD = re.compile(r'^[ \t]*(?P<name>[A-Za-z_]\w*)\s*\(', re.MULTILINE)
+RE_GQL_FIELD_START = re.compile(
+    r'^[ \t]*(?P<name>[A-Za-z_]\w*)\s*(?P<kind>[:(])',
+    re.MULTILINE)
 
 
 def _line_no(src: str, idx: int) -> int:
@@ -134,6 +138,81 @@ def _parse_bases(kind: str, rest: str) -> list:
     return list(dict.fromkeys(bases))
 
 
+def _gql_type_refs(type_text: str) -> list:
+    refs = []
+    for name in re.findall(r'\b[A-Za-z_]\w*\b', type_text or ''):
+        if name in GQL_KEYWORDS or name in GQL_BUILTIN_SCALARS or len(name) < 2:
+            continue
+        refs.append(name)
+    return list(dict.fromkeys(refs))
+
+
+def _matching_paren(src: str, open_idx: int) -> int:
+    depth = 0
+    for i in range(open_idx, len(src)):
+        c = src[i]
+        if c == '(':
+            depth += 1
+        elif c == ')':
+            depth -= 1
+            if depth == 0:
+                return i
+    return -1
+
+
+def _arg_type_refs(args: str) -> list:
+    refs = []
+    for m in re.finditer(r':\s*([^=,@)\n]+)', args or ''):
+        refs.extend(_gql_type_refs(m.group(1)))
+    return list(dict.fromkeys(refs))
+
+
+def _clean_signature(args: str, ret: str) -> str:
+    arg_sig = re.sub(r'\s+', ' ', (args or '').strip())
+    ret_sig = re.sub(r'\s+', ' ', (ret or '').strip())
+    return f'({arg_sig}) -> {ret_sig}' if ret_sig else f'({arg_sig})'
+
+
+def _parse_field_entries(body: str, body_start: int) -> list:
+    entries = []
+    for m in RE_GQL_FIELD_START.finditer(body):
+        name = m.group('name')
+        if name in GQL_KEYWORDS or len(name) < 2:
+            continue
+        args = ''
+        ret = ''
+        if m.group('kind') == '(':
+            open_idx = m.end('kind') - 1
+            close_idx = _matching_paren(body, open_idx)
+            if close_idx == -1:
+                continue
+            args = body[open_idx + 1:close_idx]
+            colon = body.find(':', close_idx + 1)
+            line_end = body.find('\n', close_idx + 1)
+            if line_end == -1:
+                line_end = len(body)
+            if colon == -1 or colon > line_end:
+                continue
+            ret = body[colon + 1:line_end]
+        else:
+            colon = m.end('kind') - 1
+            line_end = body.find('\n', colon + 1)
+            if line_end == -1:
+                line_end = len(body)
+            ret = body[colon + 1:line_end]
+        ret = re.split(r'[@=]', ret, 1)[0].strip()
+        refs = _gql_type_refs(ret) + _arg_type_refs(args)
+        entries.append({
+            'name': name,
+            'args': args,
+            'return': ret,
+            'type_refs': list(dict.fromkeys(refs)),
+            'start': body_start + m.start('name'),
+            'has_args': bool(args or m.group('kind') == '('),
+        })
+    return entries
+
+
 def _parse_imports(raw: str) -> list:
     refs = []
     for ref, _line in _parse_import_entries(raw):
@@ -188,36 +267,53 @@ def scan_graphql(src: str, ext: str = '.graphql') -> tuple:
         else:
             end_idx = m.end()
         ranges.append((start, end_idx, name))
+        body = ''
+        body_start = end_idx
+        if has_brace:
+            body_start = m.end()
+            body = clean[body_start:max(body_start, end_idx - 1)]
+        field_entries = _parse_field_entries(body, body_start) if kind in ('type', 'input', 'interface') else []
+        type_refs = []
+        for entry in field_entries:
+            type_refs.extend(entry['type_refs'])
         symbol_defs.append({
             'kind': kind, 'name': name,
             'line': _line_no(src, start),
             'end_line': _line_no(src, max(start, end_idx - 1)),
             'bases': _parse_bases(kind, m.group('rest')),
             'parent': None, 'is_public': True, 'doc': None,
+            'type_refs': list(dict.fromkeys(type_refs)),
         })
 
     funcdefs = []
     func_calls_by_func = []
     seen_field = set()
-    for m in RE_GQL_FIELD.finditer(clean):
-        name = m.group('name')
-        if name in GQL_KEYWORDS or len(name) < 2:
+    for start_range, end_range, parent in ranges:
+        body_start = clean.find('{', start_range, end_range)
+        if body_start == -1:
             continue
-        start = m.start('name')
-        parent = _enclosing(ranges, start)
-        if parent is None:
-            continue  # a `name(` outside any type body is not a field
-        key = (name, parent)
-        if key in seen_field:
-            continue
-        seen_field.add(key)
-        funcdefs.append({'label': name, 'is_efiapi': False, 'is_static': False})
-        func_calls_by_func.append([])
-        symbol_defs.append({
-            'kind': 'method', 'name': name, 'line': _line_no(src, start),
-            'end_line': _line_no(src, start), 'bases': [], 'parent': parent,
-            'is_public': True, 'doc': None, 'complexity': 1,
-        })
+        body_start += 1
+        body = clean[body_start:max(body_start, end_range - 1)]
+        for entry in _parse_field_entries(body, body_start):
+            if not entry['has_args']:
+                continue
+            name = entry['name']
+            start = entry['start']
+            if _enclosing(ranges, start) != parent:
+                continue
+            key = (name, parent)
+            if key in seen_field:
+                continue
+            seen_field.add(key)
+            funcdefs.append({'label': name, 'is_efiapi': False, 'is_static': False})
+            func_calls_by_func.append([])
+            symbol_defs.append({
+                'kind': 'method', 'name': name, 'line': _line_no(src, start),
+                'end_line': _line_no(src, start), 'bases': [], 'parent': parent,
+                'is_public': True, 'doc': None, 'complexity': 1,
+                'signature': _clean_signature(entry['args'], entry['return']),
+                'type_refs': entry['type_refs'],
+            })
 
     extra = {'imports': imports, 'lang': 'graphql'}
     if import_entries:

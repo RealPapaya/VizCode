@@ -18,7 +18,10 @@ import pytest
 
 from core.analyze_viz import build_graph
 
-TYPE_KINDS = {'class', 'struct', 'interface', 'enum', 'record', 'trait', 'typedef'}
+TYPE_KINDS = {
+    'class', 'struct', 'interface', 'enum', 'record', 'trait', 'typedef',
+    'type', 'input', 'union', 'scalar', 'message', 'table', 'view',
+}
 
 
 def _build(tmp_path, files):
@@ -45,6 +48,18 @@ def _file_edge_types(res):
 
 def _field_present(res, field):
     return any(s.get(field) for s in (res.get('symbol_index') or {}).values())
+
+
+def _symbol_edge_name_pairs(res, edge_type):
+    sym_idx = res.get('symbol_index') or {}
+    pairs = set()
+    for edge in (res.get('symbol_edges') or []):
+        if edge.get('type') != edge_type:
+            continue
+        src = sym_idx.get(edge.get('from'), {})
+        tgt = sym_idx.get(edge.get('to'), {})
+        pairs.add((src.get('name'), tgt.get('name')))
+    return pairs
 
 
 # ── Positive: multi-language end-to-end ──────────────────────────────────────
@@ -218,6 +233,143 @@ def test_rust_enrichment(tmp_path):
     assert {'asset_ref', 'config_ref'} <= _file_edge_types(res)
     assert _field_present(res, 'decorators')
     assert _field_present(res, 'signature')
+
+
+# ?? Batch 2 positive: GraphQL / Protobuf / SQL ????????????????????
+
+def test_graphql_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'schema.graphql': (
+            'interface Node { owner: User }\n'
+            'input ProfileInput { owner: User }\n'
+            'type Profile { owner: User }\n'
+            'type User implements Node {\n'
+            '  id: ID!\n'
+            '  profile(input: ProfileInput): Profile\n'
+            '}\n'
+        ),
+    })
+    assert {'implements', 'type_usage'} <= _sym_edge_types(res)
+    pairs = _symbol_edge_name_pairs(res, 'type_usage')
+    assert ('Node', 'User') in pairs
+    assert ('ProfileInput', 'User') in pairs
+    assert ('User', 'Profile') in pairs
+    assert ('profile', 'ProfileInput') in pairs
+    assert ('profile', 'Profile') in pairs
+    assert _field_present(res, 'signature')
+
+
+def test_protobuf_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'service.proto': (
+            'syntax = "proto3";\n'
+            'message User {}\n'
+            'message Profile { User owner = 1; }\n'
+            'message Request {\n'
+            '  Profile profile = 1;\n'
+            '  map<string, User> users = 2;\n'
+            '  oneof target { Profile selected_profile = 3; }\n'
+            '}\n'
+            'service ProfileService {\n'
+            '  rpc GetProfile (Request) returns (Profile);\n'
+            '}\n'
+        ),
+    })
+    assert 'type_usage' in _sym_edge_types(res)
+    pairs = _symbol_edge_name_pairs(res, 'type_usage')
+    assert ('Profile', 'User') in pairs
+    assert ('Request', 'Profile') in pairs
+    assert ('Request', 'User') in pairs
+    assert ('GetProfile', 'Request') in pairs
+    assert ('GetProfile', 'Profile') in pairs
+    assert _field_present(res, 'signature')
+
+
+def test_sql_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'schema.sql': (
+            'CREATE TABLE customers (id integer primary key);\n'
+            'CREATE TABLE orders (\n'
+            '  id integer primary key,\n'
+            '  customer_id integer REFERENCES customers(id)\n'
+            ');\n'
+            'CREATE TABLE audit_log (id integer);\n'
+            'CREATE TABLE stale_orders (id integer);\n'
+            'CREATE VIEW customer_orders AS\n'
+            '  SELECT orders.id FROM orders JOIN customers ON customers.id = orders.customer_id;\n'
+            'CREATE FUNCTION refresh_orders() RETURNS void AS $$\n'
+            'BEGIN\n'
+            '  UPDATE orders SET id = id;\n'
+            '  INSERT INTO audit_log(id) VALUES (1);\n'
+            '  DELETE FROM stale_orders WHERE id IN (SELECT id FROM customers);\n'
+            'END;\n'
+            '$$ LANGUAGE plpgsql;\n'
+        ),
+    })
+    assert 'type_usage' in _sym_edge_types(res)
+    pairs = _symbol_edge_name_pairs(res, 'type_usage')
+    assert ('orders', 'customers') in pairs
+    assert ('customer_orders', 'orders') in pairs
+    assert ('customer_orders', 'customers') in pairs
+    assert ('refresh_orders', 'orders') in pairs
+    assert ('refresh_orders', 'audit_log') in pairs
+    assert ('refresh_orders', 'stale_orders') in pairs
+
+
+def test_schema_adversarial_comments_strings_builtins(tmp_path):
+    res = _build(tmp_path, {
+        'schema.graphql': (
+            'type Hidden {}\n'
+            '# type Query { hidden: Hidden }\n'
+            '""" input: Hidden """\n'
+            'type Query { id: ID! name: String active: Boolean }\n'
+        ),
+        'schema.proto': (
+            'syntax = "proto3";\n'
+            'message HiddenProto {}\n'
+            'message Holder {\n'
+            '  string name = 1;\n'
+            '  int32 count = 2;\n'
+            '  // HiddenProto hidden = 3;\n'
+            '}\n'
+        ),
+        'schema.sql': (
+            'CREATE TABLE hidden_table (id integer);\n'
+            '-- SELECT * FROM hidden_table;\n'
+            "CREATE TABLE active_table (id integer, label varchar default 'FROM hidden_table');\n"
+        ),
+    })
+    assert [e for e in (res.get('symbol_edges') or []) if e['type'] == 'type_usage'] == []
+
+
+def test_schema_adversarial_ambiguous_target_no_type_usage(tmp_path):
+    res = _build(tmp_path, {
+        'a.sql': 'CREATE TABLE dup_table (id integer);\n',
+        'b.sql': 'CREATE TABLE dup_table (id integer);\n',
+        'use.sql': 'CREATE VIEW use_dup AS SELECT * FROM dup_table;\n',
+    })
+    pairs = _symbol_edge_name_pairs(res, 'type_usage')
+    assert ('use_dup', 'dup_table') not in pairs
+
+
+def test_sql_adversarial_ctes_aliases_subqueries_bounded(tmp_path):
+    res = _build(tmp_path, {
+        'schema.sql': (
+            'CREATE TABLE users (id integer);\n'
+            'CREATE TABLE orders (id integer, user_id integer);\n'
+            'CREATE TABLE recent (id integer);\n'
+            'CREATE VIEW active_users AS\n'
+            'WITH recent AS (SELECT * FROM orders o)\n'
+            'SELECT u.id FROM recent r JOIN users u ON u.id = r.user_id\n'
+            'WHERE EXISTS (SELECT 1 FROM orders o2 WHERE o2.user_id = u.id);\n'
+        ),
+    })
+    pairs = _symbol_edge_name_pairs(res, 'type_usage')
+    assert ('active_users', 'users') in pairs
+    assert ('active_users', 'orders') in pairs
+    assert ('active_users', 'recent') not in pairs
+    active_edges = [pair for pair in pairs if pair[0] == 'active_users']
+    assert len(active_edges) <= 2
 
 
 # ── Adversarial: must produce NO bogus edges ──────────────────────────────────

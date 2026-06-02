@@ -36,3 +36,11 @@ python "<VIZCODE_ROOT>/vizcode.py" "<PROJECT_PATH>" --scan-only
 5. `vizcode_query("cache")` — 找所有跟 cache 相關的模組/邊
 
 **禁止**直接讀取 `.vizcode/scan_cache.json` 或 `.vizcode/semantic_cache.json` 原始檔案。
+
+### Parser Enrichment 驗證規則
+
+修改 parser enrichment 時，除了 unit tests，也要在 `testproject/testproject/` 新增可保留的最小範例檔，讓實際 demo 專案能看見新增的解析能力。
+
+- L1 enrichment：範例檔要能產生預期 file edge，並用分析結果確認 edge type / subtype / via。
+- L3 enrichment：範例檔要能產生預期 symbol edge，並用分析結果確認 `type_usage` / `implements` / `inheritance` 等既有 edge 是否真的長出來。
+- 不要刪除這些 fixture；若 parser 行為改變，更新 fixture 和測試，讓它們持續描述目前想支援的語法。

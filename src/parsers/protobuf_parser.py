@@ -38,7 +38,22 @@ RE_PROTO_TYPE = re.compile(
     r'(?:^|[\s{};])(?P<kind>message|enum|service)\s+(?P<name>[A-Za-z_]\w*)',
     re.MULTILINE)
 RE_PROTO_RPC = re.compile(r'^\s*rpc\s+(?P<name>[A-Za-z_]\w*)\s*\(', re.MULTILINE)
+RE_PROTO_RPC_FULL = re.compile(
+    r'^\s*rpc\s+(?P<name>[A-Za-z_]\w*)\s*'
+    r'\(\s*(?P<req>[^)]*?)\s*\)\s*returns\s*'
+    r'\(\s*(?P<resp>[^)]*?)\s*\)',
+    re.MULTILINE)
 RE_PROTO_CALL = re.compile(r'\b([A-Za-z_]\w*)\s*\(')
+RE_PROTO_MAP_FIELD = re.compile(
+    r'\bmap\s*<\s*(?P<key>\.?[A-Za-z_][\w.]*)\s*,\s*'
+    r'(?P<value>\.?[A-Za-z_][\w.]*)\s*>\s+'
+    r'(?P<name>[A-Za-z_]\w*)\s*=',
+    re.MULTILINE)
+RE_PROTO_FIELD = re.compile(
+    r'^[ \t]*(?:(?:optional|required|repeated)\s+)?'
+    r'(?P<type>\.?[A-Za-z_][\w.]*)\s+'
+    r'(?P<name>[A-Za-z_]\w*)\s*=',
+    re.MULTILINE)
 
 
 def _line_no(src: str, idx: int) -> int:
@@ -122,6 +137,44 @@ def _enclosing(ranges, idx, exclude_start=None):
     return best
 
 
+def _proto_type_name(type_text: str) -> str:
+    text = re.sub(r'\bstream\b', '', type_text or '').strip()
+    if not text:
+        return ''
+    text = text.lstrip('.')
+    return text.split('.')[-1]
+
+
+def _proto_type_refs(names) -> list:
+    refs = []
+    for raw in names:
+        name = _proto_type_name(raw)
+        if not name or name in PROTO_KEYWORDS or len(name) < 2:
+            continue
+        refs.append(name)
+    return list(dict.fromkeys(refs))
+
+
+def _blank_ranges(src: str, ranges_to_blank) -> str:
+    out = list(src)
+    n = len(out)
+    for start, end in ranges_to_blank:
+        for i in range(max(0, start), min(end, n)):
+            if out[i] != '\n':
+                out[i] = ' '
+    return ''.join(out)
+
+
+def _message_type_refs(body: str) -> list:
+    refs = []
+    for m in RE_PROTO_MAP_FIELD.finditer(body):
+        refs.extend(_proto_type_refs([m.group('value')]))
+    body_without_maps = RE_PROTO_MAP_FIELD.sub('', body)
+    for m in RE_PROTO_FIELD.finditer(body_without_maps):
+        refs.extend(_proto_type_refs([m.group('type')]))
+    return list(dict.fromkeys(refs))
+
+
 def _parse_imports(src: str) -> list:
     refs = []
     for ref, _line in _parse_import_entries(src):
@@ -183,19 +236,31 @@ def scan_protobuf(src: str, ext: str = '.proto') -> tuple:
             'line': _line_no(src, start),
             'end_line': _line_no(src, max(start, end_idx - 1)),
             'bases': [], 'parent': None, 'is_public': True, 'doc': None,
-            '_start': start,
+            '_start': start, '_end': end_idx,
         })
 
     # nested-type parent attribution
     for s in symbol_defs:
         s['parent'] = _enclosing(ranges, s['_start'], exclude_start=s['_start'])
+        if s.get('kind') == 'message':
+            body_start = clean.find('{', s['_start'], s['_end'])
+            if body_start != -1:
+                body_start += 1
+                body = clean[body_start:max(body_start, s['_end'] - 1)]
+                nested_ranges = [
+                    (start - body_start, end - body_start)
+                    for start, end, _name in ranges
+                    if s['_start'] < start and end <= s['_end']
+                ]
+                s['type_refs'] = _message_type_refs(_blank_ranges(body, nested_ranges))
         s.pop('_start', None)
+        s.pop('_end', None)
 
     funcdefs = []
     func_calls_by_func = []
     method_symbols = []
     seen_rpc = set()
-    for m in RE_PROTO_RPC.finditer(clean):
+    for m in RE_PROTO_RPC_FULL.finditer(clean):
         name = m.group('name')
         if name in PROTO_KEYWORDS or len(name) < 2:
             continue
@@ -216,10 +281,14 @@ def scan_protobuf(src: str, ext: str = '.proto') -> tuple:
             end_line = line_no
         funcdefs.append({'label': name, 'is_efiapi': False, 'is_static': False})
         func_calls_by_func.append([])
+        req = _proto_type_name(m.group('req'))
+        resp = _proto_type_name(m.group('resp'))
         method_symbols.append({
             'kind': 'method' if parent else 'function', 'name': name,
             'line': line_no, 'end_line': end_line, 'bases': [],
             'parent': parent, 'is_public': True, 'doc': None, 'complexity': 1,
+            'signature': f'({req}) -> {resp}',
+            'type_refs': _proto_type_refs([m.group('req'), m.group('resp')]),
         })
 
     symbol_defs += method_symbols

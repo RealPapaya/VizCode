@@ -67,6 +67,18 @@ def _file_edge_paths(graph):
     return edges
 
 
+def _symbol_edge_name_pairs(graph, edge_type):
+    sym_idx = graph.get('symbol_index') or {}
+    pairs = set()
+    for edge in graph.get('symbol_edges') or []:
+        if edge.get('type') != edge_type:
+            continue
+        src = sym_idx.get(edge.get('from'), {})
+        tgt = sym_idx.get(edge.get('to'), {})
+        pairs.add((src.get('name'), tgt.get('name')))
+    return pairs
+
+
 # ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 @pytest.fixture(scope='module')
@@ -287,6 +299,45 @@ using module './Types.psm1'
             for src, tgt, edge in edges
         )
 
+    def test_testproject_parser_enrichment_fixtures_create_expected_edges(self, graph):
+        file_edges = _file_edge_paths(graph)
+
+        assert any(
+            src == 'proto/schema_enrichment_probe.graphql'
+            and tgt == 'proto/schema_probe_fragments.graphql'
+            and edge['type'] == 'import'
+            and edge.get('subtype') == 'schema'
+            and edge.get('via') == '#import'
+            for src, tgt, edge in file_edges
+        )
+
+        type_usage = _symbol_edge_name_pairs(graph, 'type_usage')
+        implements = _symbol_edge_name_pairs(graph, 'implements')
+
+        assert ('SchemaProbeJob', 'SchemaProbeNode') in implements
+
+        expected_type_usage = {
+            ('SchemaProbeNode', 'SchemaProbeUser'),
+            ('SchemaProbeJobFilter', 'SchemaProbeUser'),
+            ('SchemaProbeJob', 'SchemaProbeUser'),
+            ('SchemaProbeJob', 'SchemaProbeJobResult'),
+            ('result', 'SchemaProbeJobFilter'),
+            ('result', 'SchemaProbeJobResult'),
+            ('ProbeTaskDetail', 'ProbeActor'),
+            ('ProbeTaskRequest', 'ProbeTaskDetail'),
+            ('ProbeTaskRequest', 'ProbeActor'),
+            ('ResolveProbeTask', 'ProbeTaskRequest'),
+            ('ResolveProbeTask', 'ProbeTaskResponse'),
+            ('probe_jobs', 'probe_owners'),
+            ('probe_audit', 'probe_jobs'),
+            ('probe_job_summary', 'probe_jobs'),
+            ('probe_job_summary', 'probe_owners'),
+            ('probe_touch_jobs', 'probe_jobs'),
+            ('probe_touch_jobs', 'probe_audit'),
+        }
+        missing = expected_type_usage - type_usage
+        assert not missing, f'Missing parser enrichment type_usage edges: {missing}'
+
 
 # ─── Symbol index structure ───────────────────────────────────────────────────
 
@@ -305,7 +356,7 @@ class TestSymbolIndex:
             'global_var', 'macro', 'union', 'namespace',
             'record', 'module', 'trait', 'type', 'abstract',
             'impl', 'object', 'message', 'service', 'table', 'view',
-            'key', 'keyframes',
+            'input', 'scalar', 'fragment', 'key', 'keyframes',
         }
         for sym in graph['symbol_index'].values():
             assert sym['kind'] in known_kinds, (
@@ -324,7 +375,7 @@ class TestSymbolEdges:
 
     def test_edge_types_are_known(self, graph):
         known_types = {
-            'call', 'inheritance', 'type_usage', 'import',
+            'call', 'inheritance', 'implements', 'type_usage', 'import',
             'override', 'include', 'member',
             'type_argument', 'specialization',
         }
