@@ -191,6 +191,12 @@ function _dashForceGraphMode() {
     if (typeof _dashCloseDrilldown === 'function') _dashCloseDrilldown();
     if (typeof closeDashboard === 'function') closeDashboard();
     if (window.state && state.galaxyActive && typeof closeGalaxy === 'function') closeGalaxy();
+    // Overview state lives in two places — state.galaxyActive AND the level-switcher's
+    // overview mode (_lswMode). When the dashboard is opened on top of Overview the two
+    // can desync, leaving the switcher stuck in overview so it re-triggers Galaxy. Reset
+    // it explicitly (no-ops when not in overview) so a widget file link always lands in
+    // graph mode rather than snapping back to Overview.
+    if (typeof window._lswExitOverview === 'function') window._lswExitOverview();
     if (window._sv && window._sv.active) {
         if (typeof symViewClose === 'function') symViewClose();
         else if (typeof svHideSvView === 'function') svHideSvView();

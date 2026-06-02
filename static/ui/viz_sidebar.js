@@ -1271,7 +1271,14 @@ function setSubdirActive(modId, subPath) {
 }
 
 function revealSidebarExplorerPath(path, kind = 'file') {
-    if (_sbActiveTab === 'filters') return false;
+    if (_sbActiveTab === 'filters') {
+        // In Overview/Treemap the Filters tab is disabled, so a reveal driven by
+        // a treemap/galaxy selection should switch to Explorer rather than bail.
+        const inOverview = typeof window.isOverviewTreemapActive === 'function' && window.isOverviewTreemapActive();
+        if (!inOverview) return false;
+        _sbActiveTab = 'explorer';
+        _applySidebarTab();
+    }
     const norm = _sidebarNormPath(path);
     clearSidebarActive();
     if (!norm) return false;

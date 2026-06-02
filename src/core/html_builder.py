@@ -64,7 +64,7 @@ HTML_SKELETON = """\
   <!-- LEFT ICON RAIL ────────────────────────────────────────────────────── -->
   <aside id="app-rail">
     <div class="rail-brand-row">
-      <div class="rail-logo" style="display: flex; justify-content: center; align-items: center; background: none; border-radius: 0; border: none; box-shadow: none;"><img src="/static/icon/LOGO.webp" alt="Logo" style="width: 70px; height: 70px; flex-shrink: 0; object-fit: contain; pointer-events: none;" /></div>
+      <div class="rail-logo" style="display: flex; justify-content: center; align-items: center; background: none; border-radius: 0; border: none; box-shadow: none;"><img src="/static/icon/LOGO.webp" alt="Logo" style="width: 65px; height: 65px; flex-shrink: 0; object-fit: contain; pointer-events: none;" /></div>
       <button id="rail-toggle-btn" class="rail-btn" type="button" aria-controls="app-rail" aria-expanded="false" data-i18n-attr="data-tip" data-i18n="railExpand" title="Expand rail">
         <svg class="rail-toggle-icon rail-toggle-expand-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
         <svg class="rail-toggle-icon rail-toggle-collapse-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>

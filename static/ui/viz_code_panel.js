@@ -198,6 +198,11 @@ function initLevelSwitcher() {
     const bar = document.getElementById('level-switcher');
     if (!bar) return;
     _lswApplyLabels(_LSW_LEVEL_LABELS);
+    // On fresh load only L0 is available; L1/L2/L3 unlock after loadLevel0() completes.
+    const segs = bar.querySelectorAll('.lsw-seg');
+    segs[1]?.classList.add('lsw-unavailable');
+    segs[2]?.classList.add('lsw-unavailable');
+    segs[3]?.classList.add('lsw-unavailable');
 
     bar.addEventListener('pointerdown', e => {
         if (bar.classList.contains('lsw-disabled')) return;

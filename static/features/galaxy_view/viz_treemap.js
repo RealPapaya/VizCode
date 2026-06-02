@@ -382,10 +382,26 @@ function _overviewTreemapInstallInteractions(grid) {
     };
     grid.addEventListener('pointerup', finishDrag);
     grid.addEventListener('pointercancel', finishDrag);
+    grid.addEventListener('click', event => {
+        if (_overviewMode !== 'treemap') return;
+        if (_overviewTreemapSuppressClick) return;
+        // A click on a cell is handled by the cell's own listener; only blank
+        // space (canvas / group background) should clear the selection.
+        if (event.target.closest('.overview-treemap-cell')) return;
+        _overviewTreemapClearSelection();
+    });
     grid.addEventListener('dblclick', event => {
         event.preventDefault();
         _overviewTreemapResetViewport();
     });
+}
+
+function _overviewTreemapClearSelection() {
+    _overviewTreemapSelectedPath = '';
+    const host = document.getElementById('overview-treemap-host');
+    host?.querySelectorAll('.overview-treemap-cell.active').forEach(node => node.classList.remove('active'));
+    host?.querySelector('.overview-treemap-canvas')?.classList.remove('has-selection');
+    if (typeof clearSidebarActive === 'function') clearSidebarActive();
 }
 
 function _overviewTreemapTooltip(cell, event) {
