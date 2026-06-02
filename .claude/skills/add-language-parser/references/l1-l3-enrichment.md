@@ -72,6 +72,9 @@ For file-path hints:
   suppressed.
 - Plain string assignments are not file references unless the language construct
   or API makes them trusted file I/O/config/asset references.
+- Include an accurate 1-based `line` for every hint whose source syntax exposes
+  a stable reference location. The L1 code panel uses this for edge tap and
+  reverse sync.
 
 For L3 enrichment, prefer existing symbol fields:
 
@@ -80,9 +83,15 @@ For L3 enrichment, prefer existing symbol fields:
 - `signature`, `doc`, `decorators`
 - `is_public`, `is_static`
 - `complexity`
+- `type_refs`
 
 Only add extra symbol keys when they are stable, language-neutral enough to be
 useful, and harmless to ignore.
+
+Symbol View source jumps depend on resolved symbols, not edge-local source
+locations. L3 edge endpoints must therefore resolve to symbols with `file`,
+`line`, and `end_line`; do not emit L3 enrichment metadata that cannot be
+represented by the existing symbol index.
 
 As with L1 hints, parser-side symbol metadata is not enough. A successful L3
 enrichment must be observed after `build_graph(...)` in both:
@@ -115,6 +124,13 @@ Map language constructs to stable vocabulary:
 - Skip builtins, keywords, framework globals, and short generic names.
 - Do not turn comments or string literals into edges.
 - Keep fallback inference gated and explain the guard in tests.
+- Base regex extraction on official specs or language reference documentation.
+  Unsupported or unverified syntax forms should be documented as unsupported and
+  skipped.
+- Keep parser output aligned with the existing analyzer/frontend contract. Use
+  canonical edge types such as `type_usage`, `inheritance`, `implements`,
+  `override`, `asset_ref`, `config_ref`, and `import` before considering any
+  contract change.
 
 ## Required Tests
 

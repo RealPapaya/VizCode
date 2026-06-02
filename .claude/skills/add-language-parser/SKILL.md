@@ -22,6 +22,7 @@ Add or improve language support in a way that is:
 - Conservative when ambiguous
 - Reusable for future languages
 - Grounded in authoritative syntax references
+- Linked through the existing VIZCODE code-panel and graph contracts
 
 This is not a "write regex from memory" workflow. It is a parser engineering workflow.
 
@@ -112,6 +113,11 @@ Record a short note in the PR/commit body listing:
 - Which syntax forms were verified
 - Which source documented them
 - Which syntax forms are intentionally unsupported
+
+Each parser batch must cite official specs or reference documentation in parser
+comments, test notes, or PR notes. Regex rules must be based on verified syntax
+only. If no authoritative source is found for a syntax form, mark it unsupported
+and do not emit symbols or edges for it.
 
 This is the audit trail for every parser rule.
 
@@ -225,6 +231,29 @@ Read `references/l1-l3-enrichment.md` when the change affects any of:
 The parser 6-tuple contract remains stable. Put optional enrichment in `extra`
 and `symbol_defs`; do not add tuple slots unless the architecture is explicitly
 changed.
+
+Project-fit requirements:
+
+- Preserve the 6-tuple parser contract:
+  `imports, funcdefs, funccalls, extra, func_calls_by_func, symbol_defs`.
+- Use existing canonical edge types: `type_usage`, `inheritance`,
+  `implements`, `override`, `asset_ref`, `config_ref`, and `import` unless a
+  project contract change is explicitly approved.
+- Do not change analyzer/frontend contracts when existing UI paths can represent
+  the data through `extra`, `symbol_defs`, or edge metadata.
+- Parser work must fit existing VIZCODE analyzer behavior and frontend mappings;
+  do not invent analyzer-side meanings that the UI cannot display.
+
+Code-panel linkage requirements:
+
+- L1 `edge_hints` must include an accurate 1-based `line` when the source syntax
+  supports locating the reference.
+- L1 edge tap must open the source file and jump to `edge.line` when present,
+  falling back to target-label search only when no line is available.
+- Reverse sync from the code panel to L1 must accept exact `edge.line` matches
+  when available.
+- L3 symbol edges must rely on symbols that carry `file`, `line`, and `end_line`
+  so Symbol View node and edge clicks can jump to source correctly.
 
 Required output before implementation:
 

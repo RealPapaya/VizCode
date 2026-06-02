@@ -26,6 +26,13 @@ from parsers.json_parser import scan_json
 from parsers.powershell_parser import scan_powershell
 from parsers.graphql_parser import scan_graphql
 from parsers.protobuf_parser import scan_protobuf
+from parsers.kotlin_parser import scan_kotlin
+from parsers.swift_parser import scan_swift
+from parsers.php_parser import scan_php
+from parsers.scala_parser import scan_scala
+from parsers.dart_parser import scan_dart
+from parsers.objc_parser import scan_objc
+from parsers.vbnet_parser import scan_vbnet
 
 
 # ─── Helper ──────────────────────────────────────────────────────────────────
@@ -605,6 +612,36 @@ class TestUefiParser:
         assert extra is None
         assert func_calls_by_func == []
         assert symbol_defs == []
+
+
+class TestBatch3DedicatedParsers:
+    def test_kotlin_six_tuple_contract(self):
+        result = scan_kotlin('class Demo { fun run(req: Request): Settings = Settings() }\n')
+        assert_six_tuple(result, 'scan_kotlin')
+
+    def test_swift_six_tuple_contract(self):
+        result = scan_swift('class Demo { func run(req: Request) -> Settings { Settings() } }\n')
+        assert_six_tuple(result, 'scan_swift')
+
+    def test_php_six_tuple_contract(self):
+        result = scan_php('<?php class Demo { public function run(Request $req): Settings {} }\n')
+        assert_six_tuple(result, 'scan_php')
+
+    def test_scala_six_tuple_contract(self):
+        result = scan_scala('class Demo { def run(req: Request): Settings = new Settings() }\n')
+        assert_six_tuple(result, 'scan_scala')
+
+    def test_dart_six_tuple_contract(self):
+        result = scan_dart('class Demo { Settings run(Request req) { return Settings(); } }\n')
+        assert_six_tuple(result, 'scan_dart')
+
+    def test_objc_six_tuple_contract(self):
+        result = scan_objc('@interface Demo\n- (Settings *)run:(Request *)req;\n@end\n')
+        assert_six_tuple(result, 'scan_objc')
+
+    def test_vbnet_six_tuple_contract(self):
+        result = scan_vbnet('Class Demo\nFunction Run(req As Request) As Settings\nEnd Function\nEnd Class\n')
+        assert_six_tuple(result, 'scan_vbnet')
 
 
 class TestParserEdgeHints:

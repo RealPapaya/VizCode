@@ -62,6 +62,19 @@ def _symbol_edge_name_pairs(res, edge_type):
     return pairs
 
 
+def _symbol_edges(res, edge_type):
+    return [e for e in (res.get('symbol_edges') or []) if e.get('type') == edge_type]
+
+
+def _file_edges(res, edge_type=None):
+    out = []
+    for edges in (res.get('file_edges_by_module') or {}).values():
+        for edge in edges:
+            if edge_type is None or edge.get('type') == edge_type:
+                out.append(edge)
+    return out
+
+
 # ── Positive: multi-language end-to-end ──────────────────────────────────────
 
 def test_python_enrichment(tmp_path):
@@ -370,6 +383,252 @@ def test_sql_adversarial_ctes_aliases_subqueries_bounded(tmp_path):
     assert ('active_users', 'recent') not in pairs
     active_edges = [pair for pair in pairs if pair[0] == 'active_users']
     assert len(active_edges) <= 2
+
+
+# ---- Batch 3 positive: Kotlin / Swift / PHP / Scala / Dart / ObjC / VB.NET ----
+
+def test_kotlin_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'Engine.kt': (
+            'import java.io.File\n'
+            'annotation class Route\n'
+            'open class Base {}\n'
+            'interface Store {}\n'
+            'class Settings {}\n'
+            'class Request {}\n'
+            '@Route\n'
+            'class Engine : Base(), Store {\n'
+            '  val settings: Settings = Settings()\n'
+            '  @Route\n'
+            '  fun run(req: Request): Settings {\n'
+            '    val cfg = File("config/app.json").readText()\n'
+            '    return Settings()\n'
+            '  }\n'
+            '}\n'
+        ),
+        'config/app.json': '{}\n',
+    })
+    assert {'inheritance', 'implements', 'type_usage'} <= _sym_edge_types(res)
+    assert 'config_ref' in _file_edge_types(res)
+    assert _field_present(res, 'signature')
+    assert _field_present(res, 'decorators')
+    assert len(_symbol_edges(res, 'type_usage')) <= 8
+    assert any(e.get('line') == 12 for e in _file_edges(res, 'config_ref'))
+
+
+def test_swift_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'Engine.swift': (
+            'class Base {}\n'
+            'protocol Store {}\n'
+            'class Settings {}\n'
+            'class Request {}\n'
+            '@available(*, deprecated)\n'
+            'class Engine: Base, Store {\n'
+            '  var settings: Settings\n'
+            '  init(settings: Settings) { self.settings = settings }\n'
+            '  @available(*, deprecated)\n'
+            '  func run(req: Request) -> Settings {\n'
+            '    let _ = try? String(contentsOfFile: "config/app.json")\n'
+            '    return Settings()\n'
+            '  }\n'
+            '}\n'
+        ),
+        'config/app.json': '{}\n',
+    })
+    assert {'inheritance', 'implements', 'type_usage'} <= _sym_edge_types(res)
+    assert 'config_ref' in _file_edge_types(res)
+    assert _field_present(res, 'signature')
+    assert _field_present(res, 'decorators')
+    assert len(_symbol_edges(res, 'type_usage')) <= 8
+
+
+def test_php_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'Engine.php': (
+            '<?php\n'
+            'interface Store {}\n'
+            'class Base {}\n'
+            'class Settings {}\n'
+            'class Request {}\n'
+            '#[Route]\n'
+            'class Engine extends Base implements Store {\n'
+            '  public Settings $settings;\n'
+            '  #[Route]\n'
+            '  public function run(Request $req): Settings {\n'
+            '    require "config/bootstrap.php";\n'
+            '    return new Settings();\n'
+            '  }\n'
+            '}\n'
+        ),
+        'config/bootstrap.php': '<?php\n',
+    })
+    assert {'inheritance', 'implements', 'type_usage'} <= _sym_edge_types(res)
+    assert 'import' in _file_edge_types(res)
+    assert _field_present(res, 'signature')
+    assert _field_present(res, 'decorators')
+    assert len(_symbol_edges(res, 'type_usage')) <= 8
+    assert any(e.get('line') == 11 for e in _file_edges(res, 'import'))
+
+
+def test_scala_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'Engine.scala': (
+            'import scala.io.Source\n'
+            'trait Store {}\n'
+            'class Base {}\n'
+            'class Settings {}\n'
+            'class Request {}\n'
+            '@deprecated\n'
+            'class Engine extends Base with Store {\n'
+            '  val settings: Settings = new Settings()\n'
+            '  @deprecated\n'
+            '  def run(req: Request): Settings = {\n'
+            '    val cfg = Source.fromFile("config/app.json")\n'
+            '    new Settings()\n'
+            '  }\n'
+            '}\n'
+        ),
+        'config/app.json': '{}\n',
+    })
+    assert {'inheritance', 'implements', 'type_usage'} <= _sym_edge_types(res)
+    assert 'config_ref' in _file_edge_types(res)
+    assert _field_present(res, 'signature')
+    assert _field_present(res, 'decorators')
+    assert len(_symbol_edges(res, 'type_usage')) <= 8
+
+
+def test_dart_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'engine.dart': (
+            "import 'dart:io';\n"
+            'class Base {}\n'
+            'mixin Store {}\n'
+            'class Settings {}\n'
+            'class Request {}\n'
+            "@Deprecated('demo')\n"
+            'class Engine extends Base with Store {\n'
+            '  Settings settings = Settings();\n'
+            '  @override\n'
+            '  Settings run(Request req) {\n'
+            "    final cfg = File('config/app.json');\n"
+            '    return Settings();\n'
+            '  }\n'
+            '}\n'
+        ),
+        'config/app.json': '{}\n',
+    })
+    assert {'inheritance', 'implements', 'type_usage'} <= _sym_edge_types(res)
+    assert 'config_ref' in _file_edge_types(res)
+    assert _field_present(res, 'signature')
+    assert _field_present(res, 'decorators')
+    assert len(_symbol_edges(res, 'type_usage')) <= 8
+
+
+def test_objc_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'Engine.m': (
+            '@protocol Store @end\n'
+            '@interface Base @end\n'
+            '@interface Settings @end\n'
+            '@interface Request @end\n'
+            '@interface Engine : Base <Store>\n'
+            '@property Settings *settings;\n'
+            '- (Settings *)run:(Request *)req;\n'
+            '@end\n'
+            '@implementation Engine\n'
+            '- (Settings *)run:(Request *)req {\n'
+            '  NSString *s = [NSString stringWithContentsOfFile:@"config/app.json" encoding:0 error:nil];\n'
+            '  return nil;\n'
+            '}\n'
+            '@end\n'
+        ),
+        'config/app.json': '{}\n',
+    })
+    assert {'inheritance', 'implements', 'type_usage'} <= _sym_edge_types(res)
+    assert 'config_ref' in _file_edge_types(res)
+    assert _field_present(res, 'signature')
+    assert len(_symbol_edges(res, 'type_usage')) <= 8
+
+
+def test_vbnet_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'Engine.vb': (
+            'Imports System.IO\n'
+            'Interface Store\nEnd Interface\n'
+            'Class Base\nEnd Class\n'
+            'Class Settings\nEnd Class\n'
+            'Class Request\nEnd Class\n'
+            '<Serializable>\n'
+            'Public Class Engine\n'
+            '  Inherits Base\n'
+            '  Implements Store\n'
+            '  Private settings As Settings\n'
+            '  <Obsolete>\n'
+            '  Public Function Run(req As Request) As Settings\n'
+            '    Dim cfg = File.ReadAllText("config/app.json")\n'
+            '    Return New Settings()\n'
+            '  End Function\n'
+            'End Class\n'
+        ),
+        'config/app.json': '{}\n',
+    })
+    assert {'inheritance', 'implements', 'type_usage'} <= _sym_edge_types(res)
+    assert 'config_ref' in _file_edge_types(res)
+    assert _field_present(res, 'signature')
+    assert _field_present(res, 'decorators')
+    assert len(_symbol_edges(res, 'type_usage')) <= 8
+
+
+def test_batch3_adversarial_builtins_strings_comments_and_ambiguity(tmp_path):
+    res = _build(tmp_path, {
+        'a.kt': 'class Dup {}\n',
+        'b.kt': 'class Dup {}\n',
+        'use.kt': (
+            'fun useDup(x: Dup): Dup = x\n'
+            'fun builtin(s: String): Int = 1\n'
+            '// val hidden = File("hidden.json")\n'
+            'val text = "File(\\"secret.json\\")"\n'
+        ),
+        'hidden.json': '{}\n',
+        'secret.json': '{}\n',
+        'noise.swift': (
+            'func builtin(s: String) -> Int { return 1 }\n'
+            '// let hidden = try? String(contentsOfFile: "hidden.json")\n'
+            'let text = "String(contentsOfFile: \\"secret.json\\")"\n'
+        ),
+        'noise.php': (
+            '<?php\n'
+            'function builtin(string $s): int { return 1; }\n'
+            '// require "hidden.json";\n'
+            '$text = "require \\"secret.json\\"";\n'
+        ),
+        'noise.scala': (
+            'def builtin(s: String): Int = 1\n'
+            '// val hidden = Source.fromFile("hidden.json")\n'
+            'val text = "Source.fromFile(\\"secret.json\\")"\n'
+        ),
+        'noise.dart': (
+            'int builtin(String s) { return 1; }\n'
+            '// final hidden = File("hidden.json");\n'
+            'final text = "File(\\"secret.json\\")";\n'
+        ),
+        'noise.m': (
+            'int builtin(NSString *s) { return 1; }\n'
+            '// NSString *h = [NSString stringWithContentsOfFile:@"hidden.json" encoding:0 error:nil];\n'
+            'NSString *t = @"stringWithContentsOfFile:@\\"secret.json\\"";\n'
+        ),
+        'noise.vb': (
+            'Function Builtin(s As String) As Integer\n'
+            '  Return 1\n'
+            'End Function\n'
+            "' Dim hidden = File.ReadAllText(\"hidden.json\")\n"
+            'Dim text = "File.ReadAllText(""secret.json"")"\n'
+        ),
+    })
+    assert ('useDup', 'Dup') not in _symbol_edge_name_pairs(res, 'type_usage')
+    assert 'config_ref' not in _file_edge_types(res)
+    assert 'asset_ref' not in _file_edge_types(res)
 
 
 # ── Adversarial: must produce NO bogus edges ──────────────────────────────────

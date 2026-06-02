@@ -10,9 +10,15 @@ Extracts:
   func_calls_by_func  - per-function call lists (body-scoped via brace matching)
   symbol_defs         - class / mixin / enum / extension / typedef / function
 
-Syntax verified against the Dart Language Specification & dart.dev language tour:
-  line `//`, doc `///`, NESTED block `/* */` comments; strings `'...'` / `"..."`,
-  triple `'''...'''` / `\"\"\" ... \"\"\"`, raw `r'...'`, interpolation `$x`/`${...}`.
+Syntax verified against the Dart language specification and dart.dev docs:
+  https://dart.dev/language/classes
+  https://dart.dev/language/functions
+  https://dart.dev/language/metadata
+  https://spec.dart.dev/DartLangSpecDraft.pdf
+Line `//`, doc `///`, NESTED block `/* */` comments; strings `'...'` / `"..."`,
+triple `'''...'''` / `\"\"\" ... \"\"\"`, raw `r'...'`, interpolation `$x`/`${...}`.
+Unsupported: inferred variable types, structural assumptions, and arbitrary
+string file paths.
 """
 
 import re
@@ -96,6 +102,20 @@ RE_DART_FUNC = re.compile(
 RE_DART_CALL = re.compile(r'\b([A-Za-z_$]\w*)\s*\(')
 
 _RE_DART_BRANCH_KW = re.compile(r'\b(?:if|for|while|case|catch)\b')
+_DART_FILE_EXTS = {
+    '.json', '.yaml', '.yml', '.toml', '.xml', '.conf', '.cfg',
+    '.html', '.htm', '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg',
+    '.txt', '.md',
+}
+_DART_CONFIG_EXTS = {'.json', '.yaml', '.yml', '.toml', '.xml', '.conf', '.cfg'}
+RE_DART_FILE_REF = re.compile(
+    r'\b(?:File|loadString|load)\s*\(\s*["\'](?P<path>[^"\']+)["\']'
+)
+RE_DART_FIELD_TYPE = re.compile(
+    r'^[ \t]*(?:late\s+|final\s+|static\s+|const\s+)*'
+    r'(?P<type>[A-Z][\w<>,?\[\]. ]*)\s+[A-Za-z_]\w*\s*(?:[;=])',
+    re.MULTILINE,
+)
 
 
 def _mask_dart_source(src: str, mask_literals: bool = False) -> str:
@@ -182,6 +202,68 @@ def _strip_comments(src: str) -> str:
 
 def _line_no(src: str, idx: int) -> int:
     return src[:idx].count('\n') + 1
+
+
+def _normalize_signature(src: str, start: int, end: int) -> str:
+    return ' '.join(src[start:end].strip().split())
+
+
+def _extract_type_refs(text: str) -> list:
+    refs = []
+    for name in re.findall(r'(?:\b[A-Za-z_]\w*\.)?\b([A-Z][A-Za-z_]\w*)\b', text):
+        if name not in DART_KEYWORDS and len(name) >= 3:
+            refs.append(name)
+    return list(dict.fromkeys(refs))
+
+
+def _decorators_before(src: str, clean: str, decl_start: int) -> list:
+    line_start = clean.rfind('\n', 0, decl_start) + 1
+    prefix = src[line_start:decl_start]
+    decorators = re.findall(r'@([A-Za-z_]\w*)', prefix)
+    src_lines = src[:line_start].splitlines()
+    clean_lines = clean[:line_start].splitlines()
+    i = len(src_lines) - 1
+    leading = []
+    while i >= 0:
+        stripped = clean_lines[i].strip()
+        if not stripped:
+            i -= 1
+            continue
+        if not stripped.startswith('@'):
+            break
+        leading[:0] = re.findall(r'@([A-Za-z_]\w*)', src_lines[i])
+        i -= 1
+    return list(dict.fromkeys(leading + decorators))
+
+
+def _path_edge_type(path: str):
+    if re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*:', path) or path.startswith(('/', '\\')):
+        return None
+    ext = '.' + path.rsplit('.', 1)[-1].lower() if '.' in path.rsplit('/', 1)[-1] else ''
+    if ext not in _DART_FILE_EXTS:
+        return None
+    return 'config_ref' if ext in _DART_CONFIG_EXTS else 'asset_ref'
+
+
+def _edge_hints(src: str, code: str) -> list:
+    hints = []
+    masked = _mask_dart_source(src, mask_literals=True)
+    for m in RE_DART_FILE_REF.finditer(code):
+        if not masked[m.start():m.start('path')].strip():
+            continue
+        path = m.group('path').strip()
+        edge_type = _path_edge_type(path)
+        if not edge_type:
+            continue
+        hints.append({
+            'type': edge_type,
+            'target': path,
+            'subtype': 'config' if edge_type == 'config_ref' else 'asset',
+            'via': code[m.start():m.start('path')].strip(),
+            'line': _line_no(src, m.start('path')),
+            'confidence': 1.0,
+        })
+    return hints
 
 
 def _brace_range(src: str, open_idx: int) -> int:
@@ -287,15 +369,23 @@ def _parse_types(src: str, clean: str):
     def add(kind, name, start, end_idx, rest):
         line_no = _line_no(src, start)
         end_line = _line_no(src, max(start, end_idx - 1))
+        body = clean[start:end_idx]
+        field_refs = []
+        for fm in RE_DART_FIELD_TYPE.finditer(body):
+            field_refs.extend(_extract_type_refs(fm.group('type')))
+        base_refs = _split_bases(rest)
         symbols.append({
             'kind': kind,
             'name': name,
             'line': line_no,
             'end_line': end_line,
-            'bases': _split_bases(rest),
+            'bases': base_refs,
+            'type_refs': list(dict.fromkeys(base_refs + field_refs + _extract_type_refs(rest))),
             'parent': None,
             'is_public': not name.startswith('_'),
             'doc': None,
+            'signature': _normalize_signature(src, start, min(end_idx, clean.find('{', start) if clean.find('{', start) != -1 else end_idx)),
+            'decorators': _decorators_before(src, clean, start),
         })
         ranges.append((start, end_idx, name))
 
@@ -365,9 +455,13 @@ def scan_dart(src: str, ext: str = '.dart') -> tuple:
             end = _brace_range(clean, body_open)
             body = clean[body_open + 1:end - 1]
             end_line = _line_no(src, end - 1)
+            sig_end = body_open
         else:
             body = ''
             end_line = line_no
+            sig_end = clean.find('\n', start_idx)
+            if sig_end == -1:
+                sig_end = len(clean)
         calls = _extract_calls(body)
         parent = _enclosing(type_ranges, start_idx)
         funcdefs.append({'label': name, 'is_efiapi': False, 'is_static': False})
@@ -382,6 +476,9 @@ def scan_dart(src: str, ext: str = '.dart') -> tuple:
             'is_public': not name.startswith('_'),
             'doc': docs.get(line_no),
             'complexity': _count_complexity(body),
+            'signature': _normalize_signature(src, start_idx, sig_end),
+            'decorators': _decorators_before(src, clean, start_idx),
+            'type_refs': _extract_type_refs(src[start_idx:sig_end]),
         })
 
     # Factory + named constructors first (more specific).
@@ -426,6 +523,9 @@ def scan_dart(src: str, ext: str = '.dart') -> tuple:
             docstrings[key] = sym['doc']
 
     extra = {'imports': imports, 'lang': 'dart'}
+    hints = _edge_hints(src, import_src)
+    if hints:
+        extra['edge_hints'] = hints
     if docstrings:
         extra['docstrings'] = docstrings
 

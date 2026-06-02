@@ -14,10 +14,13 @@ Swift visibility:
   private / fileprivate               -> is_public False
   static / class members              -> is_static True
 
-Syntax verified against The Swift Programming Language (Lexical Structure):
-  line `//`, NESTED block `/* */` comments; strings `"..."`, multiline
-  `\"\"\" ... \"\"\"`, raw `#"..."#` (extended delimiters). Swift has NO
-  single-quote char literal, so `'` is left untouched.
+Syntax verified against The Swift Programming Language:
+  https://docs.swift.org/swift-book/documentation/the-swift-programming-language/declarations/
+  https://docs.swift.org/swift-book/documentation/the-swift-programming-language/attributes/
+Line `//`, NESTED block `/* */` comments; strings `"..."`, multiline
+`\"\"\" ... \"\"\"`, raw `#"..."#` (extended delimiters). Swift has NO
+single-quote char literal, so `'` is left untouched.
+Unsupported: structural/inferred protocol conformance and arbitrary strings.
 """
 
 import re
@@ -70,6 +73,15 @@ RE_SWIFT_SUBSCRIPT = re.compile(r'\bsubscript\s*(?:<[^>{}()]*>\s*)?\(')
 RE_SWIFT_CALL = re.compile(r'\b([A-Za-z_]\w*)\s*\(')
 
 _RE_SWIFT_BRANCH_KW = re.compile(r'\b(?:if|for|while|switch|catch|guard)\b')
+_SWIFT_FILE_EXTS = {
+    '.json', '.yaml', '.yml', '.plist', '.xml', '.conf', '.cfg', '.toml',
+    '.html', '.htm', '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg',
+    '.txt', '.md',
+}
+_SWIFT_CONFIG_EXTS = {'.json', '.yaml', '.yml', '.plist', '.xml', '.conf', '.cfg', '.toml'}
+RE_SWIFT_FILE_REF = re.compile(
+    r'\b(?:contentsOfFile|fileURLWithPath)\s*:\s*"(?P<path>[^"]+)"'
+)
 
 # If the text between a signature and the next '{' contains a closing brace or
 # another declaration keyword, the declaration is bodyless (e.g. a protocol
@@ -177,6 +189,71 @@ def _strip_comments(src: str) -> str:
 
 def _line_no(src: str, idx: int) -> int:
     return src[:idx].count('\n') + 1
+
+
+def _normalize_signature(src: str, start: int, end: int) -> str:
+    return ' '.join(src[start:end].strip().split())
+
+
+def _extract_type_refs(text: str) -> list:
+    refs = []
+    for name in re.findall(r'(?:\b[A-Za-z_]\w*\.)?\b([A-Z][A-Za-z_]\w*)\b', text):
+        if name not in SWIFT_KEYWORDS and len(name) >= 3:
+            refs.append(name)
+    return list(dict.fromkeys(refs))
+
+
+def _decorators_before(src: str, clean: str, decl_start: int) -> list:
+    line_start = clean.rfind('\n', 0, decl_start) + 1
+    prefix = src[line_start:decl_start]
+    decorators = re.findall(r'@([A-Za-z_]\w*)', prefix)
+    src_lines = src[:line_start].splitlines()
+    clean_lines = clean[:line_start].splitlines()
+    i = len(src_lines) - 1
+    leading = []
+    while i >= 0:
+        stripped = clean_lines[i].strip()
+        if not stripped:
+            i -= 1
+            continue
+        if not stripped.startswith('@'):
+            break
+        leading[:0] = re.findall(r'@([A-Za-z_]\w*)', src_lines[i])
+        i -= 1
+    out = leading + decorators
+    if re.search(r'\boverride\b', prefix):
+        out.append('override')
+    return list(dict.fromkeys(out))
+
+
+def _path_edge_type(path: str):
+    if re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*:', path) or path.startswith(('/', '\\')):
+        return None
+    ext = '.' + path.rsplit('.', 1)[-1].lower() if '.' in path.rsplit('/', 1)[-1] else ''
+    if ext not in _SWIFT_FILE_EXTS:
+        return None
+    return 'config_ref' if ext in _SWIFT_CONFIG_EXTS else 'asset_ref'
+
+
+def _edge_hints(src: str, code: str) -> list:
+    hints = []
+    masked = _mask_swift_source(src, mask_literals=True)
+    for m in RE_SWIFT_FILE_REF.finditer(code):
+        if not masked[m.start():m.start('path')].strip():
+            continue
+        path = m.group('path').strip()
+        edge_type = _path_edge_type(path)
+        if not edge_type:
+            continue
+        hints.append({
+            'type': edge_type,
+            'target': path,
+            'subtype': 'config' if edge_type == 'config_ref' else 'asset',
+            'via': code[m.start():m.start('path')].strip(),
+            'line': _line_no(src, m.start('path')),
+            'confidence': 1.0,
+        })
+    return hints
 
 
 def _brace_range(src: str, open_idx: int) -> int:
@@ -300,9 +377,12 @@ def _parse_types(src: str, clean: str):
             'line': line_no,
             'end_line': end_line,
             'bases': _split_bases(m.group('rest')),
+            'type_refs': _extract_type_refs(m.group('rest')),
             'parent': None,
             'is_public': not _is_private(clean, m.start('name')),
             'doc': None,
+            'signature': _normalize_signature(src, m.start(), open_idx if open_idx != -1 else m.end()),
+            'decorators': _decorators_before(src, clean, m.start()),
         })
         ranges.append((m.start('name'), end_idx, name))
     return symbols, ranges
@@ -352,9 +432,11 @@ def scan_swift(src: str, ext: str = '.swift') -> tuple:
             end = _brace_range(clean, open_idx)
             body = clean[open_idx + 1:end - 1]
             end_line = _line_no(src, end - 1)
+            signature_end = open_idx
         else:
             body = ''
             end_line = line_no
+            signature_end = sig_end
         calls = _extract_calls(body)
         parent = _enclosing(type_ranges, start_idx)
         funcdefs.append({
@@ -373,6 +455,9 @@ def scan_swift(src: str, ext: str = '.swift') -> tuple:
             'is_public': not _is_private(clean, start_idx),
             'doc': docs.get(line_no),
             'complexity': _count_complexity(body),
+            'signature': _normalize_signature(src, start_idx, signature_end),
+            'decorators': _decorators_before(src, clean, start_idx),
+            'type_refs': _extract_type_refs(src[start_idx:signature_end]),
         })
 
     for m in RE_SWIFT_FUNC.finditer(clean):
@@ -397,6 +482,9 @@ def scan_swift(src: str, ext: str = '.swift') -> tuple:
             docstrings[key] = sym['doc']
 
     extra = {'imports': imports, 'lang': 'swift'}
+    hints = _edge_hints(src, import_src)
+    if hints:
+        extra['edge_hints'] = hints
     if docstrings:
         extra['docstrings'] = docstrings
 

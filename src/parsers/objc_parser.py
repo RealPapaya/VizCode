@@ -13,9 +13,13 @@ Precision note: ObjC message sends `[recv selector:arg]` are intentionally NOT
 turned into call edges (high false-positive risk, no reliable target). Only
 C-function call syntax `name(...)` contributes to funccalls.
 
-Syntax verified against Clang/Apple Objective-C references:
-  line `//`, block `/* */` (NON-nesting) comments; strings `"..."` / `@"..."`,
-  char `'x'`. Method selectors built from `keyword:` segments.
+Syntax verified against Apple Objective-C references:
+  https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ProgrammingWithObjectiveC/DefiningClasses/DefiningClasses.html
+  https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ObjectiveC/Chapters/ocProtocols.html
+Line `//`, block `/* */` (NON-nesting) comments; strings `"..."` / `@"..."`,
+char `'x'`. Method selectors built from `keyword:` segments.
+Unsupported: Objective-C message sends as call edges, dynamic selectors, and
+arbitrary string file paths.
 """
 
 import re
@@ -33,6 +37,11 @@ OBJC_KEYWORDS = {
     'instancetype', 'IBAction', 'IBOutlet', 'in', 'out', 'inout', 'bycopy',
     'byref', 'oneway', 'class', 'namespace', 'template', 'public', 'private',
     'protected', 'using', 'new', 'delete', 'nullptr', 'auto',
+}
+OBJC_BUILTIN_TYPES = {
+    'NSObject', 'NSString', 'NSArray', 'NSDictionary', 'NSData', 'NSNumber',
+    'NSError', 'NSURL', 'UIImage', 'UIView', 'UIViewController', 'Class',
+    'SEL', 'NSUInteger', 'NSInteger', 'CGFloat', 'Protocol',
 }
 
 RE_OBJC_IMPORT = re.compile(
@@ -78,6 +87,20 @@ RE_OBJC_CFUNC = re.compile(
 RE_OBJC_CALL = re.compile(r'\b([A-Za-z_]\w*)\s*\(')
 
 _RE_OBJC_BRANCH_KW = re.compile(r'\b(?:if|for|while|switch|case)\b')
+_OBJC_FILE_EXTS = {
+    '.json', '.yaml', '.yml', '.plist', '.xml', '.conf', '.cfg', '.strings',
+    '.html', '.htm', '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg',
+    '.txt', '.md',
+}
+_OBJC_CONFIG_EXTS = {'.json', '.yaml', '.yml', '.plist', '.xml', '.conf', '.cfg', '.strings'}
+RE_OBJC_FILE_REF = re.compile(
+    r'\b(?:contentsOfFile|stringWithContentsOfFile|dataWithContentsOfFile|'
+    r'imageNamed)\s*:\s*@?"(?P<path>[^"]+)"'
+)
+RE_OBJC_PROPERTY_TYPE = re.compile(
+    r'@property\b[^\n;]*\)\s*(?P<type>[A-Za-z_]\w*(?:\s*<[^>]+>)?)\s*[*\s]+[A-Za-z_]\w*',
+    re.MULTILINE,
+)
 
 
 def _mask_objc_source(src: str, mask_literals: bool = False) -> str:
@@ -153,6 +176,72 @@ def _strip_comments(src: str) -> str:
 
 def _line_no(src: str, idx: int) -> int:
     return src[:idx].count('\n') + 1
+
+
+def _normalize_signature(src: str, start: int, end: int) -> str:
+    return ' '.join(src[start:end].strip().split())
+
+
+def _extract_type_refs(text: str) -> list:
+    refs = []
+    for name in re.findall(r'(?:\b[A-Za-z_]\w*\.)?\b([A-Z][A-Za-z_]\w*)\b', text):
+        if name in OBJC_KEYWORDS or name in OBJC_BUILTIN_TYPES or len(name) < 3:
+            continue
+        refs.append(name)
+    return list(dict.fromkeys(refs))
+
+
+def _decorators_near(src: str, clean: str, decl_start: int) -> list:
+    line_start = clean.rfind('\n', 0, decl_start) + 1
+    prefix = src[line_start:decl_start]
+    decorators = []
+    if '__attribute__' in prefix:
+        decorators.append('__attribute__')
+    decorators.extend(re.findall(r'\b(NS_SWIFT_NAME|API_AVAILABLE|API_DEPRECATED|IBAction|IBOutlet)\b', prefix))
+    src_lines = src[:line_start].splitlines()
+    clean_lines = clean[:line_start].splitlines()
+    i = len(src_lines) - 1
+    while i >= 0:
+        stripped = clean_lines[i].strip()
+        if not stripped:
+            i -= 1
+            continue
+        found = re.findall(r'\b(NS_SWIFT_NAME|API_AVAILABLE|API_DEPRECATED)\b', src_lines[i])
+        if not found:
+            break
+        decorators[:0] = found
+        i -= 1
+    return list(dict.fromkeys(decorators))
+
+
+def _path_edge_type(path: str):
+    if re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*:', path) or path.startswith(('/', '\\')):
+        return None
+    ext = '.' + path.rsplit('.', 1)[-1].lower() if '.' in path.rsplit('/', 1)[-1] else ''
+    if ext not in _OBJC_FILE_EXTS:
+        return None
+    return 'config_ref' if ext in _OBJC_CONFIG_EXTS else 'asset_ref'
+
+
+def _edge_hints(src: str, code: str) -> list:
+    hints = []
+    masked = _mask_objc_source(src, mask_literals=True)
+    for m in RE_OBJC_FILE_REF.finditer(code):
+        if not masked[m.start():m.start('path')].strip():
+            continue
+        path = m.group('path').strip()
+        edge_type = _path_edge_type(path)
+        if not edge_type:
+            continue
+        hints.append({
+            'type': edge_type,
+            'target': path,
+            'subtype': 'config' if edge_type == 'config_ref' else 'asset',
+            'via': code[m.start():m.start('path')].strip(),
+            'line': _line_no(src, m.start('path')),
+            'confidence': 1.0,
+        })
+    return hints
 
 
 def _brace_range(src: str, open_idx: int) -> int:
@@ -251,15 +340,22 @@ def _parse_types(src: str, clean: str):
         if name in sym_seen:
             return
         sym_seen.add(name)
+        body = clean[start:end_idx]
+        prop_refs = []
+        for pm in RE_OBJC_PROPERTY_TYPE.finditer(body):
+            prop_refs.extend(_extract_type_refs(pm.group('type')))
         symbols.append({
             'kind': kind,
             'name': name,
             'line': _line_no(src, start),
             'end_line': _line_no(src, max(start, end_idx - 1)),
             'bases': bases,
+            'type_refs': list(dict.fromkeys(bases + prop_refs)),
             'parent': None,
             'is_public': True,
             'doc': None,
+            'signature': _normalize_signature(src, start, min(end_idx, clean.find('\n', start) if clean.find('\n', start) != -1 else end_idx)),
+            'decorators': _decorators_near(src, clean, start),
         })
 
     # @interface first — it carries the superclass / protocol list.
@@ -352,6 +448,9 @@ def scan_objc(src: str, ext: str = '.m') -> tuple:
             end_line = line_no
         calls = _extract_calls(body)
         parent = _enclosing(type_ranges, start_idx)
+        sig_end = body_open if body_open != -1 else clean.find('\n', start_idx)
+        if sig_end == -1:
+            sig_end = len(clean)
         funcdefs.append({'label': name, 'is_efiapi': False, 'is_static': kind == 'class_method'})
         func_calls_by_func.append(calls)
         method_symbols.append({
@@ -364,6 +463,9 @@ def scan_objc(src: str, ext: str = '.m') -> tuple:
             'is_public': True,
             'doc': docs.get(line_no),
             'complexity': _count_complexity(body),
+            'signature': _normalize_signature(src, start_idx, sig_end),
+            'decorators': _decorators_near(src, clean, start_idx),
+            'type_refs': _extract_type_refs(src[start_idx:sig_end]),
         })
 
     for m in RE_OBJC_METHOD.finditer(clean):
@@ -390,6 +492,9 @@ def scan_objc(src: str, ext: str = '.m') -> tuple:
             docstrings[key] = sym['doc']
 
     extra = {'imports': imports, 'lang': 'objc' if ext == '.m' else 'objcpp'}
+    hints = _edge_hints(src, import_src)
+    if hints:
+        extra['edge_hints'] = hints
     if docstrings:
         extra['docstrings'] = docstrings
 

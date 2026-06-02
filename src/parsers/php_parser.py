@@ -12,6 +12,13 @@ Extracts:
 PHP visibility:
   public is the default; `private`/`protected` mark a member non-public.
   A leading `_` on a name is treated as a private convention for plain functions.
+
+Syntax verified against the PHP manual:
+  https://www.php.net/manual/en/language.attributes.php
+  https://www.php.net/manual/en/language.types.declarations.php
+  https://www.php.net/manual/en/language.oop5.inheritance.php
+Unsupported: dynamic include expressions, inferred variable types, and arbitrary
+string file paths.
 """
 
 import re
@@ -33,7 +40,7 @@ PHP_KEYWORDS = {
 # Class-like declaration → kind.
 RE_PHP_CLASSLIKE = re.compile(
     r'^[ \t]*(?:(?:abstract|final|readonly)\s+)*'
-    r'(class|interface|trait|enum)\s+(\w+)',
+    r'(class|interface|trait|enum)\s+(\w+)(?P<rest>[^{]*)',
     re.MULTILINE,
 )
 # function name(  — optional visibility/modifier prefix (captured for is_public).
@@ -50,10 +57,105 @@ RE_PHP_CALL = re.compile(r'\b([A-Za-z_]\w*)\s*\(')
 RE_PHP_HEREDOC_OPEN = re.compile(r'<<<\s*(["\']?)([A-Za-z_]\w*)\1')
 
 _RE_PHP_BRANCH_KW = re.compile(r'\b(?:if|elseif|for|foreach|while|case|catch)\b')
+_PHP_BUILTIN_TYPES = {
+    'array', 'bool', 'callable', 'false', 'float', 'int', 'iterable', 'mixed',
+    'never', 'null', 'object', 'parent', 'self', 'static', 'string', 'true',
+    'void',
+}
+_PHP_FILE_EXTS = {
+    '.php', '.inc', '.json', '.yaml', '.yml', '.toml', '.xml', '.ini', '.conf',
+    '.cfg', '.html', '.htm', '.css', '.js', '.png', '.jpg', '.jpeg', '.gif',
+    '.svg', '.txt', '.md',
+}
+_PHP_CONFIG_EXTS = {'.json', '.yaml', '.yml', '.toml', '.xml', '.ini', '.conf', '.cfg'}
+RE_PHP_PROPERTY_TYPE = re.compile(
+    r'^[ \t]*(?:(?:public|private|protected|static|readonly|var)\s+)+'
+    r'(?P<type>[?\\\w|&\s]+)\s+\$[A-Za-z_]\w*',
+    re.MULTILINE,
+)
+RE_PHP_ATTRIBUTE = re.compile(r'#\[\s*([A-Za-z_\\][\w\\]*)')
 
 
 def _line_no(src: str, idx: int) -> int:
     return src[:idx].count('\n') + 1
+
+
+def _normalize_signature(src: str, start: int, end: int) -> str:
+    return ' '.join(src[start:end].strip().split())
+
+
+def _extract_type_refs(text: str) -> list:
+    refs = []
+    for raw in re.findall(r'\\?[A-Za-z_]\w*(?:\\[A-Za-z_]\w*)*', text):
+        name = raw.strip('\\').split('\\')[-1]
+        if not name or name.lower() in PHP_KEYWORDS or name.lower() in _PHP_BUILTIN_TYPES:
+            continue
+        if len(name) >= 3 and name[0].isupper():
+            refs.append(name)
+    return list(dict.fromkeys(refs))
+
+
+def _split_bases(rest: str) -> list:
+    bases = []
+    for kw in ('extends', 'implements'):
+        m = re.search(r'\b' + kw + r'\s+([^({;]+)', rest, re.IGNORECASE)
+        if not m:
+            continue
+        clause = re.split(r'\b(?:extends|implements)\b', m.group(1), flags=re.I)[0]
+        for part in clause.split(','):
+            refs = _extract_type_refs(part)
+            bases.extend(refs[:1])
+    return list(dict.fromkeys(bases))
+
+
+def _decorators_before(src: str, clean: str, decl_start: int) -> list:
+    line_start = clean.rfind('\n', 0, decl_start) + 1
+    src_lines = src[:line_start].splitlines()
+    clean_lines = clean[:line_start].splitlines()
+    decorators = []
+    i = len(src_lines) - 1
+    while i >= 0:
+        stripped = clean_lines[i].strip()
+        if not stripped:
+            i -= 1
+            continue
+        if not stripped.startswith('#['):
+            break
+        decorators[:0] = [d.split('\\')[-1] for d in RE_PHP_ATTRIBUTE.findall(src_lines[i])]
+        i -= 1
+    return list(dict.fromkeys(decorators))
+
+
+def _path_edge_type(path: str):
+    if re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*:', path) or path.startswith(('/', '\\')):
+        return None
+    ext = '.' + path.rsplit('.', 1)[-1].lower() if '.' in path.rsplit('/', 1)[-1] else ''
+    if ext not in _PHP_FILE_EXTS:
+        return None
+    if ext in ('.php', '.inc'):
+        return 'import'
+    return 'config_ref' if ext in _PHP_CONFIG_EXTS else 'asset_ref'
+
+
+def _include_edge_hints(src: str, code: str) -> list:
+    hints = []
+    masked = _mask_php(src)
+    for m in RE_PHP_INCLUDE.finditer(code):
+        if not masked[m.start():m.start(1)].strip():
+            continue
+        path = m.group(1).strip()
+        edge_type = _path_edge_type(path)
+        if not edge_type:
+            continue
+        hints.append({
+            'type': edge_type,
+            'target': path,
+            'subtype': 'include' if edge_type == 'import' else ('config' if edge_type == 'config_ref' else 'asset'),
+            'via': m.group(0).split('(', 1)[0].strip(),
+            'line': _line_no(src, m.start(1)),
+            'confidence': 1.0,
+        })
+    return hints
 
 
 def _mask_php(src: str, mask_strings: bool = True) -> str:
@@ -234,21 +336,29 @@ def scan_php(src: str) -> tuple:
     for m in RE_PHP_CLASSLIKE.finditer(clean):
         kind = m.group(1)
         name = m.group(2)
+        rest = m.group('rest') or ''
         line_no = _line_no(src, m.start())
         open_idx = clean.find('{', m.end())
         close_idx = _brace_range(clean, open_idx)
         end_line = _line_no(src, close_idx) if close_idx != -1 else line_no
         if close_idx != -1:
             class_ranges.append((open_idx, close_idx, name))
+        body = clean[open_idx + 1:close_idx] if open_idx != -1 and close_idx != -1 else ''
+        property_refs = []
+        for pm in RE_PHP_PROPERTY_TYPE.finditer(body):
+            property_refs.extend(_extract_type_refs(pm.group('type')))
         symbol_defs.append({
             'kind': kind,
             'name': name,
             'line': line_no,
             'end_line': end_line,
-            'bases': [],
+            'bases': _split_bases(rest),
+            'type_refs': list(dict.fromkeys(_split_bases(rest) + property_refs)),
             'parent': None,
             'is_public': True,
             'doc': None,
+            'signature': _normalize_signature(src, m.start(), open_idx if open_idx != -1 else m.end()),
+            'decorators': _decorators_before(src, clean, m.start()),
         })
 
     def parent_of(idx: int):
@@ -270,6 +380,7 @@ def scan_php(src: str) -> tuple:
         close_idx = _brace_range(clean, open_idx)
         end_line = _line_no(src, close_idx) if close_idx != -1 else line_no
         body = _brace_body(clean, open_idx)
+        sig_end = open_idx if open_idx != -1 else m.end()
         parent = parent_of(m.start())
         is_private = 'private' in modifiers or 'protected' in modifiers
         if parent is None and name.startswith('_'):
@@ -291,11 +402,17 @@ def scan_php(src: str) -> tuple:
             'is_public': not is_private,
             'doc': None,
             'complexity': _complexity(body),
+            'signature': _normalize_signature(src, m.start(), sig_end),
+            'decorators': _decorators_before(src, clean, m.start()),
+            'type_refs': _extract_type_refs(src[m.start():sig_end]),
         })
 
     all_calls = _extract_calls(clean)
 
     extra = {'imports': imports, 'lang': 'php'}
+    hints = _include_edge_hints(src, code)
+    if hints:
+        extra['edge_hints'] = hints
     if namespace:
         extra['namespace'] = namespace
 

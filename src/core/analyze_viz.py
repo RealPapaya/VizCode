@@ -2122,11 +2122,13 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     # Inheritance / implements edges
     for sid, sym in symbol_index.items():
         for base_name in sym.get('bases', []):
-            tgt = (_file_sym_key.get((sym['file'], base_name))
-                   or (_sym_name_to_ids[base_name][0] if _sym_name_to_ids[base_name] else None))
+            tgt = _file_sym_key.get((sym['file'], base_name))
+            if not tgt:
+                candidates = _sym_name_to_ids.get(base_name, [])
+                tgt = candidates[0] if len(candidates) == 1 else None
             if tgt and tgt != sid:
                 tgt_kind = symbol_index[tgt].get('kind', '') if tgt in symbol_index else ''
-                edge_type = 'implements' if tgt_kind in ('interface', 'trait') else 'inheritance'
+                edge_type = 'implements' if tgt_kind in ('interface', 'trait', 'protocol', 'mixin') else 'inheritance'
                 symbol_edges.append({'from': sid, 'to': tgt, 'type': edge_type, 'kind': _SYMBOL_KIND[edge_type]})
 
     # Override edges (child method overrides parent class method of same name)
@@ -2150,8 +2152,10 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             continue
         parent_sym = symbol_index.get(parent_class_id, {})
         for base_name in parent_sym.get('bases', []):
-            base_id = (_file_sym_key.get((sym['file'], base_name))
-                       or (_sym_name_to_ids[base_name][0] if _sym_name_to_ids[base_name] else None))
+            base_id = _file_sym_key.get((sym['file'], base_name))
+            if not base_id:
+                candidates = _sym_name_to_ids.get(base_name, [])
+                base_id = candidates[0] if len(candidates) == 1 else None
             if not base_id:
                 continue
             base_method_id = _file_sym_key.get((symbol_index[base_id]['file'], sym['name'])) if base_id in symbol_index else None
@@ -2170,6 +2174,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     _TYPE_KINDS = {
         'class', 'struct', 'interface', 'enum', 'record', 'trait', 'typedef',
         'type', 'input', 'union', 'scalar', 'message', 'table', 'view',
+        'protocol', 'mixin', 'object', 'extension', 'annotation', 'module',
     }
     _type_name_to_ids: dict = defaultdict(list)
     for _tid, _tsym in symbol_index.items():

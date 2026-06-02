@@ -152,9 +152,14 @@ function onEdgeTap(edge) {
             pushGlobalNavSnapshot('l1-edge');
             _lastTappedEdge = edge;  // remember for code-panel reverse sync
             updateCallGraphBtn(srcFile.path);
-            // Global-script JS edges have no import line; highlight the line where
-            // the source uses the linking symbol (d.via) instead of the filename.
-            _syncCodePanel(srcFile.path, null, null, d.via || tgtLabel);
+            if (d.line && typeof jumpToLine === 'function') {
+                loadFileInPanel(srcFile.path);
+                setTimeout(() => jumpToLine(d.line), 150);
+            } else {
+                // Global-script JS edges have no import line; highlight the line where
+                // the source uses the linking symbol (d.via) instead of the filename.
+                _syncCodePanel(srcFile.path, null, null, d.via || tgtLabel);
+            }
         }
         return;
     }
@@ -230,6 +235,28 @@ window.cpSyncToGraph = function cpSyncToGraph(lineIdx, word) {
 
     // ── L1: line click → re-select last tapped edge (if line matches its import) ─
     if (state.level === 1) {
+        if (lineIdx >= 0 && codeState.currentFile) {
+            let srcNode = null;
+            cy.nodes().each(n => {
+                if (srcNode) return;
+                const f = n.data('_f');
+                if (f && f.path === codeState.currentFile) srcNode = n;
+            });
+            if (srcNode) {
+                const exactLineEdges = cy.edges().filter(e => {
+                    const d = e.data();
+                    return d.source === srcNode.id() && Number(d.line) === lineIdx + 1;
+                });
+                if (exactLineEdges.length) {
+                    cy.elements().unselect();
+                    exactLineEdges.select();
+                    _lastTappedEdge = exactLineEdges[0];
+                    cy.animate({ center: { eles: exactLineEdges }, duration: 200 });
+                    return;
+                }
+            }
+        }
+
         // No-word click: if the highlighted line belongs to the last tapped edge, re-select it
         if (!word && _lastTappedEdge && lineIdx >= 0 && codeState.rawLines?.[lineIdx] !== undefined) {
             const lineText = codeState.rawLines[lineIdx];

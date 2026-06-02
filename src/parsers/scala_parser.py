@@ -14,11 +14,15 @@ Scala visibility:
   private[...] / protected   -> is_public False
   members of object          -> is_static True (shown as 'static' in UI)
 
-Syntax verified against the Scala Language Reference (Lexical Syntax):
-  line `//`, NESTED block `/* */` comments; escaped string `"..."`,
-  raw/multiline `\"\"\" ... \"\"\"` (no escapes), interpolators `s"..."`,
-  char `'x'`. Scala-3 optional-brace (indentation) bodies degrade to a
-  single-line span (no false parent attribution).
+Syntax verified against the Scala Language Reference and docs:
+  https://docs.scala-lang.org/tour/classes.html
+  https://docs.scala-lang.org/tour/basics.html
+  https://docs.scala-lang.org/tour/annotations.html
+Line `//`, NESTED block `/* */` comments; escaped string `"..."`,
+raw/multiline `\"\"\" ... \"\"\"` (no escapes), interpolators `s"..."`,
+char `'x'`. Scala-3 optional-brace (indentation) bodies degrade to a
+single-line span (no false parent attribution).
+Unsupported: inferred `val`/`var` types and arbitrary string file paths.
 """
 
 import re
@@ -69,6 +73,16 @@ RE_SCALA_DEF = re.compile(
 RE_SCALA_CALL = re.compile(r'\b([A-Za-z_]\w*)\s*\(')
 
 _RE_SCALA_BRANCH_KW = re.compile(r'\b(?:if|for|while|match|catch)\b')
+_SCALA_FILE_EXTS = {
+    '.json', '.yaml', '.yml', '.toml', '.xml', '.conf', '.cfg', '.properties',
+    '.html', '.htm', '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg',
+    '.txt', '.md',
+}
+_SCALA_CONFIG_EXTS = {'.json', '.yaml', '.yml', '.toml', '.xml', '.conf', '.cfg', '.properties'}
+RE_SCALA_FILE_REF = re.compile(
+    r'\b(?:Source\.fromFile|Paths\.get|new\s+File|File)\s*\(\s*["\'](?P<path>[^"\']+)["\']'
+)
+RE_SCALA_FIELD_TYPE = re.compile(r'\b(?:val|var)\s+[A-Za-z_]\w*\s*:\s*([^=\n;]+)')
 
 
 def _mask_scala_source(src: str, mask_literals: bool = False) -> str:
@@ -163,6 +177,71 @@ def _strip_comments(src: str) -> str:
 
 def _line_no(src: str, idx: int) -> int:
     return src[:idx].count('\n') + 1
+
+
+def _normalize_signature(src: str, start: int, end: int) -> str:
+    return ' '.join(src[start:end].strip().split())
+
+
+def _extract_type_refs(text: str) -> list:
+    refs = []
+    for name in re.findall(r'(?:\b[A-Za-z_]\w*\.)?\b([A-Z][A-Za-z_]\w*)\b', text):
+        if name not in SCALA_KEYWORDS and len(name) >= 3:
+            refs.append(name)
+    return list(dict.fromkeys(refs))
+
+
+def _decorators_before(src: str, clean: str, decl_start: int) -> list:
+    line_start = clean.rfind('\n', 0, decl_start) + 1
+    prefix = src[line_start:decl_start]
+    decorators = re.findall(r'@([A-Za-z_]\w*)', prefix)
+    src_lines = src[:line_start].splitlines()
+    clean_lines = clean[:line_start].splitlines()
+    i = len(src_lines) - 1
+    leading = []
+    while i >= 0:
+        stripped = clean_lines[i].strip()
+        if not stripped:
+            i -= 1
+            continue
+        if not stripped.startswith('@'):
+            break
+        leading[:0] = re.findall(r'@([A-Za-z_]\w*)', src_lines[i])
+        i -= 1
+    out = leading + decorators
+    if re.search(r'\boverride\b', prefix):
+        out.append('override')
+    return list(dict.fromkeys(out))
+
+
+def _path_edge_type(path: str):
+    if re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*:', path) or path.startswith(('/', '\\')):
+        return None
+    ext = '.' + path.rsplit('.', 1)[-1].lower() if '.' in path.rsplit('/', 1)[-1] else ''
+    if ext not in _SCALA_FILE_EXTS:
+        return None
+    return 'config_ref' if ext in _SCALA_CONFIG_EXTS else 'asset_ref'
+
+
+def _edge_hints(src: str, code: str) -> list:
+    hints = []
+    masked = _mask_scala_source(src, mask_literals=True)
+    for m in RE_SCALA_FILE_REF.finditer(code):
+        if not masked[m.start():m.start('path')].strip():
+            continue
+        path = m.group('path').strip()
+        edge_type = _path_edge_type(path)
+        if not edge_type:
+            continue
+        hints.append({
+            'type': edge_type,
+            'target': path,
+            'subtype': 'config' if edge_type == 'config_ref' else 'asset',
+            'via': code[m.start():m.start('path')].strip(),
+            'line': _line_no(src, m.start('path')),
+            'confidence': 1.0,
+        })
+    return hints
 
 
 def _brace_range(src: str, open_idx: int) -> int:
@@ -286,15 +365,23 @@ def _parse_types(src: str, clean: str):
             end_idx = m.end()
         end_line = _line_no(src, max(m.start('name'), end_idx - 1))
         is_object = kind == 'object'
+        body = clean[open_idx + 1:end_idx - 1] if open_idx != -1 and end_idx > open_idx else ''
+        field_refs = []
+        for fm in RE_SCALA_FIELD_TYPE.finditer(body):
+            field_refs.extend(_extract_type_refs(fm.group(1)))
+        base_refs = _split_bases(m.group('rest'))
         symbols.append({
             'kind': kind,
             'name': name,
             'line': line_no,
             'end_line': end_line,
-            'bases': _split_bases(m.group('rest')),
+            'bases': base_refs,
+            'type_refs': list(dict.fromkeys(base_refs + field_refs + _extract_type_refs(m.group('rest')))),
             'parent': None,
             'is_public': not _is_private(clean, m.start('name')),
             'doc': None,
+            'signature': _normalize_signature(src, m.start(), open_idx if open_idx != -1 else m.end()),
+            'decorators': _decorators_before(src, clean, m.start()),
             '_is_object': is_object,
         })
         ranges.append((m.start('name'), end_idx, name, is_object))
@@ -353,15 +440,18 @@ def scan_scala(src: str, ext: str = '.scala') -> tuple:
             end = _brace_range(clean, brace_idx)
             body = clean[brace_idx + 1:end - 1]
             end_line = _line_no(src, end - 1)
+            sig_end = brace_idx
         elif eq_idx != -1 and (nl_idx == -1 or eq_idx < nl_idx):
             # Expression body `def f = expr` (best-effort single line).
             end = clean.find('\n', eq_idx)
             end = len(clean) if end == -1 else end
             body = clean[eq_idx + 1:end]
             end_line = line_no
+            sig_end = eq_idx
         else:
             body = ''
             end_line = line_no
+            sig_end = nl_idx if nl_idx != -1 else m.end()
         calls = _extract_calls(body)
 
         enc = _enclosing(type_ranges, start)
@@ -384,6 +474,9 @@ def scan_scala(src: str, ext: str = '.scala') -> tuple:
             'is_public': not _is_private(clean, start),
             'doc': docs.get(line_no),
             'complexity': _count_complexity(body),
+            'signature': _normalize_signature(src, m.start(), sig_end),
+            'decorators': _decorators_before(src, clean, m.start()),
+            'type_refs': _extract_type_refs(src[m.start():sig_end]),
         })
 
     for start, _e, _n, _o in type_ranges:
@@ -403,6 +496,9 @@ def scan_scala(src: str, ext: str = '.scala') -> tuple:
         'lang': 'scala',
         'package': _parse_package(import_src),
     }
+    hints = _edge_hints(src, import_src)
+    if hints:
+        extra['edge_hints'] = hints
     if docstrings:
         extra['docstrings'] = docstrings
 

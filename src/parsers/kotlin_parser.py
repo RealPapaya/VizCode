@@ -14,9 +14,14 @@ Kotlin visibility:
   private / protected         -> is_public False
   members of object/companion -> is_static True (shown as 'static' in UI)
 
-Syntax verified against the Kotlin language specification (kotlinlang.org/spec,
-Lexical structure): line `//`, nested block `/* */` comments; escaped string
-`"..."`, raw/multiline string `\"\"\" ... \"\"\"` (no escapes), char `'x'`.
+Syntax verified against the Kotlin language specification and docs:
+  https://kotlinlang.org/spec/declarations.html
+  https://kotlinlang.org/spec/annotations.html
+  https://kotlinlang.org/docs/functions.html
+  https://kotlinlang.org/docs/classes.html
+Line `//`, nested block `/* */` comments; escaped string `"..."`,
+raw/multiline string `\"\"\" ... \"\"\"` (no escapes), char `'x'`.
+Unsupported: inferred local variable types and arbitrary string file paths.
 """
 
 import re
@@ -60,7 +65,7 @@ RE_KT_TYPE = re.compile(
     r'(?P<kind>class|interface|object)\s+'
     r'(?P<name>[A-Za-z_]\w*)'
     r'(?:\s*<[^>{]*>)?'
-    r'(?P<rest>[^{;=]*)'
+    r'(?P<rest>[^{;=\n]*)'
     r'[{;=]',
     re.MULTILINE,
 )
@@ -75,6 +80,15 @@ RE_KT_FUN = re.compile(
 RE_KT_CALL = re.compile(r'\b([A-Za-z_]\w*)\s*\(')
 
 _RE_KT_BRANCH_KW = re.compile(r'\b(?:if|for|while|when|catch)\b')
+_KT_FILE_EXTS = {
+    '.json', '.yaml', '.yml', '.toml', '.xml', '.properties', '.conf', '.cfg',
+    '.html', '.htm', '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg',
+    '.txt', '.md',
+}
+_KT_CONFIG_EXTS = {'.json', '.yaml', '.yml', '.toml', '.xml', '.properties', '.conf', '.cfg'}
+RE_KT_FILE_REF = re.compile(
+    r'\b(?:File|Path(?:\.of)?)\s*\(\s*["\'](?P<path>[^"\']+)["\']'
+)
 
 
 def _mask_kotlin_source(src: str, mask_literals: bool = False) -> str:
@@ -173,6 +187,71 @@ def _strip_comments(src: str) -> str:
 
 def _line_no(src: str, idx: int) -> int:
     return src[:idx].count('\n') + 1
+
+
+def _normalize_signature(src: str, start: int, end: int) -> str:
+    return ' '.join(src[start:end].strip().split())
+
+
+def _extract_type_refs(text: str) -> list:
+    refs = []
+    for name in re.findall(r'(?:\b[A-Za-z_]\w*\.)?\b([A-Z][A-Za-z_]\w*)\b', text):
+        if name not in KOTLIN_KEYWORDS and len(name) >= 3:
+            refs.append(name)
+    return list(dict.fromkeys(refs))
+
+
+def _decorators_before(src: str, clean: str, decl_start: int) -> list:
+    line_start = clean.rfind('\n', 0, decl_start) + 1
+    prefix = src[line_start:decl_start]
+    decorators = re.findall(r'@(?:\w+:)?([A-Za-z_]\w*)', prefix)
+    src_lines = src[:line_start].splitlines()
+    clean_lines = clean[:line_start].splitlines()
+    i = len(src_lines) - 1
+    leading = []
+    while i >= 0:
+        stripped = clean_lines[i].strip()
+        if not stripped:
+            i -= 1
+            continue
+        if not stripped.startswith('@'):
+            break
+        leading[:0] = re.findall(r'@(?:\w+:)?([A-Za-z_]\w*)', src_lines[i])
+        i -= 1
+    out = leading + decorators
+    if re.search(r'\boverride\b', prefix):
+        out.append('override')
+    return list(dict.fromkeys(out))
+
+
+def _path_edge_type(path: str):
+    if re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*:', path) or path.startswith(('/', '\\')):
+        return None
+    ext = '.' + path.rsplit('.', 1)[-1].lower() if '.' in path.rsplit('/', 1)[-1] else ''
+    if ext not in _KT_FILE_EXTS:
+        return None
+    return 'config_ref' if ext in _KT_CONFIG_EXTS else 'asset_ref'
+
+
+def _edge_hints(src: str, code: str) -> list:
+    hints = []
+    masked = _mask_kotlin_source(src, mask_literals=True)
+    for m in RE_KT_FILE_REF.finditer(code):
+        if not masked[m.start():m.start('path')].strip():
+            continue
+        path = m.group('path').strip()
+        edge_type = _path_edge_type(path)
+        if not edge_type:
+            continue
+        hints.append({
+            'type': edge_type,
+            'target': path,
+            'subtype': 'config' if edge_type == 'config_ref' else 'asset',
+            'via': code[m.start():m.start('path')].strip(),
+            'line': _line_no(src, m.start('path')),
+            'confidence': 1.0,
+        })
+    return hints
 
 
 def _brace_range(src: str, open_idx: int) -> int:
@@ -296,9 +375,12 @@ def _parse_types(src: str, clean: str):
             'line': line_no,
             'end_line': end_line,
             'bases': _split_bases(m.group('rest')),
+            'type_refs': _extract_type_refs(m.group('rest')),
             'parent': None,
             'is_public': not _is_private(clean, m.start('name')),
             'doc': None,
+            'signature': _normalize_signature(src, m.start(), open_idx if open_idx != -1 else m.end()),
+            'decorators': _decorators_before(src, clean, m.start()),
             '_is_object': is_object,
         })
         ranges.append((m.start('name'), end_idx, name, is_object))
@@ -357,9 +439,12 @@ def scan_kotlin(src: str, ext: str = '.kt') -> tuple:
             end = _brace_range(clean, open_idx)
             body = clean[open_idx + 1:end - 1]
             end_line = _line_no(src, end - 1)
+            sig_end = open_idx
         else:
             body = ''
             end_line = line_no
+            sig_end = min(x for x in (eq_idx if eq_idx != -1 else len(src),
+                                      nl_idx if nl_idx != -1 else len(src)))
         calls = _extract_calls(body)
 
         enc = _enclosing(type_ranges, start)
@@ -383,6 +468,9 @@ def scan_kotlin(src: str, ext: str = '.kt') -> tuple:
             'is_public': is_public,
             'doc': docs.get(line_no),
             'complexity': _count_complexity(body),
+            'signature': _normalize_signature(src, m.start(), sig_end),
+            'decorators': _decorators_before(src, clean, m.start()),
+            'type_refs': _extract_type_refs(src[m.start():sig_end]),
         })
 
     for start, _e, _n, _o in type_ranges:
@@ -402,6 +490,9 @@ def scan_kotlin(src: str, ext: str = '.kt') -> tuple:
         'lang': 'kotlin',
         'package': _parse_package(import_src),
     }
+    hints = _edge_hints(src, import_src)
+    if hints:
+        extra['edge_hints'] = hints
     if docstrings:
         extra['docstrings'] = docstrings
 

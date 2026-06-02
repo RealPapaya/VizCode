@@ -14,6 +14,13 @@ per-keyword with depth counting (so nested same-kind blocks resolve correctly).
 Members without an `End` (Interface members, `MustOverride`, auto-properties,
 `Declare`) degrade to the declaration line. Comments are `'` and `REM`; strings
 use `"` with `""` as the escape (verified against the VB language reference).
+
+Syntax references:
+  https://learn.microsoft.com/en-us/dotnet/visual-basic/language-reference/statements/inherits-statement
+  https://learn.microsoft.com/en-us/dotnet/visual-basic/language-reference/statements/implements-statement
+  https://learn.microsoft.com/en-us/dotnet/visual-basic/programming-guide/concepts/attributes/
+Unsupported: inferred `Dim` types, late-bound calls, and arbitrary string file
+paths.
 """
 
 import re
@@ -28,6 +35,11 @@ VB_KEYWORDS = {
     'public', 'private', 'protected', 'friend', 'shared', 'overrides', 'me',
     'mybase', 'nothing', 'true', 'false', 'and', 'or', 'not', 'andalso',
     'orelse', 'is', 'isnot', 'byval', 'byref', 'optional', 'call',
+}
+VB_BUILTIN_TYPES = {
+    'boolean', 'byte', 'char', 'date', 'decimal', 'double', 'integer', 'long',
+    'object', 'sbyte', 'short', 'single', 'string', 'uinteger', 'ulong',
+    'ushort', 'void',
 }
 
 _VB_MODS = (r'(?:public|private|protected|friend|shared|overrides|overridable|'
@@ -46,13 +58,123 @@ RE_VB_ROUTINE = re.compile(
 RE_VB_CALL = re.compile(r'\b([A-Za-z_]\w*)\s*\(')
 _RE_VB_BRANCH_KW = re.compile(
     r'\b(?:if|elseif|for|while|case|catch)\b', re.IGNORECASE)
+RE_VB_AS_TYPE = re.compile(r'\bAs\s+(?:New\s+)?([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)?)',
+                           re.IGNORECASE)
+RE_VB_ATTR = re.compile(r'<\s*([A-Za-z_]\w*)')
+RE_VB_FILE_REF = re.compile(
+    r'\b(?:File\.ReadAllText|File\.ReadAllBytes|XDocument\.Load|XmlReader\.Create|'
+    r'AddJsonFile)\s*\(\s*"(?P<path>[^"]+)"',
+    re.IGNORECASE,
+)
+_VB_FILE_EXTS = {
+    '.json', '.yaml', '.yml', '.toml', '.xml', '.config', '.conf', '.cfg',
+    '.html', '.htm', '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg',
+    '.txt', '.md',
+}
+_VB_CONFIG_EXTS = {'.json', '.yaml', '.yml', '.toml', '.xml', '.config', '.conf', '.cfg'}
 
 
 def _line_no(src: str, idx: int) -> int:
     return src[:idx].count('\n') + 1
 
 
-def _mask_vb(src: str) -> str:
+def _normalize_signature(src: str, start: int, end: int) -> str:
+    return ' '.join(src[start:end].strip().split())
+
+
+def _extract_type_refs(text: str) -> list:
+    refs = []
+    for raw in RE_VB_AS_TYPE.findall(text):
+        name = raw.split('.')[-1]
+        if name.lower() in VB_KEYWORDS or name.lower() in VB_BUILTIN_TYPES:
+            continue
+        if len(name) >= 3:
+            refs.append(name)
+    for raw in re.findall(r'\bOf\s+([A-Za-z_]\w*)\b', text, flags=re.I):
+        if raw.lower() not in VB_KEYWORDS and raw.lower() not in VB_BUILTIN_TYPES and len(raw) >= 3:
+            refs.append(raw)
+    return list(dict.fromkeys(refs))
+
+
+def _decorators_before(src: str, clean: str, decl_start: int) -> list:
+    line_start = clean.rfind('\n', 0, decl_start) + 1
+    prefix = src[line_start:decl_start]
+    decorators = RE_VB_ATTR.findall(prefix)
+    src_lines = src[:line_start].splitlines()
+    clean_lines = clean[:line_start].splitlines()
+    i = len(src_lines) - 1
+    leading = []
+    while i >= 0:
+        stripped = clean_lines[i].strip()
+        if not stripped:
+            i -= 1
+            continue
+        if not stripped.startswith('<'):
+            break
+        leading[:0] = RE_VB_ATTR.findall(src_lines[i])
+        i -= 1
+    out = leading + decorators
+    if re.search(r'\boverrides\b', prefix, re.I):
+        out.append('Overrides')
+    return list(dict.fromkeys(out))
+
+
+def _type_bases(clean: str, after_idx: int) -> list:
+    bases = []
+    pos = clean.find('\n', after_idx)
+    if pos == -1:
+        return bases
+    pos += 1
+    while pos < len(clean):
+        line_end = clean.find('\n', pos)
+        if line_end == -1:
+            line_end = len(clean)
+        line = clean[pos:line_end].strip()
+        if not line:
+            pos = line_end + 1
+            continue
+        m = re.match(r'(Inherits|Implements)\s+(.+)$', line, re.I)
+        if not m:
+            break
+        for part in m.group(2).split(','):
+            name = part.strip().split('.')[-1]
+            if name and name.lower() not in VB_KEYWORDS and len(name) >= 3:
+                bases.append(name)
+        pos = line_end + 1
+    return list(dict.fromkeys(bases))
+
+
+def _path_edge_type(path: str):
+    if re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*:', path) or path.startswith(('/', '\\')):
+        return None
+    ext = '.' + path.rsplit('.', 1)[-1].lower() if '.' in path.rsplit('/', 1)[-1] else ''
+    if ext not in _VB_FILE_EXTS:
+        return None
+    return 'config_ref' if ext in _VB_CONFIG_EXTS else 'asset_ref'
+
+
+def _edge_hints(src: str, clean: str) -> list:
+    hints = []
+    masked = _mask_vb(src)
+    for m in RE_VB_FILE_REF.finditer(clean):
+        if not masked[m.start():m.start('path')].strip():
+            continue
+        path = m.group('path').strip()
+        edge_type = _path_edge_type(path)
+        if not edge_type:
+            continue
+        hints.append({
+            'type': edge_type,
+            'target': path,
+            'subtype': 'config' if edge_type == 'config_ref' else 'asset',
+            'via': clean[m.start():m.start('path')].strip(),
+            'line': _line_no(src, m.start('path')),
+            'confidence': 1.0,
+        })
+    return hints
+
+
+def _mask_vb(src: str, mask_strings: bool = True) -> str:
     out = list(src)
     n = len(src)
 
@@ -92,7 +214,8 @@ def _mask_vb(src: str) -> str:
                 if src[i] == '\n':
                     break
                 i += 1
-            blank(start, i)
+            if mask_strings:
+                blank(start, i)
             continue
         if c == '\n':
             at_line_start = True
@@ -162,6 +285,7 @@ def _enclosing(ranges: list, idx: int):
 def scan_vbnet(src: str, ext: str = '.vb') -> tuple:
     """VB.NET file analysis. Returns the standard VIZCODE 6-tuple."""
     clean = _mask_vb(src)
+    code = _mask_vb(src, mask_strings=False)
 
     imports = []
     for m in RE_VB_IMPORT.finditer(clean):
@@ -182,10 +306,15 @@ def scan_vbnet(src: str, ext: str = '.vb') -> tuple:
             end_idx = m.end()
         else:
             end_line = _line_no(src, max(start, end_idx - 1))
+        body = clean[m.end():end_idx]
+        bases = _type_bases(clean, m.end())
         symbol_defs.append({
             'kind': kind, 'name': name, 'line': _line_no(src, start),
-            'end_line': end_line, 'bases': [], 'parent': None,
+            'end_line': end_line, 'bases': bases, 'parent': None,
+            'type_refs': list(dict.fromkeys(bases + _extract_type_refs(body))),
             'is_public': True, 'doc': None,
+            'signature': _normalize_signature(src, m.start(), m.end()),
+            'decorators': _decorators_before(src, clean, m.start()),
         })
         type_ranges.append((start, end_idx, name, kind))
 
@@ -218,6 +347,9 @@ def scan_vbnet(src: str, ext: str = '.vb') -> tuple:
             else:
                 end_line = _line_no(src, max(start, end_idx - 1))
         body = clean[m.end():end_idx]
+        sig_end = clean.find('\n', m.start())
+        if sig_end == -1:
+            sig_end = m.end()
         funcdefs.append({
             'label': name, 'is_efiapi': False,
             'is_static': bool(re.search(r'\bshared\b', header, re.I)),
@@ -229,11 +361,17 @@ def scan_vbnet(src: str, ext: str = '.vb') -> tuple:
             'bases': [], 'parent': enc[0] if enc else None,
             'is_public': not re.search(r'\b(?:private|protected)\b', header, re.I),
             'doc': None, 'complexity': _complexity(body),
+            'signature': _normalize_signature(src, m.start(), sig_end),
+            'decorators': _decorators_before(src, clean, m.start()),
+            'type_refs': _extract_type_refs(src[m.start():sig_end]),
         })
 
     symbol_defs = symbol_defs + method_symbols
     all_calls = _extract_calls(clean)
 
     extra = {'imports': imports, 'lang': 'vb'}
+    hints = _edge_hints(src, code)
+    if hints:
+        extra['edge_hints'] = hints
 
     return imports, funcdefs, all_calls, extra, func_calls_by_func, symbol_defs
