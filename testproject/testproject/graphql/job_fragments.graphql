@@ -1,6 +1,0 @@
-fragment ProbeJobFields on ProbeJob {
-  id
-  owner {
-    id
-  }
-}

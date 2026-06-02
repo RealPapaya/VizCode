@@ -29,6 +29,13 @@ HS_KEYWORDS = {
     'mapM', 'mapM_', 'putStrLn', 'print', 'error', 'undefined',
 }
 
+HS_TYPE_BUILTINS = {
+    'String', 'Char', 'Bool', 'Int', 'Integer', 'Float', 'Double',
+    'Ordering', 'Maybe', 'Either', 'List', 'IO', 'Functor', 'Applicative',
+    'Monad', 'Show', 'Read', 'Eq', 'Ord', 'Enum', 'Bounded', 'Num',
+    'Integral', 'Fractional',
+}
+
 _SYMBOL = set("!#$%&*+./<=>?@\\^|-~:")
 
 RE_HS_IMPORT = re.compile(
@@ -142,6 +149,24 @@ def _type_name(rest: str) -> str:
     return m.group(1) if m else ''
 
 
+def _normalize_signature(src: str, start: int) -> str:
+    line_end = src.find('\n', start)
+    if line_end == -1:
+        line_end = len(src)
+    return re.sub(r'\s+', ' ', src[start:line_end]).strip()
+
+
+def _filter_type_refs(text: str, exclude=None) -> list:
+    exclude = set(exclude or [])
+    refs = []
+    for name in re.findall(r"\b[A-Z][A-Za-z0-9_']*\b", text or ''):
+        if (name in HS_KEYWORDS or name in HS_TYPE_BUILTINS or name in exclude
+                or len(name) < 3):
+            continue
+        refs.append(name)
+    return list(dict.fromkeys(refs))
+
+
 def _extract_calls(text: str) -> list:
     calls = []
     seen = set()
@@ -173,6 +198,10 @@ def scan_haskell(src: str, ext: str = '.hs') -> tuple:
 
     symbol_defs = []
     seen = set()
+    signatures = {}
+
+    for m in RE_HS_SIG.finditer(clean):
+        signatures[m.group(1)] = _normalize_signature(src, m.start(1))
 
     for m in RE_HS_TYPE.finditer(clean):
         kw = m.group(1)
@@ -180,10 +209,13 @@ def scan_haskell(src: str, ext: str = '.hs') -> tuple:
         if not name:
             continue
         start = m.start(1)
+        kind = 'trait' if kw == 'class' else 'type'
+        type_refs = _filter_type_refs(m.group(2), exclude={name})
         symbol_defs.append({
-            'kind': kw, 'name': name, 'line': _line_no(src, start),
+            'kind': kind, 'name': name, 'line': _line_no(src, start),
             'end_line': _block_end_line(clean, start), 'bases': [],
             'parent': None, 'is_public': True, 'doc': None,
+            'type_refs': type_refs,
         })
 
     funcdefs = []
@@ -201,10 +233,13 @@ def scan_haskell(src: str, ext: str = '.hs') -> tuple:
         body = _block_text(clean, start, end_line)
         funcdefs.append({'label': name, 'is_efiapi': False, 'is_static': False})
         func_calls_by_func.append(_extract_calls(body))
+        signature = signatures.get(name, _normalize_signature(src, start))
         symbol_defs.append({
             'kind': 'function', 'name': name, 'line': line_no,
             'end_line': end_line, 'bases': [], 'parent': None,
             'is_public': True, 'doc': None, 'complexity': _complexity(body),
+            'signature': signature,
+            'type_refs': _filter_type_refs(signature),
         })
     for m in RE_HS_EQ.finditer(clean):
         name = m.group(1)
@@ -217,10 +252,13 @@ def scan_haskell(src: str, ext: str = '.hs') -> tuple:
         body = _block_text(clean, start, end_line)
         funcdefs.append({'label': name, 'is_efiapi': False, 'is_static': False})
         func_calls_by_func.append(_extract_calls(body))
+        signature = signatures.get(name, _normalize_signature(src, start))
         symbol_defs.append({
             'kind': 'function', 'name': name, 'line': line_no,
             'end_line': end_line, 'bases': [], 'parent': None,
             'is_public': True, 'doc': None, 'complexity': _complexity(body),
+            'signature': signature,
+            'type_refs': _filter_type_refs(signature),
         })
 
     all_calls = _extract_calls(clean)

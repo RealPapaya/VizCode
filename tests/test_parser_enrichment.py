@@ -633,6 +633,277 @@ def test_batch3_adversarial_builtins_strings_comments_and_ambiguity(tmp_path):
 
 # ── Adversarial: must produce NO bogus edges ──────────────────────────────────
 
+def test_ruby_family_ruby_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'base.rb': 'class Base\nend\n',
+        'engine.rb': (
+            'require_relative "base.rb"\n'
+            'class Engine < Base\n'
+            '  def run(req)\n'
+            '    cfg = File.read("config/app.json")\n'
+            '    helper(req)\n'
+            '  end\n'
+            'end\n'
+        ),
+        'config/app.json': '{}\n',
+    })
+    assert 'inheritance' in _sym_edge_types(res)
+    assert {'import', 'config_ref'} <= _file_edge_types(res)
+    assert _field_present(res, 'signature')
+    assert not _symbol_edges(res, 'type_usage')
+    assert any(e.get('line') == 4 for e in _file_edges(res, 'config_ref'))
+
+
+def test_ruby_family_crystal_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'engine.cr': (
+            'class Base\nend\n'
+            'class Settings\nend\n'
+            'class Request\nend\n'
+            'class Engine < Base\n'
+            '  @settings : Settings\n'
+            '  def run(req : Request) : Settings\n'
+            '    cfg = File.read("config/app.json")\n'
+            '    Settings.new\n'
+            '  end\n'
+            'end\n'
+        ),
+        'config/app.json': '{}\n',
+    })
+    assert {'inheritance', 'type_usage'} <= _sym_edge_types(res)
+    assert 'config_ref' in _file_edge_types(res)
+    assert _field_present(res, 'signature')
+    assert len(_symbol_edges(res, 'type_usage')) <= 8
+
+
+def test_ruby_family_julia_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'engine.jl': (
+            'abstract type Base end\n'
+            'struct Settings end\n'
+            'struct Request end\n'
+            'struct Engine <: Base\n'
+            '  settings::Settings\n'
+            'end\n'
+            'function run(req::Request)::Settings\n'
+            '  cfg = read("config/app.json", String)\n'
+            '  Settings()\n'
+            'end\n'
+        ),
+        'config/app.json': '{}\n',
+    })
+    assert {'inheritance', 'type_usage'} <= _sym_edge_types(res)
+    assert 'config_ref' in _file_edge_types(res)
+    assert _field_present(res, 'signature')
+    assert len(_symbol_edges(res, 'type_usage')) <= 8
+
+
+def test_ruby_family_elixir_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'engine.ex': (
+            'defmodule Request do\nend\n'
+            'defmodule Settings do\nend\n'
+            'defmodule Engine do\n'
+            '  @spec run(Request.t()) :: Settings.t()\n'
+            '  def run(req) do\n'
+            '    {:ok, cfg} = File.read("config/app.json")\n'
+            '    req\n'
+            '  end\n'
+            'end\n'
+        ),
+        'config/app.json': '{}\n',
+    })
+    assert 'type_usage' in _sym_edge_types(res)
+    assert 'config_ref' in _file_edge_types(res)
+    assert _field_present(res, 'signature')
+    pairs = _symbol_edge_name_pairs(res, 'type_usage')
+    assert ('run', 'Request') in pairs
+    assert ('run', 'Settings') in pairs
+
+
+def test_batch4_nim_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'engine.nim': (
+            'type\n'
+            '  Base* = object\n'
+            '  Request* = object\n'
+            '  Settings* = object\n'
+            '  Engine* = object of Base\n'
+            '    settings*: Settings\n'
+            '\n'
+            'proc run*(req: Request): Settings =\n'
+            '  discard req\n'
+        ),
+    })
+    assert {'inheritance', 'type_usage'} <= _sym_edge_types(res)
+    assert _field_present(res, 'signature')
+    pairs = _symbol_edge_name_pairs(res, 'type_usage')
+    assert ('run', 'Request') in pairs
+    assert ('run', 'Settings') in pairs
+    assert len(_symbol_edges(res, 'type_usage')) <= 8
+
+
+def test_batch4_fsharp_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'engine.fs': (
+            'type Base = class end\n'
+            'type Store = interface end\n'
+            'type Request = class end\n'
+            'type Settings = class end\n'
+            'type Engine =\n'
+            '    inherit Base()\n'
+            '    interface Store\n'
+            '    member this.Run(req: Request) : Settings =\n'
+            '        Settings()\n'
+        ),
+    })
+    assert {'inheritance', 'implements', 'type_usage'} <= _sym_edge_types(res)
+    assert _field_present(res, 'signature')
+    pairs = _symbol_edge_name_pairs(res, 'type_usage')
+    assert ('Run', 'Request') in pairs
+    assert ('Run', 'Settings') in pairs
+    assert len(_symbol_edges(res, 'type_usage')) <= 8
+
+
+def test_batch4_haskell_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'Engine.hs': (
+            'data Request = Request\n'
+            'data Settings = Settings\n'
+            'data Engine = Engine Settings\n'
+            'run :: Request -> Settings\n'
+            'run req = Settings\n'
+        ),
+    })
+    assert 'type_usage' in _sym_edge_types(res)
+    assert _field_present(res, 'signature')
+    pairs = _symbol_edge_name_pairs(res, 'type_usage')
+    assert ('run', 'Request') in pairs
+    assert ('run', 'Settings') in pairs
+    assert len(_symbol_edges(res, 'type_usage')) <= 8
+
+
+def test_batch4_ocaml_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'engine.ml': (
+            'type request = Request\n'
+            'type settings = Settings\n'
+            'let run (req : request) : settings =\n'
+            '  req\n'
+        ),
+    })
+    assert 'type_usage' in _sym_edge_types(res)
+    assert _field_present(res, 'signature')
+    pairs = _symbol_edge_name_pairs(res, 'type_usage')
+    assert ('run', 'request') in pairs
+    assert ('run', 'settings') in pairs
+    assert len(_symbol_edges(res, 'type_usage')) <= 8
+
+
+def test_batch4_elm_enrichment(tmp_path):
+    res = _build(tmp_path, {
+        'Engine.elm': (
+            'module Engine exposing (..)\n'
+            '\n'
+            'type Request = Request\n'
+            'type Settings = Settings\n'
+            '\n'
+            'run : Request -> Settings\n'
+            'run req =\n'
+            '    Settings\n'
+        ),
+    })
+    assert 'type_usage' in _sym_edge_types(res)
+    assert _field_present(res, 'signature')
+    pairs = _symbol_edge_name_pairs(res, 'type_usage')
+    assert ('run', 'Request') in pairs
+    assert ('run', 'Settings') in pairs
+    assert len(_symbol_edges(res, 'type_usage')) <= 8
+
+
+def test_batch4_adversarial_comments_strings_dynamic_paths_and_ambiguity(tmp_path):
+    res = _build(tmp_path, {
+        'a.jl': 'struct Dup end\n',
+        'b.jl': 'struct Dup end\n',
+        'use.jl': (
+            'function use_dup(x::Dup)::Dup\n'
+            '  x\n'
+            'end\n'
+            '# read("hidden.json", String)\n'
+            'txt = "read(\\"secret.json\\", String)"\n'
+        ),
+        'noise.rb': (
+            '# File.read("hidden.json")\n'
+            'text = "File.read(\\"secret.json\\")"\n'
+            'path = "config/app.json"\n'
+            'File.read(path)\n'
+        ),
+        'noise.cr': (
+            '# File.read("hidden.json")\n'
+            'text = "File.read(\\"secret.json\\")"\n'
+            'path = "config/app.json"\n'
+            'File.read(path)\n'
+        ),
+        'noise.ex': (
+            '# File.read("hidden.json")\n'
+            'text = "File.read(\\"secret.json\\")"\n'
+            'path = "config/app.json"\n'
+            'File.read(path)\n'
+        ),
+        'hidden.json': '{}\n',
+        'secret.json': '{}\n',
+        'config/app.json': '{}\n',
+    })
+    assert ('use_dup', 'Dup') not in _symbol_edge_name_pairs(res, 'type_usage')
+    assert 'config_ref' not in _file_edge_types(res)
+    assert 'asset_ref' not in _file_edge_types(res)
+
+
+def test_batch4_remaining_adversarial_builtins_comments_strings_ambiguity(tmp_path):
+    res = _build(tmp_path, {
+        'a.nim': 'type\n  Dup* = object\n',
+        'b.nim': 'type\n  Dup* = object\n',
+        'use.nim': 'proc useDup*(x: Dup): Dup =\n  discard x\n',
+        'noise.hs': (
+            'data Hidden = Hidden\n'
+            'data Secret = Secret\n'
+            '-- fake :: Hidden -> Secret\n'
+            'txt = "fake :: Hidden -> Secret"\n'
+            'builtinOnly :: String -> Int\n'
+            'builtinOnly x = 1\n'
+        ),
+        'noise.fs': (
+            'type HiddenFs = class end\n'
+            '// let fake (x: HiddenFs) : HiddenFs = x\n'
+            'let text = "let fake (x: HiddenFs) : HiddenFs = x"\n'
+            'let builtinOnly (x: string) : int = 1\n'
+        ),
+        'noise.ml': (
+            'type hidden = Hidden\n'
+            '(* let fake (x : hidden) : hidden = x *)\n'
+            'let text = "let fake (x : hidden) : hidden = x"\n'
+            'let builtin_only (x : string) : int = 1\n'
+        ),
+        'Noise.elm': (
+            'module Noise exposing (..)\n'
+            'type HiddenElm = HiddenElm\n'
+            '-- fake : HiddenElm -> HiddenElm\n'
+            'text = "fake : HiddenElm -> HiddenElm"\n'
+            'builtinOnly : String -> Int\n'
+            'builtinOnly x = 1\n'
+        ),
+    })
+    pairs = _symbol_edge_name_pairs(res, 'type_usage')
+    assert ('useDup', 'Dup') not in pairs
+    assert ('fake', 'Hidden') not in pairs
+    assert ('fake', 'Secret') not in pairs
+    assert ('fake', 'HiddenFs') not in pairs
+    assert ('fake', 'hidden') not in pairs
+    assert ('fake', 'HiddenElm') not in pairs
+    assert not any(src == 'builtinOnly' for src, _target in pairs)
+    assert len(_symbol_edges(res, 'type_usage')) <= 4
+
+
 def test_adversarial_ambiguous_type_no_type_usage(tmp_path):
     res = _build(tmp_path, {
         'a.py': 'class Dup:\n    pass\n',

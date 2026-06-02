@@ -1,0 +1,1978 @@
+{
+  "modules": [
+    {
+      "id": ".vizcode",
+      "label": ".vizcode",
+      "color": "#00d4ff",
+      "file_count": 3,
+      "func_count": 0,
+      "other_count": 25
+    },
+    {
+      "id": "_root",
+      "label": "_root",
+      "color": "#00ff9f",
+      "file_count": 12,
+      "func_count": 8,
+      "other_count": 1
+    }
+  ],
+  "module_edges": [],
+  "files_by_module": {
+    "_root": [
+      {
+        "id": 0,
+        "label": "crystal_app.cr",
+        "path": "crystal_app.cr",
+        "ext": ".cr",
+        "size": 105,
+        "loc": {
+          "code": 7,
+          "comment": 0,
+          "blank": 1
+        },
+        "func_count": 1,
+        "file_type": "crystal_source",
+        "bios_meta": {}
+      },
+      {
+        "id": 1,
+        "label": "crystal_lib.cr",
+        "path": "crystal_lib.cr",
+        "ext": ".cr",
+        "size": 115,
+        "loc": {
+          "code": 6,
+          "comment": 0,
+          "blank": 0
+        },
+        "func_count": 1,
+        "file_type": "crystal_source",
+        "bios_meta": {}
+      },
+      {
+        "id": 2,
+        "label": "elixir_app.ex",
+        "path": "elixir_app.ex",
+        "ext": ".ex",
+        "size": 95,
+        "loc": {
+          "code": 6,
+          "comment": 0,
+          "blank": 1
+        },
+        "func_count": 1,
+        "file_type": "elixir_source",
+        "bios_meta": {}
+      },
+      {
+        "id": 3,
+        "label": "elixir_config.yaml",
+        "path": "elixir_config.yaml",
+        "ext": ".yaml",
+        "size": 13,
+        "loc": {
+          "code": 1,
+          "comment": 0,
+          "blank": 0
+        },
+        "func_count": 0,
+        "file_type": "yaml_source",
+        "bios_meta": {}
+      },
+      {
+        "id": 4,
+        "label": "elixir_lib.ex",
+        "path": "elixir_lib.ex",
+        "ext": ".ex",
+        "size": 173,
+        "loc": {
+          "code": 8,
+          "comment": 0,
+          "blank": 0
+        },
+        "func_count": 1,
+        "file_type": "elixir_source",
+        "bios_meta": {}
+      },
+      {
+        "id": 5,
+        "label": "julia_app.jl",
+        "path": "julia_app.jl",
+        "ext": ".jl",
+        "size": 124,
+        "loc": {
+          "code": 7,
+          "comment": 0,
+          "blank": 2
+        },
+        "func_count": 1,
+        "file_type": "julia_source",
+        "bios_meta": {}
+      },
+      {
+        "id": 6,
+        "label": "julia_config.toml",
+        "path": "julia_config.toml",
+        "ext": ".toml",
+        "size": 26,
+        "loc": {
+          "code": 2,
+          "comment": 0,
+          "blank": 0
+        },
+        "func_count": 0,
+        "file_type": "toml_source",
+        "bios_meta": {}
+      },
+      {
+        "id": 7,
+        "label": "julia_lib.jl",
+        "path": "julia_lib.jl",
+        "ext": ".jl",
+        "size": 91,
+        "loc": {
+          "code": 4,
+          "comment": 0,
+          "blank": 0
+        },
+        "func_count": 1,
+        "file_type": "julia_source",
+        "bios_meta": {}
+      },
+      {
+        "id": 8,
+        "label": "ruby_app.rb",
+        "path": "ruby_app.rb",
+        "ext": ".rb",
+        "size": 110,
+        "loc": {
+          "code": 7,
+          "comment": 0,
+          "blank": 1
+        },
+        "func_count": 1,
+        "file_type": "ruby_source",
+        "bios_meta": {}
+      },
+      {
+        "id": 9,
+        "label": "ruby_config.json",
+        "path": "ruby_config.json",
+        "ext": ".json",
+        "size": 41,
+        "loc": {
+          "code": 4,
+          "comment": 0,
+          "blank": 0
+        },
+        "func_count": 0,
+        "file_type": "json_config",
+        "bios_meta": {}
+      },
+      {
+        "id": 10,
+        "label": "ruby_lib.rb",
+        "path": "ruby_lib.rb",
+        "ext": ".rb",
+        "size": 109,
+        "loc": {
+          "code": 6,
+          "comment": 0,
+          "blank": 0
+        },
+        "func_count": 1,
+        "file_type": "ruby_source",
+        "bios_meta": {}
+      },
+      {
+        "id": 11,
+        "label": "verify_scan_results.py",
+        "path": "verify_scan_results.py",
+        "ext": ".py",
+        "size": 1835,
+        "loc": {
+          "code": 35,
+          "comment": 8,
+          "blank": 10
+        },
+        "func_count": 0,
+        "file_type": "py_source",
+        "bios_meta": {}
+      }
+    ],
+    ".vizcode": [
+      {
+        "id": 12,
+        "label": "health_history.json",
+        "path": ".vizcode/health_history.json",
+        "ext": ".json",
+        "size": 221,
+        "loc": {
+          "code": 1,
+          "comment": 0,
+          "blank": 0
+        },
+        "func_count": 0,
+        "file_type": "json_config",
+        "bios_meta": {}
+      },
+      {
+        "id": 13,
+        "label": "scan_cache.json",
+        "path": ".vizcode/scan_cache.json",
+        "ext": ".json",
+        "size": 8254,
+        "loc": {
+          "code": 1,
+          "comment": 0,
+          "blank": 0
+        },
+        "func_count": 0,
+        "file_type": "json_config",
+        "bios_meta": {}
+      },
+      {
+        "id": 14,
+        "label": "security_history.json",
+        "path": ".vizcode/security_history.json",
+        "ext": ".json",
+        "size": 145,
+        "loc": {
+          "code": 1,
+          "comment": 0,
+          "blank": 0
+        },
+        "func_count": 0,
+        "file_type": "json_config",
+        "bios_meta": {}
+      }
+    ]
+  },
+  "file_edges_by_module": {
+    "_root": [
+      {
+        "s": 0,
+        "t": 1,
+        "type": "import"
+      },
+      {
+        "s": 4,
+        "t": 3,
+        "type": "config_ref",
+        "via": "File.read(\"",
+        "subtype": "config",
+        "origin": "parser",
+        "confidence": 1.0,
+        "line": 5
+      },
+      {
+        "s": 5,
+        "t": 7,
+        "type": "import",
+        "via": "include",
+        "subtype": "include",
+        "origin": "parser",
+        "confidence": 1.0,
+        "line": 1
+      },
+      {
+        "s": 7,
+        "t": 6,
+        "type": "config_ref",
+        "via": "readlines(\"",
+        "subtype": "config",
+        "origin": "parser",
+        "confidence": 1.0,
+        "line": 3
+      },
+      {
+        "s": 8,
+        "t": 10,
+        "type": "import"
+      },
+      {
+        "s": 10,
+        "t": 9,
+        "type": "config_ref",
+        "via": "File.read(\"",
+        "subtype": "config",
+        "origin": "parser",
+        "confidence": 1.0,
+        "line": 4
+      }
+    ]
+  },
+  "other_files_by_module": {
+    "_root": [
+      {
+        "id": 15,
+        "label": "crystal_data.txt",
+        "path": "crystal_data.txt",
+        "ext": ".txt",
+        "size": 14,
+        "file_type": "other"
+      }
+    ],
+    ".vizcode": [
+      {
+        "id": 16,
+        "label": "INDEX.md",
+        "path": ".vizcode/INDEX.md",
+        "ext": ".md",
+        "size": 1516,
+        "file_type": "other"
+      },
+      {
+        "id": 17,
+        "label": "vizcode_report.md",
+        "path": ".vizcode/vizcode_report.md",
+        "ext": ".md",
+        "size": 1516,
+        "file_type": "other"
+      },
+      {
+        "id": 18,
+        "label": "_root.md",
+        "path": ".vizcode/L1/_root.md",
+        "ext": ".md",
+        "size": 1018,
+        "file_type": "other"
+      },
+      {
+        "id": 19,
+        "label": "crystal_app.md",
+        "path": ".vizcode/L2/crystal_app.md",
+        "ext": ".md",
+        "size": 217,
+        "file_type": "other"
+      },
+      {
+        "id": 20,
+        "label": "crystal_lib.md",
+        "path": ".vizcode/L2/crystal_lib.md",
+        "ext": ".md",
+        "size": 201,
+        "file_type": "other"
+      },
+      {
+        "id": 21,
+        "label": "elixir_app.md",
+        "path": ".vizcode/L2/elixir_app.md",
+        "ext": ".md",
+        "size": 221,
+        "file_type": "other"
+      },
+      {
+        "id": 22,
+        "label": "elixir_config.md",
+        "path": ".vizcode/L2/elixir_config.md",
+        "ext": ".md",
+        "size": 104,
+        "file_type": "other"
+      },
+      {
+        "id": 23,
+        "label": "elixir_lib.md",
+        "path": ".vizcode/L2/elixir_lib.md",
+        "ext": ".md",
+        "size": 205,
+        "file_type": "other"
+      },
+      {
+        "id": 24,
+        "label": "julia_app.md",
+        "path": ".vizcode/L2/julia_app.md",
+        "ext": ".md",
+        "size": 194,
+        "file_type": "other"
+      },
+      {
+        "id": 25,
+        "label": "julia_config.md",
+        "path": ".vizcode/L2/julia_config.md",
+        "ext": ".md",
+        "size": 106,
+        "file_type": "other"
+      },
+      {
+        "id": 26,
+        "label": "julia_lib.md",
+        "path": ".vizcode/L2/julia_lib.md",
+        "ext": ".md",
+        "size": 120,
+        "file_type": "other"
+      },
+      {
+        "id": 27,
+        "label": "ruby_app.md",
+        "path": ".vizcode/L2/ruby_app.md",
+        "ext": ".md",
+        "size": 213,
+        "file_type": "other"
+      },
+      {
+        "id": 28,
+        "label": "ruby_config.md",
+        "path": ".vizcode/L2/ruby_config.md",
+        "ext": ".md",
+        "size": 57,
+        "file_type": "other"
+      },
+      {
+        "id": 29,
+        "label": "ruby_lib.md",
+        "path": ".vizcode/L2/ruby_lib.md",
+        "ext": ".md",
+        "size": 192,
+        "file_type": "other"
+      },
+      {
+        "id": 30,
+        "label": "crystal_app.md",
+        "path": ".vizcode/L3/crystal_app.md",
+        "ext": ".md",
+        "size": 406,
+        "file_type": "other"
+      },
+      {
+        "id": 31,
+        "label": "crystal_lib.md",
+        "path": ".vizcode/L3/crystal_lib.md",
+        "ext": ".md",
+        "size": 393,
+        "file_type": "other"
+      },
+      {
+        "id": 32,
+        "label": "elixir_app.md",
+        "path": ".vizcode/L3/elixir_app.md",
+        "ext": ".md",
+        "size": 386,
+        "file_type": "other"
+      },
+      {
+        "id": 33,
+        "label": "elixir_config.md",
+        "path": ".vizcode/L3/elixir_config.md",
+        "ext": ".md",
+        "size": 201,
+        "file_type": "other"
+      },
+      {
+        "id": 34,
+        "label": "elixir_lib.md",
+        "path": ".vizcode/L3/elixir_lib.md",
+        "ext": ".md",
+        "size": 413,
+        "file_type": "other"
+      },
+      {
+        "id": 35,
+        "label": "julia_app.md",
+        "path": ".vizcode/L3/julia_app.md",
+        "ext": ".md",
+        "size": 456,
+        "file_type": "other"
+      },
+      {
+        "id": 36,
+        "label": "julia_config.md",
+        "path": ".vizcode/L3/julia_config.md",
+        "ext": ".md",
+        "size": 203,
+        "file_type": "other"
+      },
+      {
+        "id": 37,
+        "label": "julia_lib.md",
+        "path": ".vizcode/L3/julia_lib.md",
+        "ext": ".md",
+        "size": 331,
+        "file_type": "other"
+      },
+      {
+        "id": 38,
+        "label": "ruby_app.md",
+        "path": ".vizcode/L3/ruby_app.md",
+        "ext": ".md",
+        "size": 367,
+        "file_type": "other"
+      },
+      {
+        "id": 39,
+        "label": "ruby_config.md",
+        "path": ".vizcode/L3/ruby_config.md",
+        "ext": ".md",
+        "size": 101,
+        "file_type": "other"
+      },
+      {
+        "id": 40,
+        "label": "ruby_lib.md",
+        "path": ".vizcode/L3/ruby_lib.md",
+        "ext": ".md",
+        "size": 276,
+        "file_type": "other"
+      }
+    ]
+  },
+  "funcs_by_file": {
+    "crystal_app.cr": [
+      {
+        "id": 0,
+        "label": "start",
+        "is_public": true,
+        "is_efiapi": false
+      }
+    ],
+    "crystal_lib.cr": [
+      {
+        "id": 0,
+        "label": "perform",
+        "is_public": true,
+        "is_efiapi": false
+      }
+    ],
+    "elixir_app.ex": [
+      {
+        "id": 0,
+        "label": "run",
+        "is_public": true,
+        "is_efiapi": false
+      }
+    ],
+    "elixir_lib.ex": [
+      {
+        "id": 0,
+        "label": "process",
+        "is_public": true,
+        "is_efiapi": false
+      }
+    ],
+    "julia_app.jl": [
+      {
+        "id": 0,
+        "label": "execute",
+        "is_public": true,
+        "is_efiapi": false
+      }
+    ],
+    "julia_lib.jl": [
+      {
+        "id": 0,
+        "label": "helper_function",
+        "is_public": true,
+        "is_efiapi": false
+      }
+    ],
+    "ruby_app.rb": [
+      {
+        "id": 0,
+        "label": "run",
+        "is_public": true,
+        "is_efiapi": false
+      }
+    ],
+    "ruby_lib.rb": [
+      {
+        "id": 0,
+        "label": "process",
+        "is_public": true,
+        "is_efiapi": false
+      }
+    ]
+  },
+  "func_edges_by_file": {
+    "crystal_app.cr": [],
+    "crystal_lib.cr": [],
+    "elixir_app.ex": [],
+    "elixir_lib.ex": [],
+    "julia_app.jl": [],
+    "julia_lib.jl": [],
+    "ruby_app.rb": [],
+    "ruby_lib.rb": []
+  },
+  "func_calls_by_file": {
+    "crystal_app.cr": [
+      []
+    ],
+    "crystal_lib.cr": [
+      [
+        "read"
+      ]
+    ],
+    "elixir_app.ex": [
+      [
+        "process"
+      ]
+    ],
+    "elixir_lib.ex": [
+      [
+        "puts",
+        "read"
+      ]
+    ],
+    "julia_app.jl": [
+      [
+        "helper_function"
+      ]
+    ],
+    "julia_lib.jl": [
+      [
+        "readlines"
+      ]
+    ],
+    "ruby_app.rb": [
+      [
+        "process"
+      ]
+    ],
+    "ruby_lib.rb": [
+      [
+        "read"
+      ]
+    ]
+  },
+  "func_name_to_file": {
+    "start": "crystal_app.cr",
+    "perform": "crystal_lib.cr",
+    "run": "elixir_app.ex",
+    "process": "elixir_lib.ex",
+    "execute": "julia_app.jl",
+    "helper_function": "julia_lib.jl"
+  },
+  "func_name_to_files": {
+    "run": [
+      "elixir_app.ex",
+      "ruby_app.rb"
+    ],
+    "process": [
+      "elixir_lib.ex",
+      "ruby_lib.rb"
+    ]
+  },
+  "func_name_ambiguous": [
+    "process",
+    "run"
+  ],
+  "file_to_module": {
+    "crystal_app.cr": "_root",
+    "crystal_lib.cr": "_root",
+    "elixir_app.ex": "_root",
+    "elixir_config.yaml": "_root",
+    "elixir_lib.ex": "_root",
+    "julia_app.jl": "_root",
+    "julia_config.toml": "_root",
+    "julia_lib.jl": "_root",
+    "ruby_app.rb": "_root",
+    "ruby_config.json": "_root",
+    "ruby_lib.rb": "_root",
+    "verify_scan_results.py": "_root",
+    ".vizcode/health_history.json": ".vizcode",
+    ".vizcode/scan_cache.json": ".vizcode",
+    ".vizcode/security_history.json": ".vizcode"
+  },
+  "func_known_categories": {
+    "AllocatePool": "EDK2 MemAlloc",
+    "FreePool": "EDK2 MemAlloc",
+    "AllocatePages": "UEFI Boot Services",
+    "FreePages": "UEFI Boot Services",
+    "InstallProtocolInterface": "UEFI Boot Services",
+    "UninstallProtocolInterface": "UEFI Boot Services",
+    "InstallMultipleProtocolInterfaces": "UEFI Boot Services",
+    "UninstallMultipleProtocolInterfaces": "UEFI Boot Services",
+    "LocateProtocol": "UEFI Boot Services",
+    "HandleProtocol": "UEFI Boot Services",
+    "OpenProtocol": "UEFI Boot Services",
+    "CloseProtocol": "UEFI Boot Services",
+    "LocateHandleBuffer": "UEFI Boot Services",
+    "LocateHandle": "UEFI Boot Services",
+    "CreateEvent": "UEFI Boot Services",
+    "CreateEventEx": "UEFI Boot Services",
+    "CloseEvent": "UEFI Boot Services",
+    "SignalEvent": "UEFI Boot Services",
+    "WaitForEvent": "UEFI Boot Services",
+    "CheckEvent": "UEFI Boot Services",
+    "SetTimer": "UEFI Boot Services",
+    "RaiseTPL": "UEFI Boot Services",
+    "RestoreTPL": "UEFI Boot Services",
+    "ExitBootServices": "UEFI Boot Services",
+    "GetMemoryMap": "UEFI Boot Services",
+    "SetWatchdogTimer": "UEFI Boot Services",
+    "Stall": "UEFI Boot Services",
+    "ConnectController": "UEFI Boot Services",
+    "DisconnectController": "UEFI Boot Services",
+    "RegisterProtocolNotify": "UEFI Boot Services",
+    "ReinstallProtocolInterface": "UEFI Boot Services",
+    "LoadImage": "UEFI Boot Services",
+    "StartImage": "UEFI Boot Services",
+    "Exit": "UEFI Boot Services",
+    "UnloadImage": "UEFI Boot Services",
+    "GetNextMonotonicCount": "UEFI Boot Services",
+    "InstallConfigurationTable": "UEFI Boot Services",
+    "ProtocolsPerHandle": "UEFI Boot Services",
+    "OpenProtocolInformation": "UEFI Boot Services",
+    "GetVariable": "UEFI Runtime Services",
+    "SetVariable": "UEFI Runtime Services",
+    "GetNextVariableName": "UEFI Runtime Services",
+    "QueryVariableInfo": "UEFI Runtime Services",
+    "GetTime": "UEFI Runtime Services",
+    "SetTime": "UEFI Runtime Services",
+    "GetWakeupTime": "UEFI Runtime Services",
+    "SetWakeupTime": "UEFI Runtime Services",
+    "SetVirtualAddressMap": "UEFI Runtime Services",
+    "ConvertPointer": "UEFI Runtime Services",
+    "GetNextHighMonotonicCount": "UEFI Runtime Services",
+    "ResetSystem": "UEFI Runtime Services",
+    "UpdateCapsule": "UEFI Runtime Services",
+    "QueryCapsuleCapabilities": "UEFI Runtime Services",
+    "CopyMem": "EDK2 MemoryLib",
+    "SetMem": "EDK2 MemoryLib",
+    "SetMem8": "EDK2 MemoryLib",
+    "SetMem16": "EDK2 MemoryLib",
+    "SetMem32": "EDK2 MemoryLib",
+    "SetMem64": "EDK2 MemoryLib",
+    "ZeroMem": "EDK2 MemoryLib",
+    "CompareMem": "EDK2 MemoryLib",
+    "ScanMem8": "EDK2 MemoryLib",
+    "ScanMem16": "EDK2 MemoryLib",
+    "ScanMem32": "EDK2 MemoryLib",
+    "ScanMem64": "EDK2 MemoryLib",
+    "CopyMemS": "EDK2 MemoryLib",
+    "SetMemS": "EDK2 MemoryLib",
+    "StrLen": "EDK2 BaseLib",
+    "StrnLen": "EDK2 BaseLib",
+    "StrSize": "EDK2 BaseLib",
+    "StrCmp": "EDK2 BaseLib",
+    "StrnCmp": "EDK2 BaseLib",
+    "StrCpy": "EDK2 BaseLib",
+    "StrnCpy": "EDK2 BaseLib",
+    "StrCat": "EDK2 BaseLib",
+    "StrnCat": "EDK2 BaseLib",
+    "StrStr": "EDK2 BaseLib",
+    "StrDecimalToUintn": "EDK2 BaseLib",
+    "StrDecimalToUint64": "EDK2 BaseLib",
+    "StrHexToUintn": "EDK2 BaseLib",
+    "StrHexToUint64": "EDK2 BaseLib",
+    "UnicodeStrToAsciiStr": "EDK2 BaseLib",
+    "AsciiStrToUnicodeStr": "EDK2 BaseLib",
+    "AsciiStrLen": "EDK2 BaseLib",
+    "AsciiStrnLen": "EDK2 BaseLib",
+    "AsciiStrSize": "EDK2 BaseLib",
+    "AsciiStrCmp": "EDK2 BaseLib",
+    "AsciiStrnCmp": "EDK2 BaseLib",
+    "AsciiStrCpy": "EDK2 BaseLib",
+    "AsciiStrnCpy": "EDK2 BaseLib",
+    "AsciiStrCat": "EDK2 BaseLib",
+    "AsciiStrnCat": "EDK2 BaseLib",
+    "AsciiStrStr": "EDK2 BaseLib",
+    "AsciiStrDecimalToUintn": "EDK2 BaseLib",
+    "AsciiStrHexToUintn": "EDK2 BaseLib",
+    "UnicodeStrToAsciiStrS": "EDK2 BaseLib",
+    "AsciiStrToUnicodeStrS": "EDK2 BaseLib",
+    "StrCpyS": "EDK2 BaseLib",
+    "StrnCpyS": "EDK2 BaseLib",
+    "StrCatS": "EDK2 BaseLib",
+    "StrnCatS": "EDK2 BaseLib",
+    "AsciiStrCpyS": "EDK2 BaseLib",
+    "AsciiStrnCpyS": "EDK2 BaseLib",
+    "AsciiStrCatS": "EDK2 BaseLib",
+    "AsciiStrnCatS": "EDK2 BaseLib",
+    "UnicodeSPrint": "EDK2 BaseLib",
+    "UnicodeSPrintAsciiFormat": "EDK2 BaseLib",
+    "AsciiSPrint": "EDK2 BaseLib",
+    "AsciiSPrintUnicodeFormat": "EDK2 BaseLib",
+    "UnicodeVSPrint": "EDK2 BaseLib",
+    "AsciiVSPrint": "EDK2 BaseLib",
+    "SwapBytes16": "EDK2 BaseLib",
+    "SwapBytes32": "EDK2 BaseLib",
+    "SwapBytes64": "EDK2 BaseLib",
+    "LShiftU64": "EDK2 BaseLib",
+    "RShiftU64": "EDK2 BaseLib",
+    "ARShiftU64": "EDK2 BaseLib",
+    "MultU64x32": "EDK2 BaseLib",
+    "MultU64x64": "EDK2 BaseLib",
+    "DivU64x32": "EDK2 BaseLib",
+    "DivU64x64Remainder": "EDK2 BaseLib",
+    "ModU64x32": "EDK2 BaseLib",
+    "GetPowerOfTwo32": "EDK2 BaseLib",
+    "GetPowerOfTwo64": "EDK2 BaseLib",
+    "HighBitSet32": "EDK2 BaseLib",
+    "HighBitSet64": "EDK2 BaseLib",
+    "LowBitSet32": "EDK2 BaseLib",
+    "LowBitSet64": "EDK2 BaseLib",
+    "CalculateCrc32": "EDK2 BaseLib",
+    "DEBUG": "EDK2 DebugLib",
+    "ASSERT": "EDK2 DebugLib",
+    "ASSERT_EFI_ERROR": "EDK2 DebugLib",
+    "ASSERT_PROTOCOL_ALREADY_INSTALLED": "EDK2 DebugLib",
+    "DebugPrint": "EDK2 DebugLib",
+    "DebugAssert": "EDK2 DebugLib",
+    "DebugClearMemory": "EDK2 DebugLib",
+    "DebugAssertEnabled": "EDK2 DebugLib",
+    "DebugPrintEnabled": "EDK2 DebugLib",
+    "DebugCodeEnabled": "EDK2 DebugLib",
+    "DeadLoop": "EDK2 DebugLib",
+    "Print": "EDK2 PrintLib",
+    "AsciiPrint": "EDK2 PrintLib",
+    "AllocateZeroPool": "EDK2 MemAlloc",
+    "AllocateCopyPool": "EDK2 MemAlloc",
+    "AllocateRuntimePool": "EDK2 MemAlloc",
+    "AllocateReservedPool": "EDK2 MemAlloc",
+    "AllocateRuntimeZeroPool": "EDK2 MemAlloc",
+    "ReallocatePool": "EDK2 MemAlloc",
+    "AllocateAlignedPool": "EDK2 MemAlloc",
+    "AllocateAlignedZeroPool": "EDK2 MemAlloc",
+    "FreeAlignedPool": "EDK2 MemAlloc",
+    "PeiServicesInstallPpi": "PEI Services",
+    "PeiServicesReInstallPpi": "PEI Services",
+    "PeiServicesLocatePpi": "PEI Services",
+    "PeiServicesNotifyPpi": "PEI Services",
+    "PeiServicesGetBootMode": "PEI Services",
+    "PeiServicesSetBootMode": "PEI Services",
+    "PeiServicesGetHobList": "PEI Services",
+    "PeiServicesCreateHob": "PEI Services",
+    "PeiServicesFfsFindNextVolume": "PEI Services",
+    "PeiServicesFfsFindNextFile": "PEI Services",
+    "PeiServicesFfsFindSectionData": "PEI Services",
+    "PeiServicesInstallPeiMemory": "PEI Services",
+    "PeiServicesAllocatePages": "PEI Services",
+    "PeiServicesAllocatePool": "PEI Services",
+    "PeiServicesCopyMem": "PEI Services",
+    "PeiServicesSetMem": "PEI Services",
+    "PeiServicesReportStatusCode": "PEI Services",
+    "PeiServicesResetSystem": "PEI Services",
+    "GetHobList": "EDK2 HobLib",
+    "GetNextHob": "EDK2 HobLib",
+    "GetFirstHob": "EDK2 HobLib",
+    "GetNextGuidHob": "EDK2 HobLib",
+    "GetFirstGuidHob": "EDK2 HobLib",
+    "BuildHob": "EDK2 HobLib",
+    "BuildModuleHob": "EDK2 HobLib",
+    "BuildResourceDescriptorHob": "EDK2 HobLib",
+    "BuildGuidHob": "EDK2 HobLib",
+    "BuildGuidDataHob": "EDK2 HobLib",
+    "BuildFvHob": "EDK2 HobLib",
+    "BuildCpuHob": "EDK2 HobLib",
+    "BuildMemoryAllocationHob": "EDK2 HobLib",
+    "BuildStackHob": "EDK2 HobLib",
+    "BuildBspStoreHob": "EDK2 HobLib",
+    "GetBootModeHob": "EDK2 HobLib",
+    "EfiCreateEventReadyToBootEx": "EDK2 UefiLib",
+    "EfiNamedEventListen": "EDK2 UefiLib",
+    "EfiNamedEventSignal": "EDK2 UefiLib",
+    "EfiEventEmptyFunction": "EDK2 UefiLib",
+    "GetGlyphWidth": "EDK2 UefiLib",
+    "EfiGetSystemConfigurationTable": "EDK2 UefiLib",
+    "EfiLibInstallDriverBinding": "EDK2 UefiLib",
+    "EfiLibInstallAllDriverProtocols2": "EDK2 UefiLib",
+    "GetVariable2": "EDK2 UefiLib",
+    "GetEfiGlobalVariable2": "EDK2 UefiLib",
+    "DevicePathToStr": "EDK2 UefiLib",
+    "DevicePathFromHandle": "EDK2 DevicePath",
+    "AppendDevicePath": "EDK2 DevicePath",
+    "AppendDevicePathNode": "EDK2 DevicePath",
+    "AppendDevicePathInstance": "EDK2 DevicePath",
+    "DuplicateDevicePath": "EDK2 DevicePath",
+    "IsDevicePathEnd": "EDK2 DevicePath",
+    "IsDevicePathEndType": "EDK2 DevicePath",
+    "IsDevicePathEndInstance": "EDK2 DevicePath",
+    "NextDevicePathNode": "EDK2 DevicePath",
+    "DevicePathType": "EDK2 DevicePath",
+    "DevicePathSubType": "EDK2 DevicePath",
+    "DevicePathNodeLength": "EDK2 DevicePath",
+    "SetDevicePathNodeLength": "EDK2 DevicePath",
+    "SetDevicePathEndNode": "EDK2 DevicePath",
+    "GetDevicePathSize": "EDK2 DevicePath",
+    "ConvertDevicePathToText": "EDK2 DevicePath",
+    "memcpy": "C Runtime",
+    "memmove": "C Runtime",
+    "memset": "C Runtime",
+    "memcmp": "C Runtime",
+    "memchr": "C Runtime",
+    "strlen": "C Runtime",
+    "strcmp": "C Runtime",
+    "strncmp": "C Runtime",
+    "strcpy": "C Runtime",
+    "strncpy": "C Runtime",
+    "strcat": "C Runtime",
+    "strncat": "C Runtime",
+    "strchr": "C Runtime",
+    "strrchr": "C Runtime",
+    "strstr": "C Runtime",
+    "strtol": "C Runtime",
+    "strtoul": "C Runtime",
+    "strtoll": "C Runtime",
+    "strtoull": "C Runtime",
+    "strtod": "C Runtime",
+    "atoi": "C Runtime",
+    "atol": "C Runtime",
+    "atoll": "C Runtime",
+    "atof": "C Runtime",
+    "sprintf": "C Runtime",
+    "snprintf": "C Runtime",
+    "sscanf": "C Runtime",
+    "printf": "C Runtime",
+    "fprintf": "C Runtime",
+    "vprintf": "C Runtime",
+    "vsprintf": "C Runtime",
+    "vsnprintf": "C Runtime",
+    "malloc": "C Runtime",
+    "calloc": "C Runtime",
+    "realloc": "C Runtime",
+    "free": "C Runtime",
+    "abs": "C Runtime",
+    "labs": "C Runtime",
+    "llabs": "C Runtime",
+    "div": "C Runtime",
+    "ldiv": "C Runtime",
+    "lldiv": "C Runtime",
+    "rand": "C Runtime",
+    "srand": "C Runtime",
+    "qsort": "C Runtime",
+    "bsearch": "C Runtime",
+    "Malloc": "Firmware SDK",
+    "MallocZ": "Firmware SDK",
+    "Free": "Firmware SDK",
+    "MemSet": "Firmware SDK",
+    "MemCpy": "Firmware SDK",
+    "MemCmp": "Firmware SDK",
+    "Strlen": "Firmware SDK",
+    "Strcmp": "Firmware SDK",
+    "Strcpy": "Firmware SDK",
+    "Strcat": "Firmware SDK",
+    "Sprintf": "Firmware SDK",
+    "Swprintf": "Firmware SDK",
+    "TRACE": "Firmware SDK",
+    "PROGRESS_CODE": "Firmware SDK",
+    "ERROR_CODE": "Firmware SDK",
+    "IoRead8": "CPU/IO Lib",
+    "IoWrite8": "CPU/IO Lib",
+    "IoRead16": "CPU/IO Lib",
+    "IoWrite16": "CPU/IO Lib",
+    "IoRead32": "CPU/IO Lib",
+    "IoWrite32": "CPU/IO Lib",
+    "MmioRead8": "CPU/IO Lib",
+    "MmioWrite8": "CPU/IO Lib",
+    "MmioRead16": "CPU/IO Lib",
+    "MmioWrite16": "CPU/IO Lib",
+    "MmioRead32": "CPU/IO Lib",
+    "MmioWrite32": "CPU/IO Lib",
+    "MmioRead64": "CPU/IO Lib",
+    "MmioWrite64": "CPU/IO Lib",
+    "MmioAndThenOr8": "CPU/IO Lib",
+    "MmioAndThenOr16": "CPU/IO Lib",
+    "MmioAndThenOr32": "CPU/IO Lib",
+    "MmioAndThenOr64": "CPU/IO Lib",
+    "MmioOr8": "CPU/IO Lib",
+    "MmioOr16": "CPU/IO Lib",
+    "MmioOr32": "CPU/IO Lib",
+    "MmioOr64": "CPU/IO Lib",
+    "MmioAnd8": "CPU/IO Lib",
+    "MmioAnd16": "CPU/IO Lib",
+    "MmioAnd32": "CPU/IO Lib",
+    "MmioAnd64": "CPU/IO Lib",
+    "AsmReadMsr64": "CPU/IO Lib",
+    "AsmWriteMsr64": "CPU/IO Lib",
+    "AsmReadMsr32": "CPU/IO Lib",
+    "AsmWriteMsr32": "CPU/IO Lib",
+    "AsmCpuid": "CPU/IO Lib",
+    "AsmCpuidEx": "CPU/IO Lib",
+    "AsmReadCr0": "CPU/IO Lib",
+    "AsmWriteCr0": "CPU/IO Lib",
+    "AsmReadCr2": "CPU/IO Lib",
+    "AsmReadCr3": "CPU/IO Lib",
+    "AsmWriteCr3": "CPU/IO Lib",
+    "AsmReadCr4": "CPU/IO Lib",
+    "AsmWriteCr4": "CPU/IO Lib",
+    "AsmReadIdtr": "CPU/IO Lib",
+    "AsmWriteIdtr": "CPU/IO Lib",
+    "AsmReadGdtr": "CPU/IO Lib",
+    "AsmWriteGdtr": "CPU/IO Lib",
+    "AsmDisableInterrupts": "CPU/IO Lib",
+    "AsmEnableInterrupts": "CPU/IO Lib",
+    "AsmWbinvd": "CPU/IO Lib",
+    "AsmInvd": "CPU/IO Lib",
+    "AsmFlushCacheLine": "CPU/IO Lib",
+    "AsmNop": "CPU/IO Lib",
+    "AsmPause": "CPU/IO Lib",
+    "REPORT_STATUS_CODE": "Status Code",
+    "REPORT_STATUS_CODE_WITH_DEVICE_PATH": "Status Code",
+    "REPORT_STATUS_CODE_WITH_EXTENDED_DATA": "Status Code",
+    "ReportStatusCode": "Status Code",
+    "ReportStatusCodeWithDevicePath": "Status Code",
+    "LibReportStatusCode": "Status Code"
+  },
+  "edge_types": {
+    "include": {
+      "label": "Include",
+      "color": "#c084fc",
+      "style": "solid",
+      "kind": "import"
+    },
+    "sources": {
+      "label": "Sources",
+      "color": "#ffd700",
+      "style": "solid",
+      "kind": "import"
+    },
+    "package": {
+      "label": "Package",
+      "color": "#00d4ff",
+      "style": "dashed",
+      "kind": "import"
+    },
+    "library": {
+      "label": "Library",
+      "color": "#a78bfa",
+      "style": "dashed",
+      "kind": "import"
+    },
+    "elink": {
+      "label": "ELINK",
+      "color": "#ff6b35",
+      "style": "dotted",
+      "kind": "import"
+    },
+    "cif_own": {
+      "label": "owns",
+      "color": "#34d399",
+      "style": "solid",
+      "kind": "import"
+    },
+    "component": {
+      "label": "Component",
+      "color": "#60a5fa",
+      "style": "solid",
+      "kind": "import"
+    },
+    "depex": {
+      "label": "Depex",
+      "color": "#f472b6",
+      "style": "dotted",
+      "kind": "import"
+    },
+    "guid_ref": {
+      "label": "GUID",
+      "color": "#fb923c",
+      "style": "dashed",
+      "kind": "import"
+    },
+    "str_ref": {
+      "label": "Strings",
+      "color": "#e879f9",
+      "style": "dashed",
+      "kind": "import"
+    },
+    "asl_include": {
+      "label": "ASL",
+      "color": "#818cf8",
+      "style": "solid",
+      "kind": "import"
+    },
+    "callback_ref": {
+      "label": "Callback",
+      "color": "#f87171",
+      "style": "dotted",
+      "kind": "import"
+    },
+    "hii_pkg": {
+      "label": "HII-Pkg",
+      "color": "#94a3b8",
+      "style": "solid",
+      "kind": "import"
+    },
+    "import": {
+      "label": "Import",
+      "color": "#10b981",
+      "style": "solid",
+      "kind": "import"
+    },
+    "asset_ref": {
+      "label": "Asset",
+      "color": "#22d3ee",
+      "style": "dashed",
+      "kind": "import"
+    },
+    "config_ref": {
+      "label": "Config",
+      "color": "#f59e0b",
+      "style": "dashed",
+      "kind": "import"
+    },
+    "call": {
+      "label": "Call",
+      "color": "#38bdf8",
+      "style": "solid",
+      "kind": "call"
+    },
+    "inherit": {
+      "label": "Inherit",
+      "color": "#818cf8",
+      "style": "solid",
+      "kind": "inherit"
+    },
+    "inferred": {
+      "label": "Inferred",
+      "color": "#94a3b8",
+      "style": "dashed",
+      "kind": "inferred"
+    }
+  },
+  "project_type": {
+    "key": "mixed",
+    "name": "Multi-Language",
+    "emoji": "\ud83d\udd00",
+    "badge_color": "#a78bfa",
+    "accent": "#c084fc",
+    "description": "Multi-language project with significant code in multiple languages",
+    "exts": "set()",
+    "components": [
+      "ruby",
+      "elixir"
+    ],
+    "score": 2,
+    "component_names": [
+      "Ruby",
+      "Elixir"
+    ]
+  },
+  "symbol_index": {
+    "sym_3_0": {
+      "id": "sym_3_0",
+      "name": "CrystalApp",
+      "kind": "class",
+      "file": "crystal_app.cr",
+      "line": 3,
+      "end_line": 8,
+      "bases": [],
+      "parent": null,
+      "is_public": true,
+      "module": "_root",
+      "signature": "class CrystalApp",
+      "docstring": null,
+      "decorators": [],
+      "is_static": false,
+      "complexity": null,
+      "type_refs": [
+        "CrystalApp",
+        "CrystalLib"
+      ],
+      "parse_error": null
+    },
+    "sym_3_1": {
+      "id": "sym_3_1",
+      "name": "start",
+      "kind": "method",
+      "file": "crystal_app.cr",
+      "line": 4,
+      "end_line": 8,
+      "bases": [],
+      "parent": "CrystalApp",
+      "is_public": true,
+      "module": "_root",
+      "signature": "def start",
+      "docstring": null,
+      "decorators": [],
+      "is_static": false,
+      "complexity": 1,
+      "type_refs": [],
+      "parse_error": null
+    },
+    "sym_4_0": {
+      "id": "sym_4_0",
+      "name": "CrystalLib",
+      "kind": "class",
+      "file": "crystal_lib.cr",
+      "line": 1,
+      "end_line": 6,
+      "bases": [],
+      "parent": null,
+      "is_public": true,
+      "module": "_root",
+      "signature": "class CrystalLib",
+      "docstring": null,
+      "decorators": [],
+      "is_static": false,
+      "complexity": null,
+      "type_refs": [
+        "CrystalLib",
+        "File"
+      ],
+      "parse_error": null
+    },
+    "sym_4_1": {
+      "id": "sym_4_1",
+      "name": "perform",
+      "kind": "method",
+      "file": "crystal_lib.cr",
+      "line": 2,
+      "end_line": 5,
+      "bases": [],
+      "parent": "CrystalLib",
+      "is_public": true,
+      "module": "_root",
+      "signature": "def perform",
+      "docstring": null,
+      "decorators": [],
+      "is_static": false,
+      "complexity": 1,
+      "type_refs": [],
+      "parse_error": null
+    },
+    "sym_5_0": {
+      "id": "sym_5_0",
+      "name": "ElixirApp",
+      "kind": "module",
+      "file": "elixir_app.ex",
+      "line": 1,
+      "end_line": 7,
+      "bases": [],
+      "parent": null,
+      "is_public": true,
+      "module": "_root",
+      "signature": "defmodule ElixirApp do",
+      "docstring": null,
+      "decorators": [],
+      "is_static": false,
+      "complexity": null,
+      "type_refs": [],
+      "parse_error": null
+    },
+    "sym_5_1": {
+      "id": "sym_5_1",
+      "name": "run",
+      "kind": "method",
+      "file": "elixir_app.ex",
+      "line": 4,
+      "end_line": 6,
+      "bases": [],
+      "parent": "ElixirApp",
+      "is_public": true,
+      "module": "_root",
+      "signature": "def run do",
+      "docstring": null,
+      "decorators": [],
+      "is_static": false,
+      "complexity": 1,
+      "type_refs": [],
+      "parse_error": null
+    },
+    "sym_6_0": {
+      "id": "sym_6_0",
+      "name": "version",
+      "kind": "key",
+      "file": "elixir_config.yaml",
+      "line": 1,
+      "end_line": 1,
+      "bases": [],
+      "parent": null,
+      "is_public": true,
+      "module": "_root",
+      "signature": "",
+      "docstring": null,
+      "decorators": [],
+      "is_static": false,
+      "complexity": 1,
+      "type_refs": [],
+      "parse_error": null
+    },
+    "sym_7_0": {
+      "id": "sym_7_0",
+      "name": "ElixirLib",
+      "kind": "module",
+      "file": "elixir_lib.ex",
+      "line": 1,
+      "end_line": 8,
+      "bases": [],
+      "parent": null,
+      "is_public": true,
+      "module": "_root",
+      "signature": "defmodule ElixirLib do",
+      "docstring": null,
+      "decorators": [],
+      "is_static": false,
+      "complexity": null,
+      "type_refs": [],
+      "parse_error": null
+    },
+    "sym_7_1": {
+      "id": "sym_7_1",
+      "name": "process",
+      "kind": "method",
+      "file": "elixir_lib.ex",
+      "line": 3,
+      "end_line": 7,
+      "bases": [],
+      "parent": "ElixirLib",
+      "is_public": true,
+      "module": "_root",
+      "signature": "def process(item) do",
+      "docstring": null,
+      "decorators": [],
+      "is_static": false,
+      "complexity": 1,
+      "type_refs": [],
+      "parse_error": null
+    },
+    "sym_8_0": {
+      "id": "sym_8_0",
+      "name": "JuliaApp",
+      "kind": "struct",
+      "file": "julia_app.jl",
+      "line": 3,
+      "end_line": 5,
+      "bases": [],
+      "parent": null,
+      "is_public": true,
+      "module": "_root",
+      "signature": "struct JuliaApp",
+      "docstring": null,
+      "decorators": [],
+      "is_static": false,
+      "complexity": null,
+      "type_refs": [
+        "JuliaApp"
+      ],
+      "parse_error": null
+    },
+    "sym_8_1": {
+      "id": "sym_8_1",
+      "name": "execute",
+      "kind": "function",
+      "file": "julia_app.jl",
+      "line": 7,
+      "end_line": 9,
+      "bases": [],
+      "parent": null,
+      "is_public": true,
+      "module": "_root",
+      "signature": "execute(app::JuliaApp)",
+      "docstring": null,
+      "decorators": [],
+      "is_static": false,
+      "complexity": 1,
+      "type_refs": [
+        "JuliaApp"
+      ],
+      "parse_error": null
+    },
+    "sym_9_0": {
+      "id": "sym_9_0",
+      "name": "settings",
+      "kind": "table",
+      "file": "julia_config.toml",
+      "line": 1,
+      "end_line": 1,
+      "bases": [],
+      "parent": null,
+      "is_public": true,
+      "module": "_root",
+      "signature": "",
+      "docstring": null,
+      "decorators": [],
+      "is_static": false,
+      "complexity": 1,
+      "type_refs": [],
+      "parse_error": null
+    },
+    "sym_10_0": {
+      "id": "sym_10_0",
+      "name": "helper_function",
+      "kind": "function",
+      "file": "julia_lib.jl",
+      "line": 1,
+      "end_line": 4,
+      "bases": [],
+      "parent": null,
+      "is_public": true,
+      "module": "_root",
+      "signature": "helper_function(val)",
+      "docstring": null,
+      "decorators": [],
+      "is_static": false,
+      "complexity": 1,
+      "type_refs": [],
+      "parse_error": null
+    },
+    "sym_11_0": {
+      "id": "sym_11_0",
+      "name": "RubyApp",
+      "kind": "class",
+      "file": "ruby_app.rb",
+      "line": 3,
+      "end_line": 8,
+      "bases": [],
+      "parent": null,
+      "is_public": true,
+      "module": "_root",
+      "signature": "class RubyApp",
+      "docstring": null,
+      "decorators": [],
+      "is_static": false,
+      "complexity": null,
+      "type_refs": [],
+      "parse_error": null
+    },
+    "sym_11_1": {
+      "id": "sym_11_1",
+      "name": "run",
+      "kind": "method",
+      "file": "ruby_app.rb",
+      "line": 4,
+      "end_line": 7,
+      "bases": [],
+      "parent": "RubyApp",
+      "is_public": true,
+      "module": "_root",
+      "signature": "def run",
+      "docstring": null,
+      "decorators": [],
+      "is_static": false,
+      "complexity": 1,
+      "type_refs": [],
+      "parse_error": null
+    },
+    "sym_13_0": {
+      "id": "sym_13_0",
+      "name": "RubyLib",
+      "kind": "class",
+      "file": "ruby_lib.rb",
+      "line": 1,
+      "end_line": 6,
+      "bases": [],
+      "parent": null,
+      "is_public": true,
+      "module": "_root",
+      "signature": "class RubyLib",
+      "docstring": null,
+      "decorators": [],
+      "is_static": false,
+      "complexity": null,
+      "type_refs": [],
+      "parse_error": null
+    },
+    "sym_13_1": {
+      "id": "sym_13_1",
+      "name": "process",
+      "kind": "method",
+      "file": "ruby_lib.rb",
+      "line": 2,
+      "end_line": 5,
+      "bases": [],
+      "parent": "RubyLib",
+      "is_public": true,
+      "module": "_root",
+      "signature": "def process(data)",
+      "docstring": null,
+      "decorators": [],
+      "is_static": false,
+      "complexity": 1,
+      "type_refs": [],
+      "parse_error": null
+    }
+  },
+  "symbol_edges": [
+    {
+      "from": "sym_3_0",
+      "to": "sym_4_0",
+      "type": "type_usage",
+      "kind": "type_usage"
+    },
+    {
+      "from": "sym_8_1",
+      "to": "sym_8_0",
+      "type": "type_usage",
+      "kind": "type_usage"
+    },
+    {
+      "from": "sym_5_1",
+      "to": "sym_7_1",
+      "type": "call",
+      "kind": "call"
+    },
+    {
+      "from": "sym_8_1",
+      "to": "sym_10_0",
+      "type": "call",
+      "kind": "call"
+    },
+    {
+      "from": "sym_11_1",
+      "to": "sym_7_1",
+      "type": "call",
+      "kind": "call"
+    }
+  ],
+  "meta": {},
+  "communities": {
+    "sym_8_1": 1,
+    "sym_8_0": 1,
+    "sym_5_1": 2,
+    "sym_7_1": 2,
+    "sym_10_0": 1,
+    "sym_11_1": 2
+  },
+  "community_stats": [
+    {
+      "id": 1,
+      "size": 3,
+      "label": "execute / JuliaApp"
+    },
+    {
+      "id": 2,
+      "size": 3,
+      "label": "process / run"
+    }
+  ],
+  "file_community": {
+    "julia_app.jl": 1,
+    "elixir_app.ex": 2,
+    "elixir_lib.ex": 2,
+    "julia_lib.jl": 1,
+    "ruby_app.rb": 2
+  },
+  "stats": {
+    "files": 15,
+    "modules": 2,
+    "functions": 8,
+    "calls": 19,
+    "other_files": 26,
+    "binary_files": 0,
+    "total_visible_files": 41,
+    "total_all_files": 41,
+    "total_dirs": 4,
+    "total_dirs_skipped": 0,
+    "skipped_files": 0,
+    "skipped_dir_names": [
+      ".DS_Store",
+      ".cache",
+      ".claude",
+      ".env",
+      ".git",
+      ".idea",
+      ".mypy_cache",
+      ".next",
+      ".nuxt",
+      ".nyc_output",
+      ".output",
+      ".pytest_cache",
+      ".tox",
+      ".venv",
+      ".vscode",
+      "Build",
+      "Conf",
+      "DEBUG",
+      "RELEASE",
+      "__pycache__",
+      "__pypackages__",
+      "build",
+      "coverage",
+      "dist",
+      "env",
+      "node_modules",
+      "out",
+      "site-packages",
+      "storybook-static",
+      "vendor",
+      "venv"
+    ],
+    "ignore_filter_enabled": false,
+    "ignore_filter_mode": "fallback",
+    "ignored_files": 0,
+    "type_counts": {
+      "crystal_source": 2,
+      "elixir_source": 2,
+      "yaml_source": 1,
+      "julia_source": 2,
+      "toml_source": 1,
+      "ruby_source": 2,
+      "json_config": 4,
+      "py_source": 1
+    },
+    "root": "d:/Google AI/VizCode/test_ruby_crystal_julia_elixir",
+    "project_type": {
+      "key": "mixed",
+      "name": "Multi-Language",
+      "emoji": "\ud83d\udd00",
+      "badge_color": "#a78bfa",
+      "accent": "#c084fc",
+      "description": "Multi-language project with significant code in multiple languages",
+      "exts": "set()",
+      "components": [
+        "ruby",
+        "elixir"
+      ],
+      "score": 2,
+      "component_names": [
+        "Ruby",
+        "Elixir"
+      ]
+    },
+    "top_imported_files": [
+      {
+        "file": "crystal_lib.cr",
+        "count": 1
+      },
+      {
+        "file": "elixir_config.yaml",
+        "count": 1
+      },
+      {
+        "file": "julia_lib.jl",
+        "count": 1
+      },
+      {
+        "file": "julia_config.toml",
+        "count": 1
+      },
+      {
+        "file": "ruby_lib.rb",
+        "count": 1
+      },
+      {
+        "file": "ruby_config.json",
+        "count": 1
+      }
+    ],
+    "top_caller_files": [
+      {
+        "file": "verify_scan_results.py",
+        "count": 7
+      },
+      {
+        "file": "elixir_lib.ex",
+        "count": 3
+      },
+      {
+        "file": "julia_app.jl",
+        "count": 2
+      },
+      {
+        "file": "julia_lib.jl",
+        "count": 2
+      },
+      {
+        "file": "ruby_lib.rb",
+        "count": 2
+      },
+      {
+        "file": "crystal_lib.cr",
+        "count": 1
+      },
+      {
+        "file": "elixir_app.ex",
+        "count": 1
+      },
+      {
+        "file": "ruby_app.rb",
+        "count": 1
+      },
+      {
+        "file": "crystal_app.cr",
+        "count": 0
+      },
+      {
+        "file": "elixir_config.yaml",
+        "count": 0
+      },
+      {
+        "file": "julia_config.toml",
+        "count": 0
+      },
+      {
+        "file": "ruby_config.json",
+        "count": 0
+      },
+      {
+        "file": ".vizcode/health_history.json",
+        "count": 0
+      },
+      {
+        "file": ".vizcode/scan_cache.json",
+        "count": 0
+      },
+      {
+        "file": ".vizcode/security_history.json",
+        "count": 0
+      }
+    ],
+    "uncalled_functions": 5,
+    "dead_code_symbols": [
+      {
+        "file": "crystal_app.cr",
+        "name": "start"
+      },
+      {
+        "file": "crystal_lib.cr",
+        "name": "perform"
+      },
+      {
+        "file": "elixir_app.ex",
+        "name": "run"
+      },
+      {
+        "file": "ruby_app.rb",
+        "name": "run"
+      },
+      {
+        "file": "ruby_lib.rb",
+        "name": "process"
+      }
+    ],
+    "unimported_files": 9,
+    "unimported_file_paths": [
+      ".vizcode/health_history.json",
+      ".vizcode/scan_cache.json",
+      ".vizcode/security_history.json",
+      "crystal_app.cr",
+      "elixir_app.ex",
+      "elixir_lib.ex",
+      "julia_app.jl",
+      "ruby_app.rb",
+      "verify_scan_results.py"
+    ],
+    "circular_dependencies": 0,
+    "top_circular_deps": [],
+    "entry_points": 9,
+    "entry_point_files": [
+      ".vizcode/health_history.json",
+      ".vizcode/scan_cache.json",
+      ".vizcode/security_history.json",
+      "crystal_app.cr",
+      "elixir_app.ex",
+      "elixir_lib.ex",
+      "julia_app.jl",
+      "ruby_app.rb",
+      "verify_scan_results.py"
+    ],
+    "isolated_files": 5,
+    "isolated_file_paths": [
+      ".vizcode/health_history.json",
+      ".vizcode/scan_cache.json",
+      ".vizcode/security_history.json",
+      "elixir_app.ex",
+      "verify_scan_results.py"
+    ],
+    "avg_func_length": 0,
+    "longest_functions": [],
+    "language_distribution": {
+      ".cr": 2,
+      ".ex": 2,
+      ".yaml": 1,
+      ".jl": 2,
+      ".toml": 1,
+      ".rb": 2,
+      ".json": 4,
+      ".py": 1
+    },
+    "hotspot_nodes": [
+      {
+        "label": "process",
+        "file": "elixir_lib.ex",
+        "degree": 2
+      }
+    ],
+    "surprising_connections": [
+      {
+        "source": "elixir_lib.ex",
+        "target": "elixir_config.yaml",
+        "score": 4,
+        "reason": "cross-directory + cross-language"
+      },
+      {
+        "source": "julia_lib.jl",
+        "target": "julia_config.toml",
+        "score": 4,
+        "reason": "cross-directory + cross-language"
+      },
+      {
+        "source": "ruby_lib.rb",
+        "target": "ruby_config.json",
+        "score": 4,
+        "reason": "cross-directory + cross-language"
+      },
+      {
+        "source": "crystal_app.cr",
+        "target": "crystal_lib.cr",
+        "score": 2,
+        "reason": "cross-directory"
+      },
+      {
+        "source": "julia_app.jl",
+        "target": "julia_lib.jl",
+        "score": 2,
+        "reason": "cross-directory"
+      }
+    ],
+    "loc_total": 119,
+    "loc_code": 96,
+    "loc_comment": 8,
+    "loc_blank": 15,
+    "complexity_distribution": [
+      {
+        "range": "1-5",
+        "count": 8
+      },
+      {
+        "range": "6-10",
+        "count": 0
+      },
+      {
+        "range": "11-15",
+        "count": 0
+      },
+      {
+        "range": "16-20",
+        "count": 0
+      },
+      {
+        "range": "21+",
+        "count": 0
+      }
+    ],
+    "complexity_top_offenders": [
+      {
+        "file": "crystal_app.cr",
+        "name": "start",
+        "line": 4,
+        "complexity": 1
+      },
+      {
+        "file": "crystal_lib.cr",
+        "name": "perform",
+        "line": 2,
+        "complexity": 1
+      },
+      {
+        "file": "elixir_app.ex",
+        "name": "run",
+        "line": 4,
+        "complexity": 1
+      },
+      {
+        "file": "elixir_lib.ex",
+        "name": "process",
+        "line": 3,
+        "complexity": 1
+      },
+      {
+        "file": "julia_app.jl",
+        "name": "execute",
+        "line": 7,
+        "complexity": 1
+      },
+      {
+        "file": "julia_lib.jl",
+        "name": "helper_function",
+        "line": 1,
+        "complexity": 1
+      },
+      {
+        "file": "ruby_app.rb",
+        "name": "run",
+        "line": 4,
+        "complexity": 1
+      },
+      {
+        "file": "ruby_lib.rb",
+        "name": "process",
+        "line": 2,
+        "complexity": 1
+      }
+    ],
+    "avg_complexity": 1.0,
+    "duplication_percent": 0.0,
+    "duplication_blocks": [],
+    "tech_debt_minutes": 25,
+    "tech_debt_hours": 0.4,
+    "tech_debt_breakdown": {
+      "circular": 0,
+      "dead": 25,
+      "god": 0,
+      "complexity": 0,
+      "duplication": 0
+    },
+    "tech_debt_weights": {
+      "circular": 60,
+      "dead": 5,
+      "god": 90,
+      "complexity": 30,
+      "duplication": 20
+    },
+    "code_health_score": 8.2,
+    "code_health_breakdown": {
+      "complexity": 9.9,
+      "coupling": 10.0,
+      "dead_code": 3.75,
+      "duplication": 10.0,
+      "cohesion": 6.4
+    },
+    "code_health_weights": {
+      "complexity": 0.3,
+      "coupling": 0.2,
+      "dead_code": 0.2,
+      "duplication": 0.15,
+      "cohesion": 0.15
+    },
+    "security_findings": {
+      "score": 10.0,
+      "total": 0,
+      "counts": {
+        "high": 0,
+        "medium": 0,
+        "low": 0
+      },
+      "top_issues": [],
+      "by_severity": {
+        "high": [],
+        "medium": [],
+        "low": []
+      },
+      "by_rule": [],
+      "trend": [
+        {
+          "ts": "2026-06-02T06:50:14+00:00",
+          "date": "2026-06-02",
+          "score": 10.0,
+          "total": 0,
+          "counts": {
+            "high": 0,
+            "medium": 0,
+            "low": 0
+          }
+        },
+        {
+          "ts": "2026-06-02T06:51:16+00:00",
+          "date": "2026-06-02",
+          "score": 10.0,
+          "total": 0,
+          "counts": {
+            "high": 0,
+            "medium": 0,
+            "low": 0
+          }
+        }
+      ]
+    },
+    "has_git_history": false,
+    "health_history": [
+      {
+        "ts": "2026-06-02T06:51:16Z",
+        "date": "2026-06-02",
+        "commit": "51ed6f2",
+        "score": 8.2,
+        "breakdown": {
+          "complexity": 9.9,
+          "coupling": 10.0,
+          "dead_code": 3.75,
+          "duplication": 10.0,
+          "cohesion": 6.4
+        },
+        "avg_complexity": 0,
+        "tech_debt_hours": 0.4
+      }
+    ]
+  }
+}

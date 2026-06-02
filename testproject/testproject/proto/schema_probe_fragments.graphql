@@ -1,6 +1,0 @@
-fragment SchemaProbeJobFields on SchemaProbeJob {
-  id
-  owner {
-    id
-  }
-}

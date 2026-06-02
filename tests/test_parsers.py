@@ -33,6 +33,15 @@ from parsers.scala_parser import scan_scala
 from parsers.dart_parser import scan_dart
 from parsers.objc_parser import scan_objc
 from parsers.vbnet_parser import scan_vbnet
+from parsers.ruby_parser import scan_ruby
+from parsers.crystal_parser import scan_crystal
+from parsers.julia_parser import scan_julia
+from parsers.elixir_parser import scan_elixir
+from parsers.nim_parser import scan_nim
+from parsers.fsharp_parser import scan_fsharp
+from parsers.haskell_parser import scan_haskell
+from parsers.ocaml_parser import scan_ocaml
+from parsers.elm_parser import scan_elm
 
 
 # ─── Helper ──────────────────────────────────────────────────────────────────
@@ -642,6 +651,44 @@ class TestBatch3DedicatedParsers:
     def test_vbnet_six_tuple_contract(self):
         result = scan_vbnet('Class Demo\nFunction Run(req As Request) As Settings\nEnd Function\nEnd Class\n')
         assert_six_tuple(result, 'scan_vbnet')
+
+
+class TestBatch4DedicatedParsers:
+    def test_ruby_six_tuple_contract(self):
+        result = scan_ruby('class Demo < Base\n  def run(req)\n    helper(req)\n  end\nend\n')
+        assert_six_tuple(result, 'scan_ruby')
+
+    def test_crystal_six_tuple_contract(self):
+        result = scan_crystal('class Demo < Base\n  def run(req : Request) : Settings\n    Settings.new\n  end\nend\n')
+        assert_six_tuple(result, 'scan_crystal')
+
+    def test_julia_six_tuple_contract(self):
+        result = scan_julia('struct Demo <: Base\n  settings::Settings\nend\nfunction run(req::Request)::Settings\n  Settings()\nend\n')
+        assert_six_tuple(result, 'scan_julia')
+
+    def test_elixir_six_tuple_contract(self):
+        result = scan_elixir('defmodule Demo do\n  @spec run(Request.t()) :: Settings.t()\n  def run(req), do: req\nend\n')
+        assert_six_tuple(result, 'scan_elixir')
+
+    def test_nim_six_tuple_contract(self):
+        result = scan_nim('proc run*(req: Request): Settings = discard req\n')
+        assert_six_tuple(result, 'scan_nim')
+
+    def test_fsharp_six_tuple_contract(self):
+        result = scan_fsharp('let run (req: Request) : Settings = req\n')
+        assert_six_tuple(result, 'scan_fsharp')
+
+    def test_haskell_six_tuple_contract(self):
+        result = scan_haskell('run :: Request -> Settings\nrun req = req\n')
+        assert_six_tuple(result, 'scan_haskell')
+
+    def test_ocaml_six_tuple_contract(self):
+        result = scan_ocaml('let run (req : request) : settings = req\n')
+        assert_six_tuple(result, 'scan_ocaml')
+
+    def test_elm_six_tuple_contract(self):
+        result = scan_elm('run : Request -> Settings\nrun req = req\n')
+        assert_six_tuple(result, 'scan_elm')
 
 
 class TestParserEdgeHints:

@@ -2175,6 +2175,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         'class', 'struct', 'interface', 'enum', 'record', 'trait', 'typedef',
         'type', 'input', 'union', 'scalar', 'message', 'table', 'view',
         'protocol', 'mixin', 'object', 'extension', 'annotation', 'module',
+        'abstract',
     }
     _type_name_to_ids: dict = defaultdict(list)
     for _tid, _tsym in symbol_index.items():

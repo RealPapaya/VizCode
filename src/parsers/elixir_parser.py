@@ -11,6 +11,9 @@ Extracts:
 
 Elixir blocks open with the `do` keyword (and `fn`) and close with `end`.
 Verified against the Elixir docs:
+  https://hexdocs.pm/elixir/Kernel.html
+  https://hexdocs.pm/elixir/typespecs.html
+  https://hexdocs.pm/elixir/File.html
   * the inline keyword form `def f, do: expr` does NOT open a block (`do:`)
     so it degrades to the declaration line;
   * comments are `#`; literals are double-quoted strings, triple-quoted
@@ -29,6 +32,10 @@ ELIXIR_KEYWORDS = {
     'require', 'true', 'false', 'nil', 'and', 'or', 'not', 'in', 'fn',
     'raise', 'throw', 'send', 'spawn',
 }
+ELIXIR_BUILTIN_TYPES = {
+    'Atom', 'BitString', 'Boolean', 'Exception', 'Float', 'Function', 'Integer',
+    'List', 'Map', 'Module', 'String', 'Struct', 'Tuple',
+}
 
 RE_EX_REQUIRE = re.compile(
     r'^[ \t]*(?:alias|import|use|require)\s+([A-Z][\w.]*)[ \t]*(\{[^}]*\})?',
@@ -37,17 +44,25 @@ RE_EX_DEF = re.compile(
     r'\b(def|defp|defmacro|defmacrop)\s+([A-Za-z_]\w*[?!]?)')
 RE_EX_MODULE = re.compile(
     r'\b(defmodule|defprotocol|defimpl)\s+([A-Z][\w.]*)')
+RE_EX_SPEC = re.compile(r'^[ \t]*@spec\s+([A-Za-z_]\w*[?!]?)([^\n]*)', re.MULTILINE)
+RE_EX_FILE_REF = re.compile(r'''\bFile\.(?:read!?|stream!?|read_line!?)\s*\(\s*["'](?P<path>[^"']+)["']''')
 RE_EX_CALL = re.compile(r'\b([A-Za-z_]\w*[?!]?)\s*\(')
 RE_DO = re.compile(r'(?<![:\w])do(?![:\w])')
 RE_TOKEN = re.compile(r'(?<![:\w])(?:do|fn|end)(?![:\w])')
 _RE_EX_BRANCH_KW = re.compile(r'\b(?:if|unless|case|cond|for|with|when|catch|rescue)\b')
+_EX_FILE_EXTS = {
+    '.ex', '.exs', '.json', '.yaml', '.yml', '.toml', '.xml', '.conf', '.cfg',
+    '.html', '.htm', '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg',
+    '.txt', '.md',
+}
+_EX_CONFIG_EXTS = {'.json', '.yaml', '.yml', '.toml', '.xml', '.conf', '.cfg'}
 
 
 def _line_no(src: str, idx: int) -> int:
     return src[:idx].count('\n') + 1
 
 
-def _mask_elixir(src: str) -> str:
+def _mask_elixir(src: str, mask_strings: bool = True) -> str:
     out = list(src)
     n = len(src)
 
@@ -71,7 +86,8 @@ def _mask_elixir(src: str) -> str:
             while i < n and src[i:i + 3] != '"""':
                 i += 1
             i = i + 3 if i < n else n
-            blank(start, i)
+            if mask_strings:
+                blank(start, i)
             continue
         if c == '~' and i + 1 < n and src[i + 1].isalpha():
             j = i + 1
@@ -93,7 +109,8 @@ def _mask_elixir(src: str) -> str:
                     elif src[k] == close:
                         depth -= 1
                     k += 1
-                blank(start, k)
+                if mask_strings:
+                    blank(start, k)
                 i = k
                 continue
         if c in ('"', "'"):
@@ -108,11 +125,68 @@ def _mask_elixir(src: str) -> str:
                     i += 1 if src[i] == quote else 0
                     break
                 i += 1
-            blank(start, i)
+            if mask_strings:
+                blank(start, i)
             continue
         i += 1
 
     return ''.join(out)
+
+
+def _normalize_signature(src: str, start: int, end: int) -> str:
+    return ' '.join(src[start:end].strip().split())
+
+
+def _extract_type_refs(text: str) -> list:
+    refs = []
+    for raw in re.findall(r'(?:[A-Z]\w*\.)*[A-Z]\w*', text):
+        name = raw.split('.')[-1]
+        if name in ELIXIR_KEYWORDS or name in ELIXIR_BUILTIN_TYPES or len(name) < 3:
+            continue
+        refs.append(name)
+    return list(dict.fromkeys(refs))
+
+
+def _path_edge_type(path: str):
+    if re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*:', path) or path.startswith(('/', '\\')):
+        return None
+    base = re.split(r'[\\/]', path)[-1]
+    ext = '.' + base.rsplit('.', 1)[-1].lower() if '.' in base else ''
+    if ext not in _EX_FILE_EXTS:
+        return None
+    if ext in ('.ex', '.exs'):
+        return 'import'
+    return 'config_ref' if ext in _EX_CONFIG_EXTS else 'asset_ref'
+
+
+def _edge_hints(src: str, clean: str, import_src: str) -> list:
+    hints = []
+    for m in RE_EX_FILE_REF.finditer(import_src):
+        if m.start() < len(clean) and clean[m.start()] == ' ':
+            continue
+        target = m.group('path').strip()
+        edge_type = _path_edge_type(target)
+        if not edge_type or edge_type == 'import':
+            continue
+        hints.append({
+            'type': edge_type,
+            'target': target,
+            'subtype': 'config' if edge_type == 'config_ref' else 'asset',
+            'via': import_src[m.start():m.start('path')].strip(),
+            'line': _line_no(src, m.start('path')),
+            'confidence': 1.0,
+        })
+    return list({(h['type'], h['target'], h['via'], h['line']): h for h in hints}.values())
+
+
+def _specs_by_name(clean: str) -> dict:
+    specs = {}
+    for m in RE_EX_SPEC.finditer(clean):
+        name = m.group(1)
+        refs = _extract_type_refs(m.group(2))
+        if refs:
+            specs[name] = refs
+    return specs
 
 
 def _block_end(clean: str, after_idx: int) -> int:
@@ -174,6 +248,8 @@ def _enclosing(ranges: list, idx: int):
 def scan_elixir(src: str, ext: str = '.ex') -> tuple:
     """Elixir file analysis. Returns the standard VIZCODE 6-tuple."""
     clean = _mask_elixir(src)
+    import_src = _mask_elixir(src, mask_strings=False)
+    specs = _specs_by_name(clean)
 
     imports = []
     for m in RE_EX_REQUIRE.finditer(clean):
@@ -204,6 +280,8 @@ def scan_elixir(src: str, ext: str = '.ex') -> tuple:
             'kind': 'module' if m.group(1) != 'defprotocol' else 'protocol',
             'name': name, 'line': _line_no(src, start), 'end_line': end_line,
             'bases': [], 'parent': None, 'is_public': True, 'doc': None,
+            'signature': _normalize_signature(src, m.start(), src.find('\n', m.start()) if src.find('\n', m.start()) != -1 else m.end()),
+            'type_refs': [],
         })
         type_ranges.append((start, end_idx, name))
 
@@ -223,6 +301,9 @@ def scan_elixir(src: str, ext: str = '.ex') -> tuple:
         body, end_line = _body_span(clean, src, m.end(), start)
         parent = _enclosing(type_ranges, start)
         is_private = kw in ('defp', 'defmacrop')
+        sig_end = src.find('\n', m.start())
+        if sig_end == -1:
+            sig_end = m.end()
         funcdefs.append({'label': name, 'is_efiapi': False, 'is_static': False})
         func_calls_by_func.append(_extract_calls(body))
         method_symbols.append({
@@ -231,11 +312,16 @@ def scan_elixir(src: str, ext: str = '.ex') -> tuple:
             'name': name, 'line': line_no, 'end_line': end_line,
             'bases': [], 'parent': parent, 'is_public': not is_private,
             'doc': None, 'complexity': _complexity(body),
+            'signature': _normalize_signature(src, m.start(), sig_end),
+            'type_refs': specs.get(name, []),
         })
 
     symbol_defs = symbol_defs + method_symbols
     all_calls = _extract_calls(clean)
 
     extra = {'imports': imports, 'lang': 'elixir'}
+    hints = _edge_hints(src, clean, import_src)
+    if hints:
+        extra['edge_hints'] = hints
 
     return imports, funcdefs, all_calls, extra, func_calls_by_func, symbol_defs

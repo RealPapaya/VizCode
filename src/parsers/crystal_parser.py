@@ -11,6 +11,9 @@ Extracts:
 
 Crystal mirrors Ruby's block structure (`end`-terminated). Syntax verified
 against the Crystal language reference:
+  https://crystal-lang.org/reference/latest/syntax_and_semantics/classes_and_methods.html
+  https://crystal-lang.org/reference/latest/syntax_and_semantics/type_restrictions.html
+  https://crystal-lang.org/reference/latest/syntax_and_semantics/type_grammar.html
   * `#` line comments only;
   * `"..."` strings, `'c'` char literals, `<<-ID`/`<<~ID` heredocs;
   * `if`/`unless`/`while`/`until` open blocks only when statement-leading.
@@ -28,8 +31,16 @@ CRYSTAL_KEYWORDS = {
     'protected', 'abstract', 'puts', 'print', 'raise', 'new', 'loop', 'super',
     'in', 'of', 'as', 'is_a', 'responds_to',
 }
+CRYSTAL_BUILTIN_TYPES = {
+    'Array', 'Bool', 'Char', 'Class', 'Deque', 'Exception', 'Float32',
+    'Float64', 'Hash', 'Int8', 'Int16', 'Int32', 'Int64', 'Int128', 'Nil',
+    'Number', 'Object', 'Pointer', 'Proc', 'Reference', 'Set', 'String',
+    'Symbol', 'Tuple', 'UInt8', 'UInt16', 'UInt32', 'UInt64', 'UInt128',
+    'Value', 'Void',
+}
 
-RE_CR_REQUIRE = re.compile(r'''\brequire\s+['"]([^'"]+)['"]''')
+RE_CR_REQUIRE = re.compile(r'''\b(require)\s+['"]([^'"]+)['"]''')
+RE_CR_FILE_REF = re.compile(r'''\bFile\.(?:read|open|read_lines)\s*\(?\s*['"](?P<path>[^'"]+)['"]''')
 RE_CR_DEF = re.compile(
     r'\b(def|macro)\s+(?:(self|[A-Za-z_]\w*)\s*\.\s*)?([A-Za-z_]\w*[?!=]?)')
 RE_CR_TYPE = re.compile(
@@ -43,6 +54,12 @@ _RE_CR_BRANCH_KW = re.compile(
 _ALWAYS_OPEN = {'def', 'macro', 'class', 'module', 'struct', 'enum', 'lib',
                 'case', 'begin', 'do'}
 _LEADING_OPEN = {'if', 'unless', 'while', 'until'}
+_CR_FILE_EXTS = {
+    '.cr', '.json', '.yaml', '.yml', '.toml', '.xml', '.conf', '.cfg',
+    '.html', '.htm', '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg',
+    '.txt', '.md',
+}
+_CR_CONFIG_EXTS = {'.json', '.yaml', '.yml', '.toml', '.xml', '.conf', '.cfg'}
 
 
 def _line_no(src: str, idx: int) -> int:
@@ -52,6 +69,67 @@ def _line_no(src: str, idx: int) -> int:
 def _leaf(path: str) -> str:
     base = re.split(r'[\\/]', path)[-1]
     return re.sub(r'\.cr$', '', base)
+
+
+def _normalize_signature(src: str, start: int, end: int) -> str:
+    return ' '.join(src[start:end].strip().split())
+
+
+def _extract_type_refs(text: str) -> list:
+    refs = []
+    for raw in re.findall(r'(?:[A-Z]\w*::)*[A-Z]\w*', text):
+        name = raw.split('::')[-1]
+        if name in CRYSTAL_BUILTIN_TYPES or name in CRYSTAL_KEYWORDS or len(name) < 3:
+            continue
+        refs.append(name)
+    return list(dict.fromkeys(refs))
+
+
+def _path_edge_type(path: str):
+    if re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*:', path) or path.startswith(('/', '\\')):
+        return None
+    base = re.split(r'[\\/]', path)[-1]
+    ext = '.' + base.rsplit('.', 1)[-1].lower() if '.' in base else ''
+    if ext not in _CR_FILE_EXTS:
+        return None
+    if ext == '.cr':
+        return 'import'
+    return 'config_ref' if ext in _CR_CONFIG_EXTS else 'asset_ref'
+
+
+def _edge_hints(src: str, clean: str, import_src: str) -> list:
+    hints = []
+    for m in RE_CR_REQUIRE.finditer(import_src):
+        if m.start() < len(clean) and clean[m.start()] == ' ':
+            continue
+        target = m.group(2).strip()
+        edge_type = _path_edge_type(target)
+        if not edge_type:
+            continue
+        hints.append({
+            'type': edge_type,
+            'target': target,
+            'subtype': 'require' if edge_type == 'import' else ('config' if edge_type == 'config_ref' else 'asset'),
+            'via': m.group(1),
+            'line': _line_no(src, m.start(2)),
+            'confidence': 1.0,
+        })
+    for m in RE_CR_FILE_REF.finditer(import_src):
+        if m.start() < len(clean) and clean[m.start()] == ' ':
+            continue
+        target = m.group('path').strip()
+        edge_type = _path_edge_type(target)
+        if not edge_type or edge_type == 'import':
+            continue
+        hints.append({
+            'type': edge_type,
+            'target': target,
+            'subtype': 'config' if edge_type == 'config_ref' else 'asset',
+            'via': import_src[m.start():m.start('path')].strip(),
+            'line': _line_no(src, m.start('path')),
+            'confidence': 1.0,
+        })
+    return list({(h['type'], h['target'], h['via'], h['line']): h for h in hints}.values())
 
 
 def _mask_crystal(src: str, mask_strings: bool = True) -> str:
@@ -179,7 +257,7 @@ def scan_crystal(src: str, ext: str = '.cr') -> tuple:
     for m in RE_CR_REQUIRE.finditer(import_src):
         if m.start() < len(clean) and clean[m.start()] == ' ':
             continue
-        leaf = _leaf(m.group(1).strip())
+        leaf = _leaf(m.group(2).strip())
         if leaf:
             imports.append(leaf)
     imports = list(dict.fromkeys(imports))
@@ -194,10 +272,14 @@ def scan_crystal(src: str, ext: str = '.cr') -> tuple:
         start = m.start(2)
         end_idx = _block_end(clean, m.end())
         bases = [m.group(4).split('::')[-1]] if m.group(4) else []
+        body = clean[m.end():end_idx]
+        type_refs = list(dict.fromkeys(bases + _extract_type_refs(m.group(0) + '\n' + body)))
         symbol_defs.append({
             'kind': kind, 'name': name, 'line': _line_no(src, start),
             'end_line': _line_no(src, max(start, end_idx - 1)),
             'bases': bases, 'parent': None, 'is_public': True, 'doc': None,
+            'signature': _normalize_signature(src, m.start(), m.end()),
+            'type_refs': type_refs,
         })
         type_ranges.append((start, end_idx, name))
 
@@ -219,6 +301,9 @@ def scan_crystal(src: str, ext: str = '.cr') -> tuple:
         body = clean[m.end():end_idx]
         parent = _enclosing(type_ranges, start)
         is_static = recv is not None
+        sig_end = src.find('\n', m.start())
+        if sig_end == -1:
+            sig_end = m.end()
         funcdefs.append({'label': name, 'is_efiapi': False, 'is_static': is_static})
         func_calls_by_func.append(_extract_calls(body))
         method_symbols.append({
@@ -228,11 +313,16 @@ def scan_crystal(src: str, ext: str = '.cr') -> tuple:
             'bases': [], 'parent': parent,
             'is_public': not name.startswith('_'), 'doc': None,
             'complexity': _complexity(body),
+            'signature': _normalize_signature(src, m.start(), sig_end),
+            'type_refs': _extract_type_refs(src[m.start():sig_end]),
         })
 
     symbol_defs = symbol_defs + method_symbols
     all_calls = _extract_calls(clean)
 
     extra = {'imports': imports, 'lang': 'crystal'}
+    hints = _edge_hints(src, clean, import_src)
+    if hints:
+        extra['edge_hints'] = hints
 
     return imports, funcdefs, all_calls, extra, func_calls_by_func, symbol_defs

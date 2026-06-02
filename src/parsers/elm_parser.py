@@ -26,6 +26,12 @@ ELM_KEYWORDS = {
     'or', 'not', 'toString', 'always', 'identity',
 }
 
+ELM_TYPE_BUILTINS = {
+    'String', 'Char', 'Bool', 'Int', 'Float', 'Never', 'Maybe', 'Result',
+    'List', 'Array', 'Dict', 'Set', 'Cmd', 'Sub', 'Html', 'Json', 'Decoder',
+    'Encoder',
+}
+
 _SYMBOL = set("!#$%&*+./<=>?@\\^|-~:")
 
 RE_ELM_IMPORT = re.compile(r'^[ \t]*import\s+([\w.]+)', re.MULTILINE)
@@ -152,6 +158,24 @@ def _complexity(body: str) -> int:
     return 1 + len(_RE_ELM_BRANCH_KW.findall(body))
 
 
+def _normalize_signature(src: str, start: int) -> str:
+    line_end = src.find('\n', start)
+    if line_end == -1:
+        line_end = len(src)
+    return re.sub(r'\s+', ' ', src[start:line_end]).strip()
+
+
+def _filter_type_refs(text: str, exclude=None) -> list:
+    exclude = set(exclude or [])
+    refs = []
+    for name in re.findall(r'\b[A-Z][A-Za-z0-9_]*\b', text or ''):
+        if (name in ELM_KEYWORDS or name in ELM_TYPE_BUILTINS or name in exclude
+                or len(name) < 3):
+            continue
+        refs.append(name)
+    return list(dict.fromkeys(refs))
+
+
 def scan_elm(src: str, ext: str = '.elm') -> tuple:
     """Elm file analysis. Returns the standard VIZCODE 6-tuple."""
     clean = _mask_elm(src)
@@ -165,15 +189,24 @@ def scan_elm(src: str, ext: str = '.elm') -> tuple:
 
     symbol_defs = []
     seen = set()
+    signatures = {}
+
+    for m in RE_ELM_SIG.finditer(clean):
+        signatures[m.group(1)] = _normalize_signature(src, m.start(1))
+    for m in RE_ELM_PORT.finditer(clean):
+        signatures[m.group(1)] = _normalize_signature(src, m.start())
 
     for m in RE_ELM_TYPE.finditer(clean):
         name = m.group(2)
         start = m.start(2)
+        line_end = clean.find('\n', m.start())
+        line = clean[m.start():line_end if line_end != -1 else len(clean)]
         symbol_defs.append({
-            'kind': 'type alias' if m.group(1) else 'type',
+            'kind': 'type',
             'name': name, 'line': _line_no(src, start),
             'end_line': _block_end_line(clean, start), 'bases': [],
             'parent': None, 'is_public': True, 'doc': None,
+            'type_refs': _filter_type_refs(line, exclude={name}),
         })
 
     funcdefs = []
@@ -186,12 +219,15 @@ def scan_elm(src: str, ext: str = '.elm') -> tuple:
         line_no = _line_no(src, start)
         end_line = _block_end_line(clean, start)
         body = _block_text(clean, start, end_line)
+        signature = signatures.get(name, _normalize_signature(src, start))
         funcdefs.append({'label': name, 'is_efiapi': False, 'is_static': False})
         func_calls_by_func.append(_extract_calls(body))
         symbol_defs.append({
             'kind': kind, 'name': name, 'line': line_no, 'end_line': end_line,
             'bases': [], 'parent': None, 'is_public': True, 'doc': None,
             'complexity': _complexity(body),
+            'signature': signature,
+            'type_refs': _filter_type_refs(signature),
         })
 
     for m in RE_ELM_PORT.finditer(clean):

@@ -30,6 +30,13 @@ FS_KEYWORDS = {
     'sprintf', 'ignore',
 }
 
+FS_TYPE_BUILTINS = {
+    'String', 'Char', 'Byte', 'SByte', 'Int16', 'Int32', 'Int64',
+    'UInt16', 'UInt32', 'UInt64', 'Single', 'Double', 'Decimal', 'Bool',
+    'Unit', 'Object', 'Option', 'ValueOption', 'List', 'Array', 'Seq',
+    'Map', 'Set', 'Result', 'Async', 'Task',
+}
+
 RE_FS_OPEN = re.compile(r'^[ \t]*open\s+([\w.]+)', re.MULTILINE)
 RE_FS_MODULE = re.compile(
     r'^[ \t]*(?:module|namespace)\s+(?:rec\s+)?([\w.]+)', re.MULTILINE)
@@ -153,6 +160,18 @@ def _block_text(clean: str, decl_start: int, end_line: int) -> str:
     return '\n'.join(lines[start_line:end_line])
 
 
+def _line_end_index(src: str, end_line: int) -> int:
+    if end_line <= 1:
+        nl = src.find('\n')
+        return len(src) if nl == -1 else nl
+    pos = -1
+    for _ in range(end_line - 1):
+        pos = src.find('\n', pos + 1)
+        if pos == -1:
+            return len(src)
+    return pos
+
+
 def _extract_calls(text: str) -> list:
     calls = []
     seen = set()
@@ -171,6 +190,43 @@ def _complexity(body: str) -> int:
     return 1 + len(_RE_FS_BRANCH_KW.findall(body))
 
 
+def _normalize_signature(src: str, start: int) -> str:
+    line_end = src.find('\n', start)
+    if line_end == -1:
+        line_end = len(src)
+    sig = src[start:line_end]
+    sig = re.split(r'\s=', sig, 1)[0]
+    return re.sub(r'\s+', ' ', sig).strip()
+
+
+def _filter_type_refs(text: str) -> list:
+    refs = []
+    for name in re.findall(r'\b[A-Z][A-Za-z0-9_]*\b', text or ''):
+        if name in FS_KEYWORDS or name in FS_TYPE_BUILTINS or len(name) < 3:
+            continue
+        refs.append(name)
+    return list(dict.fromkeys(refs))
+
+
+def _type_bases(text: str) -> list:
+    refs = []
+    for m in re.finditer(r'\b(?:inherit|interface)\s+([A-Z][A-Za-z0-9_.]*)', text or ''):
+        refs.extend(_filter_type_refs(m.group(1).split('.')[-1]))
+    return list(dict.fromkeys(refs))
+
+
+def _enclosing(ranges, idx):
+    best = None
+    best_span = None
+    for start, end, name in ranges:
+        if start <= idx < end:
+            span = end - start
+            if best_span is None or span < best_span:
+                best_span = span
+                best = name
+    return best
+
+
 def scan_fsharp(src: str, ext: str = '.fs') -> tuple:
     """F# file analysis. Returns the standard VIZCODE 6-tuple."""
     clean = _mask_fsharp(src, mask_strings=True)
@@ -184,6 +240,7 @@ def scan_fsharp(src: str, ext: str = '.fs') -> tuple:
 
     symbol_defs = []
     seen = set()
+    type_ranges = []
 
     for m in RE_FS_MODULE.finditer(clean):
         name = m.group(1).split('.')[-1]
@@ -196,10 +253,20 @@ def scan_fsharp(src: str, ext: str = '.fs') -> tuple:
     for m in RE_FS_TYPE.finditer(clean):
         name = m.group(1)
         start = m.start(1)
+        line_no = _line_no(src, start)
+        end_line = _block_end_line(clean, start)
+        body = _block_text(clean, start, end_line)
+        line_end = clean.find('\n', m.end())
+        line = clean[m.start():line_end if line_end != -1 else len(clean)]
+        type_text = line + '\n' + body
+        kind = 'interface' if re.search(r'\binterface\b', type_text) else 'type'
+        bases = _type_bases(type_text)
+        type_ranges.append((start, _line_end_index(clean, end_line), name))
         symbol_defs.append({
-            'kind': 'type', 'name': name, 'line': _line_no(src, start),
-            'end_line': _block_end_line(clean, start), 'bases': [],
+            'kind': kind, 'name': name, 'line': line_no,
+            'end_line': end_line, 'bases': bases,
             'parent': None, 'is_public': True, 'doc': None,
+            'type_refs': list(dict.fromkeys(bases + _filter_type_refs(type_text))),
         })
 
     funcdefs = []
@@ -217,14 +284,17 @@ def scan_fsharp(src: str, ext: str = '.fs') -> tuple:
             seen.add(key)
             end_line = _block_end_line(clean, start)
             body = _block_text(clean, start, end_line)
+            signature = _normalize_signature(src, m.start())
             funcdefs.append({'label': name, 'is_efiapi': False,
                              'is_static': kind == 'method' and 'static' in
                              clean[clean.rfind('\n', 0, start) + 1:start]})
             func_calls_by_func.append(_extract_calls(body))
             symbol_defs.append({
                 'kind': kind, 'name': name, 'line': line_no,
-                'end_line': end_line, 'bases': [], 'parent': None,
+                'end_line': end_line, 'bases': [], 'parent': _enclosing(type_ranges, start),
                 'is_public': True, 'doc': None, 'complexity': _complexity(body),
+                'signature': signature,
+                'type_refs': _filter_type_refs(signature),
             })
 
     all_calls = _extract_calls(clean)

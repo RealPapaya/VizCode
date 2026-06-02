@@ -28,11 +28,17 @@ OCAML_KEYWORDS = {
     'ref', 'mod', 'land', 'lor', 'lxor', 'functor',
 }
 
+OCAML_TYPE_BUILTINS = {
+    'int', 'int32', 'int64', 'nativeint', 'float', 'bool', 'char', 'string',
+    'bytes', 'unit', 'list', 'array', 'option', 'result', 'seq', 'lazy_t',
+    'exn', 'format', 'ref',
+}
+
 RE_ML_OPEN = re.compile(r'^[ \t]*(?:open|include)\s+([\w.]+)', re.MULTILINE)
 RE_ML_LET = re.compile(
     r'^[ \t]*(?:let|and)\s+(?:rec\s+)?(?:private\s+)?(\w[\w\']*)', re.MULTILINE)
 RE_ML_VAL = re.compile(r'^[ \t]*val\s+(\w[\w\']*)', re.MULTILINE)
-RE_ML_TYPE = re.compile(r'^[ \t]*(?:and\s+)?type\s+(?:\w[\w\' ,]*\s+)?(\w[\w\']*)\s*=',
+RE_ML_TYPE = re.compile(r'^[ \t]*(?:and\s+)?type\s+(?:\w[\w\' ,]*\s+)?(\w[\w\']*)\s*=(?P<rest>[^\n]*)',
                         re.MULTILINE)
 RE_ML_MODULE = re.compile(r'^[ \t]*module\s+(?:type\s+)?(\w[\w\']*)', re.MULTILINE)
 RE_ML_CALL = re.compile(r'\b(\w[\w\']*)\s*\(')
@@ -137,6 +143,27 @@ def _extract_calls(text: str) -> list:
     return calls
 
 
+def _normalize_signature(src: str, start: int) -> str:
+    line_end = src.find('\n', start)
+    if line_end == -1:
+        line_end = len(src)
+    sig = src[start:line_end]
+    sig = re.split(r'\s=', sig, 1)[0]
+    return re.sub(r'\s+', ' ', sig).strip()
+
+
+def _filter_type_refs(text: str, exclude=None) -> list:
+    exclude = set(exclude or [])
+    refs = []
+    for raw in re.findall(r"\b[A-Za-z_][A-Za-z0-9_']*\b", text or ''):
+        name = raw.split('.')[-1]
+        if (name in OCAML_KEYWORDS or name in OCAML_TYPE_BUILTINS
+                or name in exclude or len(name) < 3):
+            continue
+        refs.append(name)
+    return list(dict.fromkeys(refs))
+
+
 def scan_ocaml(src: str, ext: str = '.ml') -> tuple:
     """OCaml file analysis. Returns the standard VIZCODE 6-tuple."""
     clean = _mask_ocaml(src, mask_strings=True)
@@ -172,6 +199,7 @@ def scan_ocaml(src: str, ext: str = '.ml') -> tuple:
             'kind': 'type', 'name': name, 'line': _line_no(src, start),
             'end_line': _line_no(src, start), 'bases': [], 'parent': None,
             'is_public': True, 'doc': None,
+            'type_refs': _filter_type_refs(m.group('rest'), exclude={name}),
         })
 
     funcdefs = []
@@ -189,12 +217,15 @@ def scan_ocaml(src: str, ext: str = '.ml') -> tuple:
             seen.add(key)
             nl = clean.find('\n', m.end())
             body = clean[m.end():nl if nl != -1 else len(clean)]
+            signature = _normalize_signature(src, m.start())
             funcdefs.append({'label': name, 'is_efiapi': False, 'is_static': False})
             func_calls_by_func.append(_extract_calls(body))
             symbol_defs.append({
                 'kind': 'function', 'name': name, 'line': line_no,
                 'end_line': line_no, 'bases': [], 'parent': None,
                 'is_public': True, 'doc': None, 'complexity': 1,
+                'signature': signature,
+                'type_refs': _filter_type_refs(signature),
             })
 
     all_calls = _extract_calls(clean)

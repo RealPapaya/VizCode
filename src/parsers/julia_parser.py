@@ -11,6 +11,9 @@ Extracts:
 
 Julia blocks close with `end`. Two tricky `end` overloads are handled before
 depth scanning (verified against the Julia manual):
+  https://docs.julialang.org/en/v1/manual/functions/
+  https://docs.julialang.org/en/v1/manual/types/
+  https://docs.julialang.org/en/v1/base/file/
   * `a[end]` — `end` as a last-index expression (suppressed inside `[ ]`);
   * `[f(x) for x in xs if p(x)]` — comprehension `for`/`if` (suppressed inside
     `[ ]` / generator `( )`).
@@ -30,9 +33,17 @@ JULIA_KEYWORDS = {
     'where', 'true', 'false', 'nothing', 'missing', 'and', 'or', 'println',
     'print', 'new', 'throw', 'error', 'break', 'continue',
 }
+JULIA_BUILTIN_TYPES = {
+    'AbstractArray', 'Any', 'Array', 'Bool', 'Char', 'Dict', 'Float16',
+    'Float32', 'Float64', 'Function', 'IO', 'Int', 'Int8', 'Int16', 'Int32',
+    'Int64', 'Integer', 'Missing', 'Nothing', 'Number', 'Pair', 'Real',
+    'Set', 'String', 'Symbol', 'Tuple', 'UInt', 'UInt8', 'UInt16', 'UInt32',
+    'UInt64', 'Union', 'Vector',
+}
 
 RE_JL_USING = re.compile(r'^[ \t]*(?:using|import)\s+([^\n#]+)', re.MULTILINE)
 RE_JL_INCLUDE = re.compile(r'''\binclude\s*\(\s*['"]([^'"]+)['"]''')
+RE_JL_FILE_REF = re.compile(r'''\b(?:read|readlines|open)\s*\(\s*['"](?P<path>[^'"]+)['"]''')
 RE_JL_FUNC = re.compile(r'\bfunction\s+([A-Za-z_][\w.!]*)')
 RE_JL_SHORT = re.compile(
     r'^[ \t]*([A-Za-z_][\w!]*)\s*\(([^()]*)\)\s*(?:::[^=\n]+)?=(?!=)',
@@ -51,6 +62,12 @@ _RE_JL_BRANCH_KW = re.compile(r'\b(?:if|elseif|while|for|catch|&&|\|\|)\b')
 _OPEN_KW = {'function', 'macro', 'if', 'for', 'while', 'begin', 'let', 'do',
             'quote', 'try', 'struct', 'module', 'baremodule', 'abstract',
             'primitive'}
+_JL_FILE_EXTS = {
+    '.jl', '.json', '.yaml', '.yml', '.toml', '.xml', '.conf', '.cfg',
+    '.html', '.htm', '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg',
+    '.txt', '.md',
+}
+_JL_CONFIG_EXTS = {'.json', '.yaml', '.yml', '.toml', '.xml', '.conf', '.cfg'}
 
 
 def _line_no(src: str, idx: int) -> int:
@@ -61,6 +78,67 @@ def _leaf_mod(token: str) -> str:
     token = token.strip().split(':')[0].strip()
     parts = [p for p in re.split(r'\.', token) if p]
     return parts[-1] if parts else ''
+
+
+def _normalize_signature(src: str, start: int, end: int) -> str:
+    return ' '.join(src[start:end].strip().split())
+
+
+def _extract_type_refs(text: str) -> list:
+    refs = []
+    for raw in re.findall(r'(?:[A-Z]\w*\.)*[A-Z]\w*', text):
+        name = raw.split('.')[-1]
+        if name in JULIA_KEYWORDS or name in JULIA_BUILTIN_TYPES or len(name) < 3:
+            continue
+        refs.append(name)
+    return list(dict.fromkeys(refs))
+
+
+def _path_edge_type(path: str):
+    if re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*:', path) or path.startswith(('/', '\\')):
+        return None
+    base = re.split(r'[\\/]', path)[-1]
+    ext = '.' + base.rsplit('.', 1)[-1].lower() if '.' in base else ''
+    if ext not in _JL_FILE_EXTS:
+        return None
+    if ext == '.jl':
+        return 'import'
+    return 'config_ref' if ext in _JL_CONFIG_EXTS else 'asset_ref'
+
+
+def _edge_hints(src: str, clean: str, import_src: str) -> list:
+    hints = []
+    for m in RE_JL_INCLUDE.finditer(import_src):
+        if m.start() < len(clean) and clean[m.start()] == ' ':
+            continue
+        target = m.group(1).strip()
+        edge_type = _path_edge_type(target)
+        if not edge_type:
+            continue
+        hints.append({
+            'type': edge_type,
+            'target': target,
+            'subtype': 'include' if edge_type == 'import' else ('config' if edge_type == 'config_ref' else 'asset'),
+            'via': 'include',
+            'line': _line_no(src, m.start(1)),
+            'confidence': 1.0,
+        })
+    for m in RE_JL_FILE_REF.finditer(import_src):
+        if m.start() < len(clean) and clean[m.start()] == ' ':
+            continue
+        target = m.group('path').strip()
+        edge_type = _path_edge_type(target)
+        if not edge_type or edge_type == 'import':
+            continue
+        hints.append({
+            'type': edge_type,
+            'target': target,
+            'subtype': 'config' if edge_type == 'config_ref' else 'asset',
+            'via': import_src[m.start():m.start('path')].strip(),
+            'line': _line_no(src, m.start('path')),
+            'confidence': 1.0,
+        })
+    return list({(h['type'], h['target'], h['via'], h['line']): h for h in hints}.values())
 
 
 def _mask_julia(src: str, mask_strings: bool = True) -> str:
@@ -218,11 +296,19 @@ def scan_julia(src: str, ext: str = '.jl') -> tuple:
 
     def add_type(kind, name, start, rest):
         end_idx = _block_end(clean, start + len(name))
+        body = clean[start:end_idx]
+        base_refs = _bases(rest or '')
+        line_start = clean.rfind('\n', 0, start) + 1
+        line_end = clean.find('\n', start)
+        if line_end == -1:
+            line_end = start + len(name)
         symbol_defs.append({
             'kind': kind, 'name': name, 'line': _line_no(src, start),
             'end_line': _line_no(src, max(start, end_idx - 1)),
-            'bases': _bases(rest or ''), 'parent': None,
+            'bases': base_refs, 'parent': None,
             'is_public': True, 'doc': None,
+            'signature': _normalize_signature(src, line_start, line_end),
+            'type_refs': list(dict.fromkeys(base_refs + _extract_type_refs(rest or '') + _extract_type_refs(body))),
         })
         type_ranges.append((start, end_idx, name))
 
@@ -254,6 +340,9 @@ def scan_julia(src: str, ext: str = '.jl') -> tuple:
             end_idx = _block_end(clean, body_start)
         body = clean[body_start:end_idx]
         parent = _enclosing(type_ranges, decl_start)
+        sig_end = clean.find('\n', decl_start)
+        if sig_end == -1:
+            sig_end = body_start
         funcdefs.append({'label': leaf, 'is_efiapi': False, 'is_static': False})
         func_calls_by_func.append(_extract_calls(body))
         method_symbols.append({
@@ -263,6 +352,8 @@ def scan_julia(src: str, ext: str = '.jl') -> tuple:
             'bases': [], 'parent': parent,
             'is_public': not leaf.startswith('_'), 'doc': None,
             'complexity': _complexity(body),
+            'signature': _normalize_signature(src, decl_start, sig_end),
+            'type_refs': _extract_type_refs(src[decl_start:sig_end]),
         })
 
     for m in RE_JL_FUNC.finditer(clean):
@@ -276,5 +367,8 @@ def scan_julia(src: str, ext: str = '.jl') -> tuple:
     all_calls = _extract_calls(clean)
 
     extra = {'imports': imports, 'lang': 'julia'}
+    hints = _edge_hints(src, clean, import_src)
+    if hints:
+        extra['edge_hints'] = hints
 
     return imports, funcdefs, all_calls, extra, func_calls_by_func, symbol_defs

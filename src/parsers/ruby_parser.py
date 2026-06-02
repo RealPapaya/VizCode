@@ -11,6 +11,10 @@ Extracts:
 
 Ruby blocks close with `end`, so bodies are delimited by keyword-depth scanning.
 Syntax verified against the Ruby core docs:
+  https://docs.ruby-lang.org/en/master/syntax/modules_and_classes_rdoc.html
+  https://docs.ruby-lang.org/en/master/syntax/methods_rdoc.html
+  https://docs.ruby-lang.org/en/master/syntax/literals_rdoc.html
+  https://docs.ruby-lang.org/en/master/File.html
   * comments are `#` line and `=begin`/`=end` block (column-0 only);
   * string forms `"`, `'`, backtick, `%w[]`/`%i[]`/`%q{}`/`%Q{}` percent literals,
     and `<<~`/`<<-`/`<<` heredocs can all contain `end`/`def` lookalikes and are
@@ -33,7 +37,9 @@ RUBY_KEYWORDS = {
 }
 
 RE_RUBY_REQUIRE = re.compile(
-    r'''\brequire(?:_relative)?\s*\(?\s*['"]([^'"]+)['"]''')
+    r'''\b(require(?:_relative)?)\s*\(?\s*['"]([^'"]+)['"]''')
+RE_RUBY_FILE_REF = re.compile(
+    r'''\b(?:File\.(?:read|open|binread)|YAML\.load_file|JSON\.parse\s*\(?\s*File\.read)\s*\(?\s*['"](?P<path>[^'"]+)['"]''')
 RE_RUBY_DEF = re.compile(
     r'\bdef\s+(?:(self|[A-Za-z_]\w*)\s*\.\s*)?([A-Za-z_]\w*[?!=]?)')
 RE_RUBY_TYPE = re.compile(
@@ -46,6 +52,12 @@ _RE_RUBY_BRANCH_KW = re.compile(
 
 _ALWAYS_OPEN = {'def', 'class', 'module', 'case', 'begin', 'do'}
 _LEADING_OPEN = {'if', 'unless', 'while', 'until', 'for'}
+_RUBY_FILE_EXTS = {
+    '.rb', '.json', '.yaml', '.yml', '.toml', '.xml', '.conf', '.cfg',
+    '.html', '.htm', '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg',
+    '.txt', '.md',
+}
+_RUBY_CONFIG_EXTS = {'.json', '.yaml', '.yml', '.toml', '.xml', '.conf', '.cfg'}
 
 
 def _line_no(src: str, idx: int) -> int:
@@ -55,6 +67,57 @@ def _line_no(src: str, idx: int) -> int:
 def _leaf(path: str) -> str:
     base = re.split(r'[\\/]', path)[-1]
     return re.sub(r'\.rb$', '', base)
+
+
+def _normalize_signature(src: str, start: int, end: int) -> str:
+    return ' '.join(src[start:end].strip().split())
+
+
+def _path_edge_type(path: str):
+    if re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*:', path) or path.startswith(('/', '\\')):
+        return None
+    base = re.split(r'[\\/]', path)[-1]
+    ext = '.' + base.rsplit('.', 1)[-1].lower() if '.' in base else ''
+    if ext not in _RUBY_FILE_EXTS:
+        return None
+    if ext == '.rb':
+        return 'import'
+    return 'config_ref' if ext in _RUBY_CONFIG_EXTS else 'asset_ref'
+
+
+def _edge_hints(src: str, clean: str, import_src: str) -> list:
+    hints = []
+    for m in RE_RUBY_REQUIRE.finditer(import_src):
+        if m.start() < len(clean) and clean[m.start()] == ' ':
+            continue
+        target = m.group(2).strip()
+        edge_type = _path_edge_type(target)
+        if not edge_type:
+            continue
+        hints.append({
+            'type': edge_type,
+            'target': target,
+            'subtype': 'require' if edge_type == 'import' else ('config' if edge_type == 'config_ref' else 'asset'),
+            'via': m.group(1),
+            'line': _line_no(src, m.start(2)),
+            'confidence': 1.0,
+        })
+    for m in RE_RUBY_FILE_REF.finditer(import_src):
+        if m.start() < len(clean) and clean[m.start()] == ' ':
+            continue
+        target = m.group('path').strip()
+        edge_type = _path_edge_type(target)
+        if not edge_type or edge_type == 'import':
+            continue
+        hints.append({
+            'type': edge_type,
+            'target': target,
+            'subtype': 'config' if edge_type == 'config_ref' else 'asset',
+            'via': import_src[m.start():m.start('path')].strip(),
+            'line': _line_no(src, m.start('path')),
+            'confidence': 1.0,
+        })
+    return list({(h['type'], h['target'], h['via'], h['line']): h for h in hints}.values())
 
 
 def _mask_ruby(src: str, mask_strings: bool = True) -> str:
@@ -247,7 +310,7 @@ def scan_ruby(src: str, ext: str = '.rb') -> tuple:
     for m in RE_RUBY_REQUIRE.finditer(import_src):
         if m.start() < len(clean) and clean[m.start()] == ' ':
             continue   # the `require` token lives inside a string literal
-        leaf = _leaf(m.group(1).strip())
+        leaf = _leaf(m.group(2).strip())
         if leaf:
             imports.append(leaf)
     imports = list(dict.fromkeys(imports))
@@ -266,6 +329,8 @@ def scan_ruby(src: str, ext: str = '.rb') -> tuple:
             'kind': kind, 'name': name, 'line': _line_no(src, start),
             'end_line': _line_no(src, max(start, end_idx - 1)),
             'bases': bases, 'parent': None, 'is_public': True, 'doc': None,
+            'signature': _normalize_signature(src, m.start(), m.end()),
+            'type_refs': [],
         })
         type_ranges.append((start, end_idx, name))
 
@@ -295,11 +360,16 @@ def scan_ruby(src: str, ext: str = '.rb') -> tuple:
             'bases': [], 'parent': parent,
             'is_public': not name.startswith('_'), 'doc': None,
             'complexity': _complexity(body),
+            'signature': _normalize_signature(src, m.start(), src.find('\n', m.start()) if src.find('\n', m.start()) != -1 else m.end()),
+            'type_refs': [],
         })
 
     symbol_defs = symbol_defs + method_symbols
     all_calls = _extract_calls(clean)
 
     extra = {'imports': imports, 'lang': 'ruby'}
+    hints = _edge_hints(src, clean, import_src)
+    if hints:
+        extra['edge_hints'] = hints
 
     return imports, funcdefs, all_calls, extra, func_calls_by_func, symbol_defs

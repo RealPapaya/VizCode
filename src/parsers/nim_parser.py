@@ -30,6 +30,13 @@ NIM_KEYWORDS = {
     'do', 'end', 'static', 'concept', 'mixin', 'bind',
 }
 
+NIM_TYPE_BUILTINS = {
+    'String', 'CString', 'Int', 'Int8', 'Int16', 'Int32', 'Int64',
+    'UInt', 'UInt8', 'UInt16', 'UInt32', 'UInt64', 'Float', 'Float32',
+    'Float64', 'Bool', 'Char', 'Byte', 'Seq', 'Array', 'Set', 'Table',
+    'Option', 'Result',
+}
+
 RE_NIM_IMPORT = re.compile(
     r'^[ \t]*(?:import|include)[ \t]+([^\n#]+)', re.MULTILINE)
 RE_NIM_FROM = re.compile(r'^[ \t]*from[ \t]+([\w./"]+)[ \t]+import', re.MULTILINE)
@@ -38,9 +45,11 @@ RE_NIM_ROUTINE = re.compile(
     r'`?([A-Za-z_]\w*)`?(\*)?', re.MULTILINE)
 RE_NIM_TYPE = re.compile(
     r'^[ \t]+([A-Za-z_]\w*)(\*)?\s*(?:\{\.[^}]*\.\})?\s*(?:\[[^\]]*\])?\s*=\s*'
-    r'(?:ref\s+|ptr\s+)?(object|enum|tuple|distinct|concept)\b', re.MULTILINE)
+    r'(?:ref\s+|ptr\s+)?(object|enum|tuple|distinct|concept)\b(?P<rest>[^\n]*)',
+    re.MULTILINE)
 RE_NIM_CALL = re.compile(r'\b([A-Za-z_]\w*)\s*\(')
 _RE_NIM_BRANCH_KW = re.compile(r'\b(?:if|elif|case|while|for|when|except|and|or)\b')
+RE_NIM_FIELD_TYPE = re.compile(r'^[ \t]+[A-Za-z_]\w*\*?\s*:\s*([^\n=]+)', re.MULTILINE)
 
 
 def _line_no(src: str, idx: int) -> int:
@@ -164,6 +173,36 @@ def _complexity(body: str) -> int:
     return 1 + len(_RE_NIM_BRANCH_KW.findall(body))
 
 
+def _normalize_signature(src: str, start: int) -> str:
+    line_end = src.find('\n', start)
+    if line_end == -1:
+        line_end = len(src)
+    sig = src[start:line_end]
+    sig = re.split(r'\s=', sig, 1)[0]
+    return re.sub(r'\s+', ' ', sig).strip()
+
+
+def _filter_type_refs(text: str) -> list:
+    refs = []
+    for name in re.findall(r'\b[A-Z][A-Za-z0-9_]*\b', text or ''):
+        if name in NIM_KEYWORDS or name in NIM_TYPE_BUILTINS or len(name) < 3:
+            continue
+        refs.append(name)
+    return list(dict.fromkeys(refs))
+
+
+def _type_bases(rest: str) -> list:
+    m = re.search(r'\bof\s+([A-Z][A-Za-z0-9_]*)', rest or '')
+    return _filter_type_refs(m.group(1) if m else '')
+
+
+def _object_field_type_refs(body: str) -> list:
+    refs = []
+    for m in RE_NIM_FIELD_TYPE.finditer(body or ''):
+        refs.extend(_filter_type_refs(m.group(1)))
+    return list(dict.fromkeys(refs))
+
+
 def scan_nim(src: str, ext: str = '.nim') -> tuple:
     """Nim file analysis. Returns the standard VIZCODE 6-tuple."""
     clean = _mask_nim(src)
@@ -190,10 +229,15 @@ def scan_nim(src: str, ext: str = '.nim') -> tuple:
         name = m.group(1)
         kind = m.group(3)
         start = m.start(1)
+        end_line = _block_end_line(clean, start)
+        body = _block_text(clean, start, end_line)
+        bases = _type_bases(m.group('rest'))
+        type_refs = list(dict.fromkeys(bases + _object_field_type_refs(body)))
         symbol_defs.append({
             'kind': kind, 'name': name, 'line': _line_no(src, start),
-            'end_line': _block_end_line(clean, start), 'bases': [],
+            'end_line': end_line, 'bases': bases,
             'parent': None, 'is_public': bool(m.group(2)), 'doc': None,
+            'type_refs': type_refs,
         })
 
     funcdefs = []
@@ -217,6 +261,8 @@ def scan_nim(src: str, ext: str = '.nim') -> tuple:
             'name': name, 'line': line_no, 'end_line': end_line, 'bases': [],
             'parent': None, 'is_public': is_public, 'doc': None,
             'complexity': _complexity(body),
+            'signature': _normalize_signature(src, m.start()),
+            'type_refs': _filter_type_refs(_normalize_signature(src, m.start())),
         })
 
     all_calls = _extract_calls(clean)
