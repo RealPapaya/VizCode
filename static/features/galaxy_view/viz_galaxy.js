@@ -541,9 +541,7 @@ function _galaxyBuildFilterPanel() {
         `<span class="nl-label" style="color:${color}">${label}</span>` +
         `</div>`;
 
-    const searchHtml =
-        `<div class="gf-search-wrap"><input type="text" class="gf-search-input" id="gf-search-input" ` +
-        `placeholder="Search nodes..." value="${_gEsc(_galaxyFilter.searchQuery || '')}"></div>`;
+    // Node search lives in the topbar (#galaxy-search), styled like "Search files".
     const nodeDefs = _galaxyPresentNodeDefs();
     const edgeDefs = _galaxyPresentEdgeDefs();
     const nodeRows = nodeDefs
@@ -557,11 +555,11 @@ function _galaxyBuildFilterPanel() {
     ).join('');
 
     const ntActions =
-        `<button class="flt-action" data-gf-node-action="all">${typeof T === 'function' ? T('selectAll') : 'All'}</button>` +
-        `<button class="flt-action" data-gf-node-action="none">${typeof T === 'function' ? T('selectNone') : 'None'}</button>`;
+        `<button class="flt-action is-add" data-gf-node-action="all" title="${typeof T === 'function' ? T('selectAll') : 'All'}">+</button>` +
+        `<button class="flt-action is-rm" data-gf-node-action="none" title="${typeof T === 'function' ? T('selectNone') : 'None'}">−</button>`;
     const etActions =
-        `<button class="flt-action" data-gf-edge-action="all">${typeof T === 'function' ? T('selectAll') : 'All'}</button>` +
-        `<button class="flt-action" data-gf-edge-action="none">${typeof T === 'function' ? T('selectNone') : 'None'}</button>`;
+        `<button class="flt-action is-add" data-gf-edge-action="all" title="${typeof T === 'function' ? T('selectAll') : 'All'}">+</button>` +
+        `<button class="flt-action is-rm" data-gf-edge-action="none" title="${typeof T === 'function' ? T('selectNone') : 'None'}">−</button>`;
 
         const minDeg = _galaxyFilter.minDegree;
     const depthH = _galaxyFilter.depthHops;
@@ -569,7 +567,6 @@ function _galaxyBuildFilterPanel() {
 
     wrap.innerHTML =
         `<div id="filters-title" data-i18n="filters">${typeof T === 'function' ? T('filters') : 'Filters'}</div>` +
-        `<div style="padding:4px 0 6px">${searchHtml}</div>` +
         `${hdr('Node Types', ntActions)}<div style="padding:4px 0 8px">${nodeRows}</div>` +
         `${hdr('Edge Types', etActions)}<div style="padding:4px 0 8px">${edgeRows}</div>` +
         `${hdr('Min Connections')}<div style="padding:4px 0 8px"><div class="gf-slider-wrap">` +
@@ -585,16 +582,6 @@ function _galaxyBuildFilterPanel() {
         `<div class="nl-icon-bg"><span class="nl-shape" style="color:#8b5cf6">&#9673;</span></div>` +
         `<span class="nl-label" style="color:#8b5cf6">Community Colors</span>` +
         `</div></div>`;
-
-    const searchInput = wrap.querySelector('#gf-search-input');
-    if (searchInput) {
-        const applySearch = _gDebounce(value => {
-            _galaxyFilter.searchQuery = value;
-            _gSearchLower = (value || '').toLowerCase().trim();  // cache for reducer hot path
-            if (_gSig) _gSig.refresh();
-        }, 120);
-        searchInput.addEventListener('input', event => applySearch(event.target.value));
-    }
 
     wrap.querySelectorAll('[data-gf-node]').forEach(el => {
         el.addEventListener('click', () => {
@@ -701,6 +688,36 @@ function _galaxyRestoreFilterPanel() {
     _gFilterPanelSaved = null;
     const explorerTab = document.querySelector('.sb-tab[data-tab="explorer"]');
     if (explorerTab) explorerTab.click();
+}
+
+// ── Topbar node-search box (imitates the "Search files" field) ───────────────
+// Shown only in Galaxy view, in the #search-card slot. The real "Search files"
+// box is hidden while Galaxy is active.
+let _gTopbarSearchWired = false;
+
+function _galaxyShowTopbarSearch() {
+    const searchCard = document.getElementById('search-card');
+    const galaxyCard = document.getElementById('galaxy-search-card');
+    const input = document.getElementById('galaxy-search');
+    if (searchCard) searchCard.style.display = 'none';
+    if (galaxyCard) galaxyCard.style.display = '';
+    if (!input) return;
+    input.value = _galaxyFilter.searchQuery || '';
+    if (_gTopbarSearchWired) return;
+    _gTopbarSearchWired = true;
+    const applySearch = _gDebounce(value => {
+        _galaxyFilter.searchQuery = value;
+        _gSearchLower = (value || '').toLowerCase().trim();  // cache for reducer hot path
+        if (_gSig) _gSig.refresh();
+    }, 120);
+    input.addEventListener('input', event => applySearch(event.target.value));
+}
+
+function _galaxyHideTopbarSearch() {
+    const searchCard = document.getElementById('search-card');
+    const galaxyCard = document.getElementById('galaxy-search-card');
+    if (galaxyCard) galaxyCard.style.display = 'none';
+    if (searchCard) searchCard.style.display = '';
 }
 
 // ── Change Folders canvas button ────────────────────────────────────────────
@@ -813,7 +830,9 @@ async function openGalaxy() {
     if (chatPanel && chatPanel.classList.contains('open')) {
         chatPanel.classList.remove('open');
     }
-    
+    // Swap the topbar "Search files" box for the Galaxy node-search box
+    _galaxyShowTopbarSearch();
+
     const container = document.getElementById('galaxy-container');
     if (!container) return;
 
@@ -927,7 +946,9 @@ function closeGalaxy() {
     const chatCard = document.getElementById('chat-card');
     if (breadcrumb) breadcrumb.style.display = '';
     if (chatCard) chatCard.style.display = '';
-    
+    // Restore the topbar "Search files" box
+    _galaxyHideTopbarSearch();
+
     state.galaxyActive = false;
     _galaxySyncButtonComputing();
     _galaxyHideLayoutBadge();

@@ -353,8 +353,11 @@ function _overviewTreemapInstallInteractions(grid) {
     }, { passive: false });
     grid.addEventListener('pointerdown', event => {
         if (_overviewMode !== 'treemap' || event.button !== 0) return;
-        _overviewTreemapDrag = { id: event.pointerId, sx: event.clientX, sy: event.clientY, x: _overviewTreemapViewport.x, y: _overviewTreemapViewport.y, moved: false };
-        grid.setPointerCapture?.(event.pointerId);
+        // Do NOT capture the pointer here: while a pointer is captured the
+        // browser retargets the resulting `click` to the capturing element
+        // (the grid) instead of the cell, so cell clicks would silently do
+        // nothing. Capture is deferred to pointermove, once a real drag starts.
+        _overviewTreemapDrag = { id: event.pointerId, sx: event.clientX, sy: event.clientY, x: _overviewTreemapViewport.x, y: _overviewTreemapViewport.y, moved: false, captured: false };
     });
     grid.addEventListener('pointermove', event => {
         const drag = _overviewTreemapDrag;
@@ -363,6 +366,7 @@ function _overviewTreemapInstallInteractions(grid) {
         const dy = event.clientY - drag.sy;
         if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
         if (!drag.moved) return;
+        if (!drag.captured) { grid.setPointerCapture?.(event.pointerId); drag.captured = true; }
         event.preventDefault();
         grid.classList.add('dragging');
         _overviewTreemapViewport.x = drag.x + dx;
@@ -372,7 +376,7 @@ function _overviewTreemapInstallInteractions(grid) {
     const finishDrag = event => {
         const drag = _overviewTreemapDrag;
         if (!drag || drag.id !== event.pointerId) return;
-        grid.releasePointerCapture?.(event.pointerId);
+        if (drag.captured) grid.releasePointerCapture?.(event.pointerId);
         grid.classList.remove('dragging');
         _overviewTreemapDrag = null;
         if (drag.moved) {

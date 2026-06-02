@@ -3340,31 +3340,6 @@
 /* ── Galaxy Filter Additions ──────────────────────────────────────────────── */
 
 /* Search bar */
-.gf-search-wrap {
-    padding: 2px 4px;
-}
-
-.gf-search-input {
-    width: 100%;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
-    color: var(--text);
-    font-size: 12px;
-    padding: 5px 9px;
-    outline: none;
-    transition: border-color .15s, background .15s;
-}
-
-.gf-search-input:focus {
-    border-color: #60a5fa;
-    background: rgba(96, 165, 250, 0.07);
-}
-
-.gf-search-input::placeholder {
-    color: #475569;
-}
-
 /* Extension chips */
 .gf-ext-wrap {
     display: flex;
@@ -3480,6 +3455,55 @@
 #search-card #sr-input-row:focus-within {
     border: none;
     box-shadow: none;
+}
+
+/* ── Galaxy node-search box — imitates the "Search files" #search-card ───── */
+#galaxy-search-card {
+    flex: 0 0 auto;
+    width: clamp(260px, 30%, 420px);
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    background: var(--panel);
+    border: 0.5px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    position: relative;
+}
+
+#galaxy-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+#galaxy-sr-icon {
+    color: var(--muted);
+    font-size: 15px;
+    flex-shrink: 0;
+    font-family: monospace;
+    line-height: 1;
+}
+
+#galaxy-search {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    padding: 6px 0;
+    font-size: 13px;
+    outline: none;
+    font-family: inherit;
+    min-width: 0;
+}
+
+#galaxy-search::placeholder {
+    color: var(--muted);
+    font-style: italic;
 }
 
 #code-panel {

@@ -76,16 +76,19 @@ function _syncRailPanelButtons() {
     }
 }
 
-// Disable the Filters tab at L0 (module overview) where filters have no content.
+// Hide the Filters tab at L0 (module overview) and when treemap is active.
 function updateFilterTabEnabled() {
     const filterTab = document.querySelector('.sb-tab[data-tab="filters"]');
+    const railFilterBtn = document.getElementById('rail-filter-btn');
     if (!filterTab) return;
     const isL0 = (typeof state !== 'undefined' && state.level === 0);
     const isGalaxy = (typeof state !== 'undefined' && !!state.galaxyActive);
     const isTreemap = typeof window.isOverviewTreemapActive === 'function' && window.isOverviewTreemapActive();
-    const shouldDisable = (isL0 && !isGalaxy) || isTreemap;
-    filterTab.disabled = shouldDisable;
-    if (shouldDisable && _sbActiveTab === 'filters') {
+    const shouldHide = (isL0 && !isGalaxy) || isTreemap;
+    filterTab.style.display = shouldHide ? 'none' : '';
+    filterTab.disabled = shouldHide;
+    if (railFilterBtn) railFilterBtn.style.display = shouldHide ? 'none' : '';
+    if (shouldHide && _sbActiveTab === 'filters') {
         _sbActiveTab = 'explorer';
         _applySidebarTab();
     }
@@ -340,8 +343,8 @@ function buildFtFilter(modId = null, subDir = null) {
 
     const bodyDisplay = ftFilterCollapsed ? 'none' : 'flex';
     const actionsHtml =
-        `<button class="flt-action" data-ft-action="all">${T('selectAll')}</button>` +
-        `<button class="flt-action" data-ft-action="none">${T('selectNone')}</button>`;
+        `<button class="flt-action is-add" data-ft-action="all" title="${T('selectAll')}">+</button>` +
+        `<button class="flt-action is-rm" data-ft-action="none" title="${T('selectNone')}">−</button>`;
 
     wrap.innerHTML =
         _filterSectionHdr(T('fileTypes'), ftFilterCollapsed, actionsHtml) +
@@ -433,8 +436,8 @@ function buildEdgeFilter() {
         if (!visible.length) { wrap.innerHTML = ''; return; }
 
         const actionsHtml =
-            `<button class="flt-action" data-l2e-action="all">${typeof T === 'function' ? T('selectAll') : 'All'}</button>` +
-            `<button class="flt-action" data-l2e-action="none">${typeof T === 'function' ? T('selectNone') : 'None'}</button>`;
+            `<button class="flt-action is-add" data-l2e-action="all" title="${typeof T === 'function' ? T('selectAll') : 'All'}">+</button>` +
+            `<button class="flt-action is-rm" data-l2e-action="none" title="${typeof T === 'function' ? T('selectNone') : 'None'}">−</button>`;
         const bodyDisplay = l2EdgeFilterCollapsed ? 'none' : 'block';
         let rowsHtml = '';
         visible.forEach(d => {
@@ -510,8 +513,8 @@ function buildEdgeFilter() {
 
     const bodyDisplay = efFilterCollapsed ? 'none' : 'block';
     const actionsHtml =
-        `<button class="flt-action" data-ef-action="all">${typeof T === 'function' ? T('selectAll') : 'All'}</button>` +
-        `<button class="flt-action" data-ef-action="none">${typeof T === 'function' ? T('selectNone') : 'None'}</button>`;
+        `<button class="flt-action is-add" data-ef-action="all" title="${typeof T === 'function' ? T('selectAll') : 'All'}">+</button>` +
+        `<button class="flt-action is-rm" data-ef-action="none" title="${typeof T === 'function' ? T('selectNone') : 'None'}">−</button>`;
     wrap.innerHTML =
         _filterSectionHdr('Edge Types', efFilterCollapsed, actionsHtml) +
         `<div class="ef-filter-body" style="display:${bodyDisplay}; padding:4px 0 2px;">` +
@@ -580,8 +583,8 @@ function buildSvEdgeFilter(wrap) {
     const hidden = (window._svState && window._svState.hiddenEdgeTypes) || new Set();
 
     const actionsHtml =
-        `<button class="flt-action" data-sve-action="all">${typeof T === 'function' ? T('selectAll') : 'All'}</button>` +
-        `<button class="flt-action" data-sve-action="none">${typeof T === 'function' ? T('selectNone') : 'None'}</button>`;
+        `<button class="flt-action is-add" data-sve-action="all" title="${typeof T === 'function' ? T('selectAll') : 'All'}">+</button>` +
+        `<button class="flt-action is-rm" data-sve-action="none" title="${typeof T === 'function' ? T('selectNone') : 'None'}">−</button>`;
     const bodyDisplay = svEdgeFilterCollapsed ? 'none' : 'block';
     let rowsHtml = '';
     defs.forEach(d => {
@@ -649,8 +652,8 @@ function buildSvKindFilter(wrap) {
 
     const label = (typeof T === 'function' ? T('symbolTypes') : '') || 'Symbol Types';
     const actionsHtml =
-        `<button class="flt-action" data-svk-action="all">${typeof T === 'function' ? T('selectAll') : 'All'}</button>` +
-        `<button class="flt-action" data-svk-action="none">${typeof T === 'function' ? T('selectNone') : 'None'}</button>`;
+        `<button class="flt-action is-add" data-svk-action="all" title="${typeof T === 'function' ? T('selectAll') : 'All'}">+</button>` +
+        `<button class="flt-action is-rm" data-svk-action="none" title="${typeof T === 'function' ? T('selectNone') : 'None'}">−</button>`;
     const bodyDisplay = svKindFilterCollapsed ? 'none' : 'block';
     let rowsHtml = '';
     defs.forEach(d => {
@@ -758,8 +761,8 @@ function buildNodeLegend() {
         if (!visible.length) { wrap.innerHTML = ''; return; }
 
         const actionsHtml =
-            `<button class="flt-action" data-l2n-action="all">${typeof T === 'function' ? T('selectAll') : 'All'}</button>` +
-            `<button class="flt-action" data-l2n-action="none">${typeof T === 'function' ? T('selectNone') : 'None'}</button>`;
+            `<button class="flt-action is-add" data-l2n-action="all" title="${typeof T === 'function' ? T('selectAll') : 'All'}">+</button>` +
+            `<button class="flt-action is-rm" data-l2n-action="none" title="${typeof T === 'function' ? T('selectNone') : 'None'}">−</button>`;
         const bodyDisplay = l2NodeFilterCollapsed ? 'none' : 'block';
         let rowsHtml = '';
         visible.forEach(d => {
@@ -1099,13 +1102,45 @@ function buildFullTreeRows(container, node, depth) {
     });
 }
 
+// Expand or collapse every folder in the Explorer tree at once.
+// The root .tree-children (direct child of #module-list) always stays open so
+// the top-level folders remain visible; only nested folders toggle.
+function setAllExplorerFolders(open) {
+    const list = document.getElementById('module-list');
+    if (!list) return;
+    const root = list.querySelector(':scope > .tree-children');
+    list.querySelectorAll('.tree-children').forEach(tc => {
+        if (tc === root) { tc.classList.add('open'); return; }
+        tc.classList.toggle('open', open);
+    });
+    list.querySelectorAll('.mod-row .subdir-icon, .subdir-row .subdir-icon').forEach(iconEl => {
+        iconEl.innerHTML = open ? _iconFolderOpen() : _iconFolderClosed();
+    });
+    requestAnimationFrame(_updateAllGuideHeights);
+}
+
 function buildSidebar() {
     const list = document.getElementById('module-list');
     list.innerHTML = '';
 
-    // Show "Explorer" label in sidebar title
+    // Show "Explorer" label + expand/collapse-all actions in sidebar title
     const titleEl = document.getElementById('sidebar-title');
-    if (titleEl) titleEl.textContent = 'Explorer';
+    if (titleEl) {
+        const expandTip = typeof T === 'function' ? T('selectAll') : 'Expand all';
+        const collapseTip = typeof T === 'function' ? T('selectNone') : 'Collapse all';
+        titleEl.innerHTML =
+            `<span>Explorer</span>` +
+            `<span class="flt-actions">` +
+            `<button class="flt-action is-add" data-tree-action="expand" title="${expandTip}">+</button>` +
+            `<button class="flt-action is-rm" data-tree-action="collapse" title="${collapseTip}">−</button>` +
+            `</span>`;
+        titleEl.querySelectorAll('[data-tree-action]').forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                setAllExplorerFolders(btn.dataset.treeAction === 'expand');
+            });
+        });
+    }
 
     const rootPath = (DATA.stats?.root || '').replace(/\\/g, '/').replace(/\/$/, '');
     const rootName = rootPath.split('/').filter(Boolean).pop() || 'VIZCODE';

@@ -181,6 +181,14 @@ HTML_SKELETON = """\
         </div>
       </div>
       </div><!-- /#search-card -->
+      <!-- Galaxy node-search box: shown only in Galaxy view, occupies the
+           #search-card slot and imitates the "Search files" field. -->
+      <div id="galaxy-search-card" style="display:none">
+        <div id="galaxy-search-wrap">
+          <span id="galaxy-sr-icon">&#x2315;</span>
+          <input id="galaxy-search" type="text" placeholder="Search nodes&hellip;" autocomplete="off" spellcheck="false">
+        </div>
+      </div><!-- /#galaxy-search-card -->
       <div id="topbar-spacer"></div>
       <div id="level-switcher-card" class="topbar-card">
       <div id="level-switcher" class="lsw-disabled">
