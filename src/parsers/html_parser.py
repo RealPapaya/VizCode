@@ -73,6 +73,16 @@ def _hint(edge_type: str, target: str, subtype: str, via: str, line: int) -> dic
     }
 
 
+def _srcset_paths(value: str) -> list:
+    refs = []
+    for item in (value or '').split(','):
+        ref = item.strip().split(None, 1)[0]
+        local = _local_path(ref)
+        if local:
+            refs.append(local)
+    return refs
+
+
 def scan_html(src: str, ext: str = '.html') -> tuple:
     """HTML file analysis. Returns the standard 6-tuple."""
     clean = _mask_comments(src)
@@ -87,6 +97,7 @@ def scan_html(src: str, ext: str = '.html') -> tuple:
         'audio': ('src', 'media'),
         'embed': ('src', 'embed'),
         'object': ('data', 'embed'),
+        'track': ('src', 'track'),
     }
     for m in RE_TAG.finditer(clean):
         tag = m.group('tag').lower()
@@ -102,8 +113,15 @@ def scan_html(src: str, ext: str = '.html') -> tuple:
             if ref:
                 imports.append(ref)
                 rel = attrs.get('rel', '').lower()
-                subtype = 'stylesheet' if 'stylesheet' in rel else 'link'
-                edge_type = 'asset_ref' if subtype == 'stylesheet' else 'import'
+                if 'stylesheet' in rel:
+                    subtype = 'stylesheet'
+                    edge_type = 'asset_ref'
+                elif any(token in rel for token in ('icon', 'manifest', 'preload', 'modulepreload')):
+                    subtype = 'link'
+                    edge_type = 'asset_ref'
+                else:
+                    subtype = 'link'
+                    edge_type = 'import'
                 edge_hints.append(_hint(edge_type, ref, subtype, 'href', line))
         elif tag == 'a':
             ref = _local_path(attrs.get('href', ''))
@@ -120,6 +138,13 @@ def scan_html(src: str, ext: str = '.html') -> tuple:
             ref = _local_path(attrs.get(via, ''))
             if ref:
                 edge_hints.append(_hint('asset_ref', ref, subtype, via, line))
+            if tag in ('img', 'source') and attrs.get('srcset'):
+                for srcset_ref in _srcset_paths(attrs.get('srcset', '')):
+                    edge_hints.append(_hint('asset_ref', srcset_ref, subtype, 'srcset', line))
+            if tag == 'video':
+                poster = _local_path(attrs.get('poster', ''))
+                if poster:
+                    edge_hints.append(_hint('asset_ref', poster, 'poster', 'poster', line))
     imports = list(dict.fromkeys(imports))
     deduped_hints = []
     for hint in edge_hints:

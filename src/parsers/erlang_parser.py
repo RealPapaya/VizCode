@@ -31,6 +31,7 @@ RE_ERL_INCLUDE = re.compile(
     r'''-\s*include(?:_lib)?\s*\(\s*["']([^"']+)["']''')
 RE_ERL_IMPORT = re.compile(r'-\s*import\s*\(\s*([a-z][\w@]*)')
 RE_ERL_BEHAVIOUR = re.compile(r'-\s*behaviou?r\s*\(\s*([a-z][\w@]*)')
+RE_ERL_CALLBACK = re.compile(r'-\s*callback\s+([a-z][\w@]*)\s*\((.*?)\)\s*->\s*([^.\n]+)', re.DOTALL)
 RE_ERL_MODULE = re.compile(r'-\s*module\s*\(\s*([a-z][\w@]*)')
 RE_ERL_EXPORT = re.compile(r'-\s*export\s*\(\s*\[([^\]]*)\]')
 RE_ERL_HEAD = re.compile(r'^([a-z][\w@]*)\s*\(', re.MULTILINE)
@@ -140,6 +141,10 @@ def _complexity(body: str) -> int:
     return 1 + len(_RE_ERL_BRANCH_KW.findall(body)) + body.count(';')
 
 
+def _normalize_signature(src: str, start: int, end: int) -> str:
+    return ' '.join(src[start:end].strip().split())
+
+
 def scan_erlang(src: str, ext: str = '.erl') -> tuple:
     """Erlang file analysis. Returns the standard VIZCODE 6-tuple."""
     clean = _mask_erlang(src, mask_strings=True)
@@ -165,15 +170,23 @@ def scan_erlang(src: str, ext: str = '.erl') -> tuple:
             if nm:
                 exported.add(nm)
 
+    behaviours = []
+    for m in RE_ERL_BEHAVIOUR.finditer(clean):
+        name = m.group(1)
+        if name not in behaviours:
+            behaviours.append(name)
+
     symbol_defs = []
     mm = RE_ERL_MODULE.search(clean)
     module_name = mm.group(1) if mm else None
     if mm:
         symbol_defs.append({
-            'kind': 'module', 'name': module_name,
+            'kind': 'interface' if RE_ERL_CALLBACK.search(clean) else 'module',
+            'name': module_name,
             'line': _line_no(src, mm.start(1)),
             'end_line': _line_no(src, len(src) - 1),
-            'bases': [], 'parent': None, 'is_public': True, 'doc': None,
+            'bases': behaviours, 'parent': None, 'is_public': True,
+            'doc': None,
         })
 
     funcdefs = []
@@ -197,12 +210,15 @@ def scan_erlang(src: str, ext: str = '.erl') -> tuple:
         body = clean[m.end():end_idx]
         funcdefs.append({'label': name, 'is_efiapi': False, 'is_static': False})
         func_calls_by_func.append(_extract_calls(body, {start}))
+        arrow_idx = clean.find('->', m.end(), end_idx)
+        sig_end = arrow_idx + 2 if arrow_idx != -1 else m.end()
         symbol_defs.append({
             'kind': 'function', 'name': name, 'line': line_no,
             'end_line': _line_no(src, max(start, end_idx - 1)),
             'bases': [], 'parent': module_name,
             'is_public': name in exported, 'doc': None,
             'complexity': _complexity(body),
+            'signature': _normalize_signature(src, m.start(), sig_end),
         })
 
     all_calls = _extract_calls(clean)

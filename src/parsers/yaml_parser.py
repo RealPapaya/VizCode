@@ -28,9 +28,16 @@ RE_YAML_REF = re.compile(r'\$ref\s*:\s*["\']?([^"\'\s]+)')
 RE_YAML_INCLUDE = re.compile(r'!(?:include|import)\b\s*["\']?([^"\'\s]+)')
 RE_YAML_FILE = re.compile(
     r'^[ \t]*file\s*:\s*["\']?([^"\'\s]+)', re.MULTILINE)
+RE_YAML_KEY_REF = re.compile(
+    r'^[ \t]*(schema|schemaFile|config|configFile|template|templateFile|values|valuesFile|path)\s*:\s*["\']?([^"\'\s]+)',
+    re.MULTILINE | re.IGNORECASE)
 # Top-level key at column 0: `key:` (unquoted), excludes list items / comments.
 RE_YAML_TOP_KEY = re.compile(
     r'^([A-Za-z_][\w\-]*)\s*:(?:\s|$)', re.MULTILINE)
+_YAML_FILE_EXTS = {
+    '.yaml', '.yml', '.json', '.toml', '.xml', '.conf', '.cfg', '.ini',
+    '.html', '.htm', '.txt', '.md',
+}
 
 
 def _line_no(src: str, idx: int) -> int:
@@ -99,7 +106,8 @@ def _yaml_local(val: str):
     low = v.lower()
     if low.startswith(('http://', 'https://', '//')):
         return None
-    if '/' in v or low.endswith(('.yaml', '.yml', '.json')):
+    ext = '.' + low.rsplit('.', 1)[-1] if '.' in low.rsplit('/', 1)[-1] else ''
+    if '/' in v or '\\' in v or ext in _YAML_FILE_EXTS:
         return v
     return None
 
@@ -120,6 +128,12 @@ def scan_yaml(src: str, ext: str = '.yaml') -> tuple:
             if ref:
                 imports.append(ref)
                 edge_hints.append(_hint(ref, via, _line_no(src, m.start())))
+    for m in RE_YAML_KEY_REF.finditer(clean):
+        ref = _yaml_local(m.group(2))
+        if ref:
+            via = m.group(1)
+            imports.append(ref)
+            edge_hints.append(_hint(ref, via, _line_no(src, m.start())))
     imports = list(dict.fromkeys(imports))
     edge_hints = list({
         (h['target'], h['via'], h['line']): h for h in edge_hints

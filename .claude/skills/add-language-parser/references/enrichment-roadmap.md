@@ -21,7 +21,7 @@ Across the five dedicated parsers — **Python, JS/TS, Go, C/C++, C#** — we ad
 The L3 card layout was **not** changed — richer content folds into the existing
 signature and metrics sections only.
 
-## 2. The key enabler: enrichment is parser-side only
+## 2. The key enabler: enrichment is parser-side first, not schema-frozen
 
 `src/core/analyze_viz.py` builds **all** symbol/file edges language-agnostically by
 iterating every symbol/file regardless of source language:
@@ -40,6 +40,13 @@ The frontend already styles every edge type (`_SV_EDGE_COLOR`, `_svEdgeVerb`,
 **Consequence:** enriching a parser means *populating fields in the 6-tuple* — no
 analyzer change, no frontend change, no contract change. This makes the work highly
 parallelizable (one parser at a time, isolated) and low-risk.
+
+**But this is not a schema freeze.** If an authoritative language reference defines
+a relationship that is materially different from the existing vocabulary, and the
+difference changes how users should read the graph, adding a new node/edge type is
+allowed. New vocabulary must be deliberate: documented, analyzer-backed,
+frontend-styled, tested at graph level, and justified by language semantics rather
+than by parser implementation convenience.
 
 ## 3. Current state of the remaining parsers
 
@@ -70,6 +77,41 @@ Measured by which enrichment fields each parser actually emits today:
 | Complexity | `complexity` | function bodies (count branch keywords) |
 | Visibility | `is_public` / `is_static` | access modifiers / naming conventions |
 | Asset/config refs | `edge_hints` | file I/O, imports of assets, config loaders |
+
+### 4a. When to add language-specific graph vocabulary
+
+Default to the stable cross-language vocabulary when the relationship is genuinely
+the same across languages. Add a new edge or node kind only when all of these are
+true:
+
+- **Authoritative syntax/semantics:** the construct is documented by the language
+  spec or official reference, not inferred from examples or framework convention.
+- **Different graph meaning:** collapsing it into an existing edge would hide a
+  real semantic distinction that affects dependency, dispatch, ownership, lifecycle,
+  loading order, schema validation, or runtime behavior.
+- **Stable extraction:** the parser can identify it with high precision using the
+  current parser strategy, including comment/string masking and adversarial tests.
+- **Resolvable endpoints:** both ends can be resolved to project files or symbols
+  without broad inference or ambiguous-name explosion.
+- **UI readiness:** analyzer output, L1/L3 styling, labels, legends, filters, and
+  card wording are updated so the new type is not a fallback color or generic label.
+
+If any condition fails, keep the canonical edge and preserve language detail in
+`subtype`, `via`, `origin`, `line`, `confidence`, or symbol metadata.
+
+Candidate examples that may justify new vocabulary in a future batch:
+
+- Ruby `include` vs `extend` vs `prepend`: all are mixin relationships, but they
+  differ in instance/class method availability and method lookup order.
+- Elixir protocol `defimpl` vs `@behaviour`: both are implementation-like, but
+  protocols and behaviours have different dispatch/contract semantics.
+- Erlang `-behaviour(...)`: a callback contract relationship distinct from OO
+  interface inheritance.
+- JSON Schema / OpenAPI `$ref`: a schema reference may deserve `schema_ref` if
+  config-vs-schema distinction matters in L1/L3 navigation.
+- HTML resource hints (`preload`, `modulepreload`, `prefetch`) may deserve a
+  loading/lifecycle edge if the UI distinguishes runtime loading order from static
+  asset ownership.
 
 ---
 
@@ -149,6 +191,10 @@ Each batch is independent (parser-side only), so batches can run in parallel onc
 field contract is internalized.
 
 ## 7. Precision guardrails (carry forward from the skill)
+
+Section 4a controls vocabulary expansion. The stable vocabulary is the default,
+not a ban: add new vocabulary when the criteria are met and the new type carries
+real language semantics that the canonical edge would hide.
 
 - Keep the **stable cross-language vocabulary**; push language detail into
   `subtype`/`via`/`line`/`origin`/`confidence` — never invent `java_generic` etc.

@@ -45,6 +45,8 @@ RE_EX_DEF = re.compile(
 RE_EX_MODULE = re.compile(
     r'\b(defmodule|defprotocol|defimpl)\s+([A-Z][\w.]*)')
 RE_EX_SPEC = re.compile(r'^[ \t]*@spec\s+([A-Za-z_]\w*[?!]?)([^\n]*)', re.MULTILINE)
+RE_EX_BEHAVIOUR = re.compile(r'^[ \t]*@behaviou?r\s+([A-Z][\w.]*)', re.MULTILINE)
+RE_EX_CALLBACK = re.compile(r'^[ \t]*@callback\b', re.MULTILINE)
 RE_EX_FILE_REF = re.compile(r'''\bFile\.(?:read!?|stream!?|read_line!?)\s*\(\s*["'](?P<path>[^"']+)["']''')
 RE_EX_CALL = re.compile(r'\b([A-Za-z_]\w*[?!]?)\s*\(')
 RE_DO = re.compile(r'(?<![:\w])do(?![:\w])')
@@ -189,6 +191,15 @@ def _specs_by_name(clean: str) -> dict:
     return specs
 
 
+def _behaviour_refs(text: str) -> list:
+    refs = []
+    for m in RE_EX_BEHAVIOUR.finditer(text):
+        name = m.group(1).split('.')[-1]
+        if name and name not in refs:
+            refs.append(name)
+    return refs
+
+
 def _block_end(clean: str, after_idx: int) -> int:
     depth = 1
     for m in RE_TOKEN.finditer(clean, after_idx):
@@ -262,6 +273,8 @@ def scan_elixir(src: str, ext: str = '.ex') -> tuple:
                     imports.append(leaf)
         else:
             imports.append(base.split('.')[-1])
+    for name in _behaviour_refs(clean):
+        imports.append(name)
     imports = list(dict.fromkeys(imports))
 
     symbol_defs = []
@@ -276,10 +289,15 @@ def scan_elixir(src: str, ext: str = '.ex') -> tuple:
             end_idx = _block_end(clean, do_m.end())
         else:
             end_idx = m.end()
+        body_clean = clean[m.end():end_idx]
+        kind = 'module' if m.group(1) != 'defprotocol' else 'protocol'
+        if kind == 'module' and RE_EX_CALLBACK.search(body_clean):
+            kind = 'protocol'
         symbol_defs.append({
-            'kind': 'module' if m.group(1) != 'defprotocol' else 'protocol',
+            'kind': kind,
             'name': name, 'line': _line_no(src, start), 'end_line': end_line,
-            'bases': [], 'parent': None, 'is_public': True, 'doc': None,
+            'bases': _behaviour_refs(body_clean), 'parent': None,
+            'is_public': True, 'doc': None,
             'signature': _normalize_signature(src, m.start(), src.find('\n', m.start()) if src.find('\n', m.start()) != -1 else m.end()),
             'type_refs': [],
         })

@@ -15,6 +15,11 @@ Returns the standard VIZCODE parser 6-tuple:
 import re
 import json as json_lib
 
+_JSON_CONFIG_KEYS = {
+    'file', 'schema', 'schemaFile', 'config', 'configFile', 'template',
+    'templateFile', 'values', 'valuesFile',
+}
+
 
 def _line_no(src: str, idx: int) -> int:
     return src[:idx].count('\n') + 1
@@ -41,7 +46,7 @@ def _local_config_ref(value: str):
         ref.startswith(('.', '/', '\\'))
         or '/' in ref
         or '\\' in ref
-        or low.endswith(('.json', '.yaml', '.yml', '.toml'))
+        or low.endswith(('.json', '.yaml', '.yml', '.toml', '.xml', '.conf', '.cfg', '.ini', '.html', '.htm', '.txt', '.md'))
     ):
         return ref
     return None
@@ -58,6 +63,24 @@ def _hint(target: str, via: str, line: int, subtype: str = 'json') -> dict:
     if line:
         hint['line'] = line
     return hint
+
+
+def _walk_config_refs(value, path=''):
+    refs = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f'{path}.{key}' if path else key
+            if isinstance(child, str):
+                if key in _JSON_CONFIG_KEYS:
+                    ref = _local_config_ref(child)
+                    if ref:
+                        refs.append((ref, child_path, child))
+            else:
+                refs.extend(_walk_config_refs(child, child_path))
+    elif isinstance(value, list):
+        for child in value:
+            refs.extend(_walk_config_refs(child, path))
+    return refs
 
 
 def scan_json(src, ext):
@@ -121,6 +144,9 @@ def scan_json(src, ext):
                     edge_hints.append(_hint(target, '$ref', _line_no(src, match.start()), 'schema'))
         
         # ── Store package metadata ─────────────────────────────────────────
+        for target, via, raw_value in _walk_config_refs(data):
+            edge_hints.append(_hint(target, via, _line_for_value(src, raw_value)))
+
         if 'name' in data:
             extra_dict['package_name'] = data['name']
         if 'version' in data:

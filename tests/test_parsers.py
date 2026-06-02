@@ -37,6 +37,7 @@ from parsers.ruby_parser import scan_ruby
 from parsers.crystal_parser import scan_crystal
 from parsers.julia_parser import scan_julia
 from parsers.elixir_parser import scan_elixir
+from parsers.erlang_parser import scan_erlang
 from parsers.nim_parser import scan_nim
 from parsers.fsharp_parser import scan_fsharp
 from parsers.haskell_parser import scan_haskell
@@ -670,6 +671,10 @@ class TestBatch4DedicatedParsers:
         result = scan_elixir('defmodule Demo do\n  @spec run(Request.t()) :: Settings.t()\n  def run(req), do: req\nend\n')
         assert_six_tuple(result, 'scan_elixir')
 
+    def test_erlang_six_tuple_contract(self):
+        result = scan_erlang('-module(demo).\n-export([run/1]).\nrun(Req) -> Req.\n', '.erl')
+        assert_six_tuple(result, 'scan_erlang')
+
     def test_nim_six_tuple_contract(self):
         result = scan_nim('proc run*(req: Request): Settings = discard req\n')
         assert_six_tuple(result, 'scan_nim')
@@ -713,7 +718,7 @@ class TestParserEdgeHints:
         } >= {
             ('asset_ref', './app.js', 'script', 'src'),
             ('asset_ref', 'styles/site.css', 'stylesheet', 'href'),
-            ('import', 'manifest.json', 'link', 'href'),
+            ('asset_ref', 'manifest.json', 'link', 'href'),
             ('import', 'docs/readme.html', 'document', 'href'),
             ('asset_ref', 'frame.html', 'iframe', 'src'),
             ('asset_ref', 'logo.png', 'image', 'src'),

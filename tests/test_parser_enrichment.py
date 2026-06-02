@@ -654,6 +654,28 @@ def test_ruby_family_ruby_enrichment(tmp_path):
     assert any(e.get('line') == 4 for e in _file_edges(res, 'config_ref'))
 
 
+def test_batch5_ruby_mixins_produce_implements(tmp_path):
+    res = _build(tmp_path, {
+        'types.rb': (
+            'module Runnable\nend\n'
+            'class Base\nend\n'
+        ),
+        'engine.rb': (
+            'require_relative "types.rb"\n'
+            'class Engine < Base\n'
+            '  include Runnable\n'
+            '  def run(req)\n'
+            '    req\n'
+            '  end\n'
+            'end\n'
+        ),
+    })
+    assert {'inheritance', 'implements'} <= _sym_edge_types(res)
+    pairs = _symbol_edge_name_pairs(res, 'implements')
+    assert ('Engine', 'Runnable') in pairs
+    assert not _symbol_edges(res, 'type_usage')
+
+
 def test_ruby_family_crystal_enrichment(tmp_path):
     res = _build(tmp_path, {
         'engine.cr': (
@@ -719,6 +741,64 @@ def test_ruby_family_elixir_enrichment(tmp_path):
     pairs = _symbol_edge_name_pairs(res, 'type_usage')
     assert ('run', 'Request') in pairs
     assert ('run', 'Settings') in pairs
+
+
+def test_batch5_elixir_behaviour_implements(tmp_path):
+    res = _build(tmp_path, {
+        'engine.ex': (
+            'defmodule Request do\nend\n'
+            'defmodule Settings do\nend\n'
+            'defmodule RunnerBehaviour do\n'
+            '  @callback run(Request.t()) :: Settings.t()\n'
+            'end\n'
+            'defmodule Engine do\n'
+            '  @behaviour RunnerBehaviour\n'
+            '  @spec run(Request.t()) :: Settings.t()\n'
+            '  def run(req) do\n'
+            '    req\n'
+            '  end\n'
+            'end\n'
+        ),
+    })
+    assert {'implements', 'type_usage'} <= _sym_edge_types(res)
+    assert ('Engine', 'RunnerBehaviour') in _symbol_edge_name_pairs(res, 'implements')
+
+
+def test_batch5_erlang_behaviour_implements_and_signature(tmp_path):
+    res = _build(tmp_path, {
+        'worker_behaviour.erl': (
+            '-module(worker_behaviour).\n'
+            '-callback run(term()) -> term().\n'
+        ),
+        'engine.erl': (
+            '-module(engine).\n'
+            '-behaviour(worker_behaviour).\n'
+            '-export([run/1]).\n'
+            'run(Req) -> Req.\n'
+        ),
+    })
+    assert 'implements' in _sym_edge_types(res)
+    assert ('engine', 'worker_behaviour') in _symbol_edge_name_pairs(res, 'implements')
+    assert _field_present(res, 'signature')
+
+
+def test_batch5_powershell_signature_and_file_refs(tmp_path):
+    res = _build(tmp_path, {
+        'Engine.ps1': (
+            'function Invoke-Engine {\n'
+            '  param([string]$Name)\n'
+            '  $cfg = Get-Content "config/app.json"\n'
+            '  $page = [IO.File]::ReadAllText("templates/page.html")\n'
+            '  $rows = Import-Csv "data/report.csv"\n'
+            '  return $Name\n'
+            '}\n'
+        ),
+        'config/app.json': '{}\n',
+        'templates/page.html': '<html></html>\n',
+        'data/report.csv': 'id\n1\n',
+    })
+    assert {'config_ref', 'asset_ref'} <= _file_edge_types(res)
+    assert _field_present(res, 'signature')
 
 
 def test_batch4_nim_enrichment(tmp_path):
@@ -902,6 +982,85 @@ def test_batch4_remaining_adversarial_builtins_comments_strings_ambiguity(tmp_pa
     assert ('fake', 'HiddenElm') not in pairs
     assert not any(src == 'builtinOnly' for src, _target in pairs)
     assert len(_symbol_edges(res, 'type_usage')) <= 4
+
+
+def test_batch5_data_and_markup_edge_coverage(tmp_path):
+    res = _build(tmp_path, {
+        'index.html': (
+            '<link rel="modulepreload" href="scripts/chunk.js">\n'
+            '<link rel="manifest" href="config/manifest.json">\n'
+            '<img srcset="templates/hero.html 1x, templates/hero2.html 2x">\n'
+            '<video poster="templates/poster.html"></video>\n'
+        ),
+        'styles/site.css': (
+            '.hero { background-image: url("../templates/bg.html"); }\n'
+            '@font-face { src: url("../styles/icon.css"); }\n'
+        ),
+        'schema.yaml': (
+            'configFile: config/app.json\n'
+            'template: templates/page.html\n'
+        ),
+        'settings.toml': (
+            'schemaFile = "config/schema.json"\n'
+            'template = "templates/email.html"\n'
+        ),
+        'app.json': (
+            '{\n'
+            '  "configFile": "config/app.yaml",\n'
+            '  "templateFile": "templates/card.html"\n'
+            '}\n'
+        ),
+        'scripts/chunk.js': 'export const x = 1;\n',
+        'styles/icon.css': 'body {}\n',
+        'templates/hero.html': '<html></html>\n',
+        'templates/hero2.html': '<html></html>\n',
+        'templates/poster.html': '<html></html>\n',
+        'templates/bg.html': '<html></html>\n',
+        'config/manifest.json': '{}\n',
+        'config/app.json': '{}\n',
+        'templates/page.html': '<html></html>\n',
+        'config/schema.json': '{}\n',
+        'templates/email.html': '<html></html>\n',
+        'config/app.yaml': 'ok: true\n',
+        'templates/card.html': '<html></html>\n',
+    })
+    assert {'asset_ref', 'config_ref'} <= _file_edge_types(res)
+    assert len(_file_edges(res, 'asset_ref')) >= 6
+    assert len(_file_edges(res, 'config_ref')) >= 5
+
+
+def test_batch5_adversarial_comments_strings_dynamic_and_urls(tmp_path):
+    res = _build(tmp_path, {
+        'noise.ps1': (
+            '# Get-Content "hidden.json"\n'
+            '$text = "Get-Content \\"secret.json\\""\n'
+            '$path = "config/app.json"\n'
+            'Get-Content $path\n'
+        ),
+        'noise.html': '<!-- <img src="hidden.png"> -->\n<img src="https://example.test/remote.png">\n',
+        'noise.css': (
+            '/* background: url("hidden.png"); */\n'
+            '.x { content: "url(secret.png)"; background: url("data:image/png;base64,abc"); }\n'
+        ),
+        'noise.yaml': (
+            '# configFile: hidden.json\n'
+            'text: "templateFile: secret.html"\n'
+        ),
+        'noise.json': (
+            '{\n'
+            '  "text": "config/app.json",\n'
+            '  "configFile": "https://example.test/app.json",\n'
+            '  "$ref": "#/defs/Local"\n'
+            '}\n'
+        ),
+        'hidden.json': '{}\n',
+        'secret.json': '{}\n',
+        'hidden.png': '',
+        'secret.png': '',
+        'config/app.json': '{}\n',
+    })
+    assert 'config_ref' not in _file_edge_types(res)
+    assert 'asset_ref' not in _file_edge_types(res)
 
 
 def test_adversarial_ambiguous_type_no_type_usage(tmp_path):

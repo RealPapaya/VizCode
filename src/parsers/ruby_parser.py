@@ -45,6 +45,9 @@ RE_RUBY_DEF = re.compile(
 RE_RUBY_TYPE = re.compile(
     r'^[ \t]*(class|module)\s+([A-Za-z_][\w:]*)(\s*<\s*([A-Za-z_][\w:]*))?',
     re.MULTILINE)
+RE_RUBY_MIXIN = re.compile(
+    r'^[ \t]*(include|extend|prepend)\s+([A-Za-z_][\w:]*(?:\s*,\s*[A-Za-z_][\w:]*)*)',
+    re.MULTILINE)
 RE_RUBY_CALL = re.compile(r'\b([A-Za-z_]\w*[?!]?)\s*[\(]')
 RE_WORD = re.compile(r'\b[A-Za-z_]\w*\b')
 _RE_RUBY_BRANCH_KW = re.compile(
@@ -301,6 +304,16 @@ def _enclosing(ranges: list, idx: int):
     return best
 
 
+def _mixin_refs(body: str) -> list:
+    refs = []
+    for m in RE_RUBY_MIXIN.finditer(body):
+        for raw in m.group(2).split(','):
+            name = raw.strip().split('::')[-1]
+            if name and name not in refs:
+                refs.append(name)
+    return refs
+
+
 def scan_ruby(src: str, ext: str = '.rb') -> tuple:
     """Ruby file analysis. Returns the standard VIZCODE 6-tuple."""
     clean = _mask_ruby(src, mask_strings=True)
@@ -325,8 +338,12 @@ def scan_ruby(src: str, ext: str = '.rb') -> tuple:
         start = m.start(2)
         end_idx = _block_end(clean, m.end())
         bases = [m.group(4).split('::')[-1]] if m.group(4) else []
+        for mixin in _mixin_refs(clean[m.end():end_idx]):
+            if mixin not in bases:
+                bases.append(mixin)
         symbol_defs.append({
-            'kind': kind, 'name': name, 'line': _line_no(src, start),
+            'kind': 'mixin' if kind == 'module' else kind,
+            'name': name, 'line': _line_no(src, start),
             'end_line': _line_no(src, max(start, end_idx - 1)),
             'bases': bases, 'parent': None, 'is_public': True, 'doc': None,
             'signature': _normalize_signature(src, m.start(), m.end()),

@@ -25,6 +25,10 @@ TOML_EXTENSIONS = {'.toml'}
 RE_TOML_TABLE = re.compile(r'(?m)^[ \t]*(\[\[?)\s*([^\[\]]+?)\s*(\]\]?)')
 RE_TOML_SECTION = re.compile(r'^[ \t]*\[\[?\s*([^\[\]]+?)\s*\]\]?[ \t]*(?:#.*)?$')
 RE_TOML_STRING = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"|\'([^\']*)\'')
+_TOML_CONFIG_KEYS = {
+    'file', 'schema', 'schemafile', 'config', 'configfile', 'template',
+    'templatefile', 'values', 'valuesfile',
+}
 
 
 def _line_no(src: str, idx: int) -> int:
@@ -113,6 +117,9 @@ def _parse_edge_hints(src: str) -> list:
                 hints.append(_hint(ref, 'cargo_package', f'package.{key}', line_no))
             elif section.startswith('tool.') and _path_ext(ref):
                 hints.append(_hint(ref, 'tool_config', f'{section}.{key}', line_no))
+            elif key.lower() in _TOML_CONFIG_KEYS and _path_ext(ref):
+                via = f'{section}.{key}' if section else key
+                hints.append(_hint(ref, 'config_value', via, line_no))
         offset += len(line) + 1
     deduped = {}
     for hint in hints:

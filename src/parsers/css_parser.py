@@ -33,6 +33,7 @@ _LANG_BY_EXT = {
 RE_CSS_AT_IMPORT = re.compile(
     r'@(?P<kw>import|use|forward|require)\b(?P<body>[^;{\n]*)', re.IGNORECASE)
 RE_CSS_QUOTED = re.compile(r'''['"]([^'"]+)['"]''')
+RE_CSS_URL = re.compile(r'''\burl\(\s*(['"]?)(?P<target>[^'")\s]+)\1\s*\)''', re.IGNORECASE)
 
 RE_SCSS_MIXIN = re.compile(r'@mixin\s+([A-Za-z_][\w-]*)', re.IGNORECASE)
 RE_SCSS_FUNC = re.compile(r'@function\s+([A-Za-z_][\w-]*)', re.IGNORECASE)
@@ -57,15 +58,31 @@ def _line_no(src: str, idx: int) -> int:
     return src[:idx].count('\n') + 1
 
 
-def _hint(target: str, via: str, line: int) -> dict:
+def _hint(target: str, via: str, line: int, subtype: str = 'stylesheet') -> dict:
     return {
         'type': 'asset_ref',
         'target': target,
-        'subtype': 'stylesheet',
+        'subtype': subtype,
         'via': via,
         'line': line,
         'confidence': 1.0,
     }
+
+
+def _local_asset_ref(target: str):
+    ref = target.strip()
+    if not ref:
+        return None
+    low = ref.lower()
+    if low.startswith(('http://', 'https://', '//', 'data:', '#')):
+        return None
+    ref = ref.split('#', 1)[0].split('?', 1)[0].strip()
+    if not ref:
+        return None
+    base = re.split(r'[\\/]', ref)[-1]
+    if '.' not in base:
+        return None
+    return ref
 
 
 def _mask_css(src: str, lang: str, mask_strings: bool = True) -> str:
@@ -192,6 +209,15 @@ def scan_css(src: str, ext: str = '.css') -> tuple:
             if stem:
                 imports.append(stem)
                 edge_hints.append(_hint(stem, via, line))
+    for m in RE_CSS_URL.finditer(import_src):
+        if m.start() < len(clean) and clean[m.start()] == ' ':
+            continue
+        line_start = import_src.rfind('\n', 0, m.start()) + 1
+        if '@import' in import_src[line_start:m.start()].lower():
+            continue
+        target = _local_asset_ref(m.group('target'))
+        if target:
+            edge_hints.append(_hint(target, 'url', _line_no(src, m.start('target')), 'asset'))
     imports = list(dict.fromkeys(imports))
     edge_hints = list({
         (h['target'], h['via'], h['line']): h for h in edge_hints
