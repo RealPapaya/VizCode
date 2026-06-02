@@ -237,6 +237,8 @@ const l2NodeFilter = new Set(L2_NODE_FILTER_DEFS.map(d => d.key));
 const l2EdgeFilter = new Set(L2_EDGE_FILTER_DEFS.map(d => d.key));
 let l2NodeFilterCollapsed = false;
 let l2EdgeFilterCollapsed = false;
+let svEdgeFilterCollapsed = false;
+let svKindFilterCollapsed = false;
 
 function resetL2Filters() {
     l2NodeFilter.clear();
@@ -258,6 +260,16 @@ function _filterSectionHdr(label, collapsed, actions = '') {
 function buildFtFilter(modId = null, subDir = null) {
     const wrap = document.getElementById('ft-filter');
     if (!wrap) return;
+
+    // Structure (L3) view: there are no files here, only symbols — so repurpose
+    // this section as an interactive SYMBOL TYPE filter (Class / Function / …).
+    // Must come before the level checks: entering L3 from L1 leaves state.level
+    // at 1 with a module set, which would otherwise render stale file-type chips.
+    if (window._sv && window._sv.active) {
+        buildSvKindFilter(wrap);
+        return;
+    }
+
     if (state.level !== 1 || !modId) {
         wrap.innerHTML = '<div class="ft-filter-placeholder">Navigate to a module to filter file types.</div>';
         wrap.style.display = 'block';
@@ -403,6 +415,15 @@ function buildEdgeFilter() {
     const wrap = document.getElementById('edge-filter');
     if (!wrap) return;
 
+    // Structure (L3) view: drive the SVG canvas edge-type filter. Must come
+    // before the level===2 branch — entering L3 from L2 leaves state.level at
+    // 2, so otherwise the stale L2 call-flow filter would render and toggle the
+    // (hidden) Cytoscape canvas instead of the L3 graph.
+    if (window._sv && window._sv.active) {
+        buildSvEdgeFilter(wrap);
+        return;
+    }
+
     // L2: interactive edge-kind filter
     if (state.level === 2) {
         const presentKinds = new Set();
@@ -458,11 +479,6 @@ function buildEdgeFilter() {
         return;
     }
 
-    // Structure view: placeholder. L0 already shows the file-type navigation prompt.
-    if (window._sv && window._sv.active) {
-        wrap.innerHTML = '<div class="ft-filter-placeholder">Navigate to a module to filter edge types.</div>';
-        return;
-    }
     if (state.level === 0) {
         wrap.innerHTML = '';
         return;
@@ -550,6 +566,140 @@ function applyEdgeFilter() {
     });
 }
 
+// ─── L3 (Structure view) edge-type filter ────────────────────────────────────
+// Rows reflect the edge types present in the current file graph; toggling a row
+// mutates window._svState.hiddenEdgeTypes and re-applies it to the SVG canvas
+// via _svApplyEdgeTypeFilter(). A row is "active" when its type is NOT hidden.
+function buildSvEdgeFilter(wrap) {
+    const defs = (typeof window._svPresentEdgeTypeDefs === 'function')
+        ? window._svPresentEdgeTypeDefs() : [];
+    if (!defs.length) {
+        wrap.innerHTML = '<div class="ft-filter-placeholder">No edges in current view.</div>';
+        return;
+    }
+    const hidden = (window._svState && window._svState.hiddenEdgeTypes) || new Set();
+
+    const actionsHtml =
+        `<button class="flt-action" data-sve-action="all">${typeof T === 'function' ? T('selectAll') : 'All'}</button>` +
+        `<button class="flt-action" data-sve-action="none">${typeof T === 'function' ? T('selectNone') : 'None'}</button>`;
+    const bodyDisplay = svEdgeFilterCollapsed ? 'none' : 'block';
+    let rowsHtml = '';
+    defs.forEach(d => {
+        const isActive = !hidden.has(d.key);
+        rowsHtml += `<div class="ef-row${isActive ? ' active' : ''}" data-sve="${d.key}" style="--ef-col:${d.color}">` +
+            `<div class="ef-icon-bg"><span class="ef-indicator">` + _edgeLine(d.color, 'solid') + `</span></div>` +
+            `<span class="ef-label">${d.label}</span>` +
+            `</div>`;
+    });
+    wrap.innerHTML =
+        _filterSectionHdr('Edge Types', svEdgeFilterCollapsed, actionsHtml) +
+        `<div class="sve-filter-body" style="display:${bodyDisplay}; padding:4px 0 2px;">` +
+        rowsHtml + `</div>`;
+
+    const applySv = () => { if (typeof window._svApplyEdgeTypeFilter === 'function') window._svApplyEdgeTypeFilter(); };
+
+    wrap.querySelector('.flt-section-hdr').addEventListener('click', () => {
+        svEdgeFilterCollapsed = !svEdgeFilterCollapsed;
+        wrap.querySelector('.sve-filter-body').style.display = svEdgeFilterCollapsed ? 'none' : 'block';
+        wrap.querySelector('.flt-chevron').style.transform = svEdgeFilterCollapsed ? 'rotate(-90deg)' : '';
+    });
+    wrap.querySelectorAll('[data-sve]').forEach(row => {
+        row.addEventListener('click', e => {
+            e.stopPropagation();
+            const h = window._svState && window._svState.hiddenEdgeTypes;
+            if (!h) return;
+            const k = row.dataset.sve;
+            if (h.has(k)) h.delete(k); else h.add(k);
+            row.classList.toggle('active', !h.has(k));
+            applySv();
+        });
+    });
+    wrap.querySelectorAll('[data-sve-action]').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            const h = window._svState && window._svState.hiddenEdgeTypes;
+            if (!h) return;
+            if (btn.dataset.sveAction === 'all') {
+                h.clear();
+                wrap.querySelectorAll('[data-sve]').forEach(r => r.classList.add('active'));
+            } else {
+                defs.forEach(d => h.add(d.key));
+                wrap.querySelectorAll('[data-sve]').forEach(r => r.classList.remove('active'));
+            }
+            applySv();
+        });
+    });
+}
+
+// ─── L3 (Structure view) symbol-type filter ─────────────────────────────────
+// Rendered in the #ft-filter slot (the L1 "File Types" section). At L3 there are
+// no files — only symbols — so this toggles symbol nodes by kind instead. Rows
+// reflect the kinds present in the current file graph; toggling mutates
+// window._svState.hiddenKinds and re-applies it via _svApplyKindFilter(). A row
+// is "active" when its kind is NOT hidden.
+function buildSvKindFilter(wrap) {
+    const defs = (typeof window._svPresentKindDefs === 'function')
+        ? window._svPresentKindDefs() : [];
+    if (!defs.length) {
+        wrap.style.display = 'none';
+        return;
+    }
+    wrap.style.display = 'block';
+    const hidden = (window._svState && window._svState.hiddenKinds) || new Set();
+
+    const label = (typeof T === 'function' ? T('symbolTypes') : '') || 'Symbol Types';
+    const actionsHtml =
+        `<button class="flt-action" data-svk-action="all">${typeof T === 'function' ? T('selectAll') : 'All'}</button>` +
+        `<button class="flt-action" data-svk-action="none">${typeof T === 'function' ? T('selectNone') : 'None'}</button>`;
+    const bodyDisplay = svKindFilterCollapsed ? 'none' : 'block';
+    let rowsHtml = '';
+    defs.forEach(d => {
+        const isActive = !hidden.has(d.key);
+        rowsHtml += `<div class="ef-row${isActive ? ' active' : ''}" data-svk="${d.key}" style="--ef-col:${d.color}">` +
+            `<div class="ef-icon-bg"><span class="nl-shape" style="color:${d.color}">●</span></div>` +
+            `<span class="ef-label">${d.label}</span>` +
+            `</div>`;
+    });
+    wrap.innerHTML =
+        _filterSectionHdr(label, svKindFilterCollapsed, actionsHtml) +
+        `<div class="svk-filter-body" style="display:${bodyDisplay}; padding:4px 0 2px;">` +
+        rowsHtml + `</div>`;
+
+    const applySvk = () => { if (typeof window._svApplyKindFilter === 'function') window._svApplyKindFilter(); };
+
+    wrap.querySelector('.flt-section-hdr').addEventListener('click', () => {
+        svKindFilterCollapsed = !svKindFilterCollapsed;
+        wrap.querySelector('.svk-filter-body').style.display = svKindFilterCollapsed ? 'none' : 'block';
+        wrap.querySelector('.flt-chevron').style.transform = svKindFilterCollapsed ? 'rotate(-90deg)' : '';
+    });
+    wrap.querySelectorAll('[data-svk]').forEach(row => {
+        row.addEventListener('click', e => {
+            e.stopPropagation();
+            const h = window._svState && window._svState.hiddenKinds;
+            if (!h) return;
+            const k = row.dataset.svk;
+            if (h.has(k)) h.delete(k); else h.add(k);
+            row.classList.toggle('active', !h.has(k));
+            applySvk();
+        });
+    });
+    wrap.querySelectorAll('[data-svk-action]').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            const h = window._svState && window._svState.hiddenKinds;
+            if (!h) return;
+            if (btn.dataset.svkAction === 'all') {
+                h.clear();
+                wrap.querySelectorAll('[data-svk]').forEach(r => r.classList.add('active'));
+            } else {
+                defs.forEach(d => h.add(d.key));
+                wrap.querySelectorAll('[data-svk]').forEach(r => r.classList.remove('active'));
+            }
+            applySvk();
+        });
+    });
+}
+
 // ─── L2 filter application ────────────────────────────────────────────────────
 function applyL2Filter() {
     if (!cy || state.level !== 2) return;
@@ -574,9 +724,9 @@ function applyL2Filter() {
     });
 }
 
-// ─── Node shape legend (informational) ───────────────────────────────────────
-// L1: shows file-type shapes present in current view (from LEGEND_NODES).
-// L2: shows call-flow node type legend. L0: hidden.
+// ─── Node legend / filter ────────────────────────────────────────────────────
+// L2: interactive call-flow node-type filter. L0 / L1 / L3: hidden (the Node
+// Colors / Node Shapes informational legend was removed per design).
 const _L2_NODE_TYPES = [
     { shape: '▣', color: '#60a5fa', label: 'Current file' },
     { shape: '▣', color: '#64748b', label: 'External func' },
@@ -588,6 +738,15 @@ const _L2_NODE_TYPES = [
 function buildNodeLegend() {
     const wrap = document.getElementById('node-legend');
     if (!wrap) return;
+
+    // Structure (L3) view: no Node Colors legend — symbol kinds are already
+    // toggleable via the Symbol Types filter, so this informational section is
+    // redundant. Must come before the level===2 branch (entering L3 from L2
+    // leaves state.level at 2).
+    if (window._sv && window._sv.active) {
+        wrap.innerHTML = '';
+        return;
+    }
 
     // L2: interactive node-type filter
     if (state.level === 2) {
@@ -645,54 +804,8 @@ function buildNodeLegend() {
         return;
     }
 
-    // L0 or no graph
-    if (state.level === 0) {
-        wrap.innerHTML = '';
-        return;
-    }
-
-    // L1: scan present file extensions
-    const usedExts = new Set();
-    if (cy) {
-        cy.nodes().forEach(node => {
-            const t = node.data('_t');
-            if (t !== 'file' && t !== 'dep_ext_file') return;
-            const f = node.data('_f');
-            const path = (f && f.path) || '';
-            if (!path) return;
-            const dot = path.lastIndexOf('.');
-            if (dot !== -1) usedExts.add(path.slice(dot).toLowerCase());
-        });
-    }
-
-    const active = LEGEND_NODES.filter(n => n.exts.some(e => usedExts.has(e)));
-    if (active.length === 0) { wrap.innerHTML = ''; return; }
-
-    const isSimpleLegend = _shapeMode === 'simple';
-    const sectionLabel = isSimpleLegend ? 'Node Colors' : 'Node Shapes';
-    let rowsHtml = '';
-    active.forEach(n => {
-        const shapeChar = isSimpleLegend ? '●' : n.shape;
-        rowsHtml += `<div class="nl-row" style="--nl-col:${n.color}">` +
-            `<div class="nl-icon-bg"><span class="nl-shape" style="color:${n.color}">${shapeChar}</span></div>` +
-            `<span class="nl-label" style="color:${n.color}">${n.label}</span>` +
-            `</div>`;
-    });
-
-    const bodyDisplay = nlFilterCollapsed ? 'none' : 'block';
-    wrap.innerHTML =
-        _filterSectionHdr(sectionLabel, nlFilterCollapsed) +
-        `<div class="nl-filter-body" style="display:${bodyDisplay}; padding:4px 0 2px;">` +
-        rowsHtml +
-        `</div>`;
-
-    wrap.querySelector('.flt-section-hdr').addEventListener('click', () => {
-        nlFilterCollapsed = !nlFilterCollapsed;
-        const body = wrap.querySelector('.nl-filter-body');
-        const chev = wrap.querySelector('.flt-chevron');
-        body.style.display = nlFilterCollapsed ? 'none' : 'block';
-        chev.style.transform = nlFilterCollapsed ? 'rotate(-90deg)' : '';
-    });
+    // L0 and L1: no Node Colors / Node Shapes legend — removed per design.
+    wrap.innerHTML = '';
 }
 
 // ─── Re-render current level (used after settings changes) ────────────────────

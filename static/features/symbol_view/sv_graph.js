@@ -123,11 +123,17 @@ function _svAccessStroke(access) {
 }
 
 function _svResolveEdgeStroke(ed, fromNode) {
+    // Access-based coloring (public=yellow / private=blue) is only meaningful
+    // for call edges, where it conveys the caller's visibility. Structural
+    // edges (inheritance, implements, type_usage, …) are colored by their type
+    // so they're distinguishable on the canvas and match the sidebar legend.
+    if (ed && ed.type && ed.type !== 'call') return _svEdgeColor(ed.type);
     const sourceAccess = ed && ed.sourceAccess ? ed.sourceAccess : _svAccessGroup(fromNode && fromNode.sym);
     return _svAccessStroke(sourceAccess) || _svEdgeColor(ed.type);
 }
 
 function _svResolveSelectedEdgeStroke(ed, fromNode) {
+    if (ed && ed.type && ed.type !== 'call') return _svEdgeColor(ed.type);
     const sourceAccess = ed && ed.sourceAccess ? ed.sourceAccess : _svAccessGroup(fromNode && fromNode.sym);
     if (sourceAccess === 'public') return '#ffd76a';
     if (sourceAccess === 'private') return '#8cc7ff';
@@ -1783,6 +1789,15 @@ function _svRenderFileGraph(newModel) {
                 if (!from || !to) continue;
                 _svAppendEdge(edgesG, labelsG, ed, from, to, nodeRects);
             }
+            // Re-apply the persisted edge-type + symbol-kind filters to the freshly
+            // built graph and refresh the sidebar rows to match what's present here.
+            _svApplyEdgeTypeFilter();
+            _svApplyKindFilter();
+            if (window._sv && window._sv.active) {
+                if (typeof buildEdgeFilter === 'function') buildEdgeFilter();
+                if (typeof buildNodeLegend === 'function') buildNodeLegend();
+                if (typeof buildFtFilter === 'function') buildFtFilter();
+            }
             _svApplyFocus({ noHistory: true });
             const EDGE_DUR = 220;
             const edgeT0 = performance.now();
@@ -2369,6 +2384,7 @@ function _svCreateNodeEl(n) {
         kindEl.setAttribute('class', 'sv-node-kind');
         kindEl.setAttribute('x', String(n.w - 10)); kindEl.setAttribute('y', '20');
         kindEl.setAttribute('text-anchor', 'end');
+        kindEl.style.fill = _svKindColor(sym.kind);   // tint the kind label by kind
         kindEl.textContent = (sym.kind || '').toUpperCase();
         g.appendChild(kindEl);
 
@@ -2497,6 +2513,7 @@ function _svCreateNodeEl(n) {
         kindEl.setAttribute('x', String(n.w - 8)); kindEl.setAttribute('y', String(n.h / 2));
         kindEl.setAttribute('dominant-baseline', 'middle');
         kindEl.setAttribute('text-anchor', 'end');
+        kindEl.style.fill = _svKindColor(sym.kind);   // tint the kind label by kind
         kindEl.textContent = (sym.kind || '').slice(0, 4).toUpperCase();
         g.appendChild(kindEl);
     }
@@ -2600,6 +2617,7 @@ function _svAppendEdge(edgesG, labelsG, ed, from, to, nodeRects) {
     if (ed.callCount > 1 && labelsG) {
         const lbl = document.createElementNS(NS, 'text');
         lbl.setAttribute('class', 'sv-edge-count');
+        lbl.dataset.edgeid = ed.id;
         lbl.setAttribute('x', String(edgeMx));
         lbl.setAttribute('y', String(edgeMy - 7));
         lbl.setAttribute('text-anchor', 'middle');
@@ -2957,3 +2975,133 @@ function _svApplyHideUnrelated() {
         });
     }
 }
+
+// ── Edge-type filter (sidebar Filters tab → hide/show L3 edges by type) ──────
+// Mirrors the L1/L2 edge filters but drives the L3 SVG canvas. The hidden set
+// lives in _svState.hiddenEdgeTypes and persists across files/focus changes,
+// like the L1/L2 filters. Uses its own CSS class (sv-hidden-by-edgetype) so it
+// composes with the focus-only "hide unrelated" filter (sv-hidden-by-filter).
+const _SV_EDGE_TYPE_DEFS = [
+    { key: 'call',        label: 'Calls' },
+    { key: 'inheritance', label: 'Inheritance' },
+    { key: 'implements',  label: 'Implements' },
+    { key: 'override',    label: 'Override' },
+    { key: 'type_usage',  label: 'Type Usage' },
+    { key: 'member',      label: 'Member' },
+    { key: 'import',      label: 'Import' },
+    { key: 'include',     label: 'Include' },
+];
+
+// Ordered {key,label,color} defs for edge types actually present in the current
+// file graph — consumed by the sidebar to build interactive filter rows.
+function _svPresentEdgeTypeDefs() {
+    const model = _svState.currentGraph;
+    if (!model || !Array.isArray(model.edges)) return [];
+    const present = new Set();
+    for (const e of model.edges) if (e && e.type) present.add(e.type);
+    const defs = [];
+    const seen = new Set();
+    for (const d of _SV_EDGE_TYPE_DEFS) {
+        if (present.has(d.key)) { defs.push({ ...d, color: _svEdgeColor(d.key) }); seen.add(d.key); }
+    }
+    // Any present type not in the canonical list → append with its raw key.
+    for (const t of present) {
+        if (!seen.has(t)) defs.push({ key: t, label: t, color: _svEdgeColor(t) });
+    }
+    return defs;
+}
+
+// Re-apply _svState.hiddenEdgeTypes to the rendered edges + count labels.
+// Idempotent: re-reads the DOM each call, so it's safe to invoke after every
+// render and on each sidebar toggle.
+function _svApplyEdgeTypeFilter() {
+    const model = _svState.currentGraph;
+    const viewport = _svState.viewport;
+    if (!model || !viewport) return;
+    const hidden = _svState.hiddenEdgeTypes;
+    const typeById = new Map();
+    for (const e of model.edges) typeById.set(e.id, e.type);
+
+    const edgesG = viewport.querySelector('.sv-edges');
+    if (edgesG) {
+        edgesG.querySelectorAll('[data-edgeid]').forEach(p => {
+            const t = typeById.get(p.dataset.edgeid);
+            p.classList.toggle('sv-hidden-by-edgetype', !!t && hidden.has(t));
+        });
+    }
+    const labelsG = viewport.querySelector('.sv-edge-labels');
+    if (labelsG) {
+        labelsG.querySelectorAll('.sv-edge-count').forEach(el => {
+            const t = typeById.get(el.dataset.edgeid);
+            el.classList.toggle('sv-hidden-by-edgetype', !!t && hidden.has(t));
+        });
+    }
+}
+
+// Ordered {key,label,color} defs for the symbol kinds present in the current
+// file graph — consumed by the sidebar to build the L3 "Node Colors" legend.
+// Mirrors _svPresentEdgeTypeDefs but for node kinds.
+function _svPresentKindDefs() {
+    const model = _svState.currentGraph;
+    if (!model || !Array.isArray(model.nodes)) return [];
+    const present = new Set();
+    for (const n of model.nodes) {
+        if (!n || n.isFocusCard) continue;          // focus card mirrors a real node
+        const k = n.kind;
+        if (k) present.add(k);
+    }
+    const defs = [];
+    for (const k of present) {
+        defs.push({ key: k, label: k.charAt(0).toUpperCase() + k.slice(1), color: _svKindColor(k) });
+    }
+    // Stable, readable order: by label.
+    defs.sort((a, b) => a.label.localeCompare(b.label));
+    return defs;
+}
+
+// Re-apply _svState.hiddenKinds to the rendered nodes + the edges touching them.
+// Mirrors _svApplyEdgeTypeFilter but for node kinds. Uses its own CSS class
+// (sv-hidden-by-kind) so it composes with the focus-only "hide unrelated" filter
+// and the edge-type filter. Idempotent — safe to call after every render.
+function _svApplyKindFilter() {
+    const model = _svState.currentGraph;
+    const viewport = _svState.viewport;
+    if (!model || !viewport) return;
+    const hidden = _svState.hiddenKinds;
+
+    // Hide/show nodes whose kind is filtered out (skip the focus card mirror).
+    const kindById = new Map();
+    for (const n of model.nodes) {
+        kindById.set(n.id, n.kind);
+        if (!n.el || n.isFocusCard) continue;
+        n.el.classList.toggle('sv-hidden-by-kind', !!n.kind && hidden.has(n.kind));
+    }
+
+    // An edge is hidden when either endpoint's kind is hidden.
+    const edgeHidden = (ed) => {
+        const kf = kindById.get(ed.from), kt = kindById.get(ed.to);
+        return (!!kf && hidden.has(kf)) || (!!kt && hidden.has(kt));
+    };
+    const edgesG = viewport.querySelector('.sv-edges');
+    if (edgesG) {
+        const edgeById = new Map();
+        for (const e of model.edges) edgeById.set(e.id, e);
+        edgesG.querySelectorAll('[data-edgeid]').forEach(p => {
+            const ed = edgeById.get(p.dataset.edgeid);
+            p.classList.toggle('sv-hidden-by-kind', !!ed && edgeHidden(ed));
+        });
+        const labelsG = viewport.querySelector('.sv-edge-labels');
+        if (labelsG) {
+            labelsG.querySelectorAll('.sv-edge-count').forEach(el => {
+                const ed = edgeById.get(el.dataset.edgeid);
+                el.classList.toggle('sv-hidden-by-kind', !!ed && edgeHidden(ed));
+            });
+        }
+    }
+}
+
+// Cross-module: viz_sidebar.js reads present defs + re-applies the filters.
+window._svPresentEdgeTypeDefs = _svPresentEdgeTypeDefs;
+window._svApplyEdgeTypeFilter = _svApplyEdgeTypeFilter;
+window._svPresentKindDefs = _svPresentKindDefs;
+window._svApplyKindFilter = _svApplyKindFilter;

@@ -29,6 +29,7 @@ const _svState = {
     searchOpen: false,
     searchCache: new Map(),
     hiddenEdgeTypes: new Set(),
+    hiddenKinds: new Set(),         // symbol kinds hidden via the sidebar SYMBOL TYPE filter
     hideUnrelated: false,
     edgeJumpCursor: new Map(),
     selectedEdgeId: null,
@@ -66,6 +67,27 @@ const _SV_KIND_COLOR = {
     variable:  '#60a5fa',
     constant:  '#38bdf8',   // sky — distinct from variable
     property:  '#60a5fa',
+
+    // ── Extended kinds (multi-language) ──────────────────────────────────
+    // Grouped by semantics so kinds that co-occur stay distinguishable:
+    // contract-like → teal · data types → light purple · grouping scopes →
+    // indigo · metadata → pink · concurrency/macro → orange.
+    protocol:   '#2dd4bf',  // teal — interface-like contract (Swift/ObjC/Elixir)
+    trait:      '#2dd4bf',  // teal — Rust/Scala/PHP trait
+    mixin:      '#5eead4',  // light teal — mixed-in behavior
+    record:     '#c084fc',  // light purple — data type (Java/C#/Clojure)
+    union:      '#c084fc',  // light purple — tagged/data union
+    typealias:  '#9ca3af',  // gray — type alias
+    object:     '#9ca3af',  // gray — singleton object (Scala/Kotlin)
+    impl:       '#9ca3af',  // gray — impl block (Rust)
+    extend:     '#9ca3af',  // gray — extension
+    namespace:  '#818cf8',  // indigo — grouping scope
+    module:     '#818cf8',  // indigo — grouping scope
+    package:    '#818cf8',  // indigo — grouping scope
+    annotation: '#f472b6',  // pink — annotation / attribute type
+    actor:      '#fb923c',  // orange — concurrency type (Swift)
+    macro:      '#fb923c',  // orange — macro definition
+
     default:   '#94a3b8',
 };
 
@@ -381,6 +403,16 @@ function symViewClose() {
         syncTopbarModeButtons();
     }
     if (typeof refreshGraphZoomControls === 'function') refreshGraphZoomControls();
+    // Rebuild the sidebar edge filter + node legend + file-type filter so they
+    // revert from the L3 view (Symbol Types) to the underlying L0/L1/L2 state
+    // now that _sv.active is cleared.
+    if (typeof buildEdgeFilter === 'function') buildEdgeFilter();
+    if (typeof buildNodeLegend === 'function') buildNodeLegend();
+    if (typeof buildFtFilter === 'function') {
+        const _mod = (typeof state !== 'undefined' && state) ? (state.activeModule || null) : null;
+        const _sub = (typeof state !== 'undefined' && state) ? (state.activeSubDir || null) : null;
+        buildFtFilter(_mod, _sub);
+    }
 }
 
 function _svPushHistory() {
@@ -563,17 +595,29 @@ window.svGetNavSnapshot = svGetNavSnapshot;
 window.svRestoreNavSnapshot = svRestoreNavSnapshot;
 window.svApplyNavSnapshot = svApplyNavSnapshot;
 window.svHideSvView    = symViewClose;
+// True when the given file has at least one symbol in the project index — i.e.
+// the L3 Structure view is meaningful for it.
+function _svFileHasSymbols(fileRel) {
+    return !!(fileRel && window.DATA && window.DATA.symbol_index &&
+        Object.values(window.DATA.symbol_index).some(s => s.file === fileRel));
+}
 window.svUpdateStructureBtn = function (fileRel, _ext) {
     if (!window._lswUpdate) return;
-    const hasSymbols = !!(window.DATA && window.DATA.symbol_index &&
-        Object.values(window.DATA.symbol_index).some(s => s.file === fileRel));
+    const hasSymbols = _svFileHasSymbols(fileRel);
     const isActive = hasSymbols && !!_svState.fileRel;
     window._lswUpdate({ l3Available: hasSymbols, ...(isActive ? { active: 3 } : {}) });
 };
 window.svHideStructureBtn = function () {
     if (!window._lswUpdate) return;
-    window._lswUpdate({ l3Available: false });
-    if (window._lswGetActive && window._lswGetActive() === 3) {
+    // Re-evaluate against the file currently shown in the code panel rather than
+    // force-disabling. Graph navigation (drill / breadcrumb / exit-L2) must not
+    // close the L3 entrance while a symbol-bearing file is still open — that was
+    // the cause of the intermittently-unclickable Structure button.
+    const openFile = (typeof codeState !== 'undefined') ? codeState.currentFile : null;
+    const hasSymbols = _svFileHasSymbols(openFile);
+    window._lswUpdate({ l3Available: hasSymbols });
+    // If we were IN the L3 view and it just became unavailable, drop to a lower level.
+    if (!hasSymbols && window._lswGetActive && window._lswGetActive() === 3) {
         const fallback = (state && state.level >= 2) ? 2 : (state && state.level === 1 ? 1 : 0);
         window._lswUpdate({ active: fallback });
     }

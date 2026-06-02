@@ -151,6 +151,18 @@
     display: none !important;
 }
 
+/* Edge-type filter (sidebar) — composes with .sv-hidden-by-filter so the
+   focus-only and edge-type filters can hide an edge independently. */
+.sv-hidden-by-edgetype {
+    display: none !important;
+}
+
+/* Symbol-kind filter (sidebar SYMBOL TYPE) — composes with the other filters
+   so each can hide a node/edge independently. */
+.sv-hidden-by-kind {
+    display: none !important;
+}
+
 .sv-tb-stats {
     flex: 1;
     min-width: 60px;
@@ -338,6 +350,12 @@
 .sv-kind-variable  .sv-node-bg,
 .sv-kind-property  .sv-node-bg  { stroke: #60a5fa; }
 .sv-kind-constant  .sv-node-bg  { stroke: #38bdf8; }
+
+/* Small leaf symbols (functions / methods / fields): no outer accent border —
+   the kind dot + label already carry the color. Compound containers
+   (class/struct/interface/enum → .sv-compound) keep their border. */
+.sv-node.sv-method .sv-node-bg,
+.sv-node.sv-top    .sv-node-bg { stroke: transparent; }
 
 /* Compound class container */
 .sv-node.sv-compound .sv-node-bg {
