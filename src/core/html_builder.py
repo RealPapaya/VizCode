@@ -24,7 +24,7 @@ HTML_SKELETON = """\
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>VIZCODE — {root_name}</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2212%22 fill=%22%230b1220%22/%3E%3Ctext x=%2232%22 y=%2242%22 text-anchor=%22middle%22 font-family=%22Arial,sans-serif%22 font-size=%2230%22 font-weight=%22700%22 fill=%22%2360a5fa%22%3EV%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="/static/icon/LOGO.webp">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
@@ -64,7 +64,7 @@ HTML_SKELETON = """\
   <!-- LEFT ICON RAIL ────────────────────────────────────────────────────── -->
   <aside id="app-rail">
     <div class="rail-brand-row">
-      <div class="rail-logo">V</div>
+      <div class="rail-logo" style="display: flex; justify-content: center; align-items: center; background: none; border-radius: 0; border: none; box-shadow: none;"><img src="/static/icon/LOGO.webp" alt="Logo" style="width: 70px; height: 70px; flex-shrink: 0; object-fit: contain; pointer-events: none;" /></div>
       <button id="rail-toggle-btn" class="rail-btn" type="button" aria-controls="app-rail" aria-expanded="false" data-i18n-attr="data-tip" data-i18n="railExpand" title="Expand rail">
         <svg class="rail-toggle-icon rail-toggle-expand-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
         <svg class="rail-toggle-icon rail-toggle-collapse-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>

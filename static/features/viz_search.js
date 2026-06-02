@@ -403,20 +403,19 @@ function _srModuleColor(modId) {
 
 // ── Tree icons (SVG outline — CodeViz style) ────────────────────────────────
 function _iconFolderClosed() {
-    return `<svg class="tree-svg-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M1.5 4.5C1.5 3.948 1.948 3.5 2.5 3.5H6.086C6.351 3.5 6.605 3.605 6.793 3.793L7.5 4.5H13.5C14.052 4.5 14.5 4.948 14.5 5.5V12.5C14.5 13.052 14.052 13.5 13.5 13.5H2.5C1.948 13.5 1.5 13.052 1.5 12.5V4.5Z" stroke="var(--icon-folder)" stroke-width="1.1" stroke-linejoin="round"/>
+    return `<svg class="tree-svg-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="var(--icon-folder)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>
     </svg>`;
 }
 function _iconFolderOpen() {
-    return `<svg class="tree-svg-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M1.5 4.5C1.5 3.948 1.948 3.5 2.5 3.5H6.086C6.351 3.5 6.605 3.605 6.793 3.793L7.5 4.5H13.5C14.052 4.5 14.5 4.948 14.5 5.5V6.5H1.5V4.5Z" stroke="var(--icon-folder)" stroke-width="1.1" stroke-linejoin="round"/>
-        <path d="M1.5 6.5H14.5C14.5 6.5 14 13.5 13.5 13.5H2.5C1.948 13.5 1.5 13.052 1.5 12.5V6.5Z" stroke="var(--icon-folder-open)" stroke-width="1.1" stroke-linejoin="round"/>
+    return `<svg class="tree-svg-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="var(--icon-folder-open)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>
     </svg>`;
 }
 function _iconFile() {
-    return `<svg class="tree-svg-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M9.5 1.5H3.5C2.948 1.5 2.5 1.948 2.5 2.5V13.5C2.5 14.052 2.948 14.5 3.5 14.5H12.5C13.052 14.5 13.5 14.052 13.5 13.5V5.5L9.5 1.5Z" stroke="var(--icon-file)" stroke-width="1.1" stroke-linejoin="round"/>
-        <path d="M9.5 1.5V5.5H13.5" stroke="var(--icon-file)" stroke-width="1.1" stroke-linejoin="round"/>
+    return `<svg class="tree-svg-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="var(--icon-file)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/>
+        <path d="M14 2v5a1 1 0 0 0 1 1h5"/>
     </svg>`;
 }
 
@@ -550,7 +549,7 @@ function _srRenderTreeNode(node, q, depth) {
         html += `<div class="sr-tree-folder">
   <div class="sr-tree-folder-hdr" data-fpath="${escapeHtml(child.path)}" style="padding-left:${indent + 6}px">
     <span class="sr-chevron${isOpen ? ' open' : ''}">${chev}</span>
-    <span class="sr-tree-folder-icon">📁</span>
+    <span class="sr-tree-folder-icon">${isOpen ? _iconFolderOpen() : _iconFolderClosed()}</span>
     <span class="sr-tree-folder-name">${escapeHtml(child.name)}</span>
     <span class="sr-match-badge" style="margin-left:auto">${matchCount}</span>
   </div>`;
@@ -984,7 +983,7 @@ function _srRenderFileTreeNode(node, q, depth) {
         html += `<div class="sr-fi-tree-folder">
   <div class="sr-fi-tree-folder-hdr" data-fpath="${escapeHtml(child.path)}" style="padding-left:${indent + 6}px">
     <span class="sr-fi-tree-chevron sr-chevron${isOpen ? ' open' : ''}">${isOpen ? '▾' : '▸'}</span>
-    <span class="sr-tree-folder-icon">📁</span>
+    <span class="sr-tree-folder-icon">${isOpen ? _iconFolderOpen() : _iconFolderClosed()}</span>
     <span class="sr-tree-folder-name">${escapeHtml(child.name)}</span>
     <span class="sr-match-badge" style="margin-left:auto">${_srCountFileTreeMatches(child)}</span>
   </div>
@@ -1031,14 +1030,17 @@ function _srRenderFileTree(resultsEl, results, q) {
             const fpath = hdr.dataset.fpath;
             const body = hdr.nextElementSibling;
             const chev = hdr.querySelector('.sr-fi-tree-chevron');
+            const iconEl = hdr.querySelector('.sr-tree-folder-icon');
             if (_srState._openFileFolders.has(fpath)) {
                 _srState._openFileFolders.delete(fpath);
                 if (body) body.style.display = 'none';
                 if (chev) { chev.classList.remove('open'); chev.textContent = '▸'; }
+                if (iconEl) iconEl.innerHTML = _iconFolderClosed();
             } else {
                 _srState._openFileFolders.add(fpath);
                 if (body) body.style.display = '';
                 if (chev) { chev.classList.add('open'); chev.textContent = '▾'; }
+                if (iconEl) iconEl.innerHTML = _iconFolderOpen();
             }
         });
     });
@@ -1243,6 +1245,8 @@ function _srRenderTree(resultsEl, groups, q) {
                 body.style.display = isNowOpen ? '' : 'none';
                 const chev = hdr.querySelector('.sr-chevron');
                 if (chev) { chev.classList.toggle('open', isNowOpen); chev.textContent = isNowOpen ? '▾' : '▸'; }
+                const iconEl = hdr.querySelector('.sr-tree-folder-icon');
+                if (iconEl) iconEl.innerHTML = isNowOpen ? _iconFolderOpen() : _iconFolderClosed();
             }
         });
     });
