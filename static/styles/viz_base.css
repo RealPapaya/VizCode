@@ -1024,7 +1024,9 @@ body[data-top-mode="galaxy"] #graph-wrap {
 
 .tree-row.active {
     background: var(--panel2);
-    box-shadow: inset 2px 0 0 var(--accent)
+    box-shadow: inset 3px 0 0 var(--accent);
+    color: var(--accent);
+    font-weight: 600
 }
 
 /* expand arrow — hidden for clean minimal look */

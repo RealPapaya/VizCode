@@ -162,16 +162,31 @@
     transition: filter 0.12s ease, box-shadow 0.12s ease;
 }
 
-.overview-treemap-cell:hover,
-.overview-treemap-cell.active {
+.overview-treemap-cell:hover {
     filter: brightness(1.08);
     z-index: 3;
     box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.36);
 }
 
+/* Selection focus: when a file is linked from the treemap, Explorer, or code
+   panel, dim every other cell so the active one clearly pops. */
+.overview-treemap-canvas.has-selection .overview-treemap-cell:not(.active) {
+    filter: grayscale(0.4) brightness(0.45);
+    opacity: 0.5;
+}
+
+.overview-treemap-canvas.has-selection .overview-treemap-cell:not(.active):hover {
+    filter: brightness(1.02);
+    opacity: 0.92;
+}
+
 .overview-treemap-cell.active {
-    outline: 1px solid rgba(255, 255, 255, 0.88);
+    filter: brightness(1.16) saturate(1.1);
+    opacity: 1;
+    z-index: 4;
+    outline: 2px solid #fff;
     outline-offset: -2px;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.55), 0 6px 18px rgba(0, 0, 0, 0.45);
 }
 
 .overview-treemap-cell.search-hit {

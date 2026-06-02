@@ -448,10 +448,14 @@ function _overviewTreemapSelectFile(path, opts = {}) {
     const host = document.getElementById('overview-treemap-host');
     if (!host?.querySelector('.overview-treemap-cell')) _overviewRenderTreemap();
     const cell = _overviewTreemapCellsByPath.get(norm);
+    const canvas = host?.querySelector('.overview-treemap-canvas');
     host?.querySelectorAll('.overview-treemap-cell.active').forEach(node => node.classList.remove('active'));
     if (cell?.el) {
         cell.el.classList.add('active');
+        canvas?.classList.add('has-selection');
         if (opts.center !== false) _overviewTreemapCenterCell(cell, opts.animated !== false);
+    } else {
+        canvas?.classList.remove('has-selection');
     }
 
     if (opts.revealExplorer !== false && typeof revealSidebarExplorerPath === 'function') revealSidebarExplorerPath(norm, 'file');
@@ -533,6 +537,8 @@ function _overviewRenderTreemap() {
         frag.appendChild(el);
     });
     canvas.appendChild(frag);
+    canvas.classList.toggle('has-selection',
+        !!(_overviewTreemapSelectedPath && _overviewTreemapCellsByPath.has(_overviewTreemapSelectedPath)));
     _overviewTreemapInstallInteractions(grid);
     _overviewTreemapApplyTransform();
     _overviewTreemapApplySearchClasses();
