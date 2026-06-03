@@ -170,6 +170,22 @@ window._lswUpdate = function (opts = {}) {
 };
 window._lswGetActive = () => _lswActualIdx;
 
+function _lswSyncLevelAvailability() {
+    const isL1 = state?.level === 1;
+    const isL2 = state?.level >= 2;
+    const fileRel = (isL1 || isL2) ? (state?.activeFile || codeState?.currentFile || null) : null;
+    const hasFuncs = !!(fileRel && (DATA?.funcs_by_file?.[fileRel]?.length || 0) > 0);
+    const hasSymbols = !!(fileRel && DATA?.symbol_index &&
+        Object.values(DATA.symbol_index).some(s => s.file === fileRel));
+
+    window._lswUpdate({
+        l1Available: isL1 || isL2,
+        l2Available: isL2 || hasFuncs,
+        l3Available: !!(window._sv && window._sv.active) || hasSymbols,
+    });
+}
+window._lswSyncLevelAvailability = _lswSyncLevelAvailability;
+
 window._lswEnterOverview = function (activeMode = 'galaxy') {
     const bar = document.getElementById('level-switcher');
     if (!bar) return;
@@ -192,6 +208,7 @@ window._lswExitOverview = function () {
     _lswActualIdx = fallback;
     window._lswCurrentIdx = fallback;
     _lswSetActive(fallback, false);
+    _lswSyncLevelAvailability();
 };
 
 function initLevelSwitcher() {

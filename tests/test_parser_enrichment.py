@@ -1145,6 +1145,64 @@ def test_adversarial_csharp_edge_hint_masking():
     assert 'inside-string.json' not in targets
 
 
+# ── Batch 6: common_parser generic signature + complexity ─────────────────────
+# scan_common is the regex fallback for SCAN_EXT extensions without a dedicated
+# parser (today: vendor firmware / make, plus any future long-tail language).
+# These tests exercise the parser unit directly, mirroring the scan_java /
+# scan_csharp direct-import tests above.
+
+def test_batch6_common_parser_signature_and_complexity():
+    """Fallback symbols carry a one-line signature + branch-keyword complexity."""
+    from parsers.common_parser import scan_common
+    src = (
+        'class Engine {\n'
+        '  int run(int n) {\n'
+        '    if (n > 0 && n < 10) { return 1; }\n'
+        '    return 0;\n'
+        '  }\n'
+        '}\n'
+    )
+    symbols = scan_common(src, '.sdl')[5]
+    by_name = {s['name']: s for s in symbols}
+    assert 'Engine' in by_name and 'run' in by_name
+    # signature present on both the type decl and the function
+    assert by_name['Engine'].get('signature')
+    assert 'run' in (by_name['run'].get('signature') or '')
+    # complexity = 1 (base) + if + && = 3
+    assert by_name['run'].get('complexity') == 3
+    # type_refs intentionally NOT emitted by the generic fallback (explosion risk)
+    assert not by_name['run'].get('type_refs')
+
+
+def test_batch6_common_parser_complexity_ignores_comments_and_strings():
+    """Branch tokens inside comments / string literals must not inflate complexity."""
+    from parsers.common_parser import scan_common
+    src = (
+        'int run(int n) {\n'
+        '  // if (n > 99 && n < 0) { bad(); }\n'
+        '  char* s = "if (x) && (y) || z";\n'
+        '  return n;\n'
+        '}\n'
+    )
+    symbols = scan_common(src, '.sdl')[5]
+    by_name = {s['name']: s for s in symbols}
+    assert 'run' in by_name
+    assert by_name['run'].get('complexity') == 1
+    assert by_name['run'].get('signature') == 'int run(int n)'
+
+
+def test_batch6_common_parser_braceless_def_has_no_complexity():
+    """Non-brace fallback defs degrade gracefully: signature yes, complexity None."""
+    from parsers.common_parser import scan_common
+    # Erlang-style clause has no brace body; complexity stays None, signature set.
+    src = 'do_work(Arg) -> Arg.\n'
+    symbols = scan_common(src, '.sdl')[5]
+    by_name = {s['name']: s for s in symbols}
+    assert 'do_work' in by_name
+    assert by_name['do_work'].get('signature')
+    assert by_name['do_work'].get('complexity') is None
+
+
 def test_adversarial_go_structural_interface_no_implements(tmp_path):
     res = _build(tmp_path, {
         'go.mod': 'module example.com/s\n\ngo 1.21\n',

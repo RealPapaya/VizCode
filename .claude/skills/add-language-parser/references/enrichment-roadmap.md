@@ -8,13 +8,17 @@
 - [x] Batch 3: Kotlin, Swift, PHP, Scala, Dart, Objective-C, VB.NET
 - [x] Batch 4: Crystal, Nim, Julia, F#, Haskell, OCaml, Elm
 - [x] Batch 5: Ruby, Elixir/Erlang, PowerShell, HTML/CSS/YAML/TOML/JSON
-- [ ] Semantic vocabulary expansion
-  - [ ] L1 `schema_ref`
-  - [ ] L1 `resource_hint`
-  - [ ] L3 `mixin_include`, `mixin_extend`, `mixin_prepend`
-  - [ ] L3 `behaviour_impl`
-  - [ ] L3 `protocol_impl`
-- [ ] Batch 6: conservative common_parser breadth uplift
+- [x] Semantic vocabulary expansion
+  - [x] L1 `schema_ref` (json/yaml parsers; styled + tested in `test_batch5_data_and_markup_edge_coverage`)
+  - [x] L1 `resource_hint` (html `rel=preload/modulepreload/prefetch`; same test)
+  - [x] L3 `mixin_include`, `mixin_extend`, `mixin_prepend` (ruby; `test_batch5_ruby_mixins_produce_semantic_edges`)
+  - [x] L3 `behaviour_impl` (elixir `@behaviour` + erlang `-behaviour`; `test_batch5_elixir/erlang_*`)
+  - [x] L3 `protocol_impl` (elixir `defimpl`; `test_batch5_elixir_protocol_impl`)
+- [x] Batch 6: conservative common_parser breadth uplift (generic `signature` + branch-keyword
+  `complexity`; `test_batch6_common_parser_*`). Reach note: every general-purpose language in
+  `SCAN_EXT` now has a dedicated parser, so `scan_common` only handles vendor firmware/make
+  (`.sdl`/`.sd`/`.cif`/`.mak`) plus any future long-tail extension. `type_refs` deliberately
+  left out (explosion risk).
 
 Planning document. **No implementation** — this scopes, groups, and prioritizes the
 work of bringing the remaining ~40 parsers up to the richness of the five enriched

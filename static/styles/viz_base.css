@@ -379,6 +379,10 @@ body.rail-expanded #app-rail #rail-toggle-btn .rail-toggle-collapse-icon {
     border-color: color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
+#app-rail .topbar-mode-btn.computing {
+    overflow: visible;
+}
+
 .topbar-mode-btn.computing::after {
     content: '';
     position: absolute;

@@ -911,6 +911,7 @@ def _extract_symbol_defs(clean: str, src: str, lang: str, doc_map: dict) -> list
                     'bases': bases, 'parent': None,
                     'is_public': not name.startswith('_') and name[0:1].isupper(),
                     'doc': doc_map.get(line_no, None),
+                    'signature': _signature(clean, m.start()),
                 })
         except Exception:
             continue
@@ -928,12 +929,17 @@ def _extract_symbol_defs(clean: str, src: str, lang: str, doc_map: dict) -> list
                 line_no = src[:m.start()].count('\n') + 1
                 open_idx = clean.find('{', m.end())
                 end_line = _brace_end_line(clean, open_idx, line_no) if open_idx != -1 else line_no
+                # Complexity only when a brace body is found — non-brace long-tail
+                # languages degrade gracefully (precision over recall).
+                complexity = _complexity(_brace_body(clean, open_idx)) if open_idx != -1 else None
                 symbols.append({
                     'kind': 'function', 'name': name,
                     'line': line_no, 'end_line': end_line,
                     'bases': [], 'parent': None,
                     'is_public': not name.startswith('_') and name[0:1].isupper(),
                     'doc': doc_map.get(line_no, None),
+                    'signature': _signature(clean, m.start()),
+                    'complexity': complexity,
                 })
         except Exception:
             continue
@@ -973,6 +979,64 @@ def _brace_end_line(clean: str, open_idx: int, base_line: int) -> int:
             if depth == 0:
                 return base_line + clean[open_idx:i + 1].count('\n')
     return base_line
+
+
+# ─── Signature + complexity (Batch 6: conservative breadth uplift) ────────────
+#
+# These enrich the regex-fallback symbols (long-tail / unknown languages routed
+# to scan_common) with the same L3 card fields the dedicated parsers emit:
+# a one-line signature string and a branch-keyword complexity count. Mirrors
+# ruby_parser._normalize_signature / _complexity and java_parser._count_complexity.
+# Intentionally NOT emitting type_refs/decorators here — generic regex cannot
+# distinguish a type from a value safely across arbitrary languages (explosion
+# risk per the enrichment roadmap).
+
+# Cross-language branch keywords/operators for a conservative complexity count.
+# 'and'/'or' use word boundaries so they don't match inside identifiers.
+_RE_BRANCH_KW = re.compile(
+    r'\b(?:if|elif|elsif|for|foreach|while|case|when|catch|except|rescue)\b'
+    r'|&&|\|\||\band\b|\bor\b'
+)
+
+
+def _complexity(body: str) -> int:
+    """Conservative cyclomatic-style count: 1 + branch keywords/operators.
+
+    Operates on comment-stripped, string-masked source so literals and comments
+    never inflate the count. Returns 1 for an empty body.
+    """
+    if not body:
+        return 1
+    return 1 + len(_RE_BRANCH_KW.findall(body))
+
+
+def _signature(clean: str, start: int) -> str:
+    """Normalized one-line signature from a definition match.
+
+    Slices from the def start to end-of-line (or the first '{', whichever comes
+    first), drops a trailing brace, collapses whitespace, and caps length. The
+    source is already comment-stripped + string-masked, so no literal/comment
+    text leaks in.
+    """
+    nl = clean.find('\n', start)
+    brace = clean.find('{', start)
+    end = min(x for x in (nl, brace, len(clean)) if x != -1)
+    sig = ' '.join(clean[start:end].split()).rstrip('{').strip()
+    return sig[:200]
+
+
+def _brace_body(clean: str, open_idx: int) -> str:
+    """Return the source between the matching braces starting at open_idx."""
+    depth = 0
+    for i in range(open_idx, len(clean)):
+        c = clean[i]
+        if c == '{':
+            depth += 1
+        elif c == '}':
+            depth -= 1
+            if depth == 0:
+                return clean[open_idx + 1:i]
+    return clean[open_idx + 1:]
 
 
 # ─── Function call extraction ─────────────────────────────────────────────────
