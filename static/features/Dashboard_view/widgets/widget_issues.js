@@ -121,16 +121,28 @@ _dashRegisterWidget({
     <div class="dash-widget-title">${_dashEscape(_dashT('dashIssuesOverviewTitle'))}</div>
     <div class="dash-widget-stat" style="color:${t.circular.color}">${_dashFmtNum(t.circular.value)}</div>
     <div class="dash-widget-sub">${_dashEscape(_dashT('dashIssuesCircular'))}</div>
-    <div class="dash-ov-dotrow">
-      <span title="${_dashEscape(_dashT('dashIssuesCircular'))}: ${t.circular.value}">
-        <span class="dash-arch-status-dot" style="color:${t.circular.color};background:${t.circular.color}"></span>${_dashFmtNum(t.circular.value)}
-      </span>
-      <span title="${_dashEscape(_dashT('dashIssuesDead'))}: ${t.dead.value}">
-        <span class="dash-arch-status-dot" style="color:${t.dead.color};background:${t.dead.color}"></span>${_dashFmtNum(t.dead.value)}
-      </span>
-      <span title="${_dashEscape(_dashT('dashIssuesEntry'))}: ${t.entry.value}">
-        <span class="dash-arch-status-dot" style="color:${t.entry.color};background:${t.entry.color}"></span>${_dashFmtNum(t.entry.value)}
-      </span>
+    <div class="dash-ov-dotrow" style="flex-direction:column;align-items:stretch;gap:5px;margin-top:8px;font-family:inherit;">
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;">
+        <span style="display:inline-flex;align-items:center;gap:6px;">
+          <span class="dash-arch-status-dot" style="color:${t.circular.color};background:${t.circular.color};margin:0"></span>
+          <span style="color:var(--muted)">Circular</span>
+        </span>
+        <strong style="color:${t.circular.value > 0 ? t.circular.color : 'var(--text)'};font-family:'JetBrains Mono',monospace;">${_dashFmtNum(t.circular.value)}</strong>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;">
+        <span style="display:inline-flex;align-items:center;gap:6px;">
+          <span class="dash-arch-status-dot" style="color:${t.dead.color};background:${t.dead.color};margin:0"></span>
+          <span style="color:var(--muted)">Dead Code</span>
+        </span>
+        <strong style="color:${t.dead.value > 0 ? t.dead.color : 'var(--text)'};font-family:'JetBrains Mono',monospace;">${_dashFmtNum(t.dead.value)}</strong>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;">
+        <span style="display:inline-flex;align-items:center;gap:6px;">
+          <span class="dash-arch-status-dot" style="color:${t.entry.color};background:${t.entry.color};margin:0"></span>
+          <span style="color:var(--muted)">Entry Pts</span>
+        </span>
+        <strong style="color:${t.entry.value > 0 ? t.entry.color : 'var(--text)'};font-family:'JetBrains Mono',monospace;">${_dashFmtNum(t.entry.value)}</strong>
+      </div>
     </div>
   </div>
 </div>`;

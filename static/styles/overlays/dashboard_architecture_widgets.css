@@ -210,14 +210,16 @@
 .dash-coupling-row .dash-list-bar-fill.sev-info     { background: color-mix(in srgb, var(--accent) 65%, var(--muted)); }
 
 .dash-coupling-row .dash-list-rank {
-    position: relative;
-    padding-right: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+    width: 28px;
+    box-sizing: border-box;
 }
 .dash-coupling-row .dash-list-rank .dash-sev-dot {
-    position: absolute;
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
+    position: static;
+    transform: none;
 }
 .dash-coupling-row .dash-list-val small {
     font-weight: 500;
