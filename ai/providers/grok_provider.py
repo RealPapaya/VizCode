@@ -37,13 +37,14 @@ class GrokProvider(BaseProvider):
         messages: list[dict],
         tools: list[dict],
         system: str,
+        max_tokens: int | None = None,
     ) -> Iterator[dict]:
         grok_messages = _to_openai_messages(messages, system)
         grok_tools = _to_openai_tools(tools)
 
         body: dict = {
             "model": self._model,
-            "max_tokens": _MAX_TOKENS,
+            "max_tokens": max_tokens or _MAX_TOKENS,
             "messages": grok_messages,
             "stream": True,
         }

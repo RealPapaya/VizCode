@@ -51,6 +51,7 @@ class OpenAIProvider(BaseProvider):
         messages: list[dict],
         tools: list[dict],
         system: str,
+        max_tokens: int | None = None,
     ) -> Iterator[dict]:
         oai_messages = _to_openai_messages(messages, system)
         oai_tools    = _to_openai_tools(tools)
@@ -61,7 +62,7 @@ class OpenAIProvider(BaseProvider):
 
         body: dict = {
             "model":      self._model,
-            "max_tokens": _MAX_TOKENS,
+            "max_tokens": max_tokens or _MAX_TOKENS,
             "messages":   oai_messages,
             "stream":     True,
         }

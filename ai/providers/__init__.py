@@ -20,6 +20,7 @@ class BaseProvider:
         messages: list[dict],
         tools: list[dict],
         system: str,
+        max_tokens: int | None = None,
     ) -> Iterator[dict]:
         """
         Yield event dicts for one conversation turn.
@@ -34,5 +35,8 @@ class BaseProvider:
             Providers convert to their own format internally.
         system : str
             System prompt string.
+        max_tokens : int | None
+            Optional per-mode response budget. Providers fall back to their
+            local defaults when omitted.
         """
         raise NotImplementedError

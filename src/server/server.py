@@ -2300,8 +2300,10 @@ class Handler(BaseHTTPRequestHandler):
                     return False
 
             try:
-                from ai.vizbridge import VizBridge, load_config
+                from ai.vizbridge import VizBridge, load_config, trim_history
+                from ai.chat_modes import resolve_spec as _resolve_mode_spec
                 import qa_cache as _qa
+                import hashlib as _hashlib
 
                 # ── Load scan_cache for QA cache validation ───────────────────
                 _scan_cache_path = os.path.join(project_root, '.vizcode', 'scan_cache.json')
@@ -2321,11 +2323,23 @@ class Handler(BaseHTTPRequestHandler):
                     ''
                 )
 
-                # ── QA cache lookup (general depth + no output mode only) ─────
+                # QA cache lookup for cacheable modes; context_hash keeps
+                # multi-turn answers separate from one-shot answers.
+                _trimmed_history = trim_history(history)
+                _history_prefix = _trimmed_history[:-1] if _trimmed_history else []
+                _context_hash = _hashlib.sha256(
+                    json.dumps(_history_prefix, ensure_ascii=False, sort_keys=True).encode('utf-8')
+                ).hexdigest()[:16] if _history_prefix else ''
+                _mode_spec = _resolve_mode_spec(depth, output)
+                _input_chars = len(json.dumps(_trimmed_history, ensure_ascii=False))
+
                 _cached_entry = None
                 if (_last_user_q and not force_refresh
-                        and depth == 'general' and not output and _scan_cache):
-                    _cached_entry = _qa.lookup(_last_user_q, project_root, _scan_cache, depth)
+                        and _mode_spec.get('cacheable') and _scan_cache):
+                    _cached_entry = _qa.lookup(
+                        _last_user_q, project_root, _scan_cache, depth,
+                        output=output or '', context_hash=_context_hash,
+                    )
 
                 if _cached_entry:
                     # ── Replay cached answer ──────────────────────────────────
@@ -2335,6 +2349,12 @@ class Handler(BaseHTTPRequestHandler):
                     for _i in range(0, len(_ans), _chunk):
                         if not _sse({'type': 'delta', 'text': _ans[_i:_i + _chunk]}):
                             break
+                    _sse({
+                        'type': 'metrics',
+                        'cached': True,
+                        'input_chars': _input_chars,
+                        'tool_calls': len(_cached_entry.get('tool_calls') or []),
+                    })
                     _sse({'type': 'cached', 'entry_id': _cached_entry['id']})
                     _sse({'type': 'done'})
                     _qa.record_hit(project_root, _cached_entry['id'])
@@ -2359,8 +2379,9 @@ class Handler(BaseHTTPRequestHandler):
                     _tool_calls: list = []
                     _resp_provider = ''
                     _sent_done = False
+                    _started_at = time.time()
 
-                    for event in vb.stream_response(history, depth=depth, output=output):
+                    for event in vb.stream_response(_trimmed_history, depth=depth, output=output):
                         t = event.get('type', '')
                         if t == 'delta':
                             _ans_chunks.append(event.get('text', ''))
@@ -2374,6 +2395,14 @@ class Handler(BaseHTTPRequestHandler):
                             _resp_provider = event.get('name', '')
                         elif t == 'done':
                             _sent_done = True
+                            if not _sse({
+                                'type': 'metrics',
+                                'cached': False,
+                                'input_chars': _input_chars,
+                                'tool_calls': len(_tool_calls),
+                                'elapsed_ms': int((time.time() - _started_at) * 1000),
+                            }):
+                                break
                         if not _sse(event):
                             break  # client disconnected
                     if not _sent_done:
@@ -2382,7 +2411,7 @@ class Handler(BaseHTTPRequestHandler):
                     # ── Save to QA cache ──────────────────────────────────────
                     _full_ans = ''.join(_ans_chunks)
                     if (_last_user_q and _full_ans and _scan_cache
-                            and depth == 'general' and not output):
+                            and _mode_spec.get('cacheable')):
                         try:
                             _qa.save(
                                 question=_last_user_q,
@@ -2391,6 +2420,8 @@ class Handler(BaseHTTPRequestHandler):
                                 project_root=project_root,
                                 scan_cache=_scan_cache,
                                 depth=depth,
+                                output=output or '',
+                                context_hash=_context_hash,
                                 provider=_resp_provider or _provider,
                             )
                             print(f'[QA CACHE SAVE] len={len(_full_ans)}  files={len(_tool_calls)} tool(s)')

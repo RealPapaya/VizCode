@@ -44,12 +44,15 @@ BASE_URL     = f"http://localhost:{PORT}"
 # ─── Ensure project modules are importable from any launch location ────────────
 _IMPORT_DIRS = (
     str(ROOT_DIR),
-    str(SCRIPT_DIR / "server"),
     str(SCRIPT_DIR / "core"),
+    str(SCRIPT_DIR),
 )
 for _import_dir in _IMPORT_DIRS:
     if _import_dir not in sys.path:
         sys.path.insert(0, _import_dir)
+_SERVER_IMPORT_DIR = str(SCRIPT_DIR / "server")
+if _SERVER_IMPORT_DIR not in sys.path:
+    sys.path.append(_SERVER_IMPORT_DIR)
 
 # ─── ANSI ─────────────────────────────────────────────────────────────────────
 IS_WIN = sys.platform == "win32"

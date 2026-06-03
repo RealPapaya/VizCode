@@ -47,6 +47,7 @@ class OllamaProvider(BaseProvider):
         messages: list[dict],
         tools: list[dict],
         system: str,
+        max_tokens: int | None = None,
     ) -> Iterator[dict]:
         ollama_messages = _to_ollama_messages(messages, system)
         ollama_tools    = _to_ollama_tools(tools)
@@ -57,6 +58,8 @@ class OllamaProvider(BaseProvider):
             "messages": ollama_messages,
             "stream":   True,
         }
+        if max_tokens:
+            body["options"] = {"num_predict": max_tokens}
         if ollama_tools:
             body["tools"] = ollama_tools
 

@@ -51,5 +51,6 @@ class CustomProvider(BaseProvider):
         messages: list[dict],
         tools: list[dict],
         system: str,
+        max_tokens: int | None = None,
     ) -> Iterator[dict]:
-        yield from self._impl.stream_chat(messages, tools, system)
+        yield from self._impl.stream_chat(messages, tools, system, max_tokens=max_tokens)

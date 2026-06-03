@@ -32,14 +32,16 @@ _HERE = Path(__file__).parent
 _ROOT = _HERE.parent
 _IMPORT_DIRS = (
     _ROOT,
-    _ROOT / "src",
-    _ROOT / "src" / "server",
     _ROOT / "src" / "core",
+    _ROOT / "src",
 )
 for _import_dir in _IMPORT_DIRS:
     _import_dir_str = str(_import_dir)
     if _import_dir_str not in sys.path:
         sys.path.insert(0, _import_dir_str)
+_SERVER_IMPORT_DIR = str(_ROOT / "src" / "server")
+if _SERVER_IMPORT_DIR not in sys.path:
+    sys.path.append(_SERVER_IMPORT_DIR)
 
 # Import tool implementations from mcp_server (no MCP protocol needed)
 from mcp_server import (
@@ -49,6 +51,7 @@ from mcp_server import (
     _tool_l0,
     _tool_l1,
     _tool_l2,
+    _tool_l3,
     _tool_health,
     _tool_query,
     _tool_path,
@@ -65,7 +68,7 @@ from ai.ui_tools import (
 )
 
 # Conversation mode registry
-from ai.chat_modes import resolve as _resolve_mode
+from ai.chat_modes import resolve_spec as _resolve_mode_spec
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -104,6 +107,73 @@ _DEFAULTS: dict = {
     "codex_cli_path":      "",
     "gemini_cli_path":     "",
 }
+
+_MAX_HISTORY_MESSAGES = 8
+_MAX_HISTORY_CHARS = 12_000
+_TOOL_RESULT_LIMITS: dict[str, int] = {
+    "vizcode_path": 2_000,
+    "vizcode_query": 4_000,
+    "vizcode_explain": 4_000,
+    "vizcode_report": 6_000,
+    "vizcode_l0": 5_000,
+    "vizcode_l1": 5_000,
+    "vizcode_l2": 6_000,
+    "vizcode_l3": 7_000,
+    "vizcode_health": 5_000,
+}
+_DEFAULT_TOOL_RESULT_LIMIT = 5_000
+
+
+def _clip_text(text: str, limit: int, label: str = "content") -> str:
+    if limit <= 0 or len(text) <= limit:
+        return text
+    omitted = len(text) - limit
+    return (
+        text[:limit].rstrip()
+        + f"\n\n[truncated {label}: omitted {omitted} chars; ask for a narrower scope for full detail]"
+    )
+
+
+def _message_text_for_budget(msg: dict) -> str:
+    content = msg.get("content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict):
+                if item.get("type") == "text":
+                    parts.append(str(item.get("text", "")))
+                elif item.get("type") == "tool_use":
+                    parts.append(json.dumps(item, ensure_ascii=False))
+        return "\n".join(parts)
+    return str(content)
+
+
+def trim_history(
+    messages: list[dict],
+    *,
+    max_messages: int = _MAX_HISTORY_MESSAGES,
+    max_chars: int = _MAX_HISTORY_CHARS,
+) -> list[dict]:
+    """Return a compact suffix of the conversation while always keeping the latest turn."""
+    if not messages:
+        return []
+
+    latest = messages[-1]
+    kept_rev = [latest]
+    char_budget = len(_message_text_for_budget(latest))
+
+    for msg in reversed(messages[:-1]):
+        if len(kept_rev) >= max_messages:
+            break
+        msg_chars = len(_message_text_for_budget(msg))
+        if char_budget + msg_chars > max_chars:
+            break
+        kept_rev.append(msg)
+        char_budget += msg_chars
+
+    return list(reversed(kept_rev))
 
 
 def _read_json_file(path: Path) -> dict:
@@ -315,7 +385,7 @@ class ToolRegistry:
         self._root = Path(project_root)
         self._scan_path = self._root / ".vizcode" / "scan_cache.json"
         self._sem_path  = self._root / ".vizcode" / "semantic_cache.json"
-        self._report_path = self._root / ".vizcode" / "report" / "vizcode_report.md"
+        self._report_path = self._root / ".vizcode" / "vizcode_report.md"
         self._modules: dict | None = None
         self._edges:   list | None = None
         self._adj:     dict | None = None
@@ -340,22 +410,27 @@ class ToolRegistry:
         sk = self._stem_to_key
 
         if name == "vizcode_l0":
-            return _tool_l0(m, mf, sk)
-        if name == "vizcode_l1":
-            return _tool_l1(args.get("module", "."), m, mf, sk)
-        if name == "vizcode_l2":
-            return _tool_l2(args.get("file", ""), m)
-        if name == "vizcode_query":
-            return _tool_query(args.get("question", ""), m, e)
-        if name == "vizcode_path":
-            return _tool_path(args.get("source", ""), args.get("target", ""), m, a)
-        if name == "vizcode_explain":
-            return _tool_explain(args.get("symbol", ""), m, e)
-        if name == "vizcode_health":
-            return _tool_health(m, sk)
-        if name == "vizcode_report":
-            return _tool_report(str(self._report_path))
-        return f"Unknown tool: {name}"
+            result = _tool_l0(m, mf, sk)
+        elif name == "vizcode_l1":
+            result = _tool_l1(args.get("module", "."), m, mf, sk)
+        elif name == "vizcode_l2":
+            result = _tool_l2(args.get("file", ""), m)
+        elif name == "vizcode_l3":
+            result = _tool_l3(args.get("file", ""), m)
+        elif name == "vizcode_query":
+            result = _tool_query(args.get("question", ""), m, e)
+        elif name == "vizcode_path":
+            result = _tool_path(args.get("source", ""), args.get("target", ""), m, a)
+        elif name == "vizcode_explain":
+            result = _tool_explain(args.get("symbol", ""), m, e)
+        elif name == "vizcode_health":
+            result = _tool_health(m, sk)
+        elif name == "vizcode_report":
+            result = _tool_report(str(self._report_path))
+        else:
+            result = f"Unknown tool: {name}"
+        limit = _TOOL_RESULT_LIMITS.get(name, _DEFAULT_TOOL_RESULT_LIMIT)
+        return _clip_text(str(result), limit, name)
 
     @staticmethod
     def definitions(whitelist: set[str] | None = None) -> list[dict]:
@@ -514,24 +589,39 @@ class VizBridge:
                 yield {"type": "error", "message": str(e)}
                 return
 
-        # Resolve depth + output into (tool whitelist, prompt addendum).
-        whitelist, addendum = _resolve_mode(depth, output)
+        # Resolve depth + output into operational chat limits.
+        mode_spec = _resolve_mode_spec(depth, output)
+        whitelist = mode_spec["tool_whitelist"]
+        addendum = mode_spec["system_addendum"]
+        max_tokens = int(mode_spec["max_tokens"])
+        max_tool_rounds = int(mode_spec["max_tool_rounds"])
+        if _mode == "cli":
+            max_tool_rounds = min(max_tool_rounds, 2)
+            ui_names = set(UI_TOOL_NAMES)
+            if whitelist is None:
+                whitelist = {
+                    d.get("name", "")
+                    for d in (list(MCP_TOOL_SCHEMAS) + list(UI_TOOL_SCHEMAS))
+                    if d.get("name") not in ui_names
+                }
+            else:
+                whitelist = set(whitelist) - ui_names
 
         scan_path = str(Path(self._root) / ".vizcode" / "scan_cache.json")
         system    = self._context.build(self._root, scan_path, addendum=addendum)
         tool_defs = self._tools.definitions(whitelist=whitelist)
 
         # Working copy of messages — we append assistant + tool_result turns
-        working = list(messages)
+        working = trim_history(list(messages))
 
-        for _round in range(self._MAX_TOOL_ROUNDS):
+        for _round in range(max_tool_rounds):
             pending_tool_calls: list[dict] = []
             assistant_content:  list[dict] = []
             ui_results: dict[str, str] = {}   # tool_use id -> result for UI tools already fired mid-stream
             synthetic_tool_blobs: list[str] = []
             text_buf = ""
 
-            for ev in provider.stream_chat(working, tool_defs, system):
+            for ev in provider.stream_chat(working, tool_defs, system, max_tokens=max_tokens):
                 if ev["type"] == "delta":
                     text_buf += ev["text"]
                     yield ev

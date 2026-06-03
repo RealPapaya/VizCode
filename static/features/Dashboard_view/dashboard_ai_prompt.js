@@ -801,6 +801,7 @@
             return;
         }
 
+        const forceRefresh = !!(state.response || state.parsed);
         state.busy = true;
         state.response = '';
         state.parsed = null;
@@ -819,9 +820,9 @@
                 body: JSON.stringify({
                     job_id: window.JOB_ID || '',
                     history: [{ role: 'user', content: _dashAiBuildPrompt() }],
-                    depth: 'deep',
-                    output: null,
-                    force_refresh: true,
+                    depth: 'general',
+                    output: 'remediation_prompt',
+                    force_refresh: forceRefresh,
                 }),
             });
             if (!resp.ok) {

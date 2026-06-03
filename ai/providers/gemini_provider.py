@@ -64,6 +64,7 @@ class GeminiProvider(BaseProvider):
         messages: list[dict],
         tools: list[dict],
         system: str,
+        max_tokens: int | None = None,
     ) -> Iterator[dict]:
         contents, system_instruction = _to_gemini_messages(messages, system)
         gemini_tools = _to_gemini_tools(tools)
@@ -75,7 +76,7 @@ class GeminiProvider(BaseProvider):
 
         body: dict = {
             "contents":         contents,
-            "generationConfig": {"maxOutputTokens": _MAX_TOKENS},
+            "generationConfig": {"maxOutputTokens": max_tokens or _MAX_TOKENS},
         }
         if system_instruction:
             body["systemInstruction"] = {"parts": [{"text": system_instruction}]}

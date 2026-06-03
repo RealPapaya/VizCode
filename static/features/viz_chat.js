@@ -37,7 +37,7 @@
     let   _tourSubtitleTimer = null;
 
     // ── Chat mode state (depth × output) ─────────────────────────────────────
-    let _currentDepth  = localStorage.getItem('vizcode.chat.depth')  || 'general';
+    let _currentDepth  = localStorage.getItem('vizcode.chat.depth')  || 'quick';
     let _currentOutput = localStorage.getItem('vizcode.chat.output') || null;
     let _modePickerOpen = false;
 
@@ -812,6 +812,17 @@
         } else if (ev.type === 'status') {
             const typing = document.getElementById('_chat-typing');
             if (typing && ev.message) typing.title = ev.message;
+
+        } else if (ev.type === 'metrics') {
+            const typing = document.getElementById('_chat-typing');
+            if (typing) {
+                const parts = [];
+                if (ev.cached) parts.push('cached');
+                if (ev.tool_calls != null) parts.push(`${ev.tool_calls} tools`);
+                if (ev.input_chars != null) parts.push(`${ev.input_chars} input chars`);
+                if (ev.elapsed_ms != null) parts.push(`${ev.elapsed_ms} ms`);
+                typing.title = parts.join(' | ');
+            }
 
         } else if (ev.type === 'done') {
             // handled in finishTurn after stream ends

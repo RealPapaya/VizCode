@@ -41,6 +41,7 @@ class AnthropicProvider(BaseProvider):
         messages: list[dict],
         tools: list[dict],
         system: str,
+        max_tokens: int | None = None,
     ) -> Iterator[dict]:
         """
         Yield event dicts for one turn.  Converts generic message format to
@@ -51,7 +52,7 @@ class AnthropicProvider(BaseProvider):
 
         body = {
             "model":      self._model,
-            "max_tokens": _MAX_TOKENS,
+            "max_tokens": max_tokens or _MAX_TOKENS,
             "system":     system,
             "messages":   anthropic_msgs,
             "stream":     True,

@@ -268,6 +268,7 @@ class CliRuntime:
         messages: list[dict],
         tools: list[dict],
         system: str,
+        max_tokens: int | None = None,
     ) -> Iterator[dict]:
         detected = detect_cli(self._defn, self._cfg)
         if not detected.get("available"):
@@ -400,15 +401,31 @@ class CliRuntime:
         yield {"type": "done"}
 
 
+def _compact_tool_for_prompt(tool: dict) -> dict:
+    schema = tool.get("inputSchema", {}) or {}
+    props = schema.get("properties", {}) if isinstance(schema, dict) else {}
+    args = []
+    if isinstance(props, dict):
+        for name, spec in props.items():
+            arg: dict = {"name": name}
+            if isinstance(spec, dict):
+                typ = spec.get("type")
+                if typ:
+                    arg["type"] = typ
+                desc = str(spec.get("description") or "")
+                if desc:
+                    arg["description"] = desc[:120]
+            args.append(arg)
+    return {
+        "name": tool.get("name", ""),
+        "description": str(tool.get("description", ""))[:220],
+        "required": schema.get("required", []) if isinstance(schema, dict) else [],
+        "args": args,
+    }
+
+
 def build_cli_prompt(system: str, messages: list[dict], tools: list[dict]) -> str:
-    tool_list = [
-        {
-            "name": t.get("name", ""),
-            "description": t.get("description", ""),
-            "inputSchema": t.get("inputSchema", {"type": "object", "properties": {}}),
-        }
-        for t in tools
-    ]
+    tool_list = [_compact_tool_for_prompt(t) for t in tools]
     parts = [
         system,
         "",

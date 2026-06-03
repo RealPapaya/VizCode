@@ -98,7 +98,14 @@ def _is_entry_valid(entry: dict, scan_cache: dict) -> bool:
 
 # ─── 公開 API ─────────────────────────────────────────────────────────────────
 
-def lookup(question: str, project_root, scan_cache: dict, depth: str = "general") -> Optional[dict]:
+def lookup(
+    question: str,
+    project_root,
+    scan_cache: dict,
+    depth: str = "general",
+    output: str = "",
+    context_hash: str = "",
+) -> Optional[dict]:
     """若找到有效的快取命中，回傳 entry dict，否則回傳 None。"""
     project_root = Path(project_root)
     entries = _load(project_root).get("entries", [])
@@ -110,6 +117,10 @@ def lookup(question: str, project_root, scan_cache: dict, depth: str = "general"
         if entry.get("question_hash") != q_hash:
             continue
         if entry.get("depth", "general") != depth:
+            continue
+        if entry.get("output", "") != (output or ""):
+            continue
+        if entry.get("context_hash", "") != (context_hash or ""):
             continue
         if not _is_entry_valid(entry, scan_cache):
             continue
@@ -125,6 +136,8 @@ def save(
     scan_cache: dict,
     depth: str = "general",
     provider: str = "",
+    output: str = "",
+    context_hash: str = "",
 ) -> None:
     """將一輪 Q&A 寫入快取。"""
     if not question.strip() or not answer.strip():
@@ -167,6 +180,8 @@ def save(
         "answer":          answer,
         "tool_calls":      tool_calls,
         "depth":           depth,
+        "output":          output or "",
+        "context_hash":    context_hash or "",
         "provider":        provider,
         "created_at":      now,
         "hits":            0,
@@ -177,7 +192,12 @@ def save(
     q_hash = _question_hash(question)
     # 取代同一問題的舊快取
     entries = [e for e in data.get("entries", [])
-               if not (e.get("question_hash") == q_hash and e.get("depth", "general") == depth)]
+               if not (
+                   e.get("question_hash") == q_hash
+                   and e.get("depth", "general") == depth
+                   and e.get("output", "") == (output or "")
+                   and e.get("context_hash", "") == (context_hash or "")
+               )]
     entries.insert(0, entry)
     data["entries"] = entries[:_MAX_ENTRIES]
     _flush(data, project_root)
