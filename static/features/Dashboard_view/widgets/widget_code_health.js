@@ -9,15 +9,16 @@ function _dashHealthGaugeSvg(score, color, opts = {}) {
     const scoreFont = opts.scoreFont || 28;
     const denFont   = opts.denFont   || 13;
     const denDy     = opts.denDy     || 20;
+    const denY      = opts.denY      || 112;
     const showDen   = opts.showDen !== false;
-    const scoreY    = showDen ? (104 - denDy) : 100;
+    const scoreY    = showDen ? (denY - denDy) : 100;
     return `
 <svg class="dash-health-gauge-svg" viewBox="0 0 220 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"${opts.style ? ` style="${opts.style}"` : ''}>
   <path class="dash-health-gauge-track" d="M 22 110 A 88 88 0 0 1 198 110"/>
   <path class="dash-health-gauge-fill" d="M 22 110 A 88 88 0 0 1 198 110"
         style="stroke-dasharray:${fillLen} ${gapLen};stroke:${color}"/>
   <text x="110" y="${scoreY}" class="dash-health-gauge-score" style="font-size:${scoreFont}px">${score.toFixed(1)}</text>
-  ${showDen ? `<text x="110" y="104" class="dash-health-gauge-den" style="font-size:${denFont}px">/ 10</text>` : ''}
+  ${showDen ? `<text x="110" y="${denY}" class="dash-health-gauge-den" style="font-size:${denFont}px">/ 10</text>` : ''}
 </svg>`;
 }
 
@@ -142,8 +143,8 @@ _dashRegisterWidget({
       <path class="dash-health-gauge-track" d="M 22 110 A 88 88 0 0 1 198 110"/>
       <path class="dash-health-gauge-fill" d="M 22 110 A 88 88 0 0 1 198 110"
             style="stroke-dasharray:${fillLen} ${gapLen};stroke:${color}"/>
-      <text x="110" y="84"  class="dash-health-gauge-score">${score.toFixed(1)}</text>
-      <text x="110" y="104" class="dash-health-gauge-den">/ 10</text>
+      <text x="110" y="92"  class="dash-health-gauge-score">${score.toFixed(1)}</text>
+      <text x="110" y="112" class="dash-health-gauge-den">/ 10</text>
     </svg>
     <span class="dash-health-status-badge" style="color:${color}">${_dashEscape(_dashT(statusKey))}</span>
   </div>

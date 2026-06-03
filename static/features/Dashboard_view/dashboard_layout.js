@@ -535,6 +535,10 @@ function _dashMountLayout() {
             content.innerHTML = '<div class="dash-empty">Widget error</div>';
         }
     }
+
+    if (typeof _dashAiPromptSyncIndicators === 'function') {
+        _dashAiPromptSyncIndicators();
+    }
 }
 
 function _dashSizeTierOf(w, h) {
