@@ -27,47 +27,48 @@ _dashRegisterWidget({
         const medium = items.filter(f => f.risk === 'medium');
         const low    = items.filter(f => f.risk === 'low');
 
-        function riskSection(label, list, color) {
-            if (!list.length) return '';
-            return `
-<div style="margin-bottom:1.5rem">
-  <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.6rem;padding-bottom:0.4rem;border-bottom:1px solid ${color}35">
-    <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></span>
-    <span style="font-size:0.72rem;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:${color}">${_dashEscape(label)}</span>
-    <span style="font-size:0.72rem;opacity:0.45">(${list.length})</span>
-  </div>
-  ${list.map(f => _dashBusFactorDetailRow(f, color)).join('')}
-</div>`;
-        }
+        const primaryColor = high.length ? 'var(--status-bad)' : 'var(--status-good)';
+        const summary = items.length
+            ? `${_dashFmtExactNum(high.length)} high-risk and ${_dashFmtExactNum(medium.length)} medium-risk files have concentrated ownership.`
+            : _dashT('dashBusFactorEmpty');
+        const heroVisual = _dashBusFactorDetailBars([
+            { label: _dashT('dashBusFactorHigh'), value: high.length, color: 'var(--status-bad)' },
+            { label: _dashT('dashBusFactorMedium'), value: medium.length, color: 'var(--status-warn)' },
+            { label: _dashT('dashBusFactorLow'), value: low.length, color: 'var(--status-good)' },
+        ]);
+        const statsBody = _dashBusFactorDetailStats([
+            { value: high.length, label: _dashT('dashBusFactorHigh'), color: 'var(--status-bad)' },
+            { value: medium.length, label: _dashT('dashBusFactorMedium'), color: 'var(--status-warn)' },
+            { value: low.length, label: _dashT('dashBusFactorLow'), color: 'var(--status-good)' },
+            { value: items.length, label: 'files analyzed' },
+        ]);
+        const riskBody = items.length
+            ? [
+                _dashBusFactorRiskGroup(_dashT('dashBusFactorHigh'), high, 'var(--status-bad)'),
+                _dashBusFactorRiskGroup(_dashT('dashBusFactorMedium'), medium, 'var(--status-warn)'),
+                _dashBusFactorRiskGroup(_dashT('dashBusFactorLow'), low, 'var(--status-good)'),
+            ].join('')
+            : `<div class="dash-empty">${_dashEscape(_dashT('dashBusFactorEmpty'))}</div>`;
 
-        const summary = `
-  <div class="dash-detail-stat-row">
-    <div style="text-align:center">
-      <div style="font-size:2.25rem;font-weight:700;color:var(--status-bad);line-height:1">${high.length}</div>
-      <div style="font-size:0.7rem;opacity:0.55;margin-top:4px">${_dashEscape(_dashT('dashBusFactorHigh'))}</div>
-    </div>
-    <div style="width:1px;height:40px;background:var(--panel-border-color)"></div>
-    <div style="text-align:center">
-      <div style="font-size:2.25rem;font-weight:700;color:var(--status-warn);line-height:1">${medium.length}</div>
-      <div style="font-size:0.7rem;opacity:0.55;margin-top:4px">${_dashEscape(_dashT('dashBusFactorMedium'))}</div>
-    </div>
-    <div style="width:1px;height:40px;background:var(--panel-border-color)"></div>
-    <div style="text-align:center">
-      <div style="font-size:2.25rem;font-weight:700;color:var(--status-good);line-height:1">${low.length}</div>
-      <div style="font-size:0.7rem;opacity:0.55;margin-top:4px">${_dashEscape(_dashT('dashBusFactorLow'))}</div>
-    </div>
-    <div style="flex:1"></div>
-    <div style="font-size:0.75rem;opacity:0.4">${items.length} files</div>
-  </div>`;
-        const riskBody = `
-  ${riskSection(_dashT('dashBusFactorHigh'),   high,   'var(--status-bad)')}
-  ${riskSection(_dashT('dashBusFactorMedium'), medium, 'var(--status-warn)')}
-  ${riskSection(_dashT('dashBusFactorLow'),    low,    'var(--status-good)')}
-  ${!items.length ? `<div class="dash-empty">${_dashEscape(_dashT('dashBusFactorEmpty'))}</div>` : ''}
-`;
         container.innerHTML = `
-${_dashReportSection({ title: _dashT('dashBusFactorTitle'), body: summary })}
-${_dashReportSection({ title: 'Ownership Risk Files', body: _dashReportList(riskBody) })}`;
+<div class="dash-bus-factor-detail">
+  <section class="dash-bus-factor-detail__hero">
+    <div class="dash-bus-factor-detail__hero-copy">
+      <div class="dash-bus-factor-detail__eyebrow">Ownership concentration</div>
+      <h2 class="dash-bus-factor-detail__title">${_dashEscape(_dashT('dashBusFactorTitle'))}</h2>
+      <div class="dash-bus-factor-detail__primary">
+        <span class="dash-bus-factor-detail__primary-value" style="color:${primaryColor}">${_dashFmtExactNum(high.length)}</span>
+        <span class="dash-bus-factor-detail__primary-suffix">high-risk files</span>
+      </div>
+      <p class="dash-bus-factor-detail__summary">${_dashEscape(summary)}</p>
+    </div>
+    <div class="dash-bus-factor-detail__hero-visual">${heroVisual}</div>
+  </section>
+  <div class="dash-bus-factor-detail__sections">
+    ${_dashBusFactorDetailSection('Risk Summary', statsBody)}
+    ${_dashBusFactorDetailSection('Ownership Risk Files', riskBody)}
+  </div>
+</div>`;
     },
 });
 
@@ -134,34 +135,87 @@ function _dashBusFactorRow(f) {
 </div>`;
 }
 
+function _dashBusFactorDetailSection(title, body) {
+    return `
+<section class="dash-bus-factor-detail-section">
+  <div class="dash-bus-factor-detail-section__head">
+    <div class="dash-bus-factor-detail-section__title">${_dashEscape(title)}</div>
+  </div>
+  <div class="dash-bus-factor-detail-section__body">${body || ''}</div>
+</section>`;
+}
+
+function _dashBusFactorDetailStats(items) {
+    return `
+<div class="dash-bus-factor-detail-stats">
+  ${(items || []).map(item => {
+        const color = item.color ? ` style="color:${item.color}"` : '';
+        return `<div class="dash-bus-factor-detail-stat">
+    <span class="dash-bus-factor-detail-stat__value"${color}>${_dashFmtExactNum(item.value || 0)}</span>
+    <small class="dash-bus-factor-detail-stat__label">${_dashEscape(item.label || '')}</small>
+  </div>`;
+    }).join('')}
+</div>`;
+}
+
+function _dashBusFactorDetailBars(items) {
+    const rows = items || [];
+    const max = Math.max(1, ...rows.map(row => Number(row.value || 0)));
+    return `
+<div class="dash-bus-factor-detail-bars">
+  ${rows.map(row => {
+        const value = Number(row.value || 0);
+        const pct = Math.max(4, Math.round(value / max * 100));
+        return `<div class="dash-bus-factor-detail-bars__row" style="--dash-bf-color:${row.color};--dash-bf-width:${pct}%">
+    <span class="dash-bus-factor-detail-bars__label">${_dashEscape(row.label || '')}</span>
+    <div class="dash-bus-factor-detail-bars__track"><i></i></div>
+    <b class="dash-bus-factor-detail-bars__value">${_dashFmtExactNum(value)}</b>
+  </div>`;
+    }).join('')}
+</div>`;
+}
+
+function _dashBusFactorRiskGroup(label, list, color) {
+    if (!list.length) return '';
+    return `
+<section class="dash-bus-factor-detail-risk" style="--dash-bf-color:${color}">
+  <div class="dash-bus-factor-detail-risk__head">
+    <span class="dash-bus-factor-detail-risk__dot"></span>
+    <span class="dash-bus-factor-detail-risk__label">${_dashEscape(label)}</span>
+    <span class="dash-bus-factor-detail-risk__count">${_dashFmtExactNum(list.length)}</span>
+  </div>
+  <div class="dash-bus-factor-detail-files">
+    ${list.map((f, i) => _dashBusFactorDetailRow(f, color, i + 1)).join('')}
+  </div>
+</section>`;
+}
+
 // Expanded row for the detail panel
-function _dashBusFactorDetailRow(f, color) {
+function _dashBusFactorDetailRow(f, color, rank) {
     const pct      = Math.round((f.primary_share || 0) * 100);
     const parts    = String(f.file || '').split(/[/\\]/);
     const fileName = parts.pop() || '';
     const dirPath  = parts.join('/');
+    const rawPath  = f.file || '';
     const owner    = _dashEscape(f.primary_owner || 'Unknown');
     const authors  = f.total_authors || 1;
     const commits  = f.total_commits || 0;
+    const clickAttrs = rawPath
+        ? ` data-clickable="true" onclick="event.stopPropagation();_dashGoToGraphFile(${_dashJson(rawPath)}, null, null)"`
+        : '';
 
     return `
-<div class="dash-list-row" style="padding:8px 6px;margin-bottom:4px;border-radius:5px">
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-    <div style="flex:1;min-width:0">
-      <div style="font-size:0.82rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-           title="${_dashEscape(f.file || '')}">${_dashEscape(fileName)}</div>
-      ${dirPath ? `<div style="font-size:0.68rem;opacity:0.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px">${_dashEscape(dirPath)}</div>` : ''}
-    </div>
-    <div style="text-align:right;flex-shrink:0;font-size:0.75rem">
-      <div style="font-weight:600;color:${color}">${pct}%</div>
-      <div style="opacity:0.5;margin-top:1px">${owner}</div>
-    </div>
+<div class="dash-bus-factor-detail-file"${clickAttrs} title="${_dashEscape(rawPath)}" style="--dash-bf-color:${color};--dash-bf-share:${Math.max(0, Math.min(100, pct))}%">
+  <span class="dash-bus-factor-detail-file__rank">${_dashFmtExactNum(rank || 0)}</span>
+  <div class="dash-bus-factor-detail-file__name">
+    <strong>${_dashEscape(fileName)}</strong>
+    ${dirPath ? `<small>${_dashEscape(dirPath)}</small>` : ''}
   </div>
-  <div style="display:flex;align-items:center;gap:8px">
-    <div style="flex:1;height:6px;background:var(--panel-border-color);border-radius:3px;overflow:hidden">
-      <div style="width:${pct}%;height:100%;background:${color};border-radius:3px;opacity:0.85"></div>
-    </div>
-    <span style="font-size:0.7rem;opacity:0.45;flex-shrink:0">${authors} ${_dashEscape(_dashT(authors === 1 ? 'dashBusFactorAuthor' : 'dashBusFactorAuthors'))}${commits ? ` · ${commits} commits` : ''}</span>
+  <div class="dash-bus-factor-detail-file__track"><i></i></div>
+  <div class="dash-bus-factor-detail-file__meta">
+    <span class="dash-bus-factor-detail-file__share">${pct}%</span>
+    <small>${owner}</small>
+    <small>${authors} ${_dashEscape(_dashT(authors === 1 ? 'dashBusFactorAuthor' : 'dashBusFactorAuthors'))}${commits ? ` &middot; ${_dashFmtExactNum(commits)} commits` : ''}</small>
   </div>
 </div>`;
 }

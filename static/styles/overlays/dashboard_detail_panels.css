@@ -1413,6 +1413,401 @@
     }
 }
 
+/* Ownership Risk detail panel */
+.dash-bus-factor-detail {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(22px, 2.6vw, 32px);
+    min-width: 0;
+    padding-bottom: clamp(8px, 1.5vw, 14px);
+}
+
+.dash-bus-factor-detail__hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(300px, 0.92fr);
+    gap: clamp(20px, 2.5vw, 34px);
+    align-items: center;
+    min-width: 0;
+    padding-bottom: clamp(22px, 2.6vw, 32px);
+    border-bottom: 1px solid var(--dash-report-divider-color, var(--border));
+}
+
+.dash-bus-factor-detail__hero-copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 0;
+}
+
+.dash-bus-factor-detail__eyebrow {
+    margin: 0;
+    color: color-mix(in srgb, var(--accent) 82%, var(--muted));
+    font-size: 10px;
+    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.dash-bus-factor-detail__title {
+    margin: 0;
+    color: var(--text);
+    font-size: 28px;
+    line-height: 1.15;
+    font-weight: 720;
+    letter-spacing: 0;
+}
+
+.dash-bus-factor-detail__primary {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.dash-bus-factor-detail__primary-value {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 64px;
+    line-height: 0.95;
+    font-weight: 760;
+    letter-spacing: 0;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+.dash-bus-factor-detail__primary-suffix {
+    margin-bottom: 9px;
+    max-width: 160px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.dash-bus-factor-detail__summary {
+    margin: 0;
+    max-width: 64ch;
+    color: color-mix(in srgb, var(--text) 74%, var(--muted));
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.dash-bus-factor-detail__hero-visual {
+    min-width: 0;
+    width: 100%;
+}
+
+.dash-bus-factor-detail-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    min-width: 0;
+}
+
+.dash-bus-factor-detail-bars__row {
+    display: grid;
+    grid-template-columns: minmax(82px, 0.8fr) minmax(110px, 1fr) minmax(40px, auto);
+    gap: 12px;
+    align-items: center;
+    min-width: 0;
+}
+
+.dash-bus-factor-detail-bars__label,
+.dash-bus-factor-detail-bars__value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    line-height: 1.2;
+}
+
+.dash-bus-factor-detail-bars__label {
+    color: color-mix(in srgb, var(--text) 72%, var(--muted));
+    font-weight: 650;
+}
+
+.dash-bus-factor-detail-bars__value {
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-bus-factor-detail-bars__track,
+.dash-bus-factor-detail-file__track {
+    min-width: 0;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 9%, var(--surface-elevated));
+}
+
+.dash-bus-factor-detail-bars__track i,
+.dash-bus-factor-detail-file__track i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--dash-bf-color, var(--accent));
+}
+
+.dash-bus-factor-detail-bars__track i {
+    width: var(--dash-bf-width, 0%);
+}
+
+.dash-bus-factor-detail__sections,
+.dash-bus-factor-detail-section,
+.dash-bus-factor-detail-section__body,
+.dash-bus-factor-detail-files {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.dash-bus-factor-detail__sections {
+    gap: clamp(22px, 2.6vw, 32px);
+}
+
+.dash-bus-factor-detail-section {
+    gap: 14px;
+}
+
+.dash-bus-factor-detail-section + .dash-bus-factor-detail-section {
+    padding-top: clamp(22px, 2.6vw, 32px);
+    border-top: 1px solid var(--dash-report-divider-color, var(--border));
+}
+
+.dash-bus-factor-detail-section__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+}
+
+.dash-bus-factor-detail-section__title {
+    color: var(--text);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    line-height: 1.35;
+    min-width: 0;
+}
+
+.dash-bus-factor-detail-section__title::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    vertical-align: 1px;
+}
+
+.dash-bus-factor-detail-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 14px;
+    min-width: 0;
+}
+
+.dash-bus-factor-detail-stat {
+    min-width: 0;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-elevated) 80%, transparent);
+}
+
+.dash-bus-factor-detail-stat__value {
+    display: block;
+    overflow: hidden;
+    color: var(--text);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 23px;
+    line-height: 1;
+    font-weight: 740;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-bus-factor-detail-stat__label {
+    display: block;
+    margin-top: 7px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.dash-bus-factor-detail-risk {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    min-width: 0;
+}
+
+.dash-bus-factor-detail-risk + .dash-bus-factor-detail-risk {
+    margin-top: 18px;
+}
+
+.dash-bus-factor-detail-risk__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid color-mix(in srgb, var(--dash-bf-color, var(--accent)) 28%, transparent);
+}
+
+.dash-bus-factor-detail-risk__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--dash-bf-color, var(--accent));
+    flex-shrink: 0;
+}
+
+.dash-bus-factor-detail-risk__label {
+    color: var(--dash-bf-color, var(--accent));
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.dash-bus-factor-detail-risk__count {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-bus-factor-detail-files {
+    gap: 3px;
+}
+
+.dash-bus-factor-detail-file {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr) minmax(82px, 140px) minmax(118px, auto);
+    gap: 10px;
+    align-items: center;
+    min-width: 0;
+    padding: 6px;
+    border-radius: 5px;
+    font-size: 12px;
+    transition: background 0.12s;
+}
+
+.dash-bus-factor-detail-file[data-clickable] {
+    cursor: pointer;
+}
+
+.dash-bus-factor-detail-file[data-clickable]:hover {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.dash-bus-factor-detail-file__rank {
+    color: var(--muted);
+    font-size: 10px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-bus-factor-detail-file__name {
+    min-width: 0;
+}
+
+.dash-bus-factor-detail-file__name strong,
+.dash-bus-factor-detail-file__name small,
+.dash-bus-factor-detail-file__meta small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-bus-factor-detail-file__name strong {
+    color: var(--text);
+    font-weight: 650;
+}
+
+.dash-bus-factor-detail-file__name small,
+.dash-bus-factor-detail-file__meta small {
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.35;
+}
+
+.dash-bus-factor-detail-file__track i {
+    width: var(--dash-bf-share, 0%);
+}
+
+.dash-bus-factor-detail-file__meta {
+    min-width: 0;
+    text-align: right;
+}
+
+.dash-bus-factor-detail-file__share {
+    display: block;
+    color: var(--dash-bf-color, var(--accent));
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    font-weight: 740;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+    .dash-bus-factor-detail__hero {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dash-bus-factor-detail__hero-visual {
+        display: none;
+    }
+}
+
+@media (max-width: 720px) {
+    .dash-bus-factor-detail {
+        gap: 16px;
+    }
+
+    .dash-bus-factor-detail__hero {
+        padding-bottom: 16px;
+    }
+
+    .dash-bus-factor-detail__title {
+        font-size: 22px;
+    }
+
+    .dash-bus-factor-detail__primary-value {
+        font-size: 48px;
+    }
+
+    .dash-bus-factor-detail__primary-suffix {
+        margin-bottom: 6px;
+    }
+
+    .dash-bus-factor-detail-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .dash-bus-factor-detail-file {
+        grid-template-columns: 24px minmax(0, 1fr) minmax(54px, auto);
+    }
+
+    .dash-bus-factor-detail-file__track {
+        display: none;
+    }
+}
+
 /* ── Tech Debt detail panel ─────────────────────────────────────────────── */
 .dash-kpi-detail--tech-debt .dash-kpi-detail-row {
     grid-template-columns: 24px minmax(0, 1fr) minmax(72px, 120px) minmax(44px, auto);
