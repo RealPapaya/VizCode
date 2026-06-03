@@ -77,6 +77,9 @@ function _dashOpenDetailPanel(widgetId, originRect) {
             try {
                 widget.renderDetail(body, DATA.stats);
                 _dashEnhanceDetailInteractions(body, widgetId, DATA.stats);
+                if (typeof _dashAiPromptEnhanceDetail === 'function') {
+                    _dashAiPromptEnhanceDetail(body, widgetId, DATA.stats);
+                }
             } catch (err) {
                 console.error(`[dashboard] detail for ${widgetId} failed:`, err);
                 body.innerHTML = `<div class="dash-empty">⚠ detail unavailable</div>`;

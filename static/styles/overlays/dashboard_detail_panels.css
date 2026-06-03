@@ -201,6 +201,642 @@
 
 .dash-detail-close:hover { border-color: #f87171; color: #f87171; }
 
+.dash-ai-prompt-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-width: 0;
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.dash-ai-prompt-btn:hover {
+    border-color: color-mix(in srgb, var(--accent) 70%, var(--border));
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--accent);
+}
+
+.dash-ai-prompt-btn:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 64%, transparent);
+    outline-offset: 2px;
+}
+
+.dash-ai-prompt-btn__icon {
+    display: inline-grid;
+    width: 20px;
+    height: 20px;
+    place-items: center;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--accent);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0;
+}
+
+.dash-widget.dash-ai-widget-generating {
+    border-color: color-mix(in srgb, var(--accent) 54%, var(--border));
+    box-shadow:
+        var(--shadow-sm),
+        0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent),
+        0 0 18px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.dash-widget.dash-ai-widget-unread {
+    border-color: color-mix(in srgb, var(--status-good, var(--accent)) 48%, var(--border));
+}
+
+.dash-ai-widget-hint {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 6;
+    max-width: min(180px, calc(100% - 16px));
+    min-height: 24px;
+    padding: 0 9px;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--accent) 62%, var(--border));
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-card) 88%, transparent);
+    color: var(--accent);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 22px;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+}
+
+.dash-ai-widget-hint:hover {
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface-card));
+}
+
+.dash-ai-widget-hint[data-state="busy"] {
+    padding-left: 24px;
+}
+
+.dash-ai-widget-hint[data-state="busy"]::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    margin-top: -4px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: dash-ai-pulse 1.2s ease-in-out infinite;
+}
+
+.dash-ai-widget-hint[data-state="unread"] {
+    border-color: color-mix(in srgb, var(--status-good, var(--accent)) 60%, var(--border));
+    color: var(--status-good, var(--accent));
+}
+
+#dashboard-btn.dash-ai-rail-unread {
+    position: relative;
+}
+
+#dashboard-btn.dash-ai-rail-unread::before {
+    content: "";
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--status-good, var(--accent));
+    box-shadow: 0 0 0 2px var(--panel), 0 0 10px color-mix(in srgb, var(--status-good, var(--accent)) 46%, transparent);
+}
+
+@keyframes dash-ai-pulse {
+    0%, 100% {
+        opacity: 0.55;
+        scale: 0.8;
+    }
+    50% {
+        opacity: 1;
+        scale: 1.1;
+    }
+}
+
+.dash-ai-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 142;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(0, 0, 0, 0.62);
+}
+
+.dash-ai-modal {
+    width: min(920px, calc(100vw - 36px));
+    max-height: min(860px, calc(100vh - 36px));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-lg);
+}
+
+.dash-ai-modal-head,
+.dash-ai-modal-foot {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-5);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.dash-ai-modal-head > div {
+    flex: 1;
+    min-width: 0;
+}
+
+.dash-ai-modal-head h3 {
+    margin: 3px 0 0;
+    color: var(--text);
+    font-size: 18px;
+    line-height: 1.2;
+    font-weight: 740;
+    letter-spacing: 0;
+}
+
+.dash-ai-modal-head p {
+    margin: 5px 0 0;
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.dash-ai-modal-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: var(--space-4) var(--space-5);
+}
+
+.dash-ai-modal-foot {
+    justify-content: flex-end;
+    border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+    border-bottom: 0;
+}
+
+.dash-ai-modal-foot button,
+.dash-ai-config button,
+.dash-ai-link-btn {
+    min-height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.dash-ai-modal-foot button:hover,
+.dash-ai-config button:hover,
+.dash-ai-link-btn:hover {
+    border-color: color-mix(in srgb, var(--accent) 70%, var(--border));
+    color: var(--accent);
+}
+
+.dash-ai-modal-foot button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+.dash-ai-modal-foot .dash-ai-primary {
+    border-color: color-mix(in srgb, var(--accent) 72%, var(--border));
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--accent);
+}
+
+.dash-ai-config {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-elevated) 74%, transparent);
+}
+
+.dash-ai-config > div {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.dash-ai-config strong {
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.25;
+}
+
+.dash-ai-config span {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.dash-ai-config.is-ready {
+    border-color: color-mix(in srgb, var(--status-good) 42%, var(--border));
+}
+
+.dash-ai-config.is-missing {
+    border-color: color-mix(in srgb, var(--status-warn) 46%, var(--border));
+}
+
+.dash-ai-settings,
+.dash-ai-output {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+}
+
+.dash-ai-scope {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    min-width: 0;
+}
+
+.dash-ai-scope-btn {
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.dash-ai-scope-btn.active {
+    border-color: color-mix(in srgb, var(--accent) 72%, var(--border));
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.dash-ai-scope-btn span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.dash-ai-scope-btn small {
+    display: block;
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+.dash-ai-field,
+.dash-ai-limit {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+
+.dash-ai-field > span,
+.dash-ai-limit > span {
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.dash-ai-finding-preview,
+.dash-ai-overall-hint,
+.dash-ai-empty {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.dash-ai-multi-head {
+    display: flex;
+    align-items: end;
+    gap: 10px;
+}
+
+.dash-ai-limit {
+    width: 138px;
+}
+
+.dash-ai-stepper {
+    display: grid;
+    grid-template-columns: 34px minmax(42px, 1fr) 34px;
+    align-items: center;
+    min-height: 34px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-elevated) 78%, transparent);
+}
+
+.dash-ai-stepper button {
+    width: 34px;
+    height: 34px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: 16px;
+    font-weight: 800;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.dash-ai-stepper button:hover {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    color: var(--accent);
+}
+
+.dash-ai-stepper strong {
+    display: grid;
+    min-width: 0;
+    height: 34px;
+    place-items: center;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-ai-choice-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 230px;
+    overflow: auto;
+    min-width: 0;
+    padding-right: 2px;
+}
+
+.dash-ai-check-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 230px;
+    overflow: auto;
+    padding-right: 2px;
+}
+
+.dash-ai-choice,
+.dash-ai-check {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 8px;
+    align-items: start;
+    width: 100%;
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-elevated) 66%, transparent);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.14s, background 0.14s, color 0.14s;
+}
+
+.dash-ai-choice:hover,
+.dash-ai-check:hover {
+    border-color: color-mix(in srgb, var(--accent) 54%, var(--border));
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface-elevated));
+}
+
+.dash-ai-choice:focus-visible,
+.dash-ai-check:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 64%, transparent);
+    outline-offset: 2px;
+}
+
+.dash-ai-choice.active,
+.dash-ai-check.active {
+    border-color: color-mix(in srgb, var(--accent) 76%, var(--border));
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.dash-ai-choice-mark,
+.dash-ai-check-box {
+    position: relative;
+    display: block;
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+    border: 1px solid color-mix(in srgb, var(--border) 82%, var(--muted));
+    background: color-mix(in srgb, var(--surface-card) 68%, transparent);
+    transition: border-color 0.14s, background 0.14s;
+}
+
+.dash-ai-choice-mark {
+    border-radius: 999px;
+}
+
+.dash-ai-check-box {
+    border-radius: 5px;
+}
+
+.dash-ai-choice.active .dash-ai-choice-mark,
+.dash-ai-check.active .dash-ai-check-box {
+    border-color: color-mix(in srgb, var(--accent) 84%, var(--border));
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.dash-ai-choice.active .dash-ai-choice-mark::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border-radius: inherit;
+    background: var(--accent);
+}
+
+.dash-ai-check.active .dash-ai-check-box::after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 4px;
+    width: 8px;
+    height: 5px;
+    border-left: 2px solid var(--accent);
+    border-bottom: 2px solid var(--accent);
+    transform: rotate(-45deg);
+}
+
+.dash-ai-choice-copy {
+    min-width: 0;
+}
+
+.dash-ai-choice strong,
+.dash-ai-choice small,
+.dash-ai-check strong,
+.dash-ai-check small {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-ai-choice strong,
+.dash-ai-check strong {
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1.3;
+}
+
+.dash-ai-choice small,
+.dash-ai-check small {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.3;
+}
+
+.dash-ai-status {
+    min-height: 18px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.dash-ai-error {
+    padding: 9px 10px;
+    border: 1px solid color-mix(in srgb, var(--status-bad) 50%, var(--border));
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--status-bad) 10%, transparent);
+    color: var(--status-bad);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.dash-ai-stream-preview,
+.dash-ai-result-section pre,
+.dash-ai-result-section textarea {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-elevated) 78%, transparent);
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+.dash-ai-stream-preview {
+    max-height: 210px;
+    overflow: auto;
+}
+
+.dash-ai-result-section {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-width: 0;
+}
+
+.dash-ai-result-section h4 {
+    margin: 0;
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.3;
+    font-weight: 800;
+}
+
+.dash-ai-result-section textarea {
+    min-height: 220px;
+    resize: vertical;
+}
+
+@media (max-width: 720px) {
+    .dash-ai-prompt-btn span:not(.dash-ai-prompt-btn__icon) {
+        display: none;
+    }
+
+    .dash-ai-modal-overlay {
+        padding: 8px;
+    }
+
+    .dash-ai-modal {
+        width: calc(100vw - 16px);
+        max-height: calc(100vh - 16px);
+    }
+
+    .dash-ai-modal-head,
+    .dash-ai-modal-foot,
+    .dash-ai-modal-body {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    .dash-ai-modal-foot {
+        flex-wrap: wrap;
+    }
+
+    .dash-ai-modal-foot button {
+        flex: 1 1 120px;
+    }
+
+    .dash-ai-scope {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dash-ai-config,
+    .dash-ai-multi-head {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .dash-ai-limit {
+        width: 100%;
+    }
+}
+
 
 
 .dash-detail-body {
@@ -2596,6 +3232,18 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.dash-coupling-detail-list .dash-list-row {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr) 80px 52px;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.dash-coupling-detail-list .dash-list-bar-track {
+    width: 100%;
+    min-width: 0;
+}
+
 /* Concentration bar hero visual */
 .dash-coupling-detail-conc {
     display: flex;
@@ -3109,7 +3757,7 @@
 }
 
 .dash-code-health-detail-row {
-    grid-template-columns: 24px minmax(0, 1fr) minmax(100px, 1fr) 44px minmax(96px, auto);
+    grid-template-columns: 24px 120px 1fr 44px minmax(96px, auto);
 }
 
 .dash-filetypes-detail-row[data-clickable],
