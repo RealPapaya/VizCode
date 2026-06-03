@@ -627,7 +627,8 @@ def build_html(data: dict, job_id: str = None) -> str:
         base / 'features' / 'Dashboard_view' / 'dashboard_index.js',
         # ── features/galaxy_view ──────────────────────────────────────────────
         base / 'features' / 'galaxy_view' / 'viz_galaxy.js',          # state, constants, UI, Sigma, reducers
-        base / 'features' / 'galaxy_view' / 'viz_galaxy_physics.js',  # FA2 physics (BH, FA2, Noverlap)
+        base / 'features' / 'galaxy_view' / 'viz_galaxy_physics.js',  # FA2 settings + main-thread fallback
+        base / 'features' / 'galaxy_view' / 'viz_galaxy_worker.js',   # off-thread sim core + Web Worker driver
         base / 'features' / 'galaxy_view' / 'viz_galaxy_graph.js',    # graph building + initial positions
         base / 'features' / 'galaxy_view' / 'viz_overview_flow.js',   # Overview shell flow (Galaxy/Treemap)
         base / 'features' / 'galaxy_view' / 'viz_treemap.js',         # Overview treemap layout + interactions

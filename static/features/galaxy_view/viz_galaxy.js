@@ -930,6 +930,7 @@ async function openGalaxy() {
 
 function closeGalaxy() {
     _gLayoutToken++; // cancel any in-flight async layout
+    if (typeof _galaxyStopSimWorker === 'function') _galaxyStopSimWorker();
     // Remove folder-select overlay if user closes Galaxy while picker is open
     // Note: do NOT reset _gSavedAllowedMods here — we want to preserve the
     // user's folder selection so that re-opening Galaxy skips the picker.
@@ -991,6 +992,7 @@ window.zoomGalaxyByStep = function (direction) {
 
 function _galaxyTeardownSigma() {
     // Full teardown — called only when data changes
+    if (typeof _galaxyStopSimWorker === 'function') _galaxyStopSimWorker();
     if (_gSig) { try { _gSig.kill(); } catch (_) { } _gSig = null; }
     _gGraph = null;
     _gDegreeCache = null;
@@ -1027,8 +1029,26 @@ async function _galaxyLayoutAsync() {
     runPromise = (async () => {
                 try {
             if (shouldRunFA2) {
-                await _galaxyFA2RunAsync(myToken);
+                // Prefer the off-thread worker so the main thread stays free for
+                // 60fps interaction during layout. Small graphs converge instantly
+                // and skip worker spin-up. A worker failure (e.g. blocked Blob URL
+                // on file://) falls back to the cooperative main-thread engine.
+                let ranWorker = false;
+                if (typeof Worker !== 'undefined' && _gGraph && _gGraph.order >= 400 &&
+                    typeof _galaxyFA2RunWorker === 'function') {
+                    try {
+                        await _galaxyFA2RunWorker(myToken);
+                        ranWorker = true;
+                    } catch (err) {
+                        console.warn('[galaxy] off-thread layout unavailable; using main thread', err);
+                        ranWorker = false;
+                    }
+                }
                 if (_gLayoutToken !== myToken) return; // cancelled (galaxy closed)
+                if (!ranWorker) {
+                    await _galaxyFA2RunAsync(myToken);
+                    if (_gLayoutToken !== myToken) return; // cancelled (galaxy closed)
+                }
                 _gLayoutDone = true;
             }
                         // Noverlap disabled — FA2 result is the final layout (overlaps are acceptable)
