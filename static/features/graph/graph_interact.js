@@ -513,16 +513,10 @@ function _updateBannerBreadcrumbs() {
 
         parts.forEach((part, i) => {
             const isLast = i === parts.length - 1;
-            const canReturnFromStructure = isLast && structActive;
             const subPath = parts.slice(0, i + 1).join('/');
             const fullPath = (modId ? modId + '/' : '') + subPath;
             addSeg(part,
-                isLast && !canReturnFromStructure ? null : () => {
-                    if (canReturnFromStructure && window.svHideSvView) {
-                        svHideSvView();
-                        updateBreadcrumb();
-                        return;
-                    }
+                isLast ? null : () => {
                     state.level = 1;
                     hideFuncView();
                     if (window._sv && window._sv.active && window.svHideSvView) window.svHideSvView();
@@ -531,13 +525,9 @@ function _updateBannerBreadcrumbs() {
                     filterGraphToSubPath(state.activeModule, subPath);
                     setSubdirActive(state.activeModule, subPath);
                 },
-                isLast && !canReturnFromStructure,
+                isLast,
                 fullPath);
         });
-    }
-
-    if (structActive) {
-        addSeg('Structure', null, true, 'Structure');
     }
 }
 

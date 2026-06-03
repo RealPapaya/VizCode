@@ -13,6 +13,11 @@
     --muted: #93918b;
     --card-bg: #1e1f1c;
 
+    /* Treemap */
+    --treemap-bg: #050505;
+    --treemap-text: #ffffff;
+    --treemap-text-muted: rgba(255, 255, 255, 0.86);
+
     --green: #849646;
     --red: #d16d6a;
     --yellow: #dfa745;
@@ -91,6 +96,11 @@
     --accent2: #b45309;
     --text: #111827;
     --muted: #4b5563;
+
+    /* Treemap */
+    --treemap-bg: var(--bg);
+    --treemap-text: #111827;
+    --treemap-text-muted: rgba(17, 24, 39, 0.75);
 
     --green: #16a34a;
     --red: #e8194b;
@@ -360,6 +370,50 @@
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
 }
 
+/* Light: Treemap overrides */
+[data-theme="claude"] .overview-treemap {
+    background: var(--bg);
+}
+[data-theme="claude"] .overview-treemap-cell {
+    filter: saturate(0.65) brightness(1.3);
+    border: 0.5px solid rgba(0, 0, 0, 0.12);
+}
+[data-theme="claude"] .overview-treemap-cell:hover {
+    filter: saturate(0.8) brightness(1.15);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.22);
+}
+[data-theme="claude"] .overview-treemap-cell.active {
+    filter: saturate(0.85) brightness(1.1);
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.14), 0 6px 16px rgba(0, 0, 0, 0.14);
+}
+
+/* Light: Level 3 Structure overrides */
+[data-theme="claude"] .sv-node.sv-compound .sv-node-bg {
+    fill: rgba(255, 255, 255, 0.65);
+    stroke: var(--border);
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.08));
+}
+[data-theme="claude"] .sv-node.sv-compound:hover .sv-node-bg {
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.12));
+}
+[data-theme="claude"] .sv-section-label-public {
+    fill: #1d4ed8;
+}
+[data-theme="claude"] .sv-section-label-private {
+    fill: #c2410c;
+}
+[data-theme="claude"] .sv-section-divider-public {
+    stroke: rgba(29, 78, 216, 0.22);
+}
+[data-theme="claude"] .sv-section-divider-private {
+    stroke: rgba(194, 65, 12, 0.22);
+}
+[data-theme="claude"] .sv-node.sv-ghost .sv-node-bg {
+    fill: var(--sv-ghost-bg);
+}
+
 /* Light: node modal / tooltip */
 [data-theme="claude"] .tip-body {
     color: var(--text);
@@ -435,6 +489,11 @@
     --accent2: #716040;
     --text: #020826;
     --muted: #716040;
+
+    /* Treemap */
+    --treemap-bg: var(--bg);
+    --treemap-text: #020826;
+    --treemap-text-muted: rgba(2, 8, 38, 0.75);
 
     /* Module Colors */
     --m1: #8c7851; --m2: #5a7d66; --m3: #a8504a; --m4: #4a687d; --m5: #7a597a;
@@ -679,6 +738,50 @@ body[data-top-mode="galaxy"] #l2-toggle-ext-lines {
     box-shadow: 0 10px 24px rgba(2, 8, 38, 0.10);
 }
 
+/* Parchment: Treemap overrides */
+[data-theme="parchment"] .overview-treemap {
+    background: var(--bg);
+}
+[data-theme="parchment"] .overview-treemap-cell {
+    filter: saturate(0.6) brightness(1.25);
+    border: 0.5px solid rgba(0, 0, 0, 0.12);
+}
+[data-theme="parchment"] .overview-treemap-cell:hover {
+    filter: saturate(0.75) brightness(1.15);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.22);
+}
+[data-theme="parchment"] .overview-treemap-cell.active {
+    filter: saturate(0.8) brightness(1.1);
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.14), 0 6px 16px rgba(0, 0, 0, 0.14);
+}
+
+/* Parchment: Level 3 Structure overrides */
+[data-theme="parchment"] .sv-node.sv-compound .sv-node-bg {
+    fill: rgba(255, 255, 255, 0.55);
+    stroke: var(--border);
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.08));
+}
+[data-theme="parchment"] .sv-node.sv-compound:hover .sv-node-bg {
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.12));
+}
+[data-theme="parchment"] .sv-section-label-public {
+    fill: #1d4ed8;
+}
+[data-theme="parchment"] .sv-section-label-private {
+    fill: #c2410c;
+}
+[data-theme="parchment"] .sv-section-divider-public {
+    stroke: rgba(29, 78, 216, 0.22);
+}
+[data-theme="parchment"] .sv-section-divider-private {
+    stroke: rgba(194, 65, 12, 0.22);
+}
+[data-theme="parchment"] .sv-node.sv-ghost .sv-node-bg {
+    fill: var(--sv-ghost-bg);
+}
+
 /* ── Parchment: Node modal / tooltip fixes ── */
 [data-theme="parchment"] .tip-body {
     color: var(--text);
@@ -743,4 +846,14 @@ body[data-top-mode="galaxy"] #l2-toggle-ext-lines {
 [data-theme="parchment"] .hljs-params,
 [data-theme="parchment"] .hljs-variable {
     color: #020826;
+}
+
+/* Light themes: Leaf nodes border overrides to ensure visible cards */
+[data-theme="claude"] .sv-node.sv-method .sv-node-bg,
+[data-theme="claude"] .sv-node.sv-top    .sv-node-bg {
+    stroke: var(--border);
+}
+[data-theme="parchment"] .sv-node.sv-method .sv-node-bg,
+[data-theme="parchment"] .sv-node.sv-top    .sv-node-bg {
+    stroke: var(--border);
 }

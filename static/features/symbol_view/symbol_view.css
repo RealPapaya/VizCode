@@ -351,11 +351,7 @@
 .sv-kind-property  .sv-node-bg  { stroke: #60a5fa; }
 .sv-kind-constant  .sv-node-bg  { stroke: #38bdf8; }
 
-/* Small leaf symbols (functions / methods / fields): no outer accent border —
-   the kind dot + label already carry the color. Compound containers
-   (class/struct/interface/enum → .sv-compound) keep their border. */
-.sv-node.sv-method .sv-node-bg,
-.sv-node.sv-top    .sv-node-bg { stroke: transparent; }
+
 
 /* Compound class container */
 .sv-node.sv-compound .sv-node-bg {

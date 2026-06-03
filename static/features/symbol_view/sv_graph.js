@@ -117,8 +117,9 @@ function _svAccessGroup(sym) {
 }
 
 function _svAccessStroke(access) {
-    if (access === 'public') return '#fbbf24';
-    if (access === 'private') return '#60a5fa';
+    const isLight = typeof _svIsLightTheme === 'function' && _svIsLightTheme();
+    if (access === 'public') return isLight ? '#d97706' : '#fbbf24';
+    if (access === 'private') return isLight ? '#2563eb' : '#60a5fa';
     return '';
 }
 
@@ -135,9 +136,10 @@ function _svResolveEdgeStroke(ed, fromNode) {
 function _svResolveSelectedEdgeStroke(ed, fromNode) {
     if (ed && ed.type && ed.type !== 'call') return _svEdgeColor(ed.type);
     const sourceAccess = ed && ed.sourceAccess ? ed.sourceAccess : _svAccessGroup(fromNode && fromNode.sym);
-    if (sourceAccess === 'public') return '#ffd76a';
-    if (sourceAccess === 'private') return '#8cc7ff';
-    return '#f0b060';
+    const isLight = typeof _svIsLightTheme === 'function' && _svIsLightTheme();
+    if (sourceAccess === 'public') return isLight ? '#b45309' : '#ffd76a';
+    if (sourceAccess === 'private') return isLight ? '#1d4ed8' : '#8cc7ff';
+    return isLight ? '#b45309' : '#f0b060';
 }
 
 function _svAccessTitle(access) {
@@ -2389,7 +2391,7 @@ function _svCreateNodeEl(n) {
         kindEl.setAttribute('class', 'sv-node-kind');
         kindEl.setAttribute('x', String(n.w - 10)); kindEl.setAttribute('y', '20');
         kindEl.setAttribute('text-anchor', 'end');
-        kindEl.style.fill = _svKindColor(sym.kind);   // tint the kind label by kind
+        kindEl.setAttribute('fill', _svKindColor(sym.kind));   // tint the kind label by kind
         kindEl.textContent = (sym.kind || '').toUpperCase();
         g.appendChild(kindEl);
 
@@ -2518,7 +2520,7 @@ function _svCreateNodeEl(n) {
         kindEl.setAttribute('x', String(n.w - 8)); kindEl.setAttribute('y', String(n.h / 2));
         kindEl.setAttribute('dominant-baseline', 'middle');
         kindEl.setAttribute('text-anchor', 'end');
-        kindEl.style.fill = _svKindColor(sym.kind);   // tint the kind label by kind
+        kindEl.setAttribute('fill', _svKindColor(sym.kind));   // tint the kind label by kind
         kindEl.textContent = (sym.kind || '').slice(0, 4).toUpperCase();
         g.appendChild(kindEl);
     }

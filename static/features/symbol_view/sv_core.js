@@ -115,19 +115,86 @@ const _SV_CARD_KINDS = new Set(['class', 'struct', 'interface', 'enum']);
 // animations more easing room near the end.
 const _SV_DUR_MS = 780;
 
+function _svIsLightTheme() {
+    const theme = document.body.getAttribute('data-theme');
+    return theme === 'claude' || theme === 'parchment';
+}
+
 function _svKindColor(kind) {
+    const isLight = _svIsLightTheme();
+    if (isLight) {
+        const lightKindColors = {
+            class:     '#4b5563',   // dark gray
+            struct:    '#4b5563',
+            interface: '#0d9488',   // dark teal
+            enum:      '#7c3aed',   // purple
+            type:      '#4b5563',
+            method:    '#b45309',   // amber
+            function:  '#b45309',
+            field:     '#2563eb',   // blue
+            key:       '#2563eb',
+            keyframes: '#7c3aed',
+            variable:  '#2563eb',
+            constant:  '#0284c7',   // sky
+            property:  '#2563eb',
+
+            protocol:   '#0d9488',
+            trait:      '#0d9488',
+            mixin:      '#0f766e',
+            record:     '#9333ea',
+            union:      '#9333ea',
+            typealias:  '#4b5563',
+            object:     '#4b5563',
+            impl:       '#4b5563',
+            extend:     '#4b5563',
+            namespace:  '#4f46e5',
+            module:     '#4f46e5',
+            package:    '#4f46e5',
+            annotation: '#db2777',
+            actor:      '#ea580c',
+            macro:      '#ea580c',
+
+            default:   '#6b7280',
+        };
+        return lightKindColors[kind] || lightKindColors.default;
+    }
     return _SV_KIND_COLOR[kind] || _SV_KIND_COLOR.default;
 }
 
 function _svSymDotColor(sym, isMethod) {
     const kind = sym && sym.kind;
+    const isLight = _svIsLightTheme();
     if (isMethod && (kind === 'method' || kind === 'function')) {
-        return sym.is_public === false ? '#e8762a' : '#60a5fa';
+        if (sym.is_public === false) {
+            return isLight ? '#d97706' : '#e8762a';
+        } else {
+            return isLight ? '#2563eb' : '#60a5fa';
+        }
     }
     return _svKindColor(kind);
 }
 
 function _svEdgeColor(type) {
+    const isLight = _svIsLightTheme();
+    if (isLight) {
+        const lightColors = {
+            call:        '#d97706',   // dark amber
+            inheritance: '#4b5563',   // dark gray
+            implements:  '#0d9488',   // dark teal
+            mixin_include: '#0f766e', // darker teal
+            mixin_extend:  '#0891b2',  // dark cyan
+            mixin_prepend: '#b45309',  // dark orange-brown
+            behaviour_impl: '#7c3aed', // dark violet
+            protocol_impl:  '#c026d3', // dark fuchsia
+            override:    '#db2777',    // dark pink
+            import:      '#059669',    // dark emerald
+            include:     '#059669',    // dark emerald
+            type_usage:  '#2563eb',    // dark blue
+            member:      '#6d28d9',    // dark indigo
+            default:     '#4b5563',
+        };
+        return lightColors[type] || lightColors.default;
+    }
     return _SV_EDGE_COLOR[type] || _SV_EDGE_COLOR.default;
 }
 

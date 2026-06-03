@@ -717,6 +717,13 @@ body.rail-expanded #app-rail #rail-toggle-btn .rail-toggle-collapse-icon {
     transition: color 0.16s ease, opacity 0.16s ease;
 }
 
+#level-switcher.lsw-overview .lsw-seg {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: none;
+}
+
 .lsw-seg.lsw-active {
     color: var(--text-on-accent);
 }
