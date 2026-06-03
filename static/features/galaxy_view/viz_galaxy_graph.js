@@ -618,12 +618,29 @@ function _galaxyInitPositions() {
     const nodeCount = _gGraph.order;
     if (nodeCount === 0) return;
 
-    // Very wide spread — FA2 starts from a well-separated state.
-    // The canvas is infinite so bigger = better for visual clarity.
-    const structuralSpread = Math.sqrt(nodeCount) * 300;
-    const childJitter = Math.sqrt(nodeCount) * 40;
+    // ── Even "supernova" seeding ──────────────────────────────────────────────
+    // Goal: every node starts on a well-separated, area-uniform position so FA2
+    // blooms outward evenly instead of leaving a dense central blob with a sparse
+    // rim. Nodes are grouped (community first, else nearest file/folder ancestor)
+    // so related nodes land in adjacent angular wedges and clusters stay legible;
+    // each group is itself an area-uniform mini-spiral with its structural nodes
+    // at the core and functions/methods on the outside — a per-cluster supernova.
+    //
+    // Why grouped + area-uniform rather than the old tree-from-centre seed: the
+    // previous seed parked structural roots at the origin and only flung the
+    // *community-tagged* symbols outward, so the (numerous) community-less
+    // functions stayed knotted in the centre. Grouping every node and spreading
+    // group members with r ∝ √(i/N) keeps density even from core to rim.
 
-    // ── Build parent-child map from structural edges ──
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+    // Compact seed radius. A SMALL start is essential: FA2 attraction grows with
+    // distance (f·d) while repulsion decays as 1/d², so a wide seed collapses
+    // inward before it can expand (the "converge then bloom" artifact). Starting
+    // compact lets repulsion dominate from frame one → a clean outward supernova
+    // bloom that fans each community into its own island.
+    const seedCore = Math.sqrt(nodeCount) * 25;
+
+    // ── Build structural parent/child maps + per-node type/community lookups ──
     const parentToChildren = new Map();
     const childToParent = new Map();
     _gGraph.forEachEdge((edge, attrs, src, tgt) => {
@@ -634,101 +651,106 @@ function _galaxyInitPositions() {
         }
     });
 
-    const allKeys = [];
-    _gGraph.forEachNode(key => allKeys.push(key));
-    const roots = allKeys.filter(k => !childToParent.has(k));
-
-    // ── Community pre-clustering (CodeViz golden angle spiral strategy) ──
-    // Collect all unique community IDs and compute a center for each
-    const communitySet = new Set();
+    const typeOf = new Map();
+    const communityOf = new Map();
     _gGraph.forEachNode((key, attrs) => {
-        if (attrs._community >= 0) communitySet.add(attrs._community);
+        typeOf.set(key, attrs._t);
+        communityOf.set(key, (attrs._community != null && attrs._community >= 0) ? attrs._community : -1);
     });
-    const communityCenters = new Map();
-    if (communitySet.size > 0) {
-        const goldenAngleCom = Math.PI * (3 - Math.sqrt(5));
-        const clusterSpread = structuralSpread * 1.2;
-        // Minimum radius keeps communities well outside the root cluster
-        const minRadius = Math.sqrt(nodeCount) * 120;
-        let ci = 0;
-        communitySet.forEach(comId => {
-            const angle = ci * goldenAngleCom;
-            // Spread from minRadius outward to clusterSpread
-            const t = communitySet.size > 1 ? ci / (communitySet.size - 1) : 0;
-            const radius = minRadius + (clusterSpread - minRadius) * Math.sqrt(t + 0.05);
-            communityCenters.set(comId, {
-                x: radius * Math.cos(angle),
-                y: radius * Math.sin(angle),
-            });
-            ci++;
-        });
-    }
-    const communityJitter = Math.sqrt(nodeCount) * 18;
 
-    // ── Position structural nodes (roots) in a SMALL circle near center ──
-    // Roots go in a tight cluster at center; leaves/communities spread outward.
-    const nodePositions = new Map();
-    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-    const rootSpread = Math.sqrt(nodeCount) * 60; // small — roots stay near center
+    // How central a node sits *inside its own group*: structure forms the core,
+    // code symbols orbit outside it. Lower rank ⇒ smaller local radius.
+    const typeRank = (t) => {
+        if (t === 'folder') return 0;
+        if (t === 'file') return 1;
+        if (t === 'function' || t === 'method') return 3;
+        return 2; // class / struct / interface / enum / typedef / other symbols
+    };
 
-    roots.forEach((key, idx) => {
-        const angle = idx * goldenAngle;
-        const radius = rootSpread * Math.sqrt((idx + 1) / Math.max(roots.length, 1));
-        const jitter = rootSpread * 0.15;
-        const x = radius * Math.cos(angle) + (Math.random() - 0.5) * jitter;
-        const y = radius * Math.sin(angle) + (Math.random() - 0.5) * jitter;
-        nodePositions.set(key, { x, y });
+    // Robust group key: community when known, otherwise the nearest *file*
+    // ancestor (so a file + its community-less members form one wedge), then the
+    // nearest folder, then the node's own structural root. Guarantees 100%
+    // coverage even when the backend computed few/no communities — the case that
+    // left most functions ungrouped and stuck in the centre.
+    const groupKeyFor = (key) => {
+        const com = communityOf.get(key);
+        if (com >= 0) return 'c' + com;
+        let cur = key, lastFile = null, lastFolder = null, top = key, guard = 0;
+        while (guard++ < 128) {
+            const t = typeOf.get(cur);
+            if (t === 'file' && lastFile === null) lastFile = cur;
+            if (t === 'folder' && lastFolder === null) lastFolder = cur;
+            const parent = childToParent.get(cur);
+            if (parent == null) { top = cur; break; }
+            cur = parent;
+        }
+        if (lastFile !== null) return 'F' + lastFile;
+        if (lastFolder !== null) return 'f' + lastFolder;
+        return 't' + top;
+    };
+
+    // Truly disconnected nodes (no structural parent, no children, no community):
+    // sprinkled area-uniform across an outer band so they never fall back to the
+    // centre and never bunch into a single wedge.
+    const orphans = [];
+    const groups = new Map(); // groupKey -> [nodeKey, ...]
+    _gGraph.forEachNode((key) => {
+        const isOrphan = !childToParent.has(key) && !parentToChildren.has(key) &&
+            communityOf.get(key) < 0;
+        if (isOrphan) { orphans.push(key); return; }
+        const gk = groupKeyFor(key);
+        let arr = groups.get(gk);
+        if (!arr) { arr = []; groups.set(gk, arr); }
+        arr.push(key);
+    });
+
+    // Process biggest groups first so the largest cluster anchors the core.
+    const groupKeys = Array.from(groups.keys());
+    groupKeys.sort((a, b) => groups.get(b).length - groups.get(a).length);
+    const K = groupKeys.length;
+
+    const place = (key, x, y) => {
         _gGraph.setNodeAttribute(key, 'x', x);
         _gGraph.setNodeAttribute(key, 'y', y);
+    };
+
+    // Every group's CENTRE sits on a golden-angle spiral at a modest radius with a
+    // non-zero floor — so each community starts pointing in a distinct direction
+    // and NO group owns the dead centre (the old seed parked the largest group at
+    // the origin, where it could never break apart, leaving a central blob).
+    // Members cluster tightly around their centre; FA2 repulsion then flings the
+    // whole compact ball outward, each community blooming into its own island.
+    groupKeys.forEach((gk, k) => {
+        const members = groups.get(gk);
+        members.sort((a, b) => typeRank(typeOf.get(a)) - typeRank(typeOf.get(b)));
+        const g = members.length;
+
+        const cAngle = k * goldenAngle;
+        const cRadius = seedCore * (0.35 + 0.65 * Math.sqrt(K > 1 ? k / (K - 1) : 0));
+        const cx = cRadius * Math.cos(cAngle);
+        const cy = cRadius * Math.sin(cAngle);
+
+        // Tight local cloud: keep members near their centre so each group reads as
+        // one clump that repulsion will expand. Floor stops tiny groups collapsing.
+        const localSpread = Math.max(seedCore * 0.03, seedCore * 0.45 * Math.sqrt(g / nodeCount));
+
+        members.forEach((key, j) => {
+            // Area-uniform mini-spiral; structural nodes (small j) form the local
+            // core, functions/methods orbit on the outside — a per-cluster supernova.
+            const lr = localSpread * Math.sqrt((j + 0.5) / g);
+            const la = j * goldenAngle;
+            const jitter = 0.9 + Math.random() * 0.2;
+            place(key, cx + lr * Math.cos(la) * jitter, cy + lr * Math.sin(la) * jitter);
+        });
     });
 
-    // ── BFS: position children near parents ──
-    const queue = [...roots];
-    const visited = new Set(roots);
-    while (queue.length > 0) {
-        const parentKey = queue.shift();
-        const parentPos = nodePositions.get(parentKey) || { x: 0, y: 0 };
-        const children = parentToChildren.get(parentKey) || [];
-        children.forEach(childKey => {
-            if (!visited.has(childKey)) {
-                visited.add(childKey);
-                const x = parentPos.x + (Math.random() - 0.5) * childJitter;
-                const y = parentPos.y + (Math.random() - 0.5) * childJitter;
-                nodePositions.set(childKey, { x, y });
-                _gGraph.setNodeAttribute(childKey, 'x', x);
-                _gGraph.setNodeAttribute(childKey, 'y', y);
-                queue.push(childKey);
-            }
-        });
-    }
-
-    // ── Orphans ──
-    allKeys.forEach(key => {
-        if (!nodePositions.has(key)) {
-            const x = (Math.random() - 0.5) * structuralSpread * 0.6;
-            const y = (Math.random() - 0.5) * structuralSpread * 0.6;
-            nodePositions.set(key, { x, y });
-            _gGraph.setNodeAttribute(key, 'x', x);
-            _gGraph.setNodeAttribute(key, 'y', y);
-        }
+    // Orphans: even golden-angle spiral on the outer band of the compact seed so
+    // they bloom outward with everything else instead of falling to the centre.
+    const O = orphans.length;
+    orphans.forEach((key, o) => {
+        const a = o * goldenAngle;
+        const r = seedCore * (0.9 + 0.35 * ((o + 0.5) / Math.max(O, 1)));
+        const jitter = 0.92 + Math.random() * 0.16;
+        place(key, r * Math.cos(a) * jitter, r * Math.sin(a) * jitter);
     });
-
-    // ── Community override: move symbol nodes OUTWARD from center ──
-    // Community centers are placed on a large-radius spiral so that
-    // code nodes spread to the periphery, with structural nodes in the middle.
-    if (communityCenters.size > 0) {
-        const symbolTypes = new Set(['class', 'struct', 'interface', 'enum',
-            'typedef', 'function', 'method']);
-        _gGraph.forEachNode((key, attrs) => {
-            if (attrs._community >= 0 && symbolTypes.has(attrs._t)) {
-                const center = communityCenters.get(attrs._community);
-                if (center) {
-                    const x = center.x + (Math.random() - 0.5) * communityJitter;
-                    const y = center.y + (Math.random() - 0.5) * communityJitter;
-                    _gGraph.setNodeAttribute(key, 'x', x);
-                    _gGraph.setNodeAttribute(key, 'y', y);
-                }
-            }
-        });
-    }
 }

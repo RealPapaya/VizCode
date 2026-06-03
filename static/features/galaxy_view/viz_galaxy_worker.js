@@ -439,11 +439,13 @@ function _galaxySnapshotGraphForSim() {
         noverlap: _G_NOVERLAP,
         stage: {
             maxIters: maxIters,
-            // Short coarse budget: ~18% of the iteration limit, clamped, so a
-            // usable layout appears fast before the slower refine pass.
-            stageAIters: Math.min(Math.max(120, Math.floor(maxIters * 0.18)), 400),
+            // Coarse budget: ~22% of the iteration limit, clamped. With the compact
+            // seed this stage IS the supernova bloom, so give it enough room to play.
+            stageAIters: Math.min(Math.max(160, Math.floor(maxIters * 0.22)), 500),
             coarseTheta: 0.9,
-            coarseSlowDown: base.slowDown * 2,
+            // Energetic coarse pass (was base·2, which muted the explosion): from a
+            // compact seed we want nodes to visibly burst outward, not crawl.
+            coarseSlowDown: base.slowDown * 0.8,
             refineTheta: base.barnesHutTheta,
             refineSlowDown: base.slowDown,
             minIters: convergence.minIters || 500,

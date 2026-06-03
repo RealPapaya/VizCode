@@ -447,7 +447,7 @@ function _gComputeDataFingerprint() {
 // selection so any data change invalidates the cached layout naturally.
 
 const _G_LAYOUT_STORAGE_PREFIX = 'vizcode:galaxy:layout:';
-const _G_LAYOUT_STORAGE_VERSION = 1;
+const _G_LAYOUT_STORAGE_VERSION = 2; // bumped: compact-seed + rebalanced-mass layout (v1 cached the old central-blob positions)
 const _G_LAYOUT_STORAGE_LIMIT_BYTES = 6 * 1024 * 1024; // ~6MB safety cap
 
 function _galaxyLayoutStorageKey(fp, allowedMods) {
@@ -1059,15 +1059,11 @@ async function _galaxyLayoutAsync() {
                 }
                 _gLayoutDone = true;
             }
-                        // Noverlap disabled — FA2 result is the final layout (overlaps are acceptable)
-            // if (_galaxyIsBackgroundPriority()) {
-            //     _gLayoutNeedsNoverlap = true;
-            // } else if (shouldRunFA2 || _gLayoutNeedsNoverlap) {
-            //     await _galaxyNoverlapPassAsync(myToken);
-            //     if (_gLayoutToken !== myToken) return; // cancelled (galaxy closed)
-            //     _gLayoutNeedsNoverlap = false;
-            // }
-            _gLayoutNeedsNoverlap = false; // Always false since Noverlap is disabled
+            // No separate Noverlap orchestration pass is needed here: the overlap
+            // removal (grid-based noverlapStep) already runs as the final stage of
+            // every FA2 run — see runNoverlap() in the worker and Stage C in
+            // _galaxyFA2RunAsync(). Even seeding keeps that pass cheap.
+            _gLayoutNeedsNoverlap = false;
             // Layout settled: clear any edge-hide (dense-graph case) and snap edges
             // into their final positions with one authoritative full refresh.
             _gHideEdgesDuringLayout = false;

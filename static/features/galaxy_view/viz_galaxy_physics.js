@@ -9,16 +9,21 @@
 // main-thread driver used when a worker is unavailable or for small graphs.
 
 // ── Node mass for force simulation ──────────────────────────────────────────
+// Repulsion is scaling·massᵢ·massⱼ. A very high folder:leaf ratio flings heavy
+// folders to the rim while leaving the (numerous) light leaf nodes too weakly
+// repulsive to separate — they collapse into a central blob. The ratio is kept
+// compressed (~5:1, was 25:1) so functions/methods repel enough to give each
+// community real area and resolve into distinct islands.
 const _G_MASS = {
-    folder: 50,
-    file: 5,
-    class: 20,
-    struct: 20,
-    interface: 15,
-    enum: 8,
+    folder: 14,
+    file: 6,
+    class: 9,
+    struct: 9,
+    interface: 8,
+    enum: 6,
     typedef: 5,
-    function: 3,
-    method: 2,
+    function: 4,
+    method: 3,
 };
 
 // ── Edge-type attraction weights ─────────────────────────────────────────────
