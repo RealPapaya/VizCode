@@ -470,48 +470,81 @@ function _galaxyFA2RunWorker(token) {
     _gSimWorker = worker;
 
     const n = snap.n;
-    const keys = snap.keys;
-    const sigmaCadence = n > 5000 ? 200 : n > 3000 ? 120 : n > 1500 ? 50 : 33;
+    const e = snap.e;
     const backgroundMode = typeof _galaxyIsBackgroundPriority === 'function' && _galaxyIsBackgroundPriority();
-    const cadenceMs = backgroundMode ? 250 : sigmaCadence;
+    // The worker streams at a steady rate; the main thread coalesces to at most
+    // one render per animation frame (see renderFrame). Edges are drawn during the
+    // layout (O(E) per idle-watch redraw), so widen the cadence as the graph gets
+    // heavier — fewer, well-spaced refreshes keep the main thread free for smooth
+    // pan/zoom while the structure is still visibly forming.
+    const heavy = n > 8000 || e > 16000;
+    const medium = n > 3000 || e > 6000;
+    const cadenceMs = backgroundMode ? 250 : (heavy ? 90 : medium ? 55 : 33);
 
     return new Promise((resolve, reject) => {
         let settled = false;
         let pollId = 0;
+        let pendingPos = null;   // newest positions awaiting a render
+        let rafScheduled = false;
 
+        const recycle = (buf) => {
+            try { worker.postMessage({ type: 'recycle', buf: buf }, [buf]); } catch (_) { }
+        };
         const cleanup = () => {
             if (pollId) { clearInterval(pollId); pollId = 0; }
+            pendingPos = null;
             worker.onmessage = null;
             worker.onerror = null;
             if (_gSimWorker === worker) _galaxyStopSimWorker();
         };
         const done = (fn) => { if (settled) return; settled = true; cleanup(); fn(); };
 
-        const writeBack = (pos) => {
-            for (let i = 0; i < n; i++) {
-                _gGraph.setNodeAttribute(keys[i], 'x', pos[2 * i]);
-                _gGraph.setNodeAttribute(keys[i], 'y', pos[2 * i + 1]);
+        // Bulk position write: one pass + one graph event, vs 2·N setNodeAttribute
+        // calls. updateEachNodeAttributes iterates in insertion order, matching the
+        // snapshot order the worker computes against.
+        const bulkWrite = (pos) => {
+            let i = 0;
+            _gGraph.updateEachNodeAttributes((node, attr) => {
+                attr.x = pos[2 * i]; attr.y = pos[2 * i + 1]; i++;
+                return attr;
+            }, { attributes: ['x', 'y'] });
+        };
+
+        // Coalesce ticks to one render per animation frame, always using the newest
+        // positions. Edges stay visible (hideEdgesOnMove drops them only during
+        // camera movement), so refreshes are paced by the edge-aware cadence above.
+        const renderFrame = () => {
+            rafScheduled = false;
+            const pos = pendingPos; pendingPos = null;
+            if (!pos) return;
+            if (_gLayoutToken !== token) { recycle(pos.buffer); done(resolve); return; }
+            const visible = !!_gSig && !!(typeof state !== 'undefined' && state && state.galaxyActive);
+            if (visible) {
+                bulkWrite(pos);
+                if (n <= 30000) _gSig.refresh();
             }
+            recycle(pos.buffer);
         };
 
         worker.onmessage = (ev) => {
             const m = ev.data;
             if (!m) return;
             if (_gLayoutToken !== token) { done(resolve); return; }
-            if (m.type !== 'tick' && m.type !== 'done') return;
 
-            const isDone = m.type === 'done';
-            const visible = !!_gSig && !!(typeof state !== 'undefined' && state && state.galaxyActive);
-            if (isDone || visible) {
-                writeBack(m.pos);
-                if (_gSig && n <= 30000) _gSig.refresh();
+            if (m.type === 'done') {
+                if (pendingPos) { recycle(pendingPos.buffer); pendingPos = null; }
+                // Always commit final positions so the layout cache persists them.
+                bulkWrite(m.pos);
+                done(resolve); // _galaxyLayoutAsync runs the authoritative full
+                               // refresh that snaps edges to their final positions.
+                return;
             }
-            if (isDone) {
-                done(resolve);
-            } else {
-                // Ping-pong the buffer back so the worker reuses it.
-                try { worker.postMessage({ type: 'recycle', buf: m.pos.buffer }, [m.pos.buffer]); } catch (_) { }
-            }
+            if (m.type !== 'tick') return;
+
+            // Newest-only: hand any unrendered buffer back to the worker.
+            if (pendingPos) recycle(pendingPos.buffer);
+            pendingPos = m.pos;
+            if (!rafScheduled) { rafScheduled = true; requestAnimationFrame(renderFrame); }
         };
         worker.onerror = (err) => {
             done(() => reject((err && err.error) || new Error('galaxy sim worker error')));

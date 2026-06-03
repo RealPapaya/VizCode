@@ -143,6 +143,9 @@ async function _galaxyFA2RunAsync(token) {
                 const now = performance.now();
                 if (sigmaRefreshInterval === 0 || now - lastSigmaRefresh >= sigmaRefreshInterval) {
                     flush();
+                    // Edges stay visible while settling; the sigmaRefreshInterval tiers
+                    // above already rate-limit these redraws on large graphs, and
+                    // hideEdgesOnMove drops edges during any pan/zoom.
                     if (n <= 30000) _gSig.refresh();
                     lastSigmaRefresh = now;
                 }

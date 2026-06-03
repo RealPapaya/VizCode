@@ -29,6 +29,7 @@ let _gPrecomputeQueued = false;
 let _gPrecomputePending = false;
 let _gBackgroundPrecomputeMode = false;
 let _gLayoutNeedsNoverlap = false;
+let _gHideEdgesDuringLayout = false; // hide edges while the layout animates (big graphs) — restored on completion
 let _gBackgroundHooksInstalled = false;
 let _gLastUserActionAt = 0;
 
@@ -930,6 +931,7 @@ async function openGalaxy() {
 
 function closeGalaxy() {
     _gLayoutToken++; // cancel any in-flight async layout
+    _gHideEdgesDuringLayout = false;
     if (typeof _galaxyStopSimWorker === 'function') _galaxyStopSimWorker();
     // Remove folder-select overlay if user closes Galaxy while picker is open
     // Note: do NOT reset _gSavedAllowedMods here — we want to preserve the
@@ -1029,6 +1031,12 @@ async function _galaxyLayoutAsync() {
     runPromise = (async () => {
                 try {
             if (shouldRunFA2) {
+                // Keep edges visible while the layout animates so the structure is
+                // readable as it settles. hideEdgesOnMove already drops edges during
+                // pan/zoom, so the extra cost is only on idle-watch redraws — which
+                // the edge-aware worker cadence absorbs. Hide only on pathologically
+                // dense graphs, where live edges would be unaffordable regardless.
+                _gHideEdgesDuringLayout = !!(_gGraph && _gGraph.size > 60000);
                 // Prefer the off-thread worker so the main thread stays free for
                 // 60fps interaction during layout. Small graphs converge instantly
                 // and skip worker spin-up. A worker failure (e.g. blocked Blob URL
@@ -1060,6 +1068,9 @@ async function _galaxyLayoutAsync() {
             //     _gLayoutNeedsNoverlap = false;
             // }
             _gLayoutNeedsNoverlap = false; // Always false since Noverlap is disabled
+            // Layout settled: clear any edge-hide (dense-graph case) and snap edges
+            // into their final positions with one authoritative full refresh.
+            _gHideEdgesDuringLayout = false;
             if (_gSig) _gSig.refresh();
             if (_gLayoutDone) {
                 _gPrecomputePending = false;
@@ -1068,6 +1079,7 @@ async function _galaxyLayoutAsync() {
             }
         } finally {
             if (_gLayoutPromise === runPromise) {
+                _gHideEdgesDuringLayout = false; // safety: never leave edges hidden
                 _gLayoutRunning = false;
                 _gLayoutPromise = null;
                 // Always clear _gPrecomputePending when layout finishes or is cancelled
@@ -1956,6 +1968,13 @@ function _galaxyNodeReducer(node, data) {
 }
 
 function _galaxyEdgeReducer(edge, data) {
+    // Edges normally stay visible during layout. This flag is only set for
+    // pathologically dense graphs (see _galaxyLayoutAsync), where drawing every
+    // edge each frame would be unaffordable; the final refresh restores them.
+    if (_gHideEdgesDuringLayout) {
+        data.hidden = true;
+        return data;
+    }
     if (!_galaxyFilter.edgeTypes.has(data._t)) {
         data.hidden = true;
         return data;
