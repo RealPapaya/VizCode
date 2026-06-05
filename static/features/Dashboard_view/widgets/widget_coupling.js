@@ -37,7 +37,8 @@ function _dashCouplingRow(item, idx, items, suffix) {
   <span class="dash-list-rank">${idx + 1}<span class="dash-sev-dot dash-sev-${sev}"></span></span>
   <span class="dash-list-name">${_dashEscape(fileShort)}<span class="dash-list-meta">${_dashEscape(item.file)}</span></span>
   <div class="dash-list-bar-track"><div class="dash-list-bar-fill sev-${sev}" style="width:${widthPct}%"></div></div>
-  <span class="dash-list-val">${item.count}<small>${pct}%</small></span>
+  <span class="dash-list-count">${item.count}</span>
+  <span class="dash-list-pct">${pct}%</span>
 </div>`;
 }
 
@@ -219,7 +220,7 @@ _dashRegisterWidget({
     </div>
   </div>
   <div class="dash-kpi-m-sep"></div>
-  <div class="dash-kpi-m-right" style="display:flex;flex-direction:column;gap:2px;overflow-y:auto;min-height:0">${rows}</div>
+  <div class="dash-kpi-m-right dash-coupling-m-list" style="display:flex;flex-direction:column;gap:2px;overflow-y:auto;min-height:0">${rows}</div>
 </div>`;
       return;
     }

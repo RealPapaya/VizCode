@@ -209,7 +209,6 @@ _dashRegisterWidget({
         <div class="dash-code-health-section__title">Diagnosis</div>
       </div>
       <div class="dash-code-health-summary-grid">
-        <div class="dash-code-health-summary-card"><span>${score.toFixed(1)}</span><small>overall score</small></div>
         <div class="dash-code-health-summary-card"><span>${_dashEscape(weakest ? weakest.label : 'n/a')}</span><small>lowest subscore</small></div>
         <div class="dash-code-health-summary-card"><span>${_dashFmtExactNum(weakest ? weakest.files.length : 0)}</span><small>affected files</small></div>
       </div>

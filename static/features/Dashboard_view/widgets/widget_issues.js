@@ -212,7 +212,7 @@ _dashRegisterWidget({
             deadByFile.get(f).push(s);
         });
         const deadFilesSorted = [...deadByFile.entries()].sort((a, b) => b[1].length - a[1].length);
-        const deadRows = deadFilesSorted.slice(0, 10).map(([file, syms], i) => {
+        const deadRows = deadFilesSorted.map(([file, syms], i) => {
             const short = file.split('/').pop();
             return `<div class="dash-kpi-detail-row" data-clickable="true"
                 title="${_dashEscape(file)}"
@@ -223,20 +223,20 @@ _dashRegisterWidget({
             </div>`;
         }).join('');
 
-        const unimpRows = unimpPaths.slice(0, 10).map((file, i) => {
-            const short = String(file).split('/').pop();
+        const unimpRows = unimpPaths.map((file, i) => {
+            const path = String(file).replace(/\\/g, '/');
+            const short = path.split('/').pop();
             return `<div class="dash-kpi-detail-row" data-clickable="true"
-                title="${_dashEscape(file)}"
-                onclick="_dashGoToGraphFile(${_dashJson(file)}, null)">
+                title="${_dashEscape(path)}"
+                onclick="_dashGoToGraphFile(${_dashJson(path)}, null)">
                 <span class="dash-kpi-detail-row__rank">${i + 1}</span>
-                <span class="dash-kpi-detail-row__name">${_dashEscape(short)}<span style="display:block;font-size:10px;color:var(--muted)">${_dashEscape(file)}</span></span>
+                <span class="dash-kpi-detail-row__name">${_dashEscape(short)}<span class="dash-kpi-detail-row__meta">${_dashEscape(path)}</span></span>
                 <span class="dash-kpi-detail-row__value">unimported</span>
             </div>`;
         }).join('');
 
-        const deadSection = (deadRows || unimpRows)
-            ? (deadRows || '') + (unimpRows || '')
-            : `<div class="dash-empty">No dead code detected</div>`;
+        const deadSection = deadRows || `<div class="dash-empty">No dead code detected</div>`;
+        const unimpSection = unimpRows || `<div class="dash-empty">No unimported files detected</div>`;
 
         // ── render ────────────────────────────────────────────────────────────
         container.innerHTML = `
@@ -268,9 +268,15 @@ ${circular > 0 ? _dashKpiDetailSectionHTML({
     title: 'Circular Dependencies',
     body: cycleRows,
 }) : ''}
-${(deadFuncs > 0 || unimp > 0) ? _dashKpiDetailSectionHTML({
-    title: 'Dead Code & Unimported',
+${deadFuncs > 0 ? _dashKpiDetailSectionHTML({
+    title: _dashT('dashIssuesDead') || 'Dead Code',
+    className: 'dash-issues-detail-scroll-section',
     body: deadSection,
+}) : ''}
+${unimp > 0 ? _dashKpiDetailSectionHTML({
+    title: _dashT('dashUnimportedFiles') || 'Unimported Files',
+    className: 'dash-issues-detail-scroll-section',
+    body: unimpSection,
 }) : ''}
   </div>
 </div>`;

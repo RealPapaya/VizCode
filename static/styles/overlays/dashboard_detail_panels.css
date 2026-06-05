@@ -3234,7 +3234,7 @@
 
 .dash-coupling-detail-list .dash-list-row {
     display: grid;
-    grid-template-columns: 28px minmax(0, 1fr) 80px 52px;
+    grid-template-columns: 28px minmax(0, 1fr) 80px 34px 28px;
     align-items: center;
     gap: var(--space-2);
 }
@@ -3458,6 +3458,12 @@
 .dash-kpi-detail--issues .dash-kpi-detail-row {
     grid-template-columns: 24px minmax(0, 1fr) minmax(72px, auto);
 }
+.dash-kpi-detail--issues .dash-issues-detail-scroll-section .dash-kpi-detail-section__body {
+    max-height: min(360px, 38vh);
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-width: thin;
+}
 .dash-issues-detail-status {
     display: flex;
     flex-direction: column;
@@ -3496,6 +3502,9 @@
 @media (max-width: 900px) {
     .dash-dup-detail-list {
         max-height: 320px;
+    }
+    .dash-kpi-detail--issues .dash-issues-detail-scroll-section .dash-kpi-detail-section__body {
+        max-height: 300px;
     }
 }
 
@@ -3849,7 +3858,7 @@
 
 .dash-code-health-summary-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: clamp(10px, 1.5vw, 16px);
     min-width: 0;
 }

@@ -209,6 +209,13 @@
 .dash-coupling-row .dash-list-bar-fill.sev-warn     { background: var(--status-warn); }
 .dash-coupling-row .dash-list-bar-fill.sev-info     { background: color-mix(in srgb, var(--accent) 65%, var(--muted)); }
 
+.dash-list-row.dash-coupling-row {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) 80px 34px 28px;
+    align-items: center;
+    gap: var(--space-2);
+}
+
 .dash-coupling-row .dash-list-rank {
     display: inline-flex;
     align-items: center;
@@ -221,11 +228,35 @@
     position: static;
     transform: none;
 }
-.dash-coupling-row .dash-list-val small {
-    font-weight: 500;
+
+.dash-coupling-row .dash-list-name {
+    min-width: 0;
+}
+
+.dash-coupling-row .dash-list-bar-track {
+    width: 80px;
+    min-width: 0;
+}
+
+.dash-coupling-row .dash-list-count,
+.dash-coupling-row .dash-list-pct {
+    min-width: 0;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.dash-coupling-row .dash-list-count {
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.dash-coupling-row .dash-list-pct {
     color: var(--muted);
-    margin-left: 4px;
     font-size: 10px;
+    font-weight: 500;
 }
 
 /* Graph intelligence large card */
