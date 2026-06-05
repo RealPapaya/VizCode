@@ -15,15 +15,17 @@ DEPTH_MODES: dict[str, dict] = {
         "system_addendum": "",
         "tool_whitelist": None,
         "max_tokens": 1536,
-        "max_tool_rounds": 4,
+        "max_tool_rounds": 3,
         "cacheable": True,
     },
     "deep": {
         "label": "Deep Analysis",
         "system_addendum": (
             "\n\nDEPTH: DEEP ANALYSIS.\n"
-            "- Always start with `vizcode_l0()` for any structural question.\n"
-            "- Before concluding anything about a file, call `vizcode_l1` or `vizcode_l2` to verify.\n"
+            "- Start with `vizcode_context(question)`; use `vizcode_l0()` only for an explicit "
+            "structural overview, then drill with `vizcode_l1` / `vizcode_l2` as needed.\n"
+            "- Before concluding anything about a file, verify with `vizcode_context`, "
+            "`vizcode_l2`, or `vizcode_trace`.\n"
             "- Attach an exact node_id (file path or `path::func`) to every claim.\n"
             "- Prefer `vizcode_ui_tour_step` over static highlights; walk the user through findings.\n"
         ),
@@ -37,7 +39,8 @@ DEPTH_MODES: dict[str, dict] = {
         "system_addendum": (
             "\n\nDEPTH: QUICK LOOKUP.\n"
             "- Answer in one or two sentences; be concise.\n"
-            "- Prefer `vizcode_query` or `vizcode_explain` over hierarchical drilldown.\n"
+            "- Prefer a single `vizcode_context` call (or `vizcode_query` / `vizcode_explain`) "
+            "over hierarchical drilldown.\n"
             "- Do NOT call `vizcode_l0` unless the user explicitly asks for the big picture.\n"
             "- Do NOT generate Mermaid flowcharts.\n"
             "- Do NOT launch guided tours (`vizcode_ui_tour_step`).\n"
@@ -45,7 +48,7 @@ DEPTH_MODES: dict[str, dict] = {
             "- If the user asks for a complex output, reply briefly that they should switch to General or Deep mode.\n"
         ),
         "tool_whitelist": {
-            "vizcode_query", "vizcode_explain", "vizcode_report",
+            "vizcode_context", "vizcode_query", "vizcode_explain", "vizcode_report",
             "vizcode_ui_emit_badge", "vizcode_ui_highlight_node",
         },
         "max_tokens": 768,
@@ -66,6 +69,7 @@ OUTPUT_MODES: dict[str, dict] = {
             "- If you cannot determine a meaningful flow from available tools, say what is missing; do NOT fabricate.\n"
         ),
         "tool_whitelist": {
+            "vizcode_context", "vizcode_trace",
             "vizcode_l0", "vizcode_l1", "vizcode_l2",
             "vizcode_query", "vizcode_explain",
         },

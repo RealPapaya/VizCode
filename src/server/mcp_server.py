@@ -10,6 +10,8 @@ Usage:
                          --sem  .vizcode/semantic_cache.json
 
 Tools exposed:
+    vizcode_context(question)     — one-shot ranked subgraph (prefer this first)
+    vizcode_trace(source, target) — dependency path with inline signatures + linking symbol
     vizcode_query(question)       — keyword-match modules + semantic edges
     vizcode_path(source, target)  — shortest dependency path (BFS)
     vizcode_explain(symbol)       — module role + direct connections
@@ -19,6 +21,7 @@ Tools exposed:
 
 import argparse
 import json
+import re
 import sys
 from collections import deque
 from pathlib import Path
@@ -179,6 +182,115 @@ def _build_stem_index(modules: dict) -> Tuple[dict, dict]:
         stem_to_key.setdefault(base_stem, key)
 
     return dict(mod_to_files), stem_to_key
+
+
+# ─── Symbol index + centrality ────────────────────────────────────────────────
+
+def _build_symbol_index(modules: dict, stem_to_key: dict) -> dict:
+    """Build a cross-file symbol resolution + centrality index from scan_cache.
+
+    Everything here is derived from data already in scan_cache.json (symdefs,
+    func_calls_by_func, imports) — no parser or pipeline changes. Computed once
+    at load time alongside _build_index / _build_stem_index.
+
+    Returns:
+        defs       — name -> list[{file,kind,line,end_line,signature,doc,is_public}]
+                     (cross-file name->defining-site resolver; ambiguity kept as a list)
+        file_indeg — file_key -> inbound import count
+        sym_indeg  — (file_key, name) -> inbound call count
+        callers    — (file_key, name) -> set[(file_key, name)]  (who calls it)
+        callees    — (file_key, name) -> set[(file_key, name)]  (what it calls)
+        file_score — file_key -> 0..1   (min-max normalised file_indeg)
+        sym_score  — (file_key, name) -> 0..1   (min-max normalised sym_indeg)
+    """
+    from collections import defaultdict
+
+    # ── name -> list of defining sites ────────────────────────────────────────
+    defs: dict[str, list[dict]] = defaultdict(list)
+    for fkey, m in modules.items():
+        extras = m.get("extras") or {}
+        docs = extras.get("docstrings", {}) if isinstance(extras, dict) else {}
+        for sd in (m.get("symdefs") or []):
+            name = sd.get("name", "")
+            if not name:
+                continue
+            defs[name].append({
+                "file":      fkey,
+                "kind":      sd.get("kind", "?"),
+                "line":      sd.get("line"),
+                "end_line":  sd.get("end_line"),
+                "signature": sd.get("signature") or "",
+                "doc":       (sd.get("doc") or docs.get(name, "") or ""),
+                "is_public": sd.get("is_public", True),
+            })
+
+    # ── file-level import in-degree + resolved undirected adjacency ───────────
+    # NOTE: _build_index's `adj` keys edges on raw import names that rarely equal a
+    # file key, so it is sparse. Here we resolve imports through stem_to_key (as
+    # _tool_l0 / _tool_health do) to get a usable adjacency for tracing.
+    file_indeg: dict[str, int] = {k: 0 for k in modules}
+    file_adj: dict[str, set] = {k: set() for k in modules}
+    for fkey, m in modules.items():
+        for imp in (m.get("imports") or []):
+            resolved = stem_to_key.get(_imp_name(imp))
+            if resolved and resolved != fkey and resolved in file_indeg:
+                file_indeg[resolved] += 1
+                file_adj[fkey].add(resolved)
+                file_adj[resolved].add(fkey)
+
+    def _resolve_callee(callee: str, src_file: str) -> Optional[str]:
+        sites = defs.get(callee)
+        if not sites:
+            return None                       # 0 matches -> drop (filters get/append/etc.)
+        if len(sites) == 1:
+            return sites[0]["file"]
+        if any(s["file"] == src_file for s in sites):
+            return src_file                   # prefer a same-file definition
+        return max(sites, key=lambda s: file_indeg.get(s["file"], 0))["file"]
+
+    # ── symbol-level call in-degree + caller/callee adjacency ─────────────────
+    sym_indeg: dict[tuple, int] = defaultdict(int)
+    callers: dict[tuple, set] = defaultdict(set)
+    callees: dict[tuple, set] = defaultdict(set)
+    for fkey, m in modules.items():
+        funcdefs = m.get("funcdefs") or []
+        fcbf = m.get("func_calls_by_func") or []
+        for i, fd in enumerate(funcdefs):
+            label = fd.get("label") if isinstance(fd, dict) else str(fd)
+            if not label:
+                continue
+            src = (fkey, label)
+            calls = fcbf[i] if i < len(fcbf) else []   # same guard as _tool_l2
+            for c in dict.fromkeys(calls):             # dedupe, preserve order
+                if not isinstance(c, str):
+                    continue
+                tgt_file = _resolve_callee(c, fkey)
+                if tgt_file is None:
+                    continue
+                tgt = (tgt_file, c)
+                if tgt == src:
+                    continue
+                sym_indeg[tgt] += 1
+                callers[tgt].add(src)
+                callees[src].add(tgt)
+
+    # ── normalise in-degrees to 0..1 ──────────────────────────────────────────
+    def _norm(d: dict) -> dict:
+        mx = max(d.values()) if d else 0
+        if mx <= 0:
+            return {k: 0.0 for k in d}
+        return {k: v / mx for k, v in d.items()}
+
+    return {
+        "defs":       dict(defs),
+        "file_indeg": file_indeg,
+        "file_adj":   {k: list(v) for k, v in file_adj.items()},
+        "sym_indeg":  dict(sym_indeg),
+        "callers":    dict(callers),
+        "callees":    dict(callees),
+        "file_score": _norm(file_indeg),
+        "sym_score":  _norm(dict(sym_indeg)),
+    }
 
 
 # ─── Tool implementations ─────────────────────────────────────────────────────
@@ -652,23 +764,29 @@ def _tool_health(modules: dict, stem_to_key: dict) -> str:
     return "\n".join(lines)
 
 
-def _tool_query(question: str, modules: dict, edges: list) -> str:
-    """Return modules and semantic edges matching keywords in the question."""
+def _tool_query(question: str, modules: dict, edges: list, symidx: Optional[dict] = None) -> str:
+    """Return modules and semantic edges matching keywords in the question.
+
+    When `symidx` is supplied, keyword ties are broken by file centrality so the
+    most-imported (hub) modules surface first.
+    """
     keywords = [w.lower() for w in question.split() if len(w) > 2]
     if not keywords:
         return "Please provide a question with at least one keyword."
+
+    fscore = (symidx or {}).get("file_score", {})
 
     def _score(text: str) -> int:
         t = text.lower()
         return sum(1 for k in keywords if k in t)
 
-    # Score each module name
+    # Score each module name; break keyword-score ties by centrality.
     hits: list[tuple[int, str]] = []
     for name in modules:
         s = _score(name)
         if s:
             hits.append((s, name))
-    hits.sort(reverse=True)
+    hits.sort(key=lambda h: (h[0], fscore.get(h[1], 0.0)), reverse=True)
     top_modules = {name for _, name in hits[:8]}
 
     # Score semantic edges by reason + module names
@@ -781,9 +899,469 @@ def _tool_explain(symbol: str, modules: dict, edges: list) -> str:
     return "\n".join(lines)
 
 
+# ─── Adaptive output budgets ──────────────────────────────────────────────────
+
+_BASE_TOOL_BUDGETS: dict = {
+    "vizcode_path":    2_000,
+    "vizcode_query":   4_000,
+    "vizcode_explain": 4_000,
+    "vizcode_report":  6_000,
+    "vizcode_l0":      5_000,
+    "vizcode_l1":      5_000,
+    "vizcode_l2":      6_000,
+    "vizcode_l3":      7_000,
+    "vizcode_health":  5_000,
+    "vizcode_context": 6_000,
+    "vizcode_trace":   4_000,
+}
+_DEFAULT_TOOL_BUDGET = 5_000
+
+
+def _budget_for_filecount(n_files: int) -> dict:
+    """Scale per-tool char budgets to repo size.
+
+    Small/medium repos keep today's caps (factor 1.0) so behaviour and existing
+    tests are unchanged; only large repos get bigger single-call payloads, which
+    saves the LLM extra drill-down round-trips on big codebases.
+    """
+    if n_files < 1500:
+        factor = 1.0
+    elif n_files < 6000:
+        factor = 1.5
+    else:
+        factor = 2.0
+    return {k: int(v * factor) for k, v in _BASE_TOOL_BUDGETS.items()}
+
+
+def _budget_clamp(text: str, char_budget: int) -> str:
+    if char_budget <= 0 or len(text) <= char_budget:
+        return text
+    return (text[:char_budget].rstrip()
+            + f"\n\n[output truncated to {char_budget} chars; narrow the question for more]")
+
+
+# ─── Smart-context helpers ────────────────────────────────────────────────────
+
+_STOPWORDS = frozenset({
+    "the", "and", "for", "how", "does", "do", "what", "which", "where", "when",
+    "who", "why", "is", "are", "was", "were", "to", "of", "in", "on", "at", "by",
+    "a", "an", "with", "that", "this", "from", "show", "me", "explain", "can",
+    "you", "it", "its", "into", "get", "got", "reach", "reaches", "call", "calls",
+    "flow", "flows", "connect", "connects", "between", "use", "uses", "used",
+    "work", "works", "about", "there", "their", "them", "then", "than", "code",
+    "file", "files", "function", "functions", "class", "module", "modules",
+})
+
+
+def _resolve_file(file_key: str, modules: dict) -> Optional[str]:
+    """Resolve a possibly-partial file key to an exact module key (fuzzy, like _tool_l2)."""
+    import os.path
+    if file_key in modules:
+        return file_key
+    candidates = [k for k in modules if file_key.lower() in k.lower()]
+    if not candidates:
+        return None
+    exact = [c for c in candidates if os.path.basename(c).lower() == file_key.lower()]
+    return (exact or candidates)[0]
+
+
+def _extract_tokens(question: str) -> list:
+    """Pull candidate symbol/file tokens out of a natural-language question."""
+    raw: list = []
+    raw.extend(re.findall(r"['\"`]([^'\"`]+)['\"`]", question))            # quoted spans first
+    for w in re.findall(r"[A-Za-z_][A-Za-z0-9_./]*", question):           # identifiers + paths
+        raw.append(w)
+        for part in re.split(r"[./]", w):
+            if part:
+                raw.append(part)
+    out: list = []
+    seen: set = set()
+    for t in raw:
+        t = t.strip()
+        if len(t) < 3 or t.lower() in _STOPWORDS or t.lower() in seen:
+            continue
+        seen.add(t.lower())
+        out.append(t)
+    return out
+
+
+def _is_strong_token(t: str) -> bool:
+    """A distinctive identifier (CamelCase / snake_case / path / long) — high seed confidence.
+
+    Generic short lowercase words ('loop', 'drive', 'post') are weak: they often collide
+    with unrelated symbol/file names, so they only seed when no strong token resolved.
+    """
+    return ("_" in t) or ("/" in t) or ("." in t) or any(c.isupper() for c in t[1:]) or len(t) >= 8
+
+
+def _fuzzy_file_seed(token: str, modules: dict) -> Optional[str]:
+    """Match a token to a file by basename stem: exact stem first, then stem-prefix (len>=4).
+
+    Stricter than _resolve_file's arbitrary-substring match, to avoid 'drive' matching
+    'tmp_verify_driver.py' or 'tool' matching 'ui_tools.py'.
+    """
+    import os.path
+    tl = token.lower()
+    prefix_hit = None
+    for k in modules:
+        stem = os.path.splitext(os.path.basename(k))[0].lower()
+        if stem == tl:
+            return k
+        if prefix_hit is None and len(tl) >= 4 and stem.startswith(tl):
+            prefix_hit = k
+    return prefix_hit
+
+
+def _resolve_seeds(tokens, modules, stem_to_key, symidx):
+    """Resolve question tokens to seed symbols / files. Returns (syms, files, notes).
+
+    Strong (distinctive) tokens are resolved first; weak generic words are used only when
+    no strong token matched, so common words don't drown out the real subject.
+    """
+    defs = symidx.get("defs", {})
+    file_indeg = symidx.get("file_indeg", {})
+    seed_syms: list = []
+    seed_files: list = []
+    seen_sym: set = set()
+    seen_file: set = set()
+    notes: list = []
+
+    def _add_file(fk: str) -> None:
+        if fk and fk not in seen_file:
+            seen_file.add(fk); seed_files.append(fk)
+
+    def _exact_file(t: str) -> Optional[str]:
+        # exact file key or exact base/full stem (high confidence even for short words)
+        return t if t in modules else stem_to_key.get(t)
+
+    def _try_full(t: str) -> None:
+        # 1. exact file key or stem -> a file seed
+        fk = _exact_file(t)
+        if fk:
+            _add_file(fk); return
+        # 2. a defined symbol name -> a symbol seed (pick most-central site)
+        sites = defs.get(t)
+        if sites:
+            best = max(sites, key=lambda s: file_indeg.get(s["file"], 0))
+            key = (best["file"], t)
+            if key not in seen_sym:
+                seen_sym.add(key); seed_syms.append(key)
+                if len(sites) > 1:
+                    notes.append(
+                        f"'{t}' defined in {len(sites)} files; showing most central ({best['file']}).")
+            return
+        # 3. fuzzy basename-stem file match
+        _add_file(_fuzzy_file_seed(t, modules))
+
+    # Pass 1: strong tokens get full resolution (symbol or file).
+    for t in tokens:
+        if _is_strong_token(t):
+            _try_full(t)
+    # Pass 2: weak tokens may still seed via an EXACT file-stem match (e.g. 'server',
+    # 'main') — high confidence — but never create symbol seeds (avoids 'loop' noise).
+    for t in tokens:
+        if not _is_strong_token(t):
+            _add_file(_exact_file(t))
+    # Pass 3: last resort — nothing resolved — let weak tokens resolve fully.
+    if not seed_syms and not seed_files:
+        for t in tokens:
+            if not _is_strong_token(t):
+                _try_full(t)
+    return seed_syms, seed_files, notes
+
+
+def _render_sym(fkey, name, symidx, *, max_edges: int = 4) -> str:
+    """Render one symbol compactly: location, signature, first-line doc, key edges. No body."""
+    sites = symidx.get("defs", {}).get(name, [])
+    sd = next((s for s in sites if s["file"] == fkey), sites[0] if sites else None)
+    out: list = []
+    if sd:
+        vis = "+" if sd.get("is_public", True) else "-"
+        sig = sd.get("signature") or ""
+        out.append(f"  {fkey}:{sd.get('line')}  {vis}{sd.get('kind', '?')} {name}{(' ' + sig) if sig else ''}")
+        doc = (sd.get("doc") or "").strip().split("\n")[0][:100]
+        if doc:
+            out.append(f"      # {doc}")
+    else:
+        out.append(f"  {fkey}  {name}")
+    sym_score = symidx.get("sym_score", {})
+    callees = sorted(symidx.get("callees", {}).get((fkey, name), set()),
+                     key=lambda n: -sym_score.get(n, 0.0))
+    callers = sorted(symidx.get("callers", {}).get((fkey, name), set()),
+                     key=lambda n: -sym_score.get(n, 0.0))
+    if callees:
+        out.append("      -> calls: " + ", ".join(n[1] for n in callees[:max_edges]))
+    if callers:
+        out.append("      <- callers: " + ", ".join(n[1] for n in callers[:max_edges]))
+    return "\n".join(out)
+
+
+def _select_subgraph(seed_syms, seed_files, modules, symidx, node_cap):
+    """Seeds + each seed file's most-central symbol + one-hop centrality-ranked neighbours."""
+    sym_score = symidx.get("sym_score", {})
+    callees = symidx.get("callees", {})
+    callers = symidx.get("callers", {})
+    selected: list = []
+    seen: set = set()
+
+    def _add(node):
+        if node not in seen:
+            seen.add(node); selected.append(node)
+
+    for s in seed_syms:
+        _add(s)
+    for f in seed_files:
+        m = modules.get(f, {})
+        best = None; best_sc = -1.0
+        for sd in (m.get("symdefs") or []):
+            nm = sd.get("name", "")
+            sc = sym_score.get((f, nm), 0.0)
+            if nm and sc > best_sc:
+                best = (f, nm); best_sc = sc
+        if best is None:
+            for fd in (m.get("funcdefs") or []):
+                lbl = fd.get("label") if isinstance(fd, dict) else str(fd)
+                if lbl:
+                    best = (f, lbl); break
+        if best:
+            _add(best)
+
+    neighbours: list = []
+    for node in list(selected):
+        for nb in list(callees.get(node, set())) + list(callers.get(node, set())):
+            neighbours.append(nb)
+    neighbours.sort(key=lambda n: -sym_score.get(n, 0.0))
+    for nb in neighbours:
+        if len(selected) >= node_cap:
+            break
+        _add(nb)
+    return selected[:node_cap]
+
+
+_FLOW_RE = re.compile(
+    r"\bhow\b.*\b(reach|reaches|call|calls|get\s+to|flow|flows|connect|connects|"
+    r"lead|leads|trigger|triggers|invoke|invokes)\b", re.I)
+
+
+def _is_flow_question(question, seed_syms, seed_files) -> bool:
+    if _FLOW_RE.search(question):
+        return True
+    files = set(seed_files) | {f for (f, _) in seed_syms}
+    return len(files) >= 2
+
+
+def _flow_endpoints(seed_syms, seed_files):
+    ordered: list = []
+    for f in seed_files:
+        if f not in ordered:
+            ordered.append(f)
+    for (f, _) in seed_syms:
+        if f not in ordered:
+            ordered.append(f)
+    src = ordered[0] if ordered else None
+    tgt = ordered[1] if len(ordered) >= 2 else None
+    return src, tgt
+
+
+def _most_central_symbol(fkey, m, symidx):
+    """Return (name, symdef) for the file's most-central symbol, or None."""
+    sym_score = symidx.get("sym_score", {})
+    best = None; best_sd = None; best_sc = -1.0
+    for sd in (m.get("symdefs") or []):
+        nm = sd.get("name", "")
+        if not nm:
+            continue
+        sc = sym_score.get((fkey, nm), 0.0)
+        if sc > best_sc:
+            best = nm; best_sd = sd; best_sc = sc
+    if best is None:
+        for fd in (m.get("funcdefs") or []):
+            lbl = fd.get("label") if isinstance(fd, dict) else str(fd)
+            if lbl:
+                sd = next((s for s in (m.get("symdefs") or []) if s.get("name") == lbl), None)
+                return lbl, (sd or {"name": lbl})
+        return None
+    return best, best_sd
+
+
+def _link_symbol(src_file, tgt_file, modules, symidx) -> str:
+    """Find the funcdef->callee pair in src_file whose callee is defined in tgt_file."""
+    m = modules.get(src_file, {})
+    funcdefs = m.get("funcdefs") or []
+    fcbf = m.get("func_calls_by_func") or []
+    defs = symidx.get("defs", {})
+    for i, fd in enumerate(funcdefs):
+        lbl = fd.get("label") if isinstance(fd, dict) else str(fd)
+        calls = fcbf[i] if i < len(fcbf) else []
+        for c in calls:
+            if not isinstance(c, str):
+                continue
+            sites = defs.get(c)
+            if sites and any(s["file"] == tgt_file for s in sites):
+                return f"{lbl}() -> {c}()"
+    return "import edge"
+
+
+def _trace_between(source, target, modules, adj, stem_to_key, symidx,
+                   *, max_hops: int = 8, char_budget: int = 4000) -> str:
+    """BFS dependency path source->target with per-hop signature/doc + linking symbol.
+
+    Shared core used by both _tool_trace and _tool_context's flow-inline section.
+    """
+    s = _resolve_file(source, modules)
+    t = _resolve_file(target, modules)
+    if not s:
+        return f"Source file not found: {source!r}"
+    if not t:
+        return f"Target file not found: {target!r}"
+    if s == t:
+        return f"Source and target are the same file: {s}"
+
+    # Prefer the resolved file adjacency (stem-resolved) over the sparse raw adj.
+    adjacency = symidx.get("file_adj") or adj
+
+    visited = {s}
+    queue: deque = deque([[s]])
+    path = None
+    while queue:
+        p = queue.popleft()
+        if len(p) > max_hops + 1:
+            continue
+        node = p[-1]
+        done = False
+        for nb in adjacency.get(node, []):
+            if nb == t:
+                path = p + [nb]; done = True; break
+            if nb not in visited:
+                visited.add(nb); queue.append(p + [nb])
+        if done:
+            break
+    if not path:
+        return f"No dependency path found between {s} and {t}."
+
+    lines = [f"=== Trace: {s} -> {t} ===", f"{len(path)} files on path"]
+    for idx, fkey in enumerate(path):
+        m = modules.get(fkey, {})
+        best = _most_central_symbol(fkey, m, symidx)
+        if best:
+            nm, sd = best
+            sig = sd.get("signature") or ""
+            lines.append(f"  [{idx}] {fkey}:{sd.get('line')}  {nm}{(' ' + sig) if sig else ''}")
+            doc = (sd.get("doc") or "").strip().split("\n")[0][:80]
+            if doc:
+                lines.append(f"        # {doc}")
+        else:
+            lines.append(f"  [{idx}] {fkey}")
+        if idx + 1 < len(path):
+            lines.append(f"        linked via: {_link_symbol(fkey, path[idx + 1], modules, symidx)}")
+    return _budget_clamp("\n".join(lines), char_budget)
+
+
+def _tool_trace(source, target, modules, adj, stem_to_key, symidx,
+                *, max_hops: int = 8, char_budget: int = 4000) -> str:
+    """Tool wrapper around _trace_between (inline-code dependency trace)."""
+    return _trace_between(source, target, modules, adj, stem_to_key, symidx,
+                          max_hops=max_hops, char_budget=char_budget)
+
+
+def _tool_context(question, modules, mod_to_files, stem_to_key, symidx, edges, adj,
+                  *, node_cap: int = 12, char_budget: int = 6000) -> str:
+    """One-shot smart context: resolve seeds from the question, assemble a compact
+    centrality-ranked subgraph (signatures + first-line docs + key edges, never raw
+    bodies), and inline a trace for flow questions — answering most questions in one
+    call instead of a manual l0->l1->l2->l3 drilldown.
+    """
+    tokens = _extract_tokens(question)
+    seed_syms, seed_files, notes = _resolve_seeds(tokens, modules, stem_to_key, symidx)
+
+    if not seed_syms and not seed_files:
+        # nothing resolved -> keyword fallback so a single call is always useful
+        kw = _tool_query(question, modules, edges, symidx)
+        return _budget_clamp(
+            "=== Context (keyword fallback) ===\n"
+            "No specific symbol/file matched the question; showing keyword matches.\n\n"
+            + kw, char_budget)
+
+    nodes = _select_subgraph(seed_syms, seed_files, modules, symidx, node_cap)
+    flow = _is_flow_question(question, seed_syms, seed_files)
+
+    header = ["=== Context ===",
+              f"{len(seed_syms)} seed symbols | {len(seed_files)} seed files | "
+              f"up to {len(nodes)} nodes"]
+    for n in notes[:3]:
+        header.append(f"note: {n}")
+    if seed_files:
+        header.append("Seed files: " + ", ".join(seed_files[:6]))
+    header.append("")
+    header.append("Relevant symbols (centrality-ranked):")
+
+    # reserve room for the trace section when this is a flow question
+    reserve = 1600 if flow else 0
+    soft = max(1000, char_budget - reserve)
+
+    body: list = []
+    used = sum(len(h) + 1 for h in header)
+    shown = 0
+    for (f, nm) in nodes:
+        r = _render_sym(f, nm, symidx)
+        if used + len(r) > soft and body:
+            body.append(f"  ...+{len(nodes) - shown} more symbols omitted (budget)")
+            break
+        body.append(r); used += len(r) + 1; shown += 1
+
+    text = "\n".join(header + body)
+
+    if flow:
+        s, t = _flow_endpoints(seed_syms, seed_files)
+        if s and t and s != t:
+            trace = _trace_between(s, t, modules, adj, stem_to_key, symidx,
+                                   char_budget=(reserve - 100 if reserve > 200 else 1200))
+            text = text + "\n\n" + trace
+
+    return _budget_clamp(text, char_budget)
+
+
 # ─── Tool registry ────────────────────────────────────────────────────────────
 
 TOOLS = [
+    {
+        "name": "vizcode_context",
+        "description": (
+            "PREFER THIS FIRST for almost any question about the code. "
+            "Give a natural-language question; returns a compact, centrality-ranked "
+            "subgraph of the most relevant symbols (signatures + first-line docs + key "
+            "call edges) in ONE call — no manual vizcode_l0 -> l1 -> l2 -> l3 drilldown "
+            "needed. For 'how does X reach Y' questions it also inlines a call/dependency "
+            "trace. Returns summaries and signatures, never raw source bodies."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "Natural-language question; may name files, functions, or classes.",
+                },
+            },
+            "required": ["question"],
+        },
+    },
+    {
+        "name": "vizcode_trace",
+        "description": (
+            "Trace the dependency/call path between two files and inline, for each hop, "
+            "the linking function plus that hop's key signature and first-line doc. "
+            "Use for 'how does A reach B' / 'what connects X and Y'. "
+            "More detailed than vizcode_path (which returns only a bare path array)."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source": {"type": "string", "description": "Source file path (as shown by vizcode_l1)."},
+                "target": {"type": "string", "description": "Target file path."},
+            },
+            "required": ["source", "target"],
+        },
+    },
     {
         "name": "vizcode_query",
         "description": (
@@ -955,6 +1533,8 @@ def _serve(scan_path: str, sem_path: str, report_path: str) -> None:
     sem  = _load_json(sem_path)
     modules, edges, adj = _build_index(scan, sem)
     mod_to_files, stem_to_key = _build_stem_index(modules)
+    symidx = _build_symbol_index(modules, stem_to_key)
+    budgets = _budget_for_filecount(len(modules))
 
     stdin  = sys.stdin.buffer
     stdout = sys.stdout.buffer
@@ -992,9 +1572,21 @@ def _serve(scan_path: str, sem_path: str, report_path: str) -> None:
             args = params.get("arguments", {})
 
             if name == "vizcode_query":
-                text = _tool_query(args.get("question", ""), modules, edges)
+                text = _tool_query(args.get("question", ""), modules, edges, symidx)
             elif name == "vizcode_path":
                 text = _tool_path(args.get("source", ""), args.get("target", ""), modules, adj)
+            elif name == "vizcode_context":
+                text = _tool_context(
+                    args.get("question", ""), modules, mod_to_files, stem_to_key,
+                    symidx, edges, adj,
+                    char_budget=budgets.get("vizcode_context", _DEFAULT_TOOL_BUDGET),
+                )
+            elif name == "vizcode_trace":
+                text = _tool_trace(
+                    args.get("source", ""), args.get("target", ""), modules, adj,
+                    stem_to_key, symidx,
+                    char_budget=budgets.get("vizcode_trace", _DEFAULT_TOOL_BUDGET),
+                )
             elif name == "vizcode_explain":
                 text = _tool_explain(args.get("symbol", ""), modules, edges)
             elif name == "vizcode_report":

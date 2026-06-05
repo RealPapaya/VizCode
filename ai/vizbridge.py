@@ -48,6 +48,9 @@ from mcp_server import (
     _load_json,
     _build_index,
     _build_stem_index,
+    _build_symbol_index,
+    _budget_for_filecount,
+    _DEFAULT_TOOL_BUDGET,
     _tool_l0,
     _tool_l1,
     _tool_l2,
@@ -55,6 +58,8 @@ from mcp_server import (
     _tool_health,
     _tool_query,
     _tool_path,
+    _tool_context,
+    _tool_trace,
     _tool_explain,
     _tool_report,
     TOOLS as MCP_TOOL_SCHEMAS,
@@ -110,18 +115,10 @@ _DEFAULTS: dict = {
 
 _MAX_HISTORY_MESSAGES = 8
 _MAX_HISTORY_CHARS = 12_000
-_TOOL_RESULT_LIMITS: dict[str, int] = {
-    "vizcode_path": 2_000,
-    "vizcode_query": 4_000,
-    "vizcode_explain": 4_000,
-    "vizcode_report": 6_000,
-    "vizcode_l0": 5_000,
-    "vizcode_l1": 5_000,
-    "vizcode_l2": 6_000,
-    "vizcode_l3": 7_000,
-    "vizcode_health": 5_000,
-}
-_DEFAULT_TOOL_RESULT_LIMIT = 5_000
+# Per-tool result char budgets come from mcp_server._budget_for_filecount (scaled to
+# repo size). ~3 chars/token is the clamp ratio used to keep a tool result under the
+# active provider token ceiling.
+_CHARS_PER_TOKEN = 3
 
 
 def _clip_text(text: str, limit: int, label: str = "content") -> str:
@@ -391,6 +388,9 @@ class ToolRegistry:
         self._adj:     dict | None = None
         self._mod_to_files:  dict | None = None
         self._stem_to_key:   dict | None = None
+        self._symidx:        dict | None = None
+        self._budgets:       dict | None = None
+        self._token_ceiling: int | None = None
 
     def _ensure_loaded(self) -> None:
         if self._modules is not None:
@@ -399,6 +399,18 @@ class ToolRegistry:
         sem  = _load_json(str(self._sem_path))
         self._modules, self._edges, self._adj = _build_index(scan, sem)
         self._mod_to_files, self._stem_to_key = _build_stem_index(self._modules)
+        self._symidx = _build_symbol_index(self._modules, self._stem_to_key)
+        self._budgets = _budget_for_filecount(len(self._modules))
+
+    def set_token_ceiling(self, max_tokens: int | None) -> None:
+        """Cap tool-result size to the active provider token budget (see _CHARS_PER_TOKEN)."""
+        self._token_ceiling = int(max_tokens) if max_tokens else None
+
+    def _budget_for(self, name: str) -> int:
+        limit = (self._budgets or {}).get(name, _DEFAULT_TOOL_BUDGET)
+        if self._token_ceiling:
+            limit = min(limit, self._token_ceiling * _CHARS_PER_TOKEN)
+        return limit
 
     def call(self, name: str, args: dict) -> str:
         """Call a tool by name and return its Markdown result string."""
@@ -408,6 +420,8 @@ class ToolRegistry:
         a  = self._adj
         mf = self._mod_to_files
         sk = self._stem_to_key
+        sx = self._symidx
+        budget = self._budget_for(name)
 
         if name == "vizcode_l0":
             result = _tool_l0(m, mf, sk)
@@ -418,9 +432,15 @@ class ToolRegistry:
         elif name == "vizcode_l3":
             result = _tool_l3(args.get("file", ""), m)
         elif name == "vizcode_query":
-            result = _tool_query(args.get("question", ""), m, e)
+            result = _tool_query(args.get("question", ""), m, e, sx)
         elif name == "vizcode_path":
             result = _tool_path(args.get("source", ""), args.get("target", ""), m, a)
+        elif name == "vizcode_context":
+            result = _tool_context(args.get("question", ""), m, mf, sk, sx, e, a,
+                                   char_budget=budget)
+        elif name == "vizcode_trace":
+            result = _tool_trace(args.get("source", ""), args.get("target", ""), m, a, sk, sx,
+                                 char_budget=budget)
         elif name == "vizcode_explain":
             result = _tool_explain(args.get("symbol", ""), m, e)
         elif name == "vizcode_health":
@@ -429,8 +449,7 @@ class ToolRegistry:
             result = _tool_report(str(self._report_path))
         else:
             result = f"Unknown tool: {name}"
-        limit = _TOOL_RESULT_LIMITS.get(name, _DEFAULT_TOOL_RESULT_LIMIT)
-        return _clip_text(str(result), limit, name)
+        return _clip_text(str(result), budget, name)
 
     @staticmethod
     def definitions(whitelist: set[str] | None = None) -> list[dict]:
@@ -478,12 +497,17 @@ class ContextInjector:
             f"- Files: {n_files} | Functions: {n_funcs}\n"
             f"- Languages: {top_langs or 'unknown'}\n\n"
             f"You have two kinds of tools:\n\n"
-            f"**Analysis tools** (read-only, hierarchical):\n"
-            f"1. `vizcode_l0()` — understand overall module structure first\n"
-            f"2. `vizcode_l1(module)` — drill into a specific module\n"
-            f"3. `vizcode_l2(file)` — see function call graph for a specific file\n"
-            f"4. `vizcode_l3(file)` — inspect detailed symbols, members, signatures, and symbol edges\n"
-            f"   Plus: `vizcode_query`, `vizcode_path`, `vizcode_explain`, "
+            f"**Analysis tools** (read-only):\n"
+            f"0. `vizcode_context(question)` — START HERE for almost any question. One call "
+            f"returns a compact, centrality-ranked subgraph of the most relevant symbols "
+            f"(signatures, docstrings, key call edges) and inlines a trace for "
+            f"'how does X reach Y' questions. Usually you need nothing else.\n"
+            f"1. `vizcode_l0()` — full module overview (only for explicit big-picture questions).\n"
+            f"2. `vizcode_l1(module)` — drill into a specific module.\n"
+            f"3. `vizcode_l2(file)` — function call graph for a specific file.\n"
+            f"4. `vizcode_l3(file)` — detailed symbols, members, signatures, and symbol edges.\n"
+            f"   Plus: `vizcode_trace(source, target)` (inline-code dependency trace), "
+            f"`vizcode_query`, `vizcode_path`, `vizcode_explain`, "
             f"`vizcode_health`, `vizcode_report`.\n\n"
             f"**Canvas tools** (drive the visualizer — web UI only):\n"
             f"- `vizcode_ui_goto_l0/l1/l2` — switch the user's canvas view\n"
@@ -499,7 +523,9 @@ class ContextInjector:
             f"- Reply in the same language as the user's most recent message unless the user explicitly asks for another language.\n"
             f"- If the request is ambiguous or the available tool results are insufficient, say what is missing and ask a focused follow-up question instead of guessing.\n"
             f"- If you are unsure which module / file / symbol the user means, ask briefly before choosing one.\n"
-            f"- ALWAYS start with `vizcode_l0()` for broad codebase questions.\n"
+            f"- Start with `vizcode_context(question)`; it usually answers in one call. "
+            f"Use `vizcode_l0()` / l1 / l2 / l3 only for an explicit big-picture overview "
+            f"or when `vizcode_context` reports it is missing detail.\n"
             f"- When the user asks to 'see / show / open / go to / highlight' "
             f"something, call the matching `vizcode_ui_*` tool so the canvas "
             f"actually moves — do NOT just describe what they would see.\n"
@@ -595,6 +621,9 @@ class VizBridge:
         addendum = mode_spec["system_addendum"]
         max_tokens = int(mode_spec["max_tokens"])
         max_tool_rounds = int(mode_spec["max_tool_rounds"])
+        # Cap per-tool result size to the active token budget so e.g. quick mode never
+        # receives an oversized blob (adaptive budgets only ever scale up from baseline).
+        self._tools.set_token_ceiling(max_tokens)
         if _mode == "cli":
             max_tool_rounds = min(max_tool_rounds, 2)
             ui_names = set(UI_TOOL_NAMES)
