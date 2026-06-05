@@ -244,19 +244,16 @@ function _dashFocusCodePanel(filePath, funcName, lineNo) {
     }
 }
 
-function _dashFocusL2Node(filePath, funcName, lineNo) {
+function _dashCanonicalL2FuncName(filePath, funcName) {
+    if (!filePath || !funcName) return '';
     const funcs = (window.DATA && DATA.funcs_by_file && DATA.funcs_by_file[filePath]) || [];
-    const idx = funcs.findIndex(f => (f.label || f.name) === funcName);
-    if (idx >= 0) {
-        l2State.activeFuncIdx = idx;
-        if (typeof focusL2Func === 'function') {
-            setTimeout(() => focusL2Func(filePath, idx, { center: true, openCodePanel: false }), 360);
-        }
-    }
-    _dashFocusCodePanel(filePath, funcName, lineNo);
+    const target = String(funcName);
+    const match = funcs.find(f => String(f.label || '') === target || String(f.name || '') === target);
+    return match ? (match.label || match.name || target) : target;
 }
 
 function _dashOpenGraphFunction(rel, fnName, lineNo) {
+    const focusName = _dashCanonicalL2FuncName(rel, fnName);
     document.getElementById('cy')?.classList.add('l2-view');
     if (typeof setL1ToolbarVisible === 'function') setL1ToolbarVisible(false);
     if (window.updateFilterTabEnabled) updateFilterTabEnabled();
@@ -264,7 +261,7 @@ function _dashOpenGraphFunction(rel, fnName, lineNo) {
     if (ftWrap) ftWrap.style.display = 'none';
 
     if (typeof openL2File === 'function') {
-        openL2File(rel, { newSession: true, pushHistory: true, focusFunc: fnName || null });
+        openL2File(rel, { newSession: true, pushHistory: true, focusFunc: focusName || null });
     } else if (typeof drillToFile === 'function') {
         drillToFile(rel);
     }
@@ -273,8 +270,6 @@ function _dashOpenGraphFunction(rel, fnName, lineNo) {
     if (window._lswUpdate) {
         window._lswUpdate({ force: true, active: 2, l1Available: true, l2Available: true });
     }
-
-    _dashFocusL2Node(rel, fnName, lineNo);
 }
 
 function _dashOpenGraphFileL1(rel, modId, lineNo) {

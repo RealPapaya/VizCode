@@ -16,7 +16,8 @@ function renderL2Flowchart(fileRel, focusFuncName = null) {
 
     const funcs = DATA.funcs_by_file[fileRel] || [];
     if (focusFuncName) {
-        const idx = funcs.findIndex(f => f.label === focusFuncName);
+        const targetName = String(focusFuncName);
+        const idx = funcs.findIndex(f => String(f.label || '') === targetName || String(f.name || '') === targetName);
         if (idx >= 0) l2State.activeFuncIdx = idx;
     }
     if (l2State.activeFuncIdx >= funcs.length) l2State.activeFuncIdx = 0;
@@ -435,31 +436,23 @@ function renderL2Flowchart(fileRel, focusFuncName = null) {
             } else if (focusFuncName) {
                 const targetNode = cy.$id(`fn-${l2State.activeFuncIdx}`);
                 if (targetNode && targetNode.length) {
-                    setTimeout(() => {
-                        highlightNode(targetNode);
-                        cy.animate({
-                            center: { eles: targetNode },
-                            zoom: Math.max(cy.zoom(), 1.8),
-                        }, {
-                            duration: 700,
-                            easing: 'ease-in-out-cubic',
-                            complete: () => {
-                                let count = 0;
-                                const originalBc = targetNode.data('bc');
-                                const flashInterval = setInterval(() => {
-                                    count++;
-                                    if (!cy.hasElementWithId(targetNode.id())) { clearInterval(flashInterval); return; }
-                                    targetNode.style('border-color', count % 2 === 1 ? _tC('#ffffff', '#8c7851') : originalBc);
-                                    targetNode.style('border-width', count % 2 === 1 ? 4 : 2);
-                                    if (count >= 6) {
-                                        clearInterval(flashInterval);
-                                        targetNode.style('border-color', originalBc);
-                                        targetNode.style('border-width', 2);
-                                    }
-                                }, 200);
-                            }
-                        });
-                    }, 80);
+                    highlightNode(targetNode);
+                    cy.stop();
+                    cy.zoom(Math.max(cy.zoom(), 1.8));
+                    cy.center(targetNode);
+                    let count = 0;
+                    const originalBc = targetNode.data('bc');
+                    const flashInterval = setInterval(() => {
+                        count++;
+                        if (!cy.hasElementWithId(targetNode.id())) { clearInterval(flashInterval); return; }
+                        targetNode.style('border-color', count % 2 === 1 ? _tC('#ffffff', '#8c7851') : originalBc);
+                        targetNode.style('border-width', count % 2 === 1 ? 4 : 2);
+                        if (count >= 6) {
+                            clearInterval(flashInterval);
+                            targetNode.style('border-color', originalBc);
+                            targetNode.style('border-width', 2);
+                        }
+                    }, 200);
                 } else {
                     cy.animate({ fit: { eles: cy.elements(), padding: 50 }, duration: 400 });
                 }
