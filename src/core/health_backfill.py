@@ -30,6 +30,9 @@ from pathlib import Path
 from typing import Optional
 
 
+HISTORY_LIMIT = 500
+
+
 # ─── Git helpers ─────────────────────────────────────────────────────────────
 
 def get_historical_commits(root: str, days: int = 90, mode: str = 'sample') -> list:
@@ -44,7 +47,7 @@ def get_historical_commits(root: str, days: int = 90, mode: str = 'sample') -> l
     since = (datetime.date.today() - datetime.timedelta(days=days)).isoformat()
     try:
         proc = subprocess.run(
-            ['git', 'log', '--format=%H|%ad', '--date=short',
+            ['git', 'log', '--format=%H|%ad|%aI', '--date=short',
              f'--since={since}', '--no-merges', '--first-parent'],
             cwd=root,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -61,9 +64,16 @@ def get_historical_commits(root: str, days: int = 90, mode: str = 'sample') -> l
     # git log is newest-first; first occurrence per bucket = newest of bucket
     all_commits = []
     for line in raw.splitlines():
-        parts = line.split('|', 1)
-        if len(parts) == 2:
-            all_commits.append({'sha': parts[0].strip(), 'date': parts[1].strip()})
+        parts = line.split('|', 2)
+        if len(parts) >= 2:
+            all_commits.append({
+                'sha':  parts[0].strip(),
+                'date': parts[1].strip(),
+                'ts':   parts[2].strip() if len(parts) >= 3 else '',
+            })
+
+    if mode in ('commit', 'commits'):
+        return sorted(all_commits, key=lambda x: (x.get('ts') or x.get('date') or '', x.get('sha') or ''))
 
     if mode == 'sample':
         by_bucket = {}
@@ -115,7 +125,7 @@ def _save_history(root: str, history: list) -> None:
 
 # ─── Per-commit analysis ──────────────────────────────────────────────────────
 
-def analyze_commit_health(root: str, sha: str, date: str) -> Optional[dict]:
+def analyze_commit_health(root: str, sha: str, date: str, ts: str = '') -> Optional[dict]:
     """
     Create a temporary git worktree for `sha`, run the analysis pipeline
     with snapshot-saving disabled, return a health-entry dict or None on failure.
@@ -147,9 +157,10 @@ def analyze_commit_health(root: str, sha: str, date: str) -> Optional[dict]:
             return None
 
         return {
-            'ts':         date + 'T00:00:00Z',
+            'ts':         ts or (date + 'T00:00:00Z'),
             'date':       date,
             'commit':     sha[:8],
+            'commit_full': sha,
             'score':      round(float(score), 2),
             'breakdown':  {k: round(float(v), 2) for k, v in breakdown.items()},
             'backfilled': True,
@@ -201,9 +212,26 @@ def run_backfill(root: str, mode: str, days: int, progress: dict) -> None:
             progress.update({'error': 'No git commits found in range', 'finished': True})
             return
 
-        existing      = _load_history(root)
-        existing_dates = {e.get('date') for e in existing}
-        pending       = [c for c in commits if c['date'] not in existing_dates]
+        existing = _load_history(root)
+        if mode in ('commit', 'commits'):
+            existing_full = {
+                str(e.get('commit_full') or e.get('sha') or '').lower()
+                for e in existing
+                if e.get('commit_full') or e.get('sha')
+            }
+            existing_short = {
+                str(e.get('commit') or '')[:8].lower()
+                for e in existing
+                if e.get('commit')
+            }
+            pending = [
+                c for c in commits
+                if str(c.get('sha') or '').lower() not in existing_full
+                and str(c.get('sha') or '')[:8].lower() not in existing_short
+            ]
+        else:
+            existing_dates = {e.get('date') for e in existing}
+            pending = [c for c in commits if c['date'] not in existing_dates]
 
         progress['total']   = len(pending)
         progress['skipped'] = len(commits) - len(pending)
@@ -218,18 +246,35 @@ def run_backfill(root: str, mode: str, days: int, progress: dict) -> None:
             progress['current_sha']  = commit['sha'][:8]
             progress['current_date'] = commit['date']
 
-            entry = analyze_commit_health(root, commit['sha'], commit['date'])
+            entry = analyze_commit_health(root, commit['sha'], commit['date'], commit.get('ts', ''))
             if entry:
                 new_entries.append(entry)
             progress['done'] = i + 1
 
-        # Merge: one entry per date, keep the backfilled ones alongside real ones.
-        merged = {e['date']: e for e in existing}
+        # Merge: commit-level entries can coexist on the same date; sampled
+        # daily entries keep their date key so existing real analyses win.
+        def key_for(entry: dict) -> str:
+            commit = str(entry.get('commit_full') or '').strip().lower()
+            if commit:
+                return 'commit:' + commit
+            if entry.get('backfilled') and entry.get('commit'):
+                return 'commit:' + str(entry.get('commit')).strip().lower()
+            return 'date:' + str(entry.get('date') or (entry.get('ts') or '')[:10])
+
+        merged = {}
+        for e in existing:
+            key = key_for(e)
+            if key and key not in merged:
+                merged[key] = e
         for e in new_entries:
-            if e['date'] not in merged:   # don't overwrite a real analysis entry
-                merged[e['date']] = e
-        history = sorted(merged.values(), key=lambda x: x.get('date', ''))
-        history = history[-200:]
+            key = key_for(e)
+            if key and key not in merged:   # don't overwrite existing data
+                merged[key] = e
+        history = sorted(
+            merged.values(),
+            key=lambda x: (x.get('date', ''), x.get('ts', ''), x.get('commit', '')),
+        )
+        history = history[-HISTORY_LIMIT:]
 
         _save_history(root, history)
         progress['new_count'] = len(new_entries)

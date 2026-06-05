@@ -39,9 +39,10 @@ from pathlib import Path
 # ─── Tunables ────────────────────────────────────────────────────────────────
 DEFAULT_WINDOW_DAYS = 180
 COMMIT_FILE_LIMIT   = 20      # skip commits touching > N files (refactor noise)
+COMMIT_DETAIL_FILE_LIMIT = 60  # cap per-commit file lists in dashboard payloads
 COUPLING_MIN        = 3       # filter pairs below this co-change count
 GIT_TIMEOUT_SEC     = 60
-SCHEMA_REV          = 5   # bump invalidates caches that lack temporal file groups
+SCHEMA_REV          = 6   # bump invalidates caches that lack commit drilldowns
 
 # Hotspot scoring tuning. Files without computed complexity get a neutral
 # 0.5 multiplier so they're neither boosted nor punished by the score.
@@ -349,6 +350,38 @@ def _aggregate_daily_activity(commits: list) -> list:
         'additions': daily_add[day],
         'deletions': daily_del[day],
     } for day in days]
+
+
+def _aggregate_commits_by_day(commits: list) -> dict:
+    """Return lightweight per-commit rows keyed by ISO date.
+
+    The dashboard uses this to drill from a heatmap cell into the individual
+    commits for that day. File rows are capped per commit to keep the generated
+    HTML payload bounded on large refactors.
+    """
+    grouped = defaultdict(list)
+    for c in commits:
+        files = c.get('files') or []
+        grouped[c.get('date', '')].append({
+            'sha':        c.get('sha', ''),
+            'short_sha':  str(c.get('sha', ''))[:8],
+            'date':       c.get('date', ''),
+            'author':     c.get('author', ''),
+            'additions':  sum(int(f.get('add') or 0) for f in files),
+            'deletions':  sum(int(f.get('del') or 0) for f in files),
+            'file_count': len(files),
+            'files': [{
+                'file':      f.get('path', ''),
+                'additions': int(f.get('add') or 0),
+                'deletions': int(f.get('del') or 0),
+            } for f in files[:COMMIT_DETAIL_FILE_LIMIT]],
+            'files_capped': len(files) > COMMIT_DETAIL_FILE_LIMIT,
+        })
+
+    return {
+        day: rows
+        for day, rows in sorted(grouped.items(), key=lambda item: item[0])
+    }
 
 
 def _aggregate_temporal_file_groups(commits: list) -> dict:
@@ -678,6 +711,7 @@ def compute_git_history(root: str,
     change_coupling = _aggregate_coupling(commits, len(commits))
     churn_timeline  = _aggregate_timeline(commits)
     daily_activity  = _aggregate_daily_activity(commits)
+    commits_by_day  = _aggregate_commits_by_day(commits)
     author_activity = _aggregate_authors(commits)
     temporal_file_groups = _aggregate_temporal_file_groups(commits)
     # Per-file weekly timeline for the top churn files. Hotspots are a
@@ -700,6 +734,7 @@ def compute_git_history(root: str,
         'hotspot_files':    [],
         'churn_timeline':   churn_timeline,
         'commit_activity_daily': daily_activity,
+        'commits_by_day':   commits_by_day,
         'author_activity':  author_activity,
         'files_by_author':  temporal_file_groups['files_by_author'],
         'files_by_week':    temporal_file_groups['files_by_week'],
@@ -733,6 +768,7 @@ def _empty_payload(window_days: int) -> dict:
         'hotspot_files':    [],
         'churn_timeline':   [],
         'commit_activity_daily': [],
+        'commits_by_day':   {},
         'author_activity':  [],
         'files_by_author':  {},
         'files_by_week':    {},

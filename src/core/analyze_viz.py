@@ -2766,6 +2766,14 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                         group: [r for r in rows if r.get('file') in live_files]
                         for group, rows in _groups.items()
                     }
+                _commit_groups = gh.get('commits_by_day', {}) or {}
+                gh['commits_by_day'] = {
+                    day: [
+                        dict(c, files=[f for f in (c.get('files') or []) if f.get('file') in live_files])
+                        for c in rows
+                    ]
+                    for day, rows in _commit_groups.items()
+                }
                 gh['hotspot_files'] = _compute_hotspot(
                     full_churn, symbol_index, file_meta,
                 )
@@ -2838,13 +2846,20 @@ def _append_health_snapshot(root: str, stats: dict) -> None:
         except Exception:
             history = []
 
-    # Keep one entry per calendar day (latest analysis wins).
-    # Within the same day, also deduplicate by commit SHA so re-running on the
-    # same commit doesn't accumulate noise from identical data.
+    # Keep one live-analysis entry per calendar day, while preserving
+    # commit-level backfill entries that may share the same date.
     today = entry['date']
-    history = [h for h in history if h.get('date') != today]
+    current_commit = str(entry.get('commit') or '').lower()
+    history = [
+        h for h in history
+        if not (
+            (h.get('date') == today and not h.get('backfilled'))
+            or (current_commit and str(h.get('commit') or '').lower() == current_commit)
+            or (current_commit and str(h.get('commit_full') or '').lower().startswith(current_commit))
+        )
+    ]
     history.append(entry)
-    history = history[-100:]  # keep last 100 snapshots
+    history = history[-500:]  # keep room for commit-level backfills
 
     try:
         with open(path, 'w', encoding='utf-8') as f:

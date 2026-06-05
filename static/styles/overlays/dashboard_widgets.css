@@ -890,5 +890,474 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     padding: var(--space-4) var(--space-5);
 }
 
+.dash-commit-drilldown-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 126;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    backdrop-filter: blur(3px);
+}
 
+.dash-commit-drilldown-panel {
+    width: min(980px, calc(100vw - 80px));
+    max-height: min(780px, calc(100vh - 80px));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-lg);
+}
+
+.dash-commit-drilldown-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-5);
+    border-bottom: 1px solid var(--border);
+}
+
+.dash-commit-drilldown-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--space-4) var(--space-5);
+}
+
+.dash-commit-drill-summary-strip {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.dash-commit-drill-summary-strip > div {
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-elevated) 82%, transparent);
+}
+
+.dash-commit-drill-summary-strip span,
+.dash-commit-drill-summary-strip small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-commit-drill-summary-strip span {
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 18px;
+    font-weight: 760;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-commit-drill-summary-strip small {
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.dash-commit-health-callout {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding: 11px 12px;
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.dash-commit-health-callout > div {
+    min-width: 0;
+}
+
+.dash-commit-health-callout strong,
+.dash-commit-health-callout span {
+    display: block;
+    min-width: 0;
+}
+
+.dash-commit-health-callout strong {
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.dash-commit-health-callout span {
+    margin-top: 3px;
+    color: color-mix(in srgb, var(--text) 68%, var(--muted));
+    font-size: 11px;
+    line-height: 1.45;
+}
+
+.dash-commit-health-callout .dash-btn {
+    flex: 0 0 auto;
+    min-width: 154px;
+}
+
+.dash-commit-health-callout__actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 0;
+}
+
+.dash-commit-drill-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.dash-commit-drill-row {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-elevated) 58%, transparent);
+}
+
+.dash-commit-drill-summary {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) minmax(168px, 210px) minmax(92px, auto);
+    gap: 10px;
+    align-items: center;
+    min-width: 0;
+    padding: 9px 10px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.dash-commit-drill-summary::-webkit-details-marker {
+    display: none;
+}
+
+.dash-commit-drill-row[open] .dash-commit-drill-summary {
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.dash-commit-drill-rank {
+    color: var(--muted);
+    font-size: 10px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-commit-drill-identity {
+    min-width: 0;
+}
+
+.dash-commit-drill-identity b,
+.dash-commit-drill-identity small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-commit-drill-identity b {
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    font-weight: 760;
+}
+
+.dash-commit-drill-identity small {
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1.25;
+}
+
+.dash-commit-health-impact {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(42px, auto) minmax(46px, auto);
+    column-gap: 8px;
+    align-items: baseline;
+}
+
+.dash-commit-health-impact b,
+.dash-commit-health-impact em,
+.dash-commit-health-impact small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-commit-health-impact b {
+    color: var(--text);
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 760;
+}
+
+.dash-commit-health-impact em {
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 720;
+}
+
+.dash-commit-health-impact small {
+    grid-column: 1 / -1;
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.dash-commit-health-impact--missing b {
+    color: var(--muted);
+}
+
+.dash-commit-drill-churn {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-commit-drill-churn b:first-child {
+    color: var(--status-good);
+}
+
+.dash-commit-drill-churn b:last-child {
+    color: var(--status-bad);
+}
+
+.dash-commit-drill-details {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+    padding: 10px;
+}
+
+.dash-commit-health-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.dash-commit-health-breakdown--missing {
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.dash-commit-health-breakdown__overall {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+    font-size: 11px;
+}
+
+.dash-commit-health-breakdown__overall span {
+    color: var(--muted);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.dash-commit-health-breakdown__overall b {
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    font-weight: 760;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-commit-health-breakdown__chips {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+    gap: 7px;
+    min-width: 0;
+}
+
+.dash-commit-health-breakdown__chips span {
+    min-width: 0;
+    padding: 7px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-card) 72%, transparent);
+}
+
+.dash-commit-health-breakdown__chips small,
+.dash-commit-health-breakdown__chips b,
+.dash-commit-health-breakdown__chips em {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-commit-health-breakdown__chips small {
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.dash-commit-health-breakdown__chips b,
+.dash-commit-health-breakdown__chips em {
+    margin-top: 3px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 720;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-commit-drill-files {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.dash-commit-file-row {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr) minmax(96px, auto);
+    gap: 9px;
+    align-items: center;
+    min-width: 0;
+    padding: 6px;
+    border-radius: 5px;
+    transition: background 0.12s;
+}
+
+.dash-commit-file-row[data-clickable] {
+    cursor: pointer;
+}
+
+.dash-commit-file-row[data-clickable]:hover {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.dash-commit-file-row__rank {
+    color: var(--muted);
+    font-size: 10px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-commit-file-row__name {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.dash-commit-file-row__name small {
+    display: block;
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10px;
+    font-weight: 500;
+}
+
+.dash-commit-file-row__delta {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-commit-file-row__delta b:first-child {
+    color: var(--status-good);
+}
+
+.dash-commit-file-row__delta b:last-child {
+    color: var(--status-bad);
+}
+
+.dash-commit-file-row__note {
+    padding: 6px;
+    color: var(--muted);
+    font-size: 10px;
+}
+
+@media (max-width: 760px) {
+    .dash-commit-drilldown-overlay {
+        padding: 8px;
+    }
+
+    .dash-commit-drilldown-panel {
+        width: calc(100vw - 16px);
+        max-height: calc(100vh - 16px);
+    }
+
+    .dash-commit-drilldown-head,
+    .dash-commit-drilldown-body {
+        padding-left: var(--space-3);
+        padding-right: var(--space-3);
+    }
+
+    .dash-commit-drill-summary-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .dash-commit-health-callout {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .dash-commit-health-callout .dash-btn {
+        width: 100%;
+    }
+
+    .dash-commit-health-callout__actions {
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+    }
+
+    .dash-commit-drill-summary {
+        grid-template-columns: 24px minmax(0, 1fr);
+    }
+
+    .dash-commit-health-impact,
+    .dash-commit-drill-churn {
+        grid-column: 2;
+        justify-content: flex-start;
+    }
+}
 

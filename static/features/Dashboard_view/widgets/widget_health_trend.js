@@ -196,12 +196,15 @@ function _dashRenderBfPanel(detailContainer) {
         return;
     }
 
-    // Fresh: auto-kick sampled, show transient label + Full button
+    // Fresh: auto-kick sampled, show transient label + richer backfill modes
     el.innerHTML = `
 <div class="dash-report-section" style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
-  <span style="font-size:0.72rem;opacity:0.45;flex:1;min-width:0">Starting sampled history analysis…</span>
+  <span style="font-size:0.72rem;opacity:0.45;flex:1;min-width:0">Starting sampled history analysis...</span>
   <button class="dash-btn dash-btn--ghost" onclick="_dashBfRunFull(this)">
-    Full <span style="opacity:0.5;font-size:0.68rem">1/day · 90 days</span>
+    Full <span style="opacity:0.5;font-size:0.68rem">1/day / 90 days</span>
+  </button>
+  <button class="dash-btn dash-btn--ghost" onclick="_dashBfRunCommits(this)">
+    Commit-level <span style="opacity:0.5;font-size:0.68rem">every commit</span>
   </button>
 </div>`;
     _dashBfStart('sample', null);
@@ -210,7 +213,11 @@ function _dashRenderBfPanel(detailContainer) {
 function _dashBfStart(mode, btn) {
     if (btn) btn.disabled = true;
     const jobId = (typeof DATA !== 'undefined' && DATA.job_id) ? DATA.job_id : '';
-    const body  = JSON.stringify({ mode, days: 90, job_id: jobId });
+    const stats = (typeof DATA !== 'undefined' && DATA.stats) ? DATA.stats : {};
+    const days = mode === 'commits'
+        ? Math.max(7, Math.min(365, Number(stats.window_days || 90)))
+        : 90;
+    const body  = JSON.stringify({ mode, days, job_id: jobId });
 
     fetch('/api/health-backfill', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body })
         .then(r => r.json())
@@ -293,15 +300,19 @@ function _dashBfPoll(bfEl, detailContainer) {
 
 function _dashBfShowDone(count, bfEl, detailContainer) {
     const showFull = _dashBfState.mode === 'sample';
+    const showCommits = _dashBfState.mode !== 'commits';
     bfEl.innerHTML = `
 <div class="dash-report-section" style="border:1px solid color-mix(in srgb,var(--status-good) 30%,transparent)">
   <div style="font-size:0.78rem;color:var(--status-good);font-weight:600;margin-bottom:8px">
-    ✓ Added ${count} historical data point${count !== 1 ? 's' : ''}
+    Added ${count} historical data point${count !== 1 ? 's' : ''}
   </div>
   <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
     <button class="dash-btn" onclick="_dashBfRefresh(this)">Refresh chart</button>
     ${showFull ? `<button class="dash-btn dash-btn--ghost" onclick="_dashBfRunFull(this)">
-      Full <span style="opacity:0.5;font-size:0.68rem">1/day · 90 days</span>
+      Full <span style="opacity:0.5;font-size:0.68rem">1/day / 90 days</span>
+    </button>` : ''}
+    ${showCommits ? `<button class="dash-btn dash-btn--ghost" onclick="_dashBfRunCommits(this)">
+      Commit-level <span style="opacity:0.5;font-size:0.68rem">every commit</span>
     </button>` : ''}
   </div>
 </div>`;
@@ -320,6 +331,13 @@ function _dashBfRunFull(btn) {
     _dashBfState.finished = false;
     _dashBfState.newCount = 0;
     _dashBfStart('full', btn);
+}
+
+function _dashBfRunCommits(btn) {
+    _dashBfState.token    = null;
+    _dashBfState.finished = false;
+    _dashBfState.newCount = 0;
+    _dashBfStart('commits', btn);
 }
 
 function _dashBfShowError(msg, bfEl) {

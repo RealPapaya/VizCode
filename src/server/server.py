@@ -1751,6 +1751,38 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 self.json_resp({'history': []})
 
+        elif p == '/api/git-history':
+            # Return fresh git-history data for dashboard commit drilldowns.
+            jid = qs.get('job_id', qs.get('job', ['']))[0]
+            with JOBS_LOCK:
+                job = JOBS.get(jid, {})
+            root = job.get('root', '')
+            if not root:
+                with JOBS_LOCK:
+                    recent = [(v.get('started', 0), v.get('root', ''))
+                              for v in JOBS.values() if v.get('root')]
+                if recent:
+                    root = sorted(recent, reverse=True)[0][1]
+            if not root or not os.path.isdir(os.path.join(root, '.git')):
+                self.json_resp({'error': 'No git repository found'}, 404)
+                return
+            try:
+                days = int(qs.get('days', ['180'])[0])
+            except Exception:
+                days = 180
+            days = max(7, min(3650, days))
+            try:
+                sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'core'))
+                from git_history import compute_git_history
+                gh = compute_git_history(root, since_days=days)
+                if gh is None:
+                    self.json_resp({'error': 'Git history unavailable'}, 503)
+                    return
+                gh.pop('_full_file_churn', None)
+                self.json_resp(gh)
+            except Exception as ex:
+                self.json_resp({'error': str(ex)}, 500)
+
         elif p == '/api/branches':
             # ── Branch overview (fresh git query) ────────────────────────
             jid = qs.get('job_id', qs.get('job', ['']))[0]
@@ -1934,7 +1966,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.json_resp({'error': 'Invalid JSON'}, 400)
                 return
 
-            mode = body.get('mode', 'sample')   # 'sample' | 'full'
+            mode = body.get('mode', 'sample')   # 'sample' | 'full' | 'commits'
             days = int(body.get('days', 90))
             jid  = body.get('job_id', body.get('job', ''))
 
