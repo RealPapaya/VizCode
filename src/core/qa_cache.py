@@ -154,6 +154,9 @@ def save(
         for v in (tc.get("input") or {}).values():
             if isinstance(v, str):
                 related_files.extend(_extract_related_files(v, scan_keys))
+        result = tc.get("result", "")
+        if isinstance(result, str):
+            related_files.extend(_extract_related_files(result, scan_keys))
 
     related_files = list(dict.fromkeys(related_files))
 

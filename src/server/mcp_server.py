@@ -20,6 +20,7 @@ Tools exposed:
 """
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -78,6 +79,24 @@ def _load_json(path: str) -> dict:
     return {}
 
 
+def _scan_cache_hash(scan: dict) -> str:
+    return hashlib.sha256(
+        json.dumps(scan, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+
+
+def _semantic_cache_is_current(scan: dict, sem: dict) -> bool:
+    """Return False only when the cache carries a scan hash and it differs."""
+    stored = sem.get("scan_hash", "") if isinstance(sem, dict) else ""
+    if not stored:
+        return True
+    return stored == _scan_cache_hash(scan)
+
+
+def _semantic_notice(edges: list) -> str:
+    return next((e.get("reason", "") for e in edges if e.get("kind") == "notice"), "")
+
+
 # ─── Import name extraction ──────────────────────────────────────────────────
 
 def _imp_name(imp) -> str:
@@ -128,15 +147,29 @@ def _build_index(scan: dict, sem: dict):
                 edges.append({"source": src_name, "target": tgt,
                                "kind": "import", "confidence": 1.0, "reason": ""})
 
-    # Inferred edges from semantic_cache
-    for e in sem.get("edges", []):
+    # Inferred edges from semantic_cache. If the cache carries a scan hash and
+    # it is stale, omit inferred edges so old relationships do not enter prompts.
+    if sem.get("edges") and not _semantic_cache_is_current(scan, sem):
         edges.append({
-            "source":     e.get("source", ""),
-            "target":     e.get("target", ""),
-            "kind":       "inferred",
-            "confidence": e.get("confidence", 0.0),
-            "reason":     e.get("reason", ""),
+            "source": "",
+            "target": "",
+            "kind": "notice",
+            "confidence": 0.0,
+            "reason": "Semantic cache ignored because it does not match the current scan.",
         })
+    else:
+        for e in sem.get("edges", []):
+            src = e.get("source", "")
+            tgt = e.get("target", "")
+            if not src or not tgt:
+                continue
+            edges.append({
+                "source":     src,
+                "target":     tgt,
+                "kind":       "inferred",
+                "confidence": e.get("confidence", 0.0),
+                "reason":     e.get("reason", ""),
+            })
 
     # Adjacency list (undirected for BFS path finding)
     adj: dict[str, list[str]] = {n: [] for n in modules}
@@ -205,6 +238,18 @@ def _build_symbol_index(modules: dict, stem_to_key: dict) -> dict:
     """
     from collections import defaultdict
 
+    def _qualified_name(sd: dict) -> str:
+        name = sd.get("name", "")
+        parent = sd.get("parent") or ""
+        return f"{parent}.{name}" if parent else name
+
+    qname_counts: dict[tuple, int] = defaultdict(int)
+    for fkey, m in modules.items():
+        for sd in (m.get("symdefs") or []):
+            name = sd.get("name", "")
+            if name:
+                qname_counts[(fkey, _qualified_name(sd))] += 1
+
     # ── name -> list of defining sites ────────────────────────────────────────
     defs: dict[str, list[dict]] = defaultdict(list)
     for fkey, m in modules.items():
@@ -214,6 +259,10 @@ def _build_symbol_index(modules: dict, stem_to_key: dict) -> dict:
             name = sd.get("name", "")
             if not name:
                 continue
+            qname = _qualified_name(sd)
+            stable_id = f"{fkey}::{qname}"
+            if qname_counts.get((fkey, qname), 0) > 1 and sd.get("line") is not None:
+                stable_id += f":{sd.get('line')}"
             defs[name].append({
                 "file":      fkey,
                 "kind":      sd.get("kind", "?"),
@@ -222,6 +271,8 @@ def _build_symbol_index(modules: dict, stem_to_key: dict) -> dict:
                 "signature": sd.get("signature") or "",
                 "doc":       (sd.get("doc") or docs.get(name, "") or ""),
                 "is_public": sd.get("is_public", True),
+                "qualified_name": qname,
+                "stable_id": stable_id,
             })
 
     # ── file-level import in-degree + resolved undirected adjacency ───────────
@@ -230,6 +281,8 @@ def _build_symbol_index(modules: dict, stem_to_key: dict) -> dict:
     # _tool_l0 / _tool_health do) to get a usable adjacency for tracing.
     file_indeg: dict[str, int] = {k: 0 for k in modules}
     file_adj: dict[str, set] = {k: set() for k in modules}
+    file_imports: dict[str, set] = {k: set() for k in modules}
+    file_importers: dict[str, set] = {k: set() for k in modules}
     for fkey, m in modules.items():
         for imp in (m.get("imports") or []):
             resolved = stem_to_key.get(_imp_name(imp))
@@ -237,6 +290,8 @@ def _build_symbol_index(modules: dict, stem_to_key: dict) -> dict:
                 file_indeg[resolved] += 1
                 file_adj[fkey].add(resolved)
                 file_adj[resolved].add(fkey)
+                file_imports[fkey].add(resolved)
+                file_importers[resolved].add(fkey)
 
     def _resolve_callee(callee: str, src_file: str) -> Optional[str]:
         sites = defs.get(callee)
@@ -285,6 +340,8 @@ def _build_symbol_index(modules: dict, stem_to_key: dict) -> dict:
         "defs":       dict(defs),
         "file_indeg": file_indeg,
         "file_adj":   {k: list(v) for k, v in file_adj.items()},
+        "file_imports": {k: list(v) for k, v in file_imports.items()},
+        "file_importers": {k: list(v) for k, v in file_importers.items()},
         "sym_indeg":  dict(sym_indeg),
         "callers":    dict(callers),
         "callees":    dict(callees),
@@ -800,6 +857,9 @@ def _tool_query(question: str, modules: dict, edges: list, symidx: Optional[dict
     sem_hits.sort(reverse=True, key=lambda x: x[0])
 
     lines = []
+    notice = _semantic_notice(edges)
+    if notice:
+        lines.append("Note: " + notice)
     if top_modules:
         lines.append("Matching modules:")
         for _, name in hits[:8]:
@@ -913,6 +973,7 @@ _BASE_TOOL_BUDGETS: dict = {
     "vizcode_health":  5_000,
     "vizcode_context": 6_000,
     "vizcode_trace":   4_000,
+    "vizcode_affected": 4_000,
 }
 _DEFAULT_TOOL_BUDGET = 5_000
 
@@ -937,7 +998,8 @@ def _budget_clamp(text: str, char_budget: int) -> str:
     if char_budget <= 0 or len(text) <= char_budget:
         return text
     return (text[:char_budget].rstrip()
-            + f"\n\n[output truncated to {char_budget} chars; narrow the question for more]")
+            + f"\n\n[output truncated to {char_budget} chars; narrow the question, lower node_cap, "
+              "add relation_filter, or use a file/symbol-specific tool for full detail]")
 
 
 # ─── Smart-context helpers ────────────────────────────────────────────────────
@@ -951,6 +1013,31 @@ _STOPWORDS = frozenset({
     "work", "works", "about", "there", "their", "them", "then", "than", "code",
     "file", "files", "function", "functions", "class", "module", "modules",
 })
+
+_CALL_RELATIONS = {"call", "calls", "caller", "callers"}
+_IMPORT_RELATIONS = {"import", "imports", "include", "dependency", "dependencies"}
+
+
+def _normalise_relation_filter(values) -> set[str]:
+    if values is None:
+        return set()
+    if isinstance(values, str):
+        values = [values]
+    out: set[str] = set()
+    for v in values:
+        if not isinstance(v, str):
+            continue
+        raw = v.strip().lower()
+        if not raw:
+            continue
+        out.add(raw)
+        if raw.endswith("s"):
+            out.add(raw[:-1])
+    return out
+
+
+def _allows_relation(filters: set[str], *names: str) -> bool:
+    return not filters or any(n in filters for n in names)
 
 
 def _resolve_file(file_key: str, modules: dict) -> Optional[str]:
@@ -1070,8 +1157,10 @@ def _resolve_seeds(tokens, modules, stem_to_key, symidx):
     return seed_syms, seed_files, notes
 
 
-def _render_sym(fkey, name, symidx, *, max_edges: int = 4) -> str:
+def _render_sym(fkey, name, symidx, *, max_edges: int = 4,
+                relation_filter: set[str] | None = None) -> str:
     """Render one symbol compactly: location, signature, first-line doc, key edges. No body."""
+    relation_filter = relation_filter or set()
     sites = symidx.get("defs", {}).get(name, [])
     sd = next((s for s in sites if s["file"] == fkey), sites[0] if sites else None)
     out: list = []
@@ -1089,15 +1178,18 @@ def _render_sym(fkey, name, symidx, *, max_edges: int = 4) -> str:
                      key=lambda n: -sym_score.get(n, 0.0))
     callers = sorted(symidx.get("callers", {}).get((fkey, name), set()),
                      key=lambda n: -sym_score.get(n, 0.0))
-    if callees:
-        out.append("      -> calls: " + ", ".join(n[1] for n in callees[:max_edges]))
-    if callers:
-        out.append("      <- callers: " + ", ".join(n[1] for n in callers[:max_edges]))
+    if _allows_relation(relation_filter, *_CALL_RELATIONS):
+        if callees:
+            out.append("      -> calls: " + ", ".join(n[1] for n in callees[:max_edges]))
+        if callers:
+            out.append("      <- callers: " + ", ".join(n[1] for n in callers[:max_edges]))
     return "\n".join(out)
 
 
-def _select_subgraph(seed_syms, seed_files, modules, symidx, node_cap):
+def _select_subgraph(seed_syms, seed_files, modules, symidx, node_cap,
+                     relation_filter: set[str] | None = None):
     """Seeds + each seed file's most-central symbol + one-hop centrality-ranked neighbours."""
+    relation_filter = relation_filter or set()
     sym_score = symidx.get("sym_score", {})
     callees = symidx.get("callees", {})
     callers = symidx.get("callers", {})
@@ -1126,15 +1218,16 @@ def _select_subgraph(seed_syms, seed_files, modules, symidx, node_cap):
         if best:
             _add(best)
 
-    neighbours: list = []
-    for node in list(selected):
-        for nb in list(callees.get(node, set())) + list(callers.get(node, set())):
-            neighbours.append(nb)
-    neighbours.sort(key=lambda n: -sym_score.get(n, 0.0))
-    for nb in neighbours:
-        if len(selected) >= node_cap:
-            break
-        _add(nb)
+    if _allows_relation(relation_filter, *_CALL_RELATIONS):
+        neighbours: list = []
+        for node in list(selected):
+            for nb in list(callees.get(node, set())) + list(callers.get(node, set())):
+                neighbours.append(nb)
+        neighbours.sort(key=lambda n: -sym_score.get(n, 0.0))
+        for nb in neighbours:
+            if len(selected) >= node_cap:
+                break
+            _add(nb)
     return selected[:node_cap]
 
 
@@ -1264,13 +1357,97 @@ def _tool_trace(source, target, modules, adj, stem_to_key, symidx,
                           max_hops=max_hops, char_budget=char_budget)
 
 
+def _tool_affected(target: str, modules, stem_to_key, symidx,
+                   *, depth: int = 2, relation_filter=None,
+                   char_budget: int = 4000) -> str:
+    """Reverse traversal from a file/symbol to likely affected callers/importers."""
+    try:
+        depth = max(1, min(int(depth), 6))
+    except (TypeError, ValueError):
+        depth = 2
+    filters = _normalise_relation_filter(relation_filter)
+    tokens = _extract_tokens(target)
+    if target and target not in tokens:
+        tokens.insert(0, target)
+    seed_syms, seed_files, notes = _resolve_seeds(tokens, modules, stem_to_key, symidx)
+    if not seed_syms and not seed_files:
+        return f"No file or symbol matched: {target}"
+
+    allow_calls = _allows_relation(filters, *_CALL_RELATIONS)
+    allow_imports = _allows_relation(filters, *_IMPORT_RELATIONS)
+    callers = symidx.get("callers", {})
+    file_importers = symidx.get("file_importers", {})
+
+    lines = ["=== Affected ==="]
+    if filters:
+        lines.append("Relation filter: " + ", ".join(sorted(filters)))
+    for n in notes[:3]:
+        lines.append(f"note: {n}")
+
+    seen_syms: set = set(seed_syms)
+    seen_files: set = set(seed_files)
+    q: deque = deque()
+    for s in seed_syms:
+        q.append(("sym", s, 0, "seed"))
+    for f in seed_files:
+        q.append(("file", f, 0, "seed"))
+
+    hits: list[tuple[int, str, str, object]] = []
+    while q:
+        kind, node, d, via = q.popleft()
+        if d >= depth:
+            continue
+        if kind == "sym" and allow_calls:
+            for nb in sorted(callers.get(node, set())):
+                if nb in seen_syms:
+                    continue
+                seen_syms.add(nb)
+                hits.append((d + 1, "call", via, nb))
+                q.append(("sym", nb, d + 1, "call"))
+        elif kind == "file" and allow_imports:
+            for nb in sorted(file_importers.get(node, [])):
+                if nb in seen_files:
+                    continue
+                seen_files.add(nb)
+                hits.append((d + 1, "import", via, nb))
+                q.append(("file", nb, d + 1, "import"))
+
+    if seed_syms:
+        lines.append("Seed symbols: " + ", ".join(f"{f}::{n}" for f, n in seed_syms[:6]))
+    if seed_files:
+        lines.append("Seed files: " + ", ".join(seed_files[:6]))
+    lines.append(f"Depth: {depth}")
+
+    if not hits:
+        lines.append("No affected callers or importers found.")
+        return _budget_clamp("\n".join(lines), char_budget)
+
+    lines.append("Likely affected:")
+    for d, rel, _via, node in hits[:40]:
+        if rel == "call":
+            f, n = node
+            lines.append(f"  d{d} call    {f}::{n}")
+        else:
+            lines.append(f"  d{d} import  {node}")
+    if len(hits) > 40:
+        lines.append(f"  ...+{len(hits) - 40} more; narrow relation_filter or depth")
+    return _budget_clamp("\n".join(lines), char_budget)
+
+
 def _tool_context(question, modules, mod_to_files, stem_to_key, symidx, edges, adj,
-                  *, node_cap: int = 12, char_budget: int = 6000) -> str:
+                  *, node_cap: int = 12, char_budget: int = 6000,
+                  relation_filter=None, mode: str = "broad") -> str:
     """One-shot smart context: resolve seeds from the question, assemble a compact
     centrality-ranked subgraph (signatures + first-line docs + key edges, never raw
     bodies), and inline a trace for flow questions — answering most questions in one
     call instead of a manual l0->l1->l2->l3 drilldown.
     """
+    filters = _normalise_relation_filter(relation_filter)
+    try:
+        node_cap = max(1, min(int(node_cap), 50))
+    except (TypeError, ValueError):
+        node_cap = 12
+
     tokens = _extract_tokens(question)
     seed_syms, seed_files, notes = _resolve_seeds(tokens, modules, stem_to_key, symidx)
 
@@ -1282,12 +1459,18 @@ def _tool_context(question, modules, mod_to_files, stem_to_key, symidx, edges, a
             "No specific symbol/file matched the question; showing keyword matches.\n\n"
             + kw, char_budget)
 
-    nodes = _select_subgraph(seed_syms, seed_files, modules, symidx, node_cap)
-    flow = _is_flow_question(question, seed_syms, seed_files)
+    nodes = _select_subgraph(seed_syms, seed_files, modules, symidx, node_cap, filters)
+    mode = (mode or "broad").lower()
+    flow = mode == "trace" or _is_flow_question(question, seed_syms, seed_files)
 
     header = ["=== Context ===",
               f"{len(seed_syms)} seed symbols | {len(seed_files)} seed files | "
               f"up to {len(nodes)} nodes"]
+    if filters:
+        header.append("Relation filter: " + ", ".join(sorted(filters)))
+    notice = _semantic_notice(edges)
+    if notice:
+        header.append("note: " + notice)
     for n in notes[:3]:
         header.append(f"note: {n}")
     if seed_files:
@@ -1303,7 +1486,7 @@ def _tool_context(question, modules, mod_to_files, stem_to_key, symidx, edges, a
     used = sum(len(h) + 1 for h in header)
     shown = 0
     for (f, nm) in nodes:
-        r = _render_sym(f, nm, symidx)
+        r = _render_sym(f, nm, symidx, relation_filter=filters)
         if used + len(r) > soft and body:
             body.append(f"  ...+{len(nodes) - shown} more symbols omitted (budget)")
             break
@@ -1341,6 +1524,22 @@ TOOLS = [
                     "type": "string",
                     "description": "Natural-language question; may name files, functions, or classes.",
                 },
+                "relation_filter": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional relation names such as call or import to narrow context.",
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": ["broad", "trace"],
+                    "default": "broad",
+                    "description": "Use trace to force path context when source and target are both present.",
+                },
+                "node_cap": {
+                    "type": "integer",
+                    "default": 12,
+                    "description": "Maximum relevant symbols to render, clamped to 1-50.",
+                },
             },
             "required": ["question"],
         },
@@ -1360,6 +1559,26 @@ TOOLS = [
                 "target": {"type": "string", "description": "Target file path."},
             },
             "required": ["source", "target"],
+        },
+    },
+    {
+        "name": "vizcode_affected",
+        "description": (
+            "Find likely callers or importers affected by changing a file or symbol. "
+            "Uses reverse graph traversal with a small depth instead of broad scans."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "target": {"type": "string", "description": "File path, class, or function name."},
+                "depth": {"type": "integer", "default": 2, "description": "Reverse traversal depth, 1-6."},
+                "relation_filter": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional relation names such as call or import.",
+                },
+            },
+            "required": ["target"],
         },
     },
     {
@@ -1570,6 +1789,7 @@ def _serve(scan_path: str, sem_path: str, report_path: str) -> None:
         elif method == "tools/call":
             name = params.get("name", "")
             args = params.get("arguments", {})
+            budget = budgets.get(name, _DEFAULT_TOOL_BUDGET)
 
             if name == "vizcode_query":
                 text = _tool_query(args.get("question", ""), modules, edges, symidx)
@@ -1579,13 +1799,23 @@ def _serve(scan_path: str, sem_path: str, report_path: str) -> None:
                 text = _tool_context(
                     args.get("question", ""), modules, mod_to_files, stem_to_key,
                     symidx, edges, adj,
-                    char_budget=budgets.get("vizcode_context", _DEFAULT_TOOL_BUDGET),
+                    char_budget=budget,
+                    relation_filter=args.get("relation_filter"),
+                    mode=args.get("mode", "broad"),
+                    node_cap=args.get("node_cap", 12),
                 )
             elif name == "vizcode_trace":
                 text = _tool_trace(
                     args.get("source", ""), args.get("target", ""), modules, adj,
                     stem_to_key, symidx,
-                    char_budget=budgets.get("vizcode_trace", _DEFAULT_TOOL_BUDGET),
+                    char_budget=budget,
+                )
+            elif name == "vizcode_affected":
+                text = _tool_affected(
+                    args.get("target", ""), modules, stem_to_key, symidx,
+                    depth=args.get("depth", 2),
+                    relation_filter=args.get("relation_filter"),
+                    char_budget=budget,
                 )
             elif name == "vizcode_explain":
                 text = _tool_explain(args.get("symbol", ""), modules, edges)
@@ -1604,6 +1834,7 @@ def _serve(scan_path: str, sem_path: str, report_path: str) -> None:
             else:
                 _send_message(stdout, _err(req_id, -32601, f"Unknown tool: {name}"))
                 continue
+            text = _budget_clamp(str(text), budget)
 
             _send_message(stdout, _ok(req_id, {
                 "content": [{"type": "text", "text": text}]

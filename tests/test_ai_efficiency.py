@@ -84,6 +84,16 @@ def test_trim_history_preserves_latest_and_caps_size():
     assert sum(len(m["content"]) for m in trimmed) <= 4000
 
 
+def test_trim_history_caps_oversized_latest_message():
+    messages = [{"role": "user", "content": "x" * 20_000}]
+
+    trimmed = trim_history(messages, max_messages=5, max_chars=3500)
+
+    assert len(trimmed) == 1
+    assert len(trimmed[0]["content"]) <= 3500
+    assert "message truncated" in trimmed[0]["content"]
+
+
 def test_qa_cache_uses_output_and_context_hash(tmp_path):
     scan_cache = {
         "entries": {
@@ -118,3 +128,53 @@ def test_qa_cache_uses_output_and_context_hash(tmp_path):
         question, tmp_path, scan_cache,
         depth="general", output="remediation_prompt", context_hash="ctx-b",
     ) is None
+
+
+def test_qa_cache_includes_files_from_tool_results(tmp_path):
+    scan_cache = {
+        "entries": {
+            "foo.py": {"file_sha": "old", "payload": {}},
+            "bar.py": {"file_sha": "bar", "payload": {}},
+        },
+    }
+
+    qa_cache.save(
+        "Where is the helper?",
+        "answer",
+        [{"name": "vizcode_context", "input": {"question": "helper"}, "result": "Relevant:\n  foo.py:1 helper()"}],
+        tmp_path,
+        scan_cache,
+        depth="general",
+    )
+
+    assert qa_cache.lookup("Where is the helper?", tmp_path, scan_cache, depth="general")
+    changed = {
+        "entries": {
+            "foo.py": {"file_sha": "new", "payload": {}},
+            "bar.py": {"file_sha": "bar", "payload": {}},
+        },
+    }
+    assert qa_cache.lookup("Where is the helper?", tmp_path, changed, depth="general") is None
+
+
+def test_tool_registry_writes_query_metrics(tmp_path):
+    _write_scan(tmp_path, {
+        "foo.py": {
+            "payload": {
+                "imports": [], "funcdefs": [{"label": "main"}],
+                "func_calls_by_func": [[]],
+                "symdefs": [{"kind": "function", "name": "main", "line": 1, "end_line": 2}],
+                "extras": {},
+            },
+            "file_sha": "abc",
+        },
+    })
+
+    result = ToolRegistry(str(tmp_path)).call("vizcode_context", {"question": "explain main"})
+    log_path = tmp_path / ".vizcode" / "ai_query_log.jsonl"
+
+    assert "main" in result
+    rows = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    assert rows[-1]["tool"] == "vizcode_context"
+    assert rows[-1]["result_chars"] == len(result)
+    assert "response" not in rows[-1]

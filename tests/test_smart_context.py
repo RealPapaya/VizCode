@@ -12,6 +12,8 @@ from server.mcp_server import (
     _build_stem_index,
     _build_symbol_index,
     _budget_for_filecount,
+    _scan_cache_hash,
+    _tool_affected,
     _tool_context,
     _tool_query,
     _tool_trace,
@@ -140,6 +142,15 @@ def test_symbol_centrality_ranks_hub_highest():
     assert sx["sym_score"][("util.py", "shared_helper")] == 1.0
 
 
+def test_symbol_index_adds_stable_aliases():
+    _m, _e, _a, _mf, _sk, sx = _index(ENTRIES)
+
+    site = next(s for s in sx["defs"]["shared_helper"] if s["file"] == "util.py")
+
+    assert site["qualified_name"] == "shared_helper"
+    assert site["stable_id"] == "util.py::shared_helper"
+
+
 def test_resolved_file_adjacency_is_usable():
     _m, _e, _a, _mf, _sk, sx = _index(ENTRIES)
     # Resolved via stem_to_key, unlike _build_index's sparse raw adj.
@@ -183,6 +194,43 @@ def test_context_inlines_trace_for_flow_question():
     assert "linked via:" in out
 
 
+def test_context_relation_filter_can_suppress_call_edges():
+    modules, edges, adj, mf, sk, sx = _index(ENTRIES)
+    out = _tool_context("explain shared_helper", modules, mf, sk, sx, edges, adj,
+                        relation_filter=["import"], char_budget=4000)
+
+    assert "Relation filter:" in out
+    assert "callers" not in out
+
+
+def test_context_reports_stale_semantic_cache_notice():
+    scan = {"entries": ENTRIES}
+    sem = {
+        "scan_hash": "stale",
+        "edges": [{"source": "app.py", "target": "util.py", "confidence": 0.9, "reason": "old"}],
+    }
+    modules, edges, adj = _build_index(scan, sem)
+    mf, sk = _build_stem_index(modules)
+    sx = _build_symbol_index(modules, sk)
+
+    out = _tool_context("explain shared_helper", modules, mf, sk, sx, edges, adj,
+                        char_budget=4000)
+
+    assert "Semantic cache ignored" in out
+    assert not [e for e in edges if e.get("kind") == "inferred"]
+
+
+def test_current_semantic_cache_edges_are_loaded():
+    scan = {"entries": ENTRIES}
+    sem = {
+        "scan_hash": _scan_cache_hash(scan),
+        "edges": [{"source": "app.py", "target": "util.py", "confidence": 0.9, "reason": "current"}],
+    }
+    _modules, edges, _adj = _build_index(scan, sem)
+
+    assert [e for e in edges if e.get("kind") == "inferred"]
+
+
 # ─── Phase C: inline-code trace ───────────────────────────────────────────────
 
 def test_trace_inlines_signatures_and_link_symbol():
@@ -204,6 +252,18 @@ def test_trace_reports_missing_path_honestly():
     modules, _e, adj, _mf, sk, sx = _index(entries)
     out = _tool_trace("lonely.py", "util.py", modules, adj, sk, sx)
     assert "No dependency path" in out
+
+
+def test_affected_reports_reverse_callers_and_importers():
+    modules, _e, _a, _mf, sk, sx = _index(ENTRIES)
+
+    out_sym = _tool_affected("shared_helper", modules, sk, sx, depth=1)
+    out_file = _tool_affected("util.py", modules, sk, sx, depth=1, relation_filter=["import"])
+
+    assert "app.py::main" in out_sym
+    assert "svc.py::serve" in out_sym
+    assert "app.py" in out_file
+    assert "svc.py" in out_file
 
 
 # ─── Phase D: adaptive budgets + token ceiling ────────────────────────────────

@@ -2340,6 +2340,12 @@ class Handler(BaseHTTPRequestHandler):
                         _last_user_q, project_root, _scan_cache, depth,
                         output=output or '', context_hash=_context_hash,
                     )
+                    if _cached_entry and any(
+                        str(tc.get('name', '')).startswith('vizcode_ui_')
+                        for tc in (_cached_entry.get('tool_calls') or [])
+                        if isinstance(tc, dict)
+                    ):
+                        _cached_entry = None
 
                 if _cached_entry:
                     # ── Replay cached answer ──────────────────────────────────
@@ -2410,8 +2416,12 @@ class Handler(BaseHTTPRequestHandler):
 
                     # ── Save to QA cache ──────────────────────────────────────
                     _full_ans = ''.join(_ans_chunks)
+                    _has_ui_tool = any(
+                        str(tc.get('name', '')).startswith('vizcode_ui_')
+                        for tc in _tool_calls
+                    )
                     if (_last_user_q and _full_ans and _scan_cache
-                            and _mode_spec.get('cacheable')):
+                            and _mode_spec.get('cacheable') and not _has_ui_tool):
                         try:
                             _qa.save(
                                 question=_last_user_q,

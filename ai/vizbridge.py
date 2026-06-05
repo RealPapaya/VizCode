@@ -22,7 +22,10 @@ from __future__ import annotations
 
 import json
 import os
+import hashlib
+import re
 import sys
+import time
 from collections import deque
 from pathlib import Path
 from typing import Iterator
@@ -60,6 +63,7 @@ from mcp_server import (
     _tool_path,
     _tool_context,
     _tool_trace,
+    _tool_affected,
     _tool_explain,
     _tool_report,
     TOOLS as MCP_TOOL_SCHEMAS,
@@ -115,6 +119,8 @@ _DEFAULTS: dict = {
 
 _MAX_HISTORY_MESSAGES = 8
 _MAX_HISTORY_CHARS = 12_000
+_MAX_LATEST_MESSAGE_CHARS = 8_000
+_QUERY_LOG_FILENAME = "ai_query_log.jsonl"
 # Per-tool result char budgets come from mcp_server._budget_for_filecount (scaled to
 # repo size). ~3 chars/token is the clamp ratio used to keep a tool result under the
 # active provider token ceiling.
@@ -127,7 +133,8 @@ def _clip_text(text: str, limit: int, label: str = "content") -> str:
     omitted = len(text) - limit
     return (
         text[:limit].rstrip()
-        + f"\n\n[truncated {label}: omitted {omitted} chars; ask for a narrower scope for full detail]"
+        + f"\n\n[truncated {label}: omitted {omitted} chars; narrow the question, "
+          "reduce node_cap, add relation_filter, or ask for one file/symbol for full detail]"
     )
 
 
@@ -147,6 +154,22 @@ def _message_text_for_budget(msg: dict) -> str:
     return str(content)
 
 
+def _truncate_message_for_budget(msg: dict, limit: int) -> dict:
+    if limit <= 0:
+        return msg
+    content = msg.get("content", "")
+    if not isinstance(content, str) or len(content) <= limit:
+        return msg
+    suffix = (
+        "\n\n[message truncated before sending; ask with a narrower scope or "
+        "split the request for full detail]"
+    )
+    keep = max(0, limit - len(suffix))
+    out = dict(msg)
+    out["content"] = content[:keep].rstrip() + suffix
+    return out
+
+
 def trim_history(
     messages: list[dict],
     *,
@@ -157,7 +180,10 @@ def trim_history(
     if not messages:
         return []
 
-    latest = messages[-1]
+    latest = _truncate_message_for_budget(
+        messages[-1],
+        min(max_chars, _MAX_LATEST_MESSAGE_CHARS),
+    )
     kept_rev = [latest]
     char_budget = len(_message_text_for_budget(latest))
 
@@ -171,6 +197,49 @@ def trim_history(
         char_budget += msg_chars
 
     return list(reversed(kept_rev))
+
+
+def _tool_result_ids(messages: list[dict]) -> set[str]:
+    return {
+        str(m.get("tool_use_id", ""))
+        for m in messages
+        if isinstance(m, dict) and m.get("role") == "tool" and m.get("tool_use_id")
+    }
+
+
+def _assistant_tool_use_ids(msg: dict) -> set[str]:
+    ids: set[str] = set()
+    content = msg.get("content", [])
+    if isinstance(content, list):
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "tool_use" and item.get("id"):
+                ids.add(str(item["id"]))
+    return ids
+
+
+def _trim_working_history(messages: list[dict]) -> list[dict]:
+    trimmed = trim_history(messages)
+    needed = _tool_result_ids(trimmed)
+    if not needed:
+        return trimmed
+    present = set()
+    for msg in trimmed:
+        if isinstance(msg, dict) and msg.get("role") == "assistant":
+            present.update(_assistant_tool_use_ids(msg))
+    missing = needed - present
+    if not missing:
+        return trimmed
+    inserts: list[dict] = []
+    for msg in messages:
+        if not isinstance(msg, dict) or msg.get("role") != "assistant":
+            continue
+        ids = _assistant_tool_use_ids(msg)
+        if ids & missing and msg not in trimmed:
+            inserts.append(msg)
+            missing -= ids
+        if not missing:
+            break
+    return inserts + trimmed
 
 
 def _read_json_file(path: Path) -> dict:
@@ -370,6 +439,44 @@ class ProviderRouter:
         raise ValueError(f"Unknown provider: {provider!r}")
 
 
+_TOOL_INDEX_CACHE: dict[tuple, dict] = {}
+_NODES_RE = re.compile(r"\b(?:up to\s+)?(\d+)\s+nodes?\b", re.I)
+
+
+def _file_signature(path: Path) -> tuple[str, int, int]:
+    try:
+        st = path.stat()
+        return (str(path.resolve()), st.st_size, st.st_mtime_ns)
+    except OSError:
+        return (str(path.resolve()), -1, -1)
+
+
+def _hash_payload(payload) -> str:
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def _nodes_from_text(text: str) -> int | None:
+    m = _NODES_RE.search(text or "")
+    return int(m.group(1)) if m else None
+
+
+def _query_log_disabled() -> bool:
+    return os.environ.get("VIZCODE_QUERY_LOG_DISABLE", "").lower() in ("1", "true", "yes")
+
+
+def _append_query_log(project_root: Path, record: dict) -> None:
+    if _query_log_disabled():
+        return
+    try:
+        log_path = project_root / ".vizcode" / _QUERY_LOG_FILENAME
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+    except Exception:
+        pass
+
+
 # ─── ToolRegistry ─────────────────────────────────────────────────────────────
 
 class ToolRegistry:
@@ -395,12 +502,35 @@ class ToolRegistry:
     def _ensure_loaded(self) -> None:
         if self._modules is not None:
             return
+        cache_key = (_file_signature(self._scan_path), _file_signature(self._sem_path))
+        cached = _TOOL_INDEX_CACHE.get(cache_key)
+        if cached:
+            self._modules = cached["modules"]
+            self._edges = cached["edges"]
+            self._adj = cached["adj"]
+            self._mod_to_files = cached["mod_to_files"]
+            self._stem_to_key = cached["stem_to_key"]
+            self._symidx = cached["symidx"]
+            self._budgets = cached["budgets"]
+            return
+
         scan = _load_json(str(self._scan_path))
         sem  = _load_json(str(self._sem_path))
         self._modules, self._edges, self._adj = _build_index(scan, sem)
         self._mod_to_files, self._stem_to_key = _build_stem_index(self._modules)
         self._symidx = _build_symbol_index(self._modules, self._stem_to_key)
         self._budgets = _budget_for_filecount(len(self._modules))
+        _TOOL_INDEX_CACHE[cache_key] = {
+            "modules": self._modules,
+            "edges": self._edges,
+            "adj": self._adj,
+            "mod_to_files": self._mod_to_files,
+            "stem_to_key": self._stem_to_key,
+            "symidx": self._symidx,
+            "budgets": self._budgets,
+        }
+        while len(_TOOL_INDEX_CACHE) > 4:
+            _TOOL_INDEX_CACHE.pop(next(iter(_TOOL_INDEX_CACHE)))
 
     def set_token_ceiling(self, max_tokens: int | None) -> None:
         """Cap tool-result size to the active provider token budget (see _CHARS_PER_TOKEN)."""
@@ -414,6 +544,7 @@ class ToolRegistry:
 
     def call(self, name: str, args: dict) -> str:
         """Call a tool by name and return its Markdown result string."""
+        started = time.perf_counter()
         self._ensure_loaded()
         m  = self._modules
         e  = self._edges
@@ -437,10 +568,20 @@ class ToolRegistry:
             result = _tool_path(args.get("source", ""), args.get("target", ""), m, a)
         elif name == "vizcode_context":
             result = _tool_context(args.get("question", ""), m, mf, sk, sx, e, a,
-                                   char_budget=budget)
+                                   char_budget=budget,
+                                   relation_filter=args.get("relation_filter"),
+                                   mode=args.get("mode", "broad"),
+                                   node_cap=args.get("node_cap", 12))
         elif name == "vizcode_trace":
             result = _tool_trace(args.get("source", ""), args.get("target", ""), m, a, sk, sx,
                                  char_budget=budget)
+        elif name == "vizcode_affected":
+            result = _tool_affected(
+                args.get("target", ""), m, sk, sx,
+                depth=args.get("depth", 2),
+                relation_filter=args.get("relation_filter"),
+                char_budget=budget,
+            )
         elif name == "vizcode_explain":
             result = _tool_explain(args.get("symbol", ""), m, e)
         elif name == "vizcode_health":
@@ -449,7 +590,20 @@ class ToolRegistry:
             result = _tool_report(str(self._report_path))
         else:
             result = f"Unknown tool: {name}"
-        return _clip_text(str(result), budget, name)
+        clipped = _clip_text(str(result), budget, name)
+        _append_query_log(self._root, {
+            "ts": time.time(),
+            "kind": "tool_call",
+            "tool": name,
+            "input_hash": _hash_payload(args or {}),
+            "question_hash": _hash_payload(args.get("question", "")) if args.get("question") else "",
+            "result_chars": len(clipped),
+            "approx_tokens": max(1, len(clipped) // _CHARS_PER_TOKEN) if clipped else 0,
+            "nodes_returned": _nodes_from_text(clipped),
+            "duration_ms": round((time.perf_counter() - started) * 1000, 3),
+            "budget_chars": budget,
+        })
+        return clipped
 
     @staticmethod
     def definitions(whitelist: set[str] | None = None) -> list[dict]:
@@ -507,7 +661,7 @@ class ContextInjector:
             f"3. `vizcode_l2(file)` — function call graph for a specific file.\n"
             f"4. `vizcode_l3(file)` — detailed symbols, members, signatures, and symbol edges.\n"
             f"   Plus: `vizcode_trace(source, target)` (inline-code dependency trace), "
-            f"`vizcode_query`, `vizcode_path`, `vizcode_explain`, "
+            f"`vizcode_affected(target)`, `vizcode_query`, `vizcode_path`, `vizcode_explain`, "
             f"`vizcode_health`, `vizcode_report`.\n\n"
             f"**Canvas tools** (drive the visualizer — web UI only):\n"
             f"- `vizcode_ui_goto_l0/l1/l2` — switch the user's canvas view\n"
@@ -641,9 +795,10 @@ class VizBridge:
         tool_defs = self._tools.definitions(whitelist=whitelist)
 
         # Working copy of messages — we append assistant + tool_result turns
-        working = trim_history(list(messages))
+        working = _trim_working_history(list(messages))
 
         for _round in range(max_tool_rounds):
+            working = _trim_working_history(working)
             pending_tool_calls: list[dict] = []
             assistant_content:  list[dict] = []
             ui_results: dict[str, str] = {}   # tool_use id -> result for UI tools already fired mid-stream
@@ -746,6 +901,7 @@ class VizBridge:
                     "tool_use_id": tc["id"],
                     "content":     result,
                 })
+            working = _trim_working_history(working)
 
         # Safety: exceeded max rounds
         yield {"type": "done"}
