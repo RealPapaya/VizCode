@@ -684,8 +684,9 @@ class ContextInjector:
             f"something, call the matching `vizcode_ui_*` tool so the canvas "
             f"actually moves — do NOT just describe what they would see.\n"
             f"- Do NOT call canvas tools for pure Q&A (e.g. 'which module is biggest?').\n"
-            f"- Generate Mermaid flowcharts (```mermaid) when asked to visualize flows "
-            f"that aren't already shown on the canvas (the chat panel renders them inline).\n"
+            f"- Generate flowcharts as a ```vizflow JSON block ({{nodes, edges}}) when asked to "
+            f"visualize flows that aren't already shown on the canvas; the chat panel renders it "
+            f"natively (a Mermaid ```flowchart block is also accepted and drawn the same way).\n"
             f"- Focus on architecture, dependencies, and call flows.\n"
             f"- Do NOT read raw source files — use the tools instead.\n"
             f"- Never fabricate missing facts, node ids, tool outputs, or code structure details.\n"
@@ -737,7 +738,7 @@ class VizBridge:
         Drive one conversation turn with automatic tool-use loop.
 
         `depth`  — reply thoroughness: "general" / "deep" / "quick".
-        `output` — optional format constraint: "mermaid_flow" / "file_tour" / "health_report".
+        `output` — optional format constraint: "flow" / "file_tour" / "health_report".
         Quick depth ignores output. Unknown values fall back silently.
 
         Yields event dicts:

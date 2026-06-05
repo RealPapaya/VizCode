@@ -57,7 +57,7 @@ Parser contract (6-tuple — do not change):
 ## 2. AI (`ai/`)
 
 - **Web AI** — `vizbridge.py` → SSE `/chat-stream` → `static/features/viz_chat.js`; reads `.vizcode/scan_cache.json` + `semantic_cache.json`.
-- **MCP** — `src/server/mcp_server.py`, tools `vizcode_l0/l1/l2/l3/query/path/explain/health/report`; data under `.vizcode/` (`scan_cache.json`, `INDEX.md`, `L1/ L2/ L3/`).
+- **MCP** — `src/server/mcp_server.py`, tools `vizcode_context` (one-shot centrality-ranked subgraph + inline trace — preferred entry point) · `vizcode_trace` (inline dependency trace) · `vizcode_l0/l1/l2/l3/query/path/explain/health/report`; backed by a symbol index (`_build_symbol_index`) and size-adaptive output budgets (`_budget_for_filecount`, consumed by `vizbridge.ToolRegistry`). Data under `.vizcode/` (`scan_cache.json`, `INDEX.md`, `L1/ L2/ L3/`).
 - **CLI** — `chat_cli.py` via `--chat` / `--ai`.
 - Config: `ai/config.json` · keys in `.vizcode/key/ai_keys.json`.
 

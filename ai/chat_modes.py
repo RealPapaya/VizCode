@@ -3,7 +3,7 @@ ai/chat_modes.py - conversation mode registry for VizBridge.
 
 DEPTH controls reply thoroughness: general / deep / quick.
 OUTPUT optionally constrains response format:
-mermaid_flow / file_tour / health_report / remediation_prompt.
+flow / file_tour / health_report / remediation_prompt.
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ DEPTH_MODES: dict[str, dict] = {
             "- Prefer a single `vizcode_context` call (or `vizcode_query` / `vizcode_explain`) "
             "over hierarchical drilldown.\n"
             "- Do NOT call `vizcode_l0` unless the user explicitly asks for the big picture.\n"
-            "- Do NOT generate Mermaid flowcharts.\n"
+            "- Do NOT generate flowcharts or diagrams.\n"
             "- Do NOT launch guided tours (`vizcode_ui_tour_step`).\n"
             "- Do NOT run health checks or produce health reports.\n"
             "- If the user asks for a complex output, reply briefly that they should switch to General or Deep mode.\n"
@@ -59,11 +59,24 @@ DEPTH_MODES: dict[str, dict] = {
 
 
 OUTPUT_MODES: dict[str, dict] = {
-    "mermaid_flow": {
+    "flow": {
         "label": "Flowchart",
         "system_addendum": (
             "\n\nOUTPUT: FLOWCHART.\n"
-            "- Your response MUST include a Mermaid diagram fenced in ```mermaid.\n"
+            "- Your response MUST include exactly one fenced ```vizflow block holding a single JSON object.\n"
+            "- Schema: {\"direction\": \"TB\"|\"LR\", \"title\": str, "
+            "\"nodes\": [{\"id\": str, \"label\": str, "
+            "\"kind\": \"entry\"|\"process\"|\"decision\"|\"io\"|\"exit\", \"ref\": str}], "
+            "\"edges\": [{\"from\": str, \"to\": str, \"label\": str}]}.\n"
+            "- `nodes` and `edges` are required; `id` values are short and unique; "
+            "every edge `from`/`to` must reference an existing node id.\n"
+            "- `direction`, `title`, `kind`, `label`, and `ref` are optional.\n"
+            "- Set `ref` to an exact graph node_id (a file path or `path::func`) from the tools "
+            "whenever a node maps to real code, so the diagram deep-links into the canvas.\n"
+            "- Emit ONLY valid JSON inside the block: no comments, no trailing commas. Keep it under ~25 nodes.\n"
+            "- This renders natively in VizCode (no Mermaid.js). A standard Mermaid ```flowchart / ```graph "
+            "block is also accepted and drawn the same way, but `vizflow` is preferred because its `ref` "
+            "fields deep-link nodes to the canvas.\n"
             "- Do not produce a tour, do not call tour_step.\n"
             "- If you need context, call `vizcode_l0()` once to orient first.\n"
             "- If you cannot determine a meaningful flow from available tools, say what is missing; do NOT fabricate.\n"
@@ -83,7 +96,7 @@ OUTPUT_MODES: dict[str, dict] = {
             "\n\nOUTPUT: GUIDED TOUR.\n"
             "- You MUST call `vizcode_ui_tour_step` at least 3 times, interleaved with narration.\n"
             "- Rhythm: one sentence, tour_step, next sentence, tour_step.\n"
-            "- Do not emit Mermaid diagrams.\n"
+            "- Do not emit flowcharts (```vizflow) or other diagrams.\n"
         ),
         "tool_whitelist": None,
         "max_tokens": 2048,
@@ -97,7 +110,7 @@ OUTPUT_MODES: dict[str, dict] = {
             "- Your FIRST tool call must be `vizcode_health`.\n"
             "- Output format: three H3 sections: ### Dead code / ### God files / ### Circular imports.\n"
             "- Each section should be a bullet list with up to 5 items and exact paths.\n"
-            "- Do not produce a tour, do not emit Mermaid.\n"
+            "- Do not produce a tour, do not emit flowcharts.\n"
         ),
         "tool_whitelist": {
             "vizcode_health", "vizcode_report",
@@ -135,6 +148,8 @@ def resolve(depth: str | None, output: str | None) -> tuple[set[str] | None, str
 
 def resolve_spec(depth: str | None, output: str | None) -> dict:
     """Resolve mode prompt additions, tools, output budget, and cache policy."""
+    if output == "mermaid_flow":   # legacy id → native flow renderer
+        output = "flow"
     d = DEPTH_MODES.get(depth or "general") or DEPTH_MODES["general"]
 
     if depth == "quick" or not output:

@@ -1196,9 +1196,30 @@
 /* ── Typing indicator ────────────────────────────────────────────────────── */
 .chat-typing {
     display: flex;
-    gap: 4px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
     padding: 10px 11px;
     align-self: flex-start;
+    max-width: 88%;
+}
+
+.chat-typing-dots {
+    display: flex;
+    gap: 4px;
+    padding: 2px 6px;
+    margin: -2px -6px;
+    border-radius: 10px;
+    transition: background .12s;
+}
+
+/* Only invite a click once there are process steps to reveal. */
+.chat-typing.has-think .chat-typing-dots {
+    cursor: pointer;
+}
+
+.chat-typing.has-think .chat-typing-dots:hover {
+    background: color-mix(in srgb, var(--accent, #dfa745) 14%, transparent);
 }
 
 .chat-typing span {
@@ -1207,6 +1228,34 @@
     border-radius: 50%;
     background: var(--muted);
     animation: chatBounce .9s infinite;
+}
+
+/* Expandable "what the AI is doing" log, toggled by clicking the dots. */
+.chat-think-log {
+    align-self: stretch;
+    max-height: 180px;
+    overflow-y: auto;
+    padding: 6px 9px;
+    background: color-mix(in srgb, var(--panel, #161715) 70%, transparent);
+    border: 1px solid var(--border, #2c2d2a);
+    border-left: 2px solid var(--accent, #dfa745);
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 10.5px;
+    line-height: 1.55;
+    color: var(--muted, #9ca3af);
+}
+
+.chat-think-step {
+    padding: 1px 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.chat-think-step + .chat-think-step {
+    margin-top: 2px;
+    padding-top: 3px;
+    border-top: 1px dashed color-mix(in srgb, var(--border, #2c2d2a) 85%, transparent);
 }
 
 .chat-typing span:nth-child(2) {
@@ -1296,53 +1345,190 @@
     opacity: 1;
 }
 
-/* ── Mermaid diagrams rendered inside chat bubbles ──────────────────────── */
-.chat-mermaid {
+/* ── Native flow diagrams (vizflow) rendered inside chat bubbles ─────────── */
+.chat-flow {
     display: block;
+    position: relative;   /* anchor for the enlarge button */
     margin: 8px 0;
-    padding: 10px;
-    background: transparent;
+    padding: 8px;
+    background: color-mix(in srgb, var(--panel, #161715) 55%, transparent);
     border: 1px solid var(--border, #2c2d2a);
     border-radius: 8px;
-    text-align: center;
-    overflow-x: auto;
+    overflow: hidden;
     max-width: 100%;
 }
 
-.chat-mermaid svg {
-    max-width: 100%;
-    height: auto;
-    /* Strip the background-color mermaid bakes into the SVG style attribute */
-    background-color: transparent !important;
-    font-family: 'Segoe UI', system-ui, sans-serif !important;
+/* Always-present "enlarge" button — the inline copy keeps small labels, this
+   reopens the diagram big & zoomable in an overlay. */
+.chat-flow-expand {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: color-mix(in srgb, var(--panel, #161715) 82%, transparent);
+    border: 1px solid var(--border, #2c2d2a);
+    border-radius: 6px;
+    color: var(--muted, #9ca3af);
+    cursor: pointer;
+    opacity: .6;
+    transition: opacity .12s, color .12s, border-color .12s;
 }
 
-/* Edge labels inherit transparent bg from themeVariables but may still get
-   a white rect from some mermaid versions — force it away */
-.chat-mermaid .edgeLabel .label {
-    background-color: var(--bg, #0f110e) !important;
-    color: var(--muted, #93918b) !important;
+.chat-flow:hover .chat-flow-expand {
+    opacity: 1;
 }
 
-.chat-mermaid text {
-    font-family: 'Segoe UI', system-ui, sans-serif !important;
+.chat-flow-expand:hover {
+    color: var(--accent, #dfa745);
+    border-color: color-mix(in srgb, var(--accent, #dfa745) 60%, transparent);
 }
 
-/* Pre-render state: show as code text while mermaid.min.js is fetching */
-.chat-mermaid:not([data-rendered]) {
+.chat-flow-expand svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* ── Enlarge overlay (full-size, zoom/pan-able flow diagram) ─────────────── */
+.chat-flow-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483646;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, .6);
+    backdrop-filter: blur(2px);
+}
+
+.chat-flow-modal-panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(92vw, 1100px);
+    height: min(88vh, 800px);
+    background: var(--panel, #161715);
+    border: 1px solid var(--border, #2c2d2a);
+    border-radius: 12px;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, .55);
+    overflow: hidden;
+}
+
+.chat-flow-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border, #2c2d2a);
+}
+
+.chat-flow-modal-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent, #dfa745);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chat-flow-modal-close {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--border, #2c2d2a);
+    border-radius: 6px;
+    color: var(--muted, #9ca3af);
+    cursor: pointer;
+    transition: color .12s, border-color .12s;
+}
+
+.chat-flow-modal-close:hover {
+    color: var(--text, #eae8e3);
+    border-color: var(--muted, #9ca3af);
+}
+
+.chat-flow-modal-close svg {
+    width: 16px;
+    height: 16px;
+}
+
+.chat-flow-modal-canvas {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 0;
+}
+
+.chat-flow-modal-ctrls {
+    position: absolute;
+    bottom: 14px;
+    right: 14px;
+    display: flex;
+    gap: 6px;
+}
+
+.chat-flow-modal-ctrls button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    font-size: 16px;
+    line-height: 1;
+    background: color-mix(in srgb, var(--panel, #161715) 88%, transparent);
+    border: 1px solid var(--border, #2c2d2a);
+    border-radius: 6px;
+    color: var(--text, #eae8e3);
+    cursor: pointer;
+    transition: color .12s, border-color .12s;
+}
+
+.chat-flow-modal-ctrls button:hover {
+    color: var(--accent, #dfa745);
+    border-color: color-mix(in srgb, var(--accent, #dfa745) 60%, transparent);
+}
+
+/* Cytoscape host — needs an explicit size to lay out and fit. */
+.chat-flow-canvas {
+    width: 100%;
+    height: 260px;
+}
+
+.chat-flow-title {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--accent, #dfa745);
+    margin: 0 2px 6px;
+}
+
+/* Pre-render state: show the JSON source as muted code while streaming. */
+.chat-flow:not([data-rendered]) {
     font-family: 'JetBrains Mono', 'Consolas', monospace;
     font-size: 11px;
     color: var(--muted, #9ca3af);
-    white-space: pre;
-    text-align: left;
+    white-space: pre-wrap;
+    word-break: break-word;
     opacity: .7;
 }
 
-/* CDN blocked — leave the source readable */
-.chat-mermaid-fallback {
+/* Malformed JSON or Cytoscape unavailable — leave the source readable. */
+.chat-flow-fallback pre {
+    margin: 0;
     font-family: 'JetBrains Mono', 'Consolas', monospace;
-    font-size: 11px;
+    font-size: 10.5px;
     color: var(--muted, #9ca3af);
-    white-space: pre;
-    text-align: left;
+    white-space: pre-wrap;
+    word-break: break-word;
 }

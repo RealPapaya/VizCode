@@ -22,6 +22,7 @@
     let _currentChatProvider = null; // provider name for the current turn
     let _lastTurnHadError = false;   // true if error SSE event was received this turn
     let _cancelStream     = null;    // fn to abort the current SSE stream (set by _readSSE)
+    let _thinkLog         = [];      // per-turn process steps (status + tools) shown when the dots are clicked
 
     // ── Input history (for arrow key navigation) ──────────────────────────────
     let _inputHistory = [];          // array of previously sent user messages
@@ -39,6 +40,11 @@
     // ── Chat mode state (depth × output) ─────────────────────────────────────
     let _currentDepth  = localStorage.getItem('vizcode.chat.depth')  || 'quick';
     let _currentOutput = localStorage.getItem('vizcode.chat.output') || null;
+    // Migrate the legacy Mermaid output mode to the native Cytoscape flow renderer.
+    if (_currentOutput === 'mermaid_flow') {
+        _currentOutput = 'flow';
+        localStorage.setItem('vizcode.chat.output', 'flow');
+    }
     let _modePickerOpen = false;
 
     // ── Session state ─────────────────────────────────────────────────────────
@@ -61,17 +67,19 @@
     let _panelMode = localStorage.getItem('vizcode.chat.panelMode') || 'side';
 
     // ── Markdown-lite renderer ────────────────────────────────────────────────
-    // Handles: ```mermaid blocks, ``` code blocks, `inline code`, **bold**, *italic*
+    // Handles: ```vizflow blocks, ``` code blocks, `inline code`, **bold**, *italic*
     //
-    // Mermaid blocks are extracted BEFORE HTML escaping so their raw syntax is
-    // preserved verbatim inside .chat-mermaid divs.  _renderPendingMermaid()
-    // renders them asynchronously once mermaid.min.js is loaded.
+    // Flow blocks (vizflow JSON, or a Mermaid flowchart/graph block) are
+    // extracted BEFORE HTML escaping so their raw source is preserved verbatim
+    // inside .chat-flow divs. _renderPendingFlows() draws them with Cytoscape +
+    // dagre once the panel is visible — same engine/theme as the main graph,
+    // no external library (Mermaid syntax is parsed locally, not rendered by it).
     function _renderMarkdown(text) {
-        // 1. Extract mermaid fences first, replace with sentinel placeholders
-        const mermaidBlocks = [];
-        let t = text.replace(/```mermaid\n?([\s\S]*?)```/g, function (_, code) {
-            const idx = mermaidBlocks.length;
-            mermaidBlocks.push(code.trim());
+        // 1. Extract vizflow / mermaid fences first, replace with placeholders
+        const flowBlocks = [];
+        let t = text.replace(/```(?:vizflow|mermaid)\n?([\s\S]*?)```/g, function (_, code) {
+            const idx = flowBlocks.length;
+            flowBlocks.push(code.trim());
             return '\x00MM' + idx + '\x00';
         });
 
@@ -93,12 +101,13 @@
         // 6. Italic (single *)
         t = t.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>');
 
-        // 7. Substitute mermaid placeholders back with .mermaid divs.
-        //    The div textContent is the raw mermaid source (browser decodes entities).
+        // 7. Substitute flow placeholders back with .chat-flow divs.
+        //    The div textContent is the raw JSON source (browser decodes entities);
+        //    _renderFlowEl() parses it once the block is complete.
         t = t.replace(/\x00MM(\d+)\x00/g, function (_, idx) {
-            const src = mermaidBlocks[Number(idx)] || '';
+            const src = flowBlocks[Number(idx)] || '';
             const esc = src.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            return `<div class="chat-mermaid mermaid">${esc}</div>`;
+            return `<div class="chat-flow">${esc}</div>`;
         });
 
         // 8. Paragraphs (double newline)
@@ -139,6 +148,9 @@
         _btn.classList.add('active');
         _updateButtonIcon();
         _checkConfig();
+        // Draw any flow blocks that were restored while the panel was hidden
+        // (Cytoscape can only measure the container once it is visible).
+        _triggerFlowsIfNeeded();
         setTimeout(() => _input.focus(), 220);
     }
 
@@ -199,9 +211,27 @@
     function _appendTyping() {
         const div = document.createElement('div');
         div.className = 'chat-typing';
-        div.innerHTML = '<span></span><span></span><span></span>';
         div.id = '_chat-typing';
+        div.innerHTML =
+            '<div class="chat-typing-dots"><span></span><span></span><span></span></div>' +
+            '<div class="chat-think-log" hidden></div>';
+        // Click the dots to reveal / hide what the AI is actually doing this turn
+        // (tool calls + status steps captured in _thinkLog). No steps yet → no-op.
+        div.querySelector('.chat-typing-dots').addEventListener('click', function () {
+            const log = div.querySelector('.chat-think-log');
+            if (!log || !_thinkLog.length) return;
+            if (log.hasAttribute('hidden')) {
+                log.removeAttribute('hidden');
+                div.classList.add('open');
+                log.scrollTop = log.scrollHeight;
+            } else {
+                log.setAttribute('hidden', '');
+                div.classList.remove('open');
+            }
+            _scrollBottom();
+        });
         _msgs.appendChild(div);
+        _renderThinkLog();   // restore any steps already collected before the dots existed
         _scrollBottom();
         return div;
     }
@@ -209,6 +239,32 @@
     function _removeTyping() {
         const el = document.getElementById('_chat-typing');
         if (el) el.remove();
+    }
+
+    // Record one process step and reflect it in the (possibly open) log panel.
+    function _pushThink(text) {
+        text = String(text == null ? '' : text).trim();
+        if (!text) return;
+        if (_thinkLog.length && _thinkLog[_thinkLog.length - 1] === text) return;  // collapse repeats
+        _thinkLog.push(text);
+        _renderThinkLog();
+    }
+
+    function _renderThinkLog() {
+        const typing = document.getElementById('_chat-typing');
+        if (!typing) return;
+        const log = typing.querySelector('.chat-think-log');
+        if (!log) return;
+        if (!_thinkLog.length) {
+            typing.classList.remove('has-think');
+            return;
+        }
+        typing.classList.add('has-think');
+        typing.title = _t('chatThinkHint', 'Click to see what the AI is doing');
+        log.innerHTML = _thinkLog.map(function (s) {
+            return '<div class="chat-think-step">' + _escHtml(s) + '</div>';
+        }).join('');
+        if (!log.hasAttribute('hidden')) log.scrollTop = log.scrollHeight;
     }
 
     function _startStreamBubble() {
@@ -221,35 +277,21 @@
 
     function _appendStreamDelta(text) {
         _streamText += text;
-
-        // Snapshot already-rendered mermaid SVGs before innerHTML replacement destroys them
-        const savedSvgs = [];
-        _streamBubble.querySelectorAll('.chat-mermaid[data-rendered]').forEach(function (el) {
-            savedSvgs.push(el.querySelector('svg') ? el.innerHTML : null);
-        });
-
+        // Flow blocks stay as a light placeholder while streaming; we draw them
+        // once at finalise (re-instantiating Cytoscape per delta would thrash).
         _streamBubble.innerHTML = _renderMarkdown(_streamText);
-
-        // Restore rendered SVGs into the same-indexed mermaid divs
-        if (savedSvgs.length) {
-            _streamBubble.querySelectorAll('.chat-mermaid').forEach(function (el, i) {
-                if (savedSvgs[i]) {
-                    el.innerHTML = savedSvgs[i];
-                    el.setAttribute('data-rendered', '1');
-                }
-            });
-        }
-
-        // Render any newly complete ```mermaid blocks immediately, don't wait for stream end
-        _triggerMermaidIfNeeded();
         _scrollBottom();
     }
 
     function _finaliseStreamBubble() {
+        // Draw any ```vizflow blocks now that the JSON is complete.
+        _triggerFlowsIfNeeded();
+        // A block that never parsed (malformed JSON) is final → show its source.
+        if (_isOpen && _msgs) {
+            _msgs.querySelectorAll('.chat-flow:not([data-rendered])').forEach(_showFlowSource);
+        }
         _streamBubble = null;
         _streamText   = '';
-        // Any ```mermaid blocks in the finished bubble get rendered now.
-        _triggerMermaidIfNeeded();
     }
 
     function _scrollBottom() {
@@ -304,147 +346,369 @@
         _scrollBottom();
     }
 
-    // ── Mermaid: lazy-load from CDN, render on demand ─────────────────────────
-    const MERMAID_CDN = 'https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js';
-    let _mermaidLoading = null;
+    // ── Native flow diagrams: render `vizflow` JSON via Cytoscape + dagre ──────
+    // The AI emits a ```vizflow fenced JSON block ({direction, title, nodes,
+    // edges}). We draw it inline with the same engine and theme as the main
+    // graph, so the style is consistent and a node carrying a `ref` deep-links
+    // into the real canvas (ref → window.cy node id). Cytoscape and the dagre
+    // layout are already loaded on the analysis page — no external library.
+    const _FLOW_MAX_NODES = 80;
 
-    function _getMermaidConfig() {
+    function _flowTheme() {
         const cs  = getComputedStyle(document.documentElement);
-        const get = function (v) { return cs.getPropertyValue(v).trim(); };
-        const bg     = get('--bg')     || '#0f110e';
-        const panel  = get('--panel')  || '#161715';
-        const panel2 = get('--panel2') || '#1b1c19';
-        const border = get('--border') || '#2c2d2a';
-        const accent = get('--accent') || '#dfa745';
-        const text   = get('--text')   || '#eae8e3';
-        const muted  = get('--muted')  || '#93918b';
-        const font   = "'Segoe UI', system-ui, sans-serif";
-
-        // Detect dark vs light theme by --bg luminance
-        const hex = bg.replace('#', '');
-        const r = parseInt(hex.slice(0, 2), 16) || 15;
-        const g = parseInt(hex.slice(2, 4), 16) || 17;
-        const b = parseInt(hex.slice(4, 6), 16) || 14;
-        const isLight = (r * 0.299 + g * 0.587 + b * 0.114) > 128;
-
+        const get = function (v, d) { return cs.getPropertyValue(v).trim() || d; };
         return {
-            startOnLoad:   false,
-            theme:         isLight ? 'default' : 'dark',
-            securityLevel: 'loose',
-            fontFamily:    font,
-            fontSize:      13,
-            themeVariables: {
-                // Container / background
-                background:           'transparent',
-                mainBkg:              panel2,
-                // Nodes
-                primaryColor:         panel2,
-                primaryBorderColor:   border,
-                primaryTextColor:     text,
-                secondaryColor:       panel,
-                secondaryBorderColor: border,
-                secondaryTextColor:   text,
-                tertiaryColor:        panel,
-                tertiaryBorderColor:  border,
-                tertiaryTextColor:    text,
-                // Edges
-                lineColor:            muted,
-                edgeLabelBackground:  bg,
-                labelBackground:      bg,
-                // Clusters / subgraphs
-                clusterBkg:           panel,
-                clusterBorder:        border,
-                // Title
-                titleColor:           accent,
-                // Font
-                fontFamily:           font,
-                fontSize:             '13px',
-                // Sequence diagrams
-                actorBkg:             panel2,
-                actorBorder:          border,
-                actorTextColor:       text,
-                actorLineColor:       border,
-                signalColor:          muted,
-                signalTextColor:      text,
-                labelBoxBkgColor:     panel,
-                labelBoxBorderColor:  border,
-                labelTextColor:       text,
-                loopTextColor:        text,
-                noteBorderColor:      border,
-                noteBkgColor:         panel2,
-                noteTextColor:        text,
-                activationBorderColor: accent,
-                activationBkgColor:   panel,
-                // Gantt
-                sectionBkgColor:      panel2,
-                altSectionBkgColor:   panel,
-                gridColor:            border,
-                taskTextColor:        text,
-                taskTextOutsideColor: text,
-            },
+            bg:     get('--bg',     '#0f110e'),
+            panel2: get('--panel2', '#1b1c19'),
+            border: get('--border', '#2c2d2a'),
+            accent: get('--accent', '#dfa745'),
+            text:   get('--text',   '#eae8e3'),
+            muted:  get('--muted',  '#93918b'),
         };
     }
 
-    function _ensureMermaid() {
-        if (window.mermaid && window.mermaid.run) return Promise.resolve();
-        if (_mermaidLoading) return _mermaidLoading;
-        _mermaidLoading = new Promise(function (resolve, reject) {
-            const s = document.createElement('script');
-            s.src   = MERMAID_CDN;
-            s.async = true;
-            s.onload = function () {
-                try { window.mermaid.initialize(_getMermaidConfig()); } catch (_) {}
-                resolve();
-            };
-            s.onerror = function () { reject(new Error('mermaid script load failed')); };
-            document.head.appendChild(s);
-        });
-        return _mermaidLoading;
+    // kind → node accent colour. Unknown kinds fall back to the neutral border.
+    function _flowKindColor(kind, theme) {
+        switch (String(kind || '').toLowerCase()) {
+            case 'entry':    return theme.accent;
+            case 'exit':     return '#e0795b';
+            case 'decision': return '#c9a227';
+            case 'io':
+            case 'data':     return '#5b8def';
+            default:         return theme.border;   // process
+        }
     }
 
-    function _renderPendingMermaid() {
-        if (!window.mermaid || !window.mermaid.run) return;
-        const nodes = _msgs.querySelectorAll('.chat-mermaid:not([data-rendered])');
+    // Parse the common Mermaid `flowchart`/`graph` subset into a vizflow spec, so
+    // models that emit Mermaid (their default) still render natively. Handles node
+    // shapes [..] (..) {..}, edges --> --- -.-> ==>, and |edge labels|. Returns
+    // null when the source is not a Mermaid flow diagram.
+    function _parseMermaidFlow(src) {
+        const text = String(src || '').replace(/<br\s*\/?>/gi, ' ');
+        if (!/^\s*(flowchart|graph)\b/i.test(text)) return null;
+
+        const ARROW      = /\s*(-->|---|-\.->|-\.-|==>|===|--[xo]|==[xo])\s*/;
+        const ARROW_ONLY = /^(-->|---|-\.->|-\.-|==>|===|--[xo]|==[xo])$/;
+        let direction = 'TB';
+        const nodes = new Map();
+        const edges = [];
+
+        function reg(token) {
+            const m = String(token).trim().match(/^([A-Za-z0-9_]+)\s*([\s\S]*)$/);
+            if (!m) return null;
+            const id = m[1];
+            let label = id, kind = 'process';
+            const rest = m[2].trim();
+            if (rest) {
+                const sh = rest.match(/^(\{\{[\s\S]*\}\}|\{[\s\S]*\}|\(\[[\s\S]*\]\)|\[\([\s\S]*\)\]|\[\[[\s\S]*\]\]|\[[\s\S]*\]|\([\s\S]*\))$/);
+                if (sh) {
+                    const inner = sh[1];
+                    if (inner.charAt(0) === '{') kind = 'decision';
+                    label = inner.replace(/^[\[\(\{]+/, '').replace(/[\]\)\}]+$/, '')
+                                 .replace(/^["']|["']$/g, '').trim() || id;
+                }
+            }
+            if (!nodes.has(id)) {
+                nodes.set(id, { id: id, label: label, kind: kind });
+            } else {
+                const n = nodes.get(id);
+                if (label !== id && n.label === id) n.label = label;
+                if (kind === 'decision') n.kind = 'decision';
+            }
+            return id;
+        }
+
+        text.split(/\r?\n/).forEach(function (raw) {
+            let line = raw.trim();
+            if (!line) return;
+            const dm = line.match(/^(?:flowchart|graph)\s+(TB|TD|BT|LR|RL)\b/i);
+            if (dm) { const d = dm[1].toUpperCase(); direction = (d === 'LR' || d === 'RL') ? 'LR' : 'TB'; return; }
+            if (/^(flowchart|graph)\b/i.test(line)) return;
+            if (/^(subgraph|end|classDef|class|style|linkStyle|click|direction|%%)/i.test(line)) return;
+            line = line.replace(/;+\s*$/, '');
+
+            const segs = line.split(ARROW);
+            let prevId = null;
+            for (let i = 0; i < segs.length; i++) {
+                let seg = (segs[i] || '').trim();
+                if (!seg || ARROW_ONLY.test(seg)) continue;     // skip connector tokens
+                let label = '';
+                const lm = seg.match(/^\|([^|]*)\|\s*([\s\S]*)$/);   // |edge label| node
+                if (lm) { label = lm[1].trim(); seg = lm[2].trim(); }
+                if (!seg) continue;
+                const id = reg(seg);
+                if (id && prevId) edges.push({ from: prevId, to: id, label: label });
+                if (id) prevId = id;
+            }
+        });
+
+        if (!nodes.size) return null;
+        return { direction: direction, nodes: Array.from(nodes.values()), edges: edges };
+    }
+
+    function _buildFlowElements(spec, theme) {
+        const els = [];
+        const ids = new Set();
+        (spec.nodes || []).slice(0, _FLOW_MAX_NODES).forEach(function (n) {
+            if (!n || n.id == null) return;
+            const id = String(n.id);
+            if (ids.has(id)) return;
+            ids.add(id);
+            els.push({ data: {
+                id:     id,
+                label:  String(n.label != null ? n.label : id),
+                ref:    n.ref ? String(n.ref) : '',
+                accent: _flowKindColor(n.kind, theme),
+                shape:  String(n.kind || '').toLowerCase() === 'decision'
+                            ? 'round-diamond' : 'round-rectangle',
+            }});
+        });
+        (spec.edges || []).forEach(function (e) {
+            if (!e) return;
+            const s = String(e.from != null ? e.from : e.source);
+            const t = String(e.to   != null ? e.to   : e.target);
+            if (!ids.has(s) || !ids.has(t)) return;
+            els.push({ data: { source: s, target: t, label: e.label ? String(e.label) : '' } });
+        });
+        return els;
+    }
+
+    // ── Reusable Cytoscape builder for chat flow diagrams ─────────────────────
+    // Both the inline card and the enlarge-overlay use this so style + behaviour
+    // (deep-link on `ref` tap) stay in sync; only sizing/interactivity differ.
+    function _flowStyle(theme, opts) {
+        opts = opts || {};
+        return [
+            { selector: 'node', style: {
+                'background-color': theme.panel2,
+                'border-color':     'data(accent)',
+                'border-width':     1.5,
+                'shape':            'data(shape)',
+                'label':            'data(label)',
+                'color':            theme.text,
+                'font-size':        opts.fontSize || 11,
+                'font-family':      "'Segoe UI', system-ui, sans-serif",
+                'text-valign':      'center',
+                'text-halign':      'center',
+                'text-wrap':        'wrap',
+                'text-max-width':   opts.maxWidth || 120,
+                'width':            'label',
+                'height':           'label',
+                'padding':          opts.padding || '8px',
+            }},
+            { selector: 'node[ref != ""]', style: { 'cursor': 'pointer' } },
+            { selector: 'edge', style: {
+                'width':                   1.4,
+                'line-color':              theme.muted,
+                'target-arrow-color':      theme.muted,
+                'target-arrow-shape':      'triangle',
+                'arrow-scale':             0.9,
+                'curve-style':             'bezier',
+                'label':                   'data(label)',
+                'font-size':               opts.edgeFontSize || 9.5,
+                'color':                   theme.muted,
+                'text-background-color':   theme.bg,
+                'text-background-opacity': 1,
+                'text-background-padding': '2px',
+            }},
+        ];
+    }
+
+    // Build a Cytoscape instance into `host`. Returns the instance, or null if
+    // Cytoscape is unavailable or no layout could run (caller shows the source).
+    function _makeFlowCy(host, els, rankDir, theme, opts) {
+        opts = opts || {};
+        let cy;
+        try {
+            cy = window.cytoscape({
+                container: host,
+                elements:  els,
+                style:     _flowStyle(theme, opts),
+                userZoomingEnabled:  !!opts.interactive,
+                userPanningEnabled:  !!opts.interactive,
+                boxSelectionEnabled: false,
+                autoungrabify:       !opts.interactive,
+                minZoom:             0.2,
+                maxZoom:             3,
+            });
+        } catch (_) { return null; }
+
+        function _runLayout(name, extra) {
+            const lay = cy.layout(Object.assign({ name: name }, extra || {}));
+            lay.one('layoutstop', function () { try { cy.fit(undefined, opts.fitPadding || 16); } catch (_) {} });
+            lay.run();
+        }
+        try {
+            _runLayout('dagre', { rankDir: rankDir, nodeSep: 28, rankSep: 42, edgeSep: 12 });
+        } catch (_) {
+            // dagre plugin unavailable → fall back to a built-in directed layout
+            try { _runLayout('breadthfirst', { directed: true, spacingFactor: 1.1 }); }
+            catch (e2) { try { cy.destroy(); } catch (_) {} return null; }
+        }
+
+        cy.on('tap', 'node', function (evt) {
+            const ref = evt.target.data('ref');
+            if (ref) _highlightNodeById(ref);
+        });
+        return cy;
+    }
+
+    const _FLOW_EXPAND_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
+    const _FLOW_CLOSE_SVG  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+
+    // Enlarge overlay: same spec, drawn big and fully zoom/pan-able with controls.
+    function _openFlowModal(spec) {
+        if (!spec || typeof window.cytoscape !== 'function') return;
+        const prev = document.getElementById('chat-flow-modal');
+        if (prev) prev.remove();
+
+        const theme   = _flowTheme();
+        const overlay = document.createElement('div');
+        overlay.id = 'chat-flow-modal';
+        overlay.className = 'chat-flow-modal';
+
+        const panel = document.createElement('div');
+        panel.className = 'chat-flow-modal-panel';
+
+        const head = document.createElement('div');
+        head.className = 'chat-flow-modal-head';
+        const ttl = document.createElement('span');
+        ttl.className = 'chat-flow-modal-title';
+        ttl.textContent = spec.title ? String(spec.title) : _t('chatFlowDiagram', 'Flow diagram');
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'chat-flow-modal-close';
+        closeBtn.title = _t('chatFlowClose', 'Close');
+        closeBtn.setAttribute('aria-label', _t('chatFlowClose', 'Close'));
+        closeBtn.innerHTML = _FLOW_CLOSE_SVG;
+        head.appendChild(ttl);
+        head.appendChild(closeBtn);
+
+        const host = document.createElement('div');
+        host.className = 'chat-flow-modal-canvas';
+
+        const ctrls = document.createElement('div');
+        ctrls.className = 'chat-flow-modal-ctrls';
+
+        panel.appendChild(head);
+        panel.appendChild(host);
+        panel.appendChild(ctrls);
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+
+        const els     = _buildFlowElements(spec, theme);
+        const dir     = String(spec.direction || 'TB').toUpperCase();
+        const rankDir = (dir === 'LR' || dir === 'RL') ? 'LR' : 'TB';
+        const cy = _makeFlowCy(host, els, rankDir, theme, {
+            interactive: true, fontSize: 16, edgeFontSize: 12.5,
+            maxWidth: 220, padding: '12px', fitPadding: 32,
+        });
+
+        function _zoomBy(factor) {
+            if (!cy) return;
+            const next = Math.max(cy.minZoom(), Math.min(cy.maxZoom(), cy.zoom() * factor));
+            cy.zoom({ level: next, renderedPosition: { x: host.clientWidth / 2, y: host.clientHeight / 2 } });
+        }
+        function _mkCtrl(label, title, fn) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = label;
+            b.title = title;
+            b.addEventListener('click', function (e) { e.stopPropagation(); fn(); });
+            ctrls.appendChild(b);
+        }
+        _mkCtrl('+',        _t('chatFlowZoomIn',  'Zoom in'),     function () { _zoomBy(1.25); });
+        _mkCtrl('−',   _t('chatFlowZoomOut', 'Zoom out'),    function () { _zoomBy(0.8); });
+        _mkCtrl('⤢',   _t('chatFlowFit',     'Fit to view'), function () { if (cy) { try { cy.fit(undefined, 32); } catch (_) {} } });
+
+        function _close() {
+            try { if (cy) cy.destroy(); } catch (_) {}
+            document.removeEventListener('keydown', _onKey);
+            overlay.remove();
+        }
+        function _onKey(e) { if (e.key === 'Escape') _close(); }
+        closeBtn.addEventListener('click', _close);
+        overlay.addEventListener('click', function (e) { if (e.target === overlay) _close(); });
+        document.addEventListener('keydown', _onKey);
+    }
+
+    function _showFlowSource(el) {
+        const src = el.dataset.src || el.textContent || '';
+        el.setAttribute('data-rendered', '1');
+        el.classList.add('chat-flow-fallback');
+        el.innerHTML = '<pre>' + _escHtml(src) + '</pre>';
+    }
+
+    // Returns true once the block is rendered (or shown as source); false while
+    // the JSON is still incomplete (streaming) so it can be retried later.
+    function _renderFlowEl(el) {
+        if (typeof window.cytoscape !== 'function') { _showFlowSource(el); return true; }
+
+        const raw = (el.dataset.src || el.textContent || '').trim();
+        let spec = null;
+        try { spec = JSON.parse(raw); } catch (_) { spec = null; }   // vizflow JSON
+        if (!spec || typeof spec !== 'object' || !Array.isArray(spec.nodes)) {
+            // Not vizflow JSON — try the Mermaid flowchart/graph subset.
+            try { spec = _parseMermaidFlow(raw); } catch (_) { spec = null; }
+        }
+        if (!spec || !Array.isArray(spec.nodes) || !spec.nodes.length) return false;
+
+        const theme = _flowTheme();
+        const els   = _buildFlowElements(spec, theme);
+        if (!els.length) { el.dataset.src = raw; _showFlowSource(el); return true; }
+
+        if (el.__cy) { try { el.__cy.destroy(); } catch (_) {} el.__cy = null; }
+        el.dataset.src = raw;            // keep source for the fallback path
+        el.textContent = '';
+        el.setAttribute('data-rendered', '1');
+
+        if (spec.title) {
+            const cap = document.createElement('div');
+            cap.className = 'chat-flow-title';
+            cap.textContent = String(spec.title);
+            el.appendChild(cap);
+        }
+        const host = document.createElement('div');
+        host.className = 'chat-flow-canvas';
+        el.appendChild(host);
+
+        const dir     = String(spec.direction || 'TB').toUpperCase();
+        const rankDir = (dir === 'LR' || dir === 'RL') ? 'LR' : 'TB';
+
+        const cy = _makeFlowCy(host, els, rankDir, theme, { interactive: false });
+        if (!cy) { _showFlowSource(el); return true; }
+        el.__cy = cy;
+
+        // "Enlarge" affordance → reopen the same diagram large & zoomable in an
+        // overlay (the inline copy keeps small, readable labels by default).
+        const expandBtn = document.createElement('button');
+        expandBtn.type = 'button';
+        expandBtn.className = 'chat-flow-expand';
+        expandBtn.title = _t('chatFlowExpand', 'Enlarge diagram');
+        expandBtn.setAttribute('aria-label', _t('chatFlowExpand', 'Enlarge diagram'));
+        expandBtn.innerHTML = _FLOW_EXPAND_SVG;
+        expandBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            _openFlowModal(spec);
+        });
+        el.appendChild(expandBtn);
+        return true;
+    }
+
+    function _renderPendingFlows() {
+        const nodes = _msgs.querySelectorAll('.chat-flow:not([data-rendered])');
         if (!nodes.length) return;
-        nodes.forEach(function (n) {
-            n.setAttribute('data-rendered', '1');
-            n.dataset.src = n.textContent;  // save raw source before mermaid modifies the DOM
+        nodes.forEach(function (el) {
+            try { _renderFlowEl(el); } catch (_) { /* retry on next pass */ }
         });
-
-        function _showSource(n) {
-            const src = n.dataset.src || '';
-            n.innerHTML =
-                `<pre style="color:var(--muted,#94a3b8);font-size:10.5px;margin:0;`
-                + `white-space:pre-wrap;word-break:break-word;text-align:left">`
-                + _escHtml(src) + `</pre>`;
-        }
-
-        function _checkNodes() {
-            nodes.forEach(function (n) {
-                const svg = n.querySelector('svg');
-                // mermaid 11+ renders syntax errors as an inline SVG (bomb icon).
-                // Detect by absence of SVG or by the error text inside it.
-                if (!svg || svg.textContent.includes('Syntax error')) _showSource(n);
-            });
-        }
-
-        window.mermaid.run({ nodes: Array.from(nodes) }).then(function () {
-            _checkNodes();
-            _scrollBottom();
-        }).catch(function () {
-            nodes.forEach(_showSource);
-        });
+        _scrollBottom();
     }
 
-    function _triggerMermaidIfNeeded() {
-        if (!_msgs.querySelector('.chat-mermaid:not([data-rendered])')) return;
-        _ensureMermaid().then(_renderPendingMermaid).catch(function () {
-            // CDN blocked — leave mermaid blocks as pre-formatted text
-            _msgs.querySelectorAll('.chat-mermaid:not([data-rendered])').forEach(function (n) {
-                n.setAttribute('data-rendered', '1');
-                n.classList.add('chat-mermaid-fallback');
-            });
-        });
+    function _triggerFlowsIfNeeded() {
+        // Wait until the panel is visible — Cytoscape needs a measurable container.
+        if (!_msgs || !_isOpen) return;
+        if (!_msgs.querySelector('.chat-flow:not([data-rendered])')) return;
+        _renderPendingFlows();
     }
 
     // ── Canvas action dispatch (invoked on SSE `ui_action` events) ────────────
@@ -498,7 +762,15 @@
 
                 case 'highlight_nodes':
                     if (Array.isArray(args.node_ids) && typeof window.highlightNodes === 'function') {
-                        window.highlightNodes(args.node_ids);
+                        // Map AI-supplied paths/'path::func' to real cy ids first —
+                        // window.highlightNodes only matches by raw id or label.
+                        const realIds = [];
+                        args.node_ids.forEach(function (nid) {
+                            const n = _resolveCanvasNode(nid);
+                            if (n && n.length) realIds.push((n.length > 1 ? n.first() : n).id());
+                        });
+                        if (realIds.length) window.highlightNodes(realIds);
+                        else _canvasMissToast((args.node_ids[0] || '') + ' …');
                     }
                     break;
 
@@ -515,7 +787,6 @@
                     // if the AI already wrote the label before calling emit_badge.
                     if (_streamBubble && _streamText) {
                         _streamBubble.innerHTML = _renderMarkdown(_streamText);
-                        _triggerMermaidIfNeeded();
                     }
                     break;
 
@@ -537,18 +808,110 @@
         if (action !== 'emit_badge') _appendUiActionBadge(action, args);
     }
 
+    // Resolve an AI-supplied node_id to the matching cy node(s).
+    // The AI addresses nodes by file path ('ai/vizbridge.py') or 'path::func' per the
+    // tool contract, but cy ids are internal ('f37', 'fn-0'); match on the structured
+    // data fields the renderer stores (_f / fn / label) rather than the raw id.
+    // Returns a cy collection (possibly empty), or null when cy isn't ready.
+    function _resolveCanvasNode(id) {
+        const cy = window.cy;
+        if (!id || !cy) return null;
+
+        // 1. Exact cy id — covers L0 module nodes whose id IS the module name.
+        const direct = cy.getElementById(id);
+        if (direct && direct.length) return direct;
+
+        // 2. 'path::func' → an L2 function node (data._f = file path, data.fn = func name).
+        const sep = id.indexOf('::');
+        if (sep !== -1) {
+            const path = id.slice(0, sep);
+            const fn   = id.slice(sep + 2);
+            let m = cy.nodes().filter(function (n) {
+                return n.data('_t') === 'func' && n.data('_f') === path
+                    && (n.data('fn') === fn || n.data('label') === fn);
+            });
+            if (m.length) return m;
+            // Func-name only — whichever file's L2 view happens to be open.
+            m = cy.nodes().filter(function (n) {
+                return n.data('_t') === 'func' && (n.data('fn') === fn || n.data('label') === fn);
+            });
+            if (m.length) return m;
+        }
+
+        // 3. File path → an L1 file node (data._f = {path, ...}).
+        const byPath = cy.nodes().filter(function (n) {
+            const f = n.data('_f');
+            return n.data('_t') === 'file' && f && f.path === id;
+        });
+        if (byPath.length) return byPath;
+
+        // 4. Bare label or raw data id.
+        const byLabel = cy.nodes().filter(function (n) {
+            return n.data('label') === id || n.data('id') === id;
+        });
+        if (byLabel.length) return byLabel;
+
+        // 5. Last resort: a path's basename matching a node label ('a/b.py' → 'b.py').
+        const base = id.indexOf('/') !== -1 ? id.split('/').pop() : '';
+        if (base) {
+            const byBase = cy.nodes().filter(function (n) { return n.data('label') === base; });
+            if (byBase.length) return byBase;
+        }
+
+        return cy.collection();
+    }
+
+    // When a node_id isn't on the current canvas, drive the canvas to the level
+    // where it lives so a follow-up resolve can find it. Returns true if a
+    // navigation was triggered (caller should retry after the layout settles).
+    function _navigateToNodeId(id) {
+        if (!id) return false;
+        const sep = id.indexOf('::');
+        // 'path::func' → open that file's L2 function view.
+        if (sep !== -1) {
+            const path = id.slice(0, sep);
+            if (path && typeof window.drillToFile === 'function') {
+                try { window.drillToFile(path); return true; } catch (_) {}
+            }
+            return false;
+        }
+        // File path → open its module's L1, focused on the file node.
+        if (/\.[A-Za-z0-9]+$/.test(id)) {
+            const mod = (window.DATA && window.DATA.file_to_module && window.DATA.file_to_module[id])
+                || (typeof window.resolveModuleForFile === 'function' ? window.resolveModuleForFile(id) : '');
+            if (mod && typeof window.drillToModule === 'function') {
+                try { window.drillToModule(mod, { focusFile: id }); return true; } catch (_) {}
+            }
+        }
+        return false;
+    }
+
+    function _canvasMissToast(nodeId) {
+        if (typeof window.showToast === 'function') {
+            window.showToast('AI 導覽找不到節點:' + nodeId, 'info');
+        }
+        console.warn('[VizBridge] node not found on canvas:', nodeId);
+    }
+
     // Pan camera to a node, pin it, and show a floating subtitle card beside it.
     function _runTourStep(nodeId, caption) {
         if (!nodeId || !window.cy) return;
-        const node = window.cy.getElementById(nodeId);
-        if (!node || !node.length) {
-            // Fallback: try label match
-            const byLabel = window.cy.nodes().filter(n => n.data('label') === nodeId);
-            if (!byLabel.length) return;
-            _focusTourNode(byLabel[0], caption);
+        const node = _resolveCanvasNode(nodeId);
+        if (node && node.length) {
+            _focusTourNode(node.length > 1 ? node.first() : node, caption);
             return;
         }
-        _focusTourNode(node, caption);
+        // Not on the current canvas — navigate to where it lives, then retry once
+        // after the level switch + layout settle.
+        if (_navigateToNodeId(nodeId)) {
+            setTimeout(function () {
+                const n2 = _resolveCanvasNode(nodeId);
+                if (n2 && n2.length) _focusTourNode(n2.length > 1 ? n2.first() : n2, caption);
+                else _canvasMissToast(nodeId);
+            }, 700);
+        } else {
+            _canvasMissToast(nodeId);
+        }
     }
 
     function _focusTourNode(node, caption) {
@@ -594,29 +957,28 @@
 
     function _highlightNodeById(id) {
         if (!id || !window.cy) return;
-        const el = window.cy.getElementById(id);
-        if (el && el.length && typeof window.highlightNode === 'function') {
-            window.highlightNode(el);
-        } else if (window.cy.$id) {
-            // Fallback: label match (L0/L1 nodes are indexed by file path, not label)
-            const byLabel = window.cy.nodes().filter(function (n) {
-                return n.data('label') === id || n.data('id') === id;
-            });
-            if (byLabel.length && typeof window.highlightNode === 'function') {
-                window.highlightNode(byLabel[0]);
-            }
+        const node = _resolveCanvasNode(id);
+        if (node && node.length && typeof window.highlightNode === 'function') {
+            window.highlightNode(node.length > 1 ? node.first() : node);
+        } else {
+            _canvasMissToast(id);
         }
     }
 
     function _highlightPath(src, tgt) {
         if (!src || !tgt || !window.cy) return;
         const cy = window.cy;
-        const s = cy.getElementById(src);
-        const t = cy.getElementById(tgt);
-        if (!s || !s.length || !t || !t.length) return;
+        const s = _resolveCanvasNode(src);
+        const t = _resolveCanvasNode(tgt);
+        if (!s || !s.length || !t || !t.length) {
+            _canvasMissToast(!s || !s.length ? src : tgt);
+            return;
+        }
         try {
-            const dj   = cy.elements().dijkstra({ root: s, directed: false });
-            const path = dj.pathTo(t);
+            const sRoot = s.length > 1 ? s.first() : s;
+            const tNode = t.length > 1 ? t.first() : t;
+            const dj   = cy.elements().dijkstra({ root: sRoot, directed: false });
+            const path = dj.pathTo(tNode);
             if (!path || !path.length) return;
             // Reuse the existing .hl class already defined in CY_STYLE.
             cy.elements().removeClass('hl');
@@ -659,6 +1021,7 @@
             output:  _currentOutput,
         });
 
+        _thinkLog = [];
         _removeTyping();
         _appendTyping();
 
@@ -802,27 +1165,25 @@
 
         } else if (ev.type === 'tool_call') {
             _appendToolBadge(ev.name, ev.result || '');
+            _pushThink('🔧 ' + (ev.name || 'tool'));
 
         } else if (ev.type === 'ui_action') {
             _dispatchUiAction(ev.action, ev.args || {});
+            _pushThink('→ ' + (ev.action || 'canvas'));
 
         } else if (ev.type === 'cached') {
             _markBubbleCached(ev.entry_id || '');
 
         } else if (ev.type === 'status') {
-            const typing = document.getElementById('_chat-typing');
-            if (typing && ev.message) typing.title = ev.message;
+            if (ev.message) _pushThink(ev.message);
 
         } else if (ev.type === 'metrics') {
-            const typing = document.getElementById('_chat-typing');
-            if (typing) {
-                const parts = [];
-                if (ev.cached) parts.push('cached');
-                if (ev.tool_calls != null) parts.push(`${ev.tool_calls} tools`);
-                if (ev.input_chars != null) parts.push(`${ev.input_chars} input chars`);
-                if (ev.elapsed_ms != null) parts.push(`${ev.elapsed_ms} ms`);
-                typing.title = parts.join(' | ');
-            }
+            const parts = [];
+            if (ev.cached) parts.push('cached');
+            if (ev.tool_calls != null) parts.push(`${ev.tool_calls} tools`);
+            if (ev.input_chars != null) parts.push(`${ev.input_chars} input chars`);
+            if (ev.elapsed_ms != null) parts.push(`${ev.elapsed_ms} ms`);
+            if (parts.length) _pushThink(parts.join(' | '));
 
         } else if (ev.type === 'done') {
             // handled in finishTurn after stream ends
@@ -866,6 +1227,7 @@
         if (bubbles.length) bubbles[bubbles.length - 1].remove();
 
         _setBusy(true);
+        _thinkLog = [];
         _removeTyping();
         _appendTyping();
 
@@ -915,6 +1277,7 @@
             if (msg.role === 'user')      _appendMsg('user', msg.content);
             else if (msg.role === 'assistant') _appendMsg('ai', _renderMarkdown(msg.content));
         });
+        _triggerFlowsIfNeeded();   // draw restored ```vizflow diagrams (if panel is open)
     }
 
     function _loadHistory() {
@@ -1590,21 +1953,33 @@
             if (!b) return;
             const id = b.dataset.nodeId;
             if (!id || !window.cy) return;
-            const node = window.cy.getElementById(id);
-            if (node && node.length) {
+            const focus = function (node) {
                 window.cy.animate(
                     { center: { eles: node }, zoom: Math.max(window.cy.zoom(), 1.8) },
                     { duration: 300 }
                 );
                 if (typeof window.pinHighlightNode === 'function') window.pinHighlightNode(node);
+            };
+            const node = _resolveCanvasNode(id);
+            if (node && node.length) {
+                focus(node.length > 1 ? node.first() : node);
+            } else if (_navigateToNodeId(id)) {
+                // Badge points off the current canvas — navigate there, then focus.
+                setTimeout(function () {
+                    const n2 = _resolveCanvasNode(id);
+                    if (n2 && n2.length) focus(n2.length > 1 ? n2.first() : n2);
+                    else _canvasMissToast(id);
+                }, 700);
+            } else {
+                _canvasMissToast(id);
             }
         });
         _msgs.addEventListener('mouseover', function (e) {
             const b = e.target.closest('.chat-badge');
             if (!b || !window.cy) return;
-            const node = window.cy.getElementById(b.dataset.nodeId);
+            const node = _resolveCanvasNode(b.dataset.nodeId);
             if (node && node.length && typeof window.highlightNode === 'function') {
-                window.highlightNode(node);
+                window.highlightNode(node.length > 1 ? node.first() : node);
             }
         });
         _msgs.addEventListener('mouseout', function (e) {
@@ -1659,7 +2034,7 @@
         quick:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 2 8 13 13 13 11 22 16 11 11 11"/></svg>',
     };
     const _OUTPUT_SVGS = {
-        mermaid_flow:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="7" height="4" rx="1"/><rect x="15" y="10" width="7" height="4" rx="1"/><rect x="2" y="17" width="7" height="4" rx="1"/><path d="M9 5h3a3 3 0 0 1 3 3v4M9 19h3a3 3 0 0 0 3-3v-4"/></svg>',
+        flow:          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="7" height="4" rx="1"/><rect x="15" y="10" width="7" height="4" rx="1"/><rect x="2" y="17" width="7" height="4" rx="1"/><path d="M9 5h3a3 3 0 0 1 3 3v4M9 19h3a3 3 0 0 0 3-3v-4"/></svg>',
         file_tour:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88"/></svg>',
         health_report: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 12 6 12 8 5 11 19 14 12 16 15 18 12 22 12"/></svg>',
     };
@@ -1678,7 +2053,7 @@
 
         function _outputItems() {
         return [
-            { id: 'mermaid_flow',  label: _t('chatOutputLabel_mermaid_flow'),  desc: _t('chatOutputDesc_mermaid_flow') },
+            { id: 'flow',          label: _t('chatOutputLabel_flow'),          desc: _t('chatOutputDesc_flow') },
             { id: 'file_tour',     label: _t('chatOutputLabel_file_tour'),     desc: _t('chatOutputDesc_file_tour') },
             { id: 'health_report', label: _t('chatOutputLabel_health_report'), desc: _t('chatOutputDesc_health_report') },
         ];
