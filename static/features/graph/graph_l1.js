@@ -23,6 +23,7 @@ function loadLevel0() {
     depMapState.navHistory = [];
     depMapState.navHistoryIdx = -1;
     updateL1NavButtons();
+    _clearL1EmptyOverlay();
 
     const els = [];
     const hasRootModule = (DATA.modules || []).some(m => m.id === '_root');
@@ -117,6 +118,11 @@ function _fitGraphAfterNavigation(padding = 40) {
     });
 }
 
+function _clearL1EmptyOverlay() {
+    const ov = document.getElementById('l1-empty-overlay');
+    if (ov) ov.remove();
+}
+
 // ─── L1: Module → show ALL files flat (no folder nodes ever) ─────────────────
 function drillToModule(modId, opts) {
     // opts: { focusFile?: string, closeExt?: bool }
@@ -203,6 +209,7 @@ function drillToModule(modId, opts) {
 
 // Render flat file nodes in graph — the only graph view for L1
 function renderFilesFlat(modId, files, subPath) {
+    _clearL1EmptyOverlay();
     // Apply File Type Filter (for fully-analysed files)
     const visible = files.filter(f => ftActiveFilter.has(f.file_type || 'other'));
 
@@ -436,25 +443,19 @@ function renderFilesFlat(modId, files, subPath) {
         cy.add(els);
         applyCyFont(getSavedFont());
 
-        // ── Show/hide empty-state overlay ─────────────────────────────────
-        const nodeCount = cy.nodes().length;
-        let emptyOverlay = document.getElementById('l1-empty-overlay');
-        if (nodeCount === 0) {
-            if (!emptyOverlay) {
-                emptyOverlay = document.createElement('div');
-                emptyOverlay.id = 'l1-empty-overlay';
-                emptyOverlay.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:999;background:var(--canvas-bg)';
-                emptyOverlay.innerHTML = `<div style="text-align:center;color:var(--muted);padding:80px 20px;max-width:500px">
+        // ── Empty-state overlay (always freshly created; _clearL1EmptyOverlay removed any prior) ──
+        if (cy.nodes().length === 0) {
+            const emptyOverlay = document.createElement('div');
+            emptyOverlay.id = 'l1-empty-overlay';
+            emptyOverlay.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:999;background:var(--canvas-bg)';
+            emptyOverlay.innerHTML = `<div style="text-align:center;color:var(--muted);padding:80px 20px;max-width:500px">
                     <div style="font-size:56px;margin-bottom:20px;opacity:0.6">📂</div>
                     <div style="font-size:16px;font-weight:500;margin-bottom:12px;color:var(--text)">${T('noVisibleFiles') || 'No visible files'}</div>
                     <div style="font-size:13px;line-height:1.7;opacity:0.8">
                         ${T('noVisibleFilesHint') || 'Try adjusting the File Type filter in the sidebar, or check if this folder contains any source files.'}
                     </div>
                 </div>`;
-                document.getElementById('cy')?.appendChild(emptyOverlay);
-            } else {
-                emptyOverlay.style.display = 'flex';
-            }
+            document.getElementById('cy')?.appendChild(emptyOverlay);
             showLoading(false);
             updateBreadcrumb();
             buildEdgeFilter();
@@ -462,8 +463,6 @@ function renderFilesFlat(modId, files, subPath) {
             updateSidebarStats();
             if (typeof applyPendingGlobalNavRestore === 'function') applyPendingGlobalNavRestore('l1');
             return;
-        } else if (emptyOverlay) {
-            emptyOverlay.style.display = 'none';
         }
 
         // ── Two-pass layout ──────────────────────────────────────────────────────
