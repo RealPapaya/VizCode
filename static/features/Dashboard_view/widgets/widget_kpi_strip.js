@@ -123,7 +123,7 @@ function _dashRenderKpiDetail(host, kpiId, stats) {
   <div class="dash-card-title">Top 10 Longest Functions</div>
   <div class="dash-list" style="margin-top:12px;">
     ${top10.map(fn => `
-    <div class="dash-list-row" data-clickable="true" onclick="_dashDrill('${_dashEscape(fn.file)}', '${_dashEscape(fn.name)}')">
+    <div class="dash-list-row" data-clickable="true" onclick="_dashDrill(${_dashJson(fn.file)}, ${_dashJson(fn.name)})">
       <div style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
         <span style="color:var(--accent);font-weight:600;font-size:12px;">${_dashEscape(fn.name)}</span>
         <span style="color:var(--muted);font-size:10px;margin-left:8px;">${_dashEscape(fn.file)}</span>

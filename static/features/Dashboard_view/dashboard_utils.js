@@ -141,15 +141,10 @@ function _dashT(key) {
     return key;
 }
 
-// Single drill-through helper used by every clickable row. Closes the
-// dashboard, navigates to the file, and (optionally) opens the code panel
-// at the named function.
+// Single drill-through helper used by every clickable row. File targets land
+// in L1; function targets land directly in L2.
 //
-// Navigation flow:
-//   1. closeDashboard()
-//   2. drillToModule(modId)   — puts the graph into L1 context
-//   3. drillToFile(rel)       — opens L2 function view
-//   4. (optional) openCodePanel + jump to funcName
+// Routing is selected by whether funcName is present.
 function _dashJson(value) {
     return JSON.stringify(value).replace(/"/g, '&quot;');
 }
@@ -186,10 +181,24 @@ function _dashResolvedLine(filePath, funcName, line) {
     return Number(sym?.line) > 0 ? Number(sym.line) : 0;
 }
 
-function _dashForceGraphMode() {
+function _dashCloseDashboardWindows(options) {
+    const opts = options || {};
     if (typeof _dashCloseGroupDrilldown === 'function') _dashCloseGroupDrilldown();
+    if (typeof _dashCloseCommitDayDrilldown === 'function') _dashCloseCommitDayDrilldown();
     if (typeof _dashCloseDrilldown === 'function') _dashCloseDrilldown();
-    if (typeof closeDashboard === 'function') closeDashboard();
+    if (typeof _dashCloseDetailPanel === 'function') {
+        const detailOpen = (typeof _dashDetailOpen !== 'undefined' && _dashDetailOpen)
+            || !!document.getElementById('dash-detail-panel')
+            || !!document.getElementById('dash-detail-backdrop');
+        if (detailOpen) _dashCloseDetailPanel(true);
+    }
+    if (opts.closeDashboard !== false && typeof closeDashboard === 'function') {
+        closeDashboard();
+    }
+}
+
+function _dashForceGraphMode() {
+    _dashCloseDashboardWindows();
     if (typeof closeGalaxy === 'function') closeGalaxy();
     // Overview state lives in two places — state.galaxyActive AND the level-switcher's
     // overview mode (_lswMode). When the dashboard is opened on top of Overview the two
@@ -247,7 +256,7 @@ function _dashFocusL2Node(filePath, funcName, lineNo) {
     _dashFocusCodePanel(filePath, funcName, lineNo);
 }
 
-function _dashOpenGraphFile(rel, fnName, lineNo) {
+function _dashOpenGraphFunction(rel, fnName, lineNo) {
     document.getElementById('cy')?.classList.add('l2-view');
     if (typeof setL1ToolbarVisible === 'function') setL1ToolbarVisible(false);
     if (window.updateFilterTabEnabled) updateFilterTabEnabled();
@@ -265,8 +274,30 @@ function _dashOpenGraphFile(rel, fnName, lineNo) {
         window._lswUpdate({ force: true, active: 2, l1Available: true, l2Available: true });
     }
 
-    if (fnName) _dashFocusL2Node(rel, fnName, lineNo);
-    else _dashFocusCodePanel(rel, null, lineNo);
+    _dashFocusL2Node(rel, fnName, lineNo);
+}
+
+function _dashOpenGraphFileL1(rel, modId, lineNo) {
+    document.getElementById('cy')?.classList.remove('l2-view');
+    if (typeof hideFuncView === 'function') hideFuncView();
+    if (typeof setL1ToolbarVisible === 'function') setL1ToolbarVisible(true);
+    if (window.updateFilterTabEnabled) updateFilterTabEnabled();
+    const ftWrap = document.getElementById('ft-filter');
+    if (ftWrap) ftWrap.style.display = '';
+
+    if (modId && typeof drillToModule === 'function') {
+        drillToModule(modId, { focusFile: rel });
+    } else if (typeof loadLevel0 === 'function') {
+        loadLevel0();
+    }
+
+    if (typeof updateCallGraphBtn === 'function') updateCallGraphBtn(rel);
+    if (window._lswUpdate) {
+        const hasFuncs = !!((window.DATA && DATA.funcs_by_file && DATA.funcs_by_file[rel]) || []).length;
+        window._lswUpdate({ force: true, active: 1, l1Available: true, l2Available: hasFuncs });
+    }
+
+    _dashFocusCodePanel(rel, null, lineNo);
 }
 
 function _dashGoToGraphFile(filePath, funcName, line) {
@@ -278,11 +309,10 @@ function _dashGoToGraphFile(filePath, funcName, line) {
 
     _dashForceGraphMode();
 
-    if (modId && typeof drillToModule === 'function') {
-        drillToModule(modId, { focusFile: rel });
-        setTimeout(() => _dashOpenGraphFile(rel, fnName, lineNo), 220);
+    if (fnName) {
+        _dashOpenGraphFunction(rel, fnName, lineNo);
     } else {
-        _dashOpenGraphFile(rel, fnName, lineNo);
+        _dashOpenGraphFileL1(rel, modId, lineNo);
     }
 }
 

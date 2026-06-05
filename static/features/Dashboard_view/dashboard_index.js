@@ -16,10 +16,14 @@ async function openDashboard() {
 }
 
 function closeDashboard() {
-    if (typeof _dashCloseGroupDrilldown === 'function') _dashCloseGroupDrilldown();
-    if (typeof _dashCloseDrilldown === 'function') _dashCloseDrilldown();
-    // Close any open detail panel first
-    if (_dashDetailOpen) _dashCloseDetailPanel(true);
+    if (typeof _dashCloseDashboardWindows === 'function') {
+        _dashCloseDashboardWindows({ closeDashboard: false });
+    } else {
+        if (typeof _dashCloseGroupDrilldown === 'function') _dashCloseGroupDrilldown();
+        if (typeof _dashCloseCommitDayDrilldown === 'function') _dashCloseCommitDayDrilldown();
+        if (typeof _dashCloseDrilldown === 'function') _dashCloseDrilldown();
+        if (_dashDetailOpen) _dashCloseDetailPanel(true);
+    }
 
     if (_dashCustomizeActive && typeof _dashExitCustomize === 'function') {
         _dashExitCustomize();
