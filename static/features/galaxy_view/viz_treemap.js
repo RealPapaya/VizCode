@@ -282,11 +282,13 @@ function _overviewTreemapClampViewport() {
     const vh = grid.clientHeight || 1;
     const worldW = Math.max(1, _overviewTreemapWorld.w * _overviewTreemapViewport.k);
     const worldH = Math.max(1, _overviewTreemapWorld.h * _overviewTreemapViewport.k);
-    const margin = 64;
-    if (worldW <= vw) _overviewTreemapViewport.x = (vw - worldW) / 2;
-    else _overviewTreemapViewport.x = Math.min(margin, Math.max(vw - worldW - margin, _overviewTreemapViewport.x));
-    if (worldH <= vh) _overviewTreemapViewport.y = (vh - worldH) / 2;
-    else _overviewTreemapViewport.y = Math.min(margin, Math.max(vh - worldH - margin, _overviewTreemapViewport.y));
+    const slack = Math.max(96, Math.min(vw, vh) * 0.72);
+    const minX = Math.min(0, vw - worldW) - slack;
+    const maxX = Math.max(0, vw - worldW) + slack;
+    const minY = Math.min(0, vh - worldH) - slack;
+    const maxY = Math.max(0, vh - worldH) + slack;
+    _overviewTreemapViewport.x = Math.min(maxX, Math.max(minX, _overviewTreemapViewport.x));
+    _overviewTreemapViewport.y = Math.min(maxY, Math.max(minY, _overviewTreemapViewport.y));
 }
 
 function _overviewTreemapApplyTransform() {
@@ -602,10 +604,19 @@ window.overviewTreemapZoomByStep = function (direction) {
     const grid = document.querySelector('#overview-treemap-host .overview-treemap-grid');
     if (!grid) return false;
     const rect = grid.getBoundingClientRect();
-    const factor = direction > 0 ? 1.25 : 0.8;
+    const buttonFactor = window.GRAPH_ZOOM_SETTINGS?.buttonFactor || 1.12;
+    const factor = direction > 0 ? buttonFactor : 1 / buttonFactor;
     _overviewTreemapZoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, _overviewTreemapViewport.k * factor);
     if (typeof refreshGraphZoomControls === 'function') refreshGraphZoomControls();
     return true;
+};
+
+window.overviewTreemapZoomState = function () {
+    return {
+        zoom: _overviewTreemapViewport.k || 1,
+        minZoom: _OVERVIEW_TREEMAP_MIN_ZOOM,
+        maxZoom: _OVERVIEW_TREEMAP_MAX_ZOOM,
+    };
 };
 
 window.overviewTreemapSelectFile = function (filePath, opts = {}) {

@@ -131,6 +131,10 @@
     cursor: grabbing;
 }
 
+.overview-treemap-grid.dragging .overview-treemap-cell {
+    cursor: grabbing;
+}
+
 .overview-treemap-canvas {
     position: absolute;
     left: 0;

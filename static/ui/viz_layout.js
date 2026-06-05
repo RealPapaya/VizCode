@@ -277,12 +277,20 @@ function refreshGraphZoomControls() {
     const zoomInBtn = document.getElementById('graph-zoom-in');
     const zoomOutBtn = document.getElementById('graph-zoom-out');
 
-        // In Galaxy mode, always show zoom controls
+    // In Galaxy mode, always show zoom controls
     if (typeof state !== 'undefined' && state.galaxyActive) {
         if (typeof window.syncGraphIsolateBtn === 'function') window.syncGraphIsolateBtn(false);
         controls.classList.remove('is-hidden');
-        if (zoomInBtn) zoomInBtn.disabled = false;
-        if (zoomOutBtn) zoomOutBtn.disabled = false;
+        if (typeof window.isOverviewTreemapActive === 'function' && window.isOverviewTreemapActive()
+            && typeof window.overviewTreemapZoomState === 'function') {
+            const zoomState = window.overviewTreemapZoomState();
+            const eps = 0.0001;
+            if (zoomInBtn) zoomInBtn.disabled = zoomState.zoom >= zoomState.maxZoom - eps;
+            if (zoomOutBtn) zoomOutBtn.disabled = zoomState.zoom <= zoomState.minZoom + eps;
+        } else {
+            if (zoomInBtn) zoomInBtn.disabled = false;
+            if (zoomOutBtn) zoomOutBtn.disabled = false;
+        }
         // Hide Focus Only button in Galaxy mode
         const focusBtn = document.getElementById('sv-focus-filter-btn');
         if (focusBtn) focusBtn.style.display = 'none';
@@ -339,6 +347,11 @@ function refreshGraphZoomControls() {
 function zoomActiveGraphByStep(direction) {
     if (typeof state !== 'undefined' && state.galaxyActive) {
         if (typeof window.syncGraphIsolateBtn === 'function') window.syncGraphIsolateBtn(false);
+        if (typeof window.isOverviewTreemapActive === 'function' && window.isOverviewTreemapActive()
+            && typeof window.overviewTreemapZoomByStep === 'function') {
+            window.overviewTreemapZoomByStep(direction);
+            return;
+        }
         if (typeof window.zoomGalaxyByStep === 'function') {
             window.zoomGalaxyByStep(direction);
         }
@@ -625,4 +638,3 @@ window._currentViewKey = _currentViewKey;
 
 
 // ─── State ────────────────────────────────────────────────────────────────────
-
