@@ -196,15 +196,12 @@ function _dashRenderBfPanel(detailContainer) {
         return;
     }
 
-    // Fresh: auto-kick sampled, show transient label + richer backfill modes
+    // Fresh: auto-kick sampled, show transient label + daily backfill option
     el.innerHTML = `
 <div class="dash-report-section" style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
   <span style="font-size:0.72rem;opacity:0.45;flex:1;min-width:0">Starting sampled history analysis...</span>
   <button class="dash-btn dash-btn--ghost" onclick="_dashBfRunFull(this)">
     Full <span style="opacity:0.5;font-size:0.68rem">1/day / 90 days</span>
-  </button>
-  <button class="dash-btn dash-btn--ghost" onclick="_dashBfRunCommits(this)">
-    Commit-level <span style="opacity:0.5;font-size:0.68rem">every commit</span>
   </button>
 </div>`;
     _dashBfStart('sample', null);
@@ -300,7 +297,6 @@ function _dashBfPoll(bfEl, detailContainer) {
 
 function _dashBfShowDone(count, bfEl, detailContainer) {
     const showFull = _dashBfState.mode === 'sample';
-    const showCommits = _dashBfState.mode !== 'commits';
     bfEl.innerHTML = `
 <div class="dash-report-section" style="border:1px solid color-mix(in srgb,var(--status-good) 30%,transparent)">
   <div style="font-size:0.78rem;color:var(--status-good);font-weight:600;margin-bottom:8px">
@@ -310,9 +306,6 @@ function _dashBfShowDone(count, bfEl, detailContainer) {
     <button class="dash-btn" onclick="_dashBfRefresh(this)">Refresh chart</button>
     ${showFull ? `<button class="dash-btn dash-btn--ghost" onclick="_dashBfRunFull(this)">
       Full <span style="opacity:0.5;font-size:0.68rem">1/day / 90 days</span>
-    </button>` : ''}
-    ${showCommits ? `<button class="dash-btn dash-btn--ghost" onclick="_dashBfRunCommits(this)">
-      Commit-level <span style="opacity:0.5;font-size:0.68rem">every commit</span>
     </button>` : ''}
   </div>
 </div>`;
@@ -331,13 +324,6 @@ function _dashBfRunFull(btn) {
     _dashBfState.finished = false;
     _dashBfState.newCount = 0;
     _dashBfStart('full', btn);
-}
-
-function _dashBfRunCommits(btn) {
-    _dashBfState.token    = null;
-    _dashBfState.finished = false;
-    _dashBfState.newCount = 0;
-    _dashBfStart('commits', btn);
 }
 
 function _dashBfShowError(msg, bfEl) {

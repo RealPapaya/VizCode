@@ -87,3 +87,29 @@ def test_aggregate_commits_by_day_caps_large_file_lists(monkeypatch):
     assert row['file_count'] == 3
     assert len(row['files']) == 2
     assert row['files_capped'] is True
+
+
+def test_temporal_file_groups_include_daily_line_deltas():
+    commits = [
+        {
+            'sha': 'a1',
+            'date': '2026-06-01',
+            'author': 'Dev One',
+            'files': [{'path': 'src/app.py', 'add': 10, 'del': 2}],
+        },
+        {
+            'sha': 'b2',
+            'date': '2026-06-01',
+            'author': 'Dev Two',
+            'files': [{'path': 'src/app.py', 'add': 3, 'del': 4}],
+        },
+    ]
+
+    groups = git_history._aggregate_temporal_file_groups(commits)
+
+    assert groups['files_by_day']['2026-06-01'][0] == {
+        'file': 'src/app.py',
+        'count': 2,
+        'additions': 13,
+        'deletions': 6,
+    }

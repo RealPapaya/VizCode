@@ -428,7 +428,6 @@ ${_dashTemporalHeatmapSVG(model.model)}
 
 const _DASH_COMMIT_DRILL_ID = 'dash-commit-day-drilldown-overlay';
 let _dashCommitDrillEscBound = false;
-let _dashCommitHealthPollTimer = null;
 
 function _dashOpenCommitDayDrilldown(date) {
     const stats = (window.DATA && DATA.stats) || {};
@@ -442,13 +441,18 @@ function _dashOpenCommitDayDrilldown(date) {
     _dashCloseCommitDayDrilldown();
     if (typeof _dashCloseGroupDrilldown === 'function') _dashCloseGroupDrilldown();
 
+    const dayImpact = _dashCommitHealthImpact({ date: day, aggregate: true }, stats, 1);
     const impacts = commits.map(c => _dashCommitHealthImpact(c, stats, commits.length));
-    const exactHealth = impacts.filter(i => i.available && i.matchType === 'commit').length;
-    const anyMissing = impacts.some(i => !i.available);
+    const healthAvailable = dayImpact.available || impacts.some(i => i.available);
+    const healthCount = healthAvailable ? 1 : 0;
+    const anyMissing = !healthAvailable;
     const needsCommitRows = commits.some(c => c.aggregate);
     const totalAdd = commits.reduce((sum, c) => sum + Number(c.additions || 0), 0);
     const totalDel = commits.reduce((sum, c) => sum + Number(c.deletions || 0), 0);
     const totalFiles = commits.reduce((sum, c) => sum + Number(c.file_count || (c.files || []).length || 0), 0);
+    const displayedCommitCount = needsCommitRows
+        ? Math.max(...commits.map(c => Number(c.aggregate_commits || 0)), commits.length)
+        : commits.length;
 
     const overlay = document.createElement('div');
     overlay.id = _DASH_COMMIT_DRILL_ID;
@@ -458,19 +462,20 @@ function _dashOpenCommitDayDrilldown(date) {
   <div class="dash-commit-drilldown-head">
     <div>
       <div class="dash-detail-head-label">Commit Activity</div>
-      <div class="dash-detail-head-name">${_dashEscape(day)}<span class="dash-list-meta dash-list-meta--inline"> ${_dashFmtExactNum(commits.length)} commits</span></div>
+      <div class="dash-detail-head-name">${_dashEscape(day)}<span class="dash-list-meta dash-list-meta--inline"> ${_dashFmtExactNum(displayedCommitCount)} commits</span></div>
     </div>
     <button class="dash-detail-close" type="button" data-close-commit-day aria-label="Close">x</button>
   </div>
   <div class="dash-commit-drilldown-body">
     <div class="dash-commit-drill-summary-strip">
-      <div><span>${_dashFmtExactNum(commits.length)}</span><small>commits</small></div>
+      <div><span>${_dashFmtExactNum(displayedCommitCount)}</span><small>commits</small></div>
       <div><span>${_dashFmtExactNum(totalFiles)}</span><small>files touched</small></div>
       <div><span>+${_dashFmtExactNum(totalAdd)}</span><small>additions</small></div>
       <div><span>-${_dashFmtExactNum(totalDel)}</span><small>deletions</small></div>
-      <div><span>${_dashFmtExactNum(exactHealth)}</span><small>health snapshots</small></div>
+      <div><span>${_dashFmtExactNum(healthCount)}</span><small>health delta</small></div>
     </div>
-    ${(needsCommitRows || anyMissing) ? _dashCommitHealthBackfillCallout(day, { needsCommitRows, needsHealth: anyMissing }) : ''}
+    ${_dashCommitDayHealthHTML(dayImpact, day)}
+    ${(needsCommitRows || anyMissing) ? _dashCommitHealthNotice(day, { needsCommitRows, needsHealth: anyMissing }) : ''}
     <div class="dash-commit-drill-list">
       ${commits.map((commit, i) => _dashCommitDrillRowHTML(commit, impacts[i], i, commits.length)).join('')}
     </div>
@@ -484,8 +489,6 @@ function _dashOpenCommitDayDrilldown(date) {
     });
     overlay.querySelector('[data-commit-history-refresh]')
         ?.addEventListener('click', e => _dashFetchCommitHistory(day, e.currentTarget));
-    overlay.querySelector('[data-commit-health-backfill]')
-        ?.addEventListener('click', e => _dashCommitHealthBackfill(e.currentTarget, day));
     if (!_dashCommitDrillEscBound) {
         document.addEventListener('keydown', _dashCommitDrillKeyHandler);
         _dashCommitDrillEscBound = true;
@@ -518,53 +521,44 @@ function _dashAggregateCommitRowsForDay(day, stats) {
     if (!dayFiles.length && !commits) return [];
     return [{
         sha: '',
-        short_sha: 'day total',
+        short_sha: 'refresh needed',
         date: day,
         author: stats._commitHistoryRefreshFailed
-            ? 'Git history refresh failed'
-            : 'Refresh analysis for per-commit rows',
+            ? 'Git history refresh failed; re-run analysis to restore per-commit rows'
+            : 'Re-run analysis to restore per-commit rows',
         additions: Number(activity.additions || 0),
         deletions: Number(activity.deletions || 0),
         file_count: dayFiles.length,
         aggregate: true,
         aggregate_commits: commits,
-        files: dayFiles.map(f => ({
-            file: f.file || f.path || '',
-            additions: 0,
-            deletions: 0,
-            count: f.count,
-        })),
+        affected_files: dayFiles.length,
     }];
 }
 
-function _dashCommitHealthBackfillCallout(day, opts) {
+function _dashCommitHealthNotice(day, opts) {
     const needsCommitRows = !!(opts && opts.needsCommitRows);
     const needsHealth = !!(opts && opts.needsHealth);
-    const history = ((window.DATA && DATA.stats && DATA.stats.health_history) || []);
     const note = needsCommitRows
         ? 'This loaded dashboard does not have per-commit file rows yet.'
-        : history.length
-        ? 'Some commits do not have an exact health snapshot yet.'
-        : 'No commit health snapshots have been recorded yet.';
+        : 'No Code Health snapshot exists for this date yet.';
     const hint = needsCommitRows
         ? 'Refresh git history or re-run analysis to list individual commits.'
-        : 'Backfill will analyze commits in this git window.';
+        : 'Run the normal Health Trend daily backfill or re-run analysis when you need a new health point.';
     return `
 <div class="dash-commit-health-callout">
   <div>
-    <strong>${_dashEscape(needsCommitRows ? 'Commit rows need fresh git history' : 'Code Health delta needs commit snapshots')}</strong>
+    <strong>${_dashEscape(needsCommitRows ? 'Commit rows need fresh git history' : 'No Code Health delta for this date')}</strong>
     <span>${_dashEscape(note)} ${_dashEscape(hint)}</span>
   </div>
   <div class="dash-commit-health-callout__actions">
     ${needsCommitRows ? `<button class="dash-btn dash-btn--ghost" type="button" data-commit-history-refresh data-date="${_dashEscape(day)}">Refresh git history</button>` : ''}
-    ${needsHealth ? `<button class="dash-btn dash-btn--ghost" type="button" data-commit-health-backfill data-date="${_dashEscape(day)}">Backfill commit health</button>` : ''}
   </div>
 </div>`;
 }
 
 function _dashCommitDrillRowHTML(commit, impact, index, commitCount) {
     const sha = commit.aggregate
-        ? 'day total'
+        ? 'commit rows unavailable'
         : (String(commit.short_sha || commit.sha || '').slice(0, 8) || 'unknown');
     const author = String(commit.author || '').trim();
     const files = commit.files || [];
@@ -581,6 +575,10 @@ function _dashCommitDrillRowHTML(commit, impact, index, commitCount) {
             author,
             `${_dashFmtExactNum(fileCount)} file${fileCount === 1 ? '' : 's'}`,
         ].filter(Boolean);
+    const detailHTML = commit.aggregate
+        ? _dashCommitRowsUnavailableHTML(commit)
+        : `${_dashCommitHealthBreakdownHTML(impact)}
+    <div class="dash-commit-drill-files">${_dashCommitFilesHTML(commit)}</div>`;
     return `
 <details class="dash-commit-drill-row"${commitCount === 1 ? ' open' : ''}>
   <summary class="dash-commit-drill-summary">
@@ -593,10 +591,19 @@ function _dashCommitDrillRowHTML(commit, impact, index, commitCount) {
     <span class="dash-commit-drill-churn"><b>+${_dashFmtExactNum(add)}</b><b>-${_dashFmtExactNum(del)}</b></span>
   </summary>
   <div class="dash-commit-drill-details">
-    ${_dashCommitHealthBreakdownHTML(impact)}
-    <div class="dash-commit-drill-files">${_dashCommitFilesHTML(commit)}</div>
+    ${detailHTML}
   </div>
 </details>`;
+}
+
+function _dashCommitRowsUnavailableHTML(commit) {
+    const commitCount = Number(commit.aggregate_commits || 0);
+    const fileCount = Number(commit.file_count || commit.affected_files || 0);
+    return `
+<div class="dash-commit-rows-unavailable">
+  <strong>Commit list unavailable in this loaded dashboard</strong>
+  <span>${_dashFmtExactNum(commitCount)} commits touched ${_dashFmtExactNum(fileCount)} files, but this dashboard data does not include per-commit rows. Refresh git history or re-run analysis to restore the commit list.</span>
+</div>`;
 }
 
 function _dashCommitFilesHTML(commit) {
@@ -608,15 +615,19 @@ function _dashCommitFilesHTML(commit) {
     const rows = files.map((row, i) => {
         const file = String(row.file || row.path || '').replace(/\\/g, '/');
         const short = file.split('/').pop() || file;
+        const hasLineDelta = row.additions != null || row.add != null || row.deletions != null || row.del != null;
         const add = Number(row.additions || row.add || 0);
         const del = Number(row.deletions || row.del || 0);
         const meta = row.count != null ? `${file} / ${row.count} commits` : file;
+        const deltaHTML = hasLineDelta
+            ? `<span class="dash-commit-file-row__delta"><b>+${_dashFmtExactNum(add)}</b><b>-${_dashFmtExactNum(del)}</b></span>`
+            : `<span class="dash-commit-file-row__delta dash-commit-file-row__delta--meta">${_dashEscape(row.count != null ? `${row.count} commits` : 'lines n/a')}</span>`;
         return `
 <div class="dash-commit-file-row" data-clickable="true" data-tip="${_dashEscape(file)}"
      onclick="_dashGoToGraphFile(${_dashJson(file)}, null)">
   <span class="dash-commit-file-row__rank">${i + 1}</span>
   <span class="dash-commit-file-row__name">${_dashEscape(short)}<small>${_dashEscape(meta)}</small></span>
-  <span class="dash-commit-file-row__delta"><b>+${_dashFmtExactNum(add)}</b><b>-${_dashFmtExactNum(del)}</b></span>
+  ${deltaHTML}
 </div>`;
     }).join('');
     const capped = commit.files_capped
@@ -641,14 +652,14 @@ function _dashCommitHealthImpact(commit, stats, dayCommitCount) {
     if (!entries.length) return { available: false };
     let idx = entries.findIndex(e => _dashCommitEntryMatches(e, commit));
     let matchType = 'commit';
-    if (idx < 0 && (dayCommitCount === 1 || commit.aggregate)) {
+    if (idx < 0) {
         const date = String(commit.date || '').slice(0, 10);
         const dateMatches = entries
             .map((entry, i) => ({ entry, i }))
             .filter(({ entry }) => (entry.date || (entry.ts || '').slice(0, 10)) === date);
-        if (dateMatches.length === 1) {
-            idx = dateMatches[0].i;
-            matchType = 'date';
+        if (dateMatches.length) {
+            idx = dateMatches[dateMatches.length - 1].i;
+            matchType = commit.aggregate ? 'date' : 'day';
         }
     }
     if (idx < 0) return { available: false };
@@ -706,6 +717,34 @@ function _dashCommitHealthLabel(key) {
     return _dashT(labels[key]) || key.replace(/_/g, ' ');
 }
 
+function _dashCommitDayHealthHTML(impact, day) {
+    if (!impact || !impact.available) return '';
+    const scoreColor = typeof _dashHealthColor === 'function' ? _dashHealthColor(impact.score) : 'var(--accent)';
+    const source = impact.matchType === 'commit'
+        ? 'Exact commit snapshot for this day.'
+        : 'Using the available Code Health snapshot for this date; commit rows share this day-level delta.';
+    const scoreLine = impact.prevScore == null
+        ? `${impact.score.toFixed(1)} baseline`
+        : `${impact.prevScore.toFixed(1)} -> ${impact.score.toFixed(1)} (${_dashCommitDeltaText(impact.delta)})`;
+    return `
+<div class="dash-commit-day-health">
+  <div class="dash-commit-day-health__head">
+    <span>Code Health change</span>
+    <b style="color:${scoreColor}">${_dashEscape(scoreLine)}</b>
+  </div>
+  <div class="dash-commit-day-health__note">${_dashEscape(day)} / ${_dashEscape(source)}</div>
+  <div class="dash-commit-day-health__chips">
+    ${_dashCommitHealthKeys().map(key => {
+        const row = impact.breakdown[key] || {};
+        const before = row.before == null ? 'base' : row.before.toFixed(1);
+        const after = Number(row.after || 0).toFixed(1);
+        const delta = row.delta == null ? '' : ` ${_dashCommitDeltaText(row.delta)}`;
+        return `<span><small>${_dashEscape(_dashCommitHealthLabel(key))}</small><b>${_dashEscape(before)} -> ${_dashEscape(after)}</b><em style="color:${_dashCommitDeltaColor(row.delta)}">${_dashEscape(delta)}</em></span>`;
+    }).join('')}
+  </div>
+</div>`;
+}
+
 function _dashCommitHealthSummaryHTML(impact) {
     if (!impact || !impact.available) {
         return `
@@ -717,7 +756,7 @@ function _dashCommitHealthSummaryHTML(impact) {
     const scoreColor = typeof _dashHealthColor === 'function' ? _dashHealthColor(impact.score) : 'var(--accent)';
     const deltaColor = _dashCommitDeltaColor(impact.delta);
     const deltaText = _dashCommitDeltaText(impact.delta);
-    const source = impact.matchType === 'commit' ? 'commit delta' : 'date snapshot';
+    const source = impact.matchType === 'commit' ? 'commit delta' : 'day delta';
     return `
 <span class="dash-commit-health-impact">
   <b style="color:${scoreColor}">${impact.score.toFixed(1)}</b>
@@ -832,59 +871,6 @@ function _dashMergeCommitHistory(payload) {
     keys.forEach(key => {
         if (payload[key] !== undefined) DATA.stats[key] = payload[key];
     });
-}
-
-function _dashCommitHealthBackfill(btn, day) {
-    if (!btn || btn.disabled) return;
-    const stats = (window.DATA && DATA.stats) || {};
-    const jobId = (window.DATA && DATA.job_id) ? DATA.job_id : '';
-    const days = Math.max(7, Math.min(365, Number(stats.window_days || 90)));
-    btn.disabled = true;
-    btn.textContent = 'Starting...';
-
-    fetch('/api/health-backfill', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'commits', days, job_id: jobId }),
-    })
-        .then(r => r.json())
-        .then(data => {
-            if (data.error) throw new Error(data.error);
-            _dashCommitHealthPoll(data.token, day, btn);
-        })
-        .catch(err => {
-            btn.disabled = false;
-            btn.textContent = 'Backfill failed';
-            btn.title = String(err && err.message ? err.message : err);
-        });
-}
-
-function _dashCommitHealthPoll(token, day, btn) {
-    if (_dashCommitHealthPollTimer) clearInterval(_dashCommitHealthPollTimer);
-    _dashCommitHealthPollTimer = setInterval(() => {
-        fetch(`/api/health-backfill-status?token=${encodeURIComponent(token)}`)
-            .then(r => r.json())
-            .then(prog => {
-                if (!btn) return;
-                const pct = prog.total > 0 ? Math.round((prog.done / prog.total) * 100) : 0;
-                btn.textContent = prog.current_sha ? `${pct}% ${prog.current_sha}` : `${pct}%`;
-                if (!prog.finished) return;
-                clearInterval(_dashCommitHealthPollTimer);
-                _dashCommitHealthPollTimer = null;
-                if (prog.error) {
-                    btn.disabled = false;
-                    btn.textContent = 'Backfill failed';
-                    btn.title = prog.error;
-                    return;
-                }
-                if (prog.history && window.DATA && DATA.stats) {
-                    DATA.stats.health_history = prog.history;
-                }
-                btn.textContent = 'Backfilled';
-                setTimeout(() => _dashOpenCommitDayDrilldown(day), 180);
-            })
-            .catch(() => {});
-    }, 1500);
 }
 
 _dashRegisterWidget({

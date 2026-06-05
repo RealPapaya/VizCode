@@ -42,7 +42,7 @@ COMMIT_FILE_LIMIT   = 20      # skip commits touching > N files (refactor noise)
 COMMIT_DETAIL_FILE_LIMIT = 60  # cap per-commit file lists in dashboard payloads
 COUPLING_MIN        = 3       # filter pairs below this co-change count
 GIT_TIMEOUT_SEC     = 60
-SCHEMA_REV          = 6   # bump invalidates caches that lack commit drilldowns
+SCHEMA_REV          = 7   # bump invalidates caches that lack commit/file deltas
 
 # Hotspot scoring tuning. Files without computed complexity get a neutral
 # 0.5 multiplier so they're neither boosted nor punished by the score.
@@ -386,25 +386,34 @@ def _aggregate_commits_by_day(commits: list) -> dict:
 
 def _aggregate_temporal_file_groups(commits: list) -> dict:
     """Return author/week/day groupings of changed files for dashboard drilldown."""
-    authors = defaultdict(Counter)
-    weeks   = defaultdict(Counter)
-    days    = defaultdict(Counter)
+    def bucket():
+        return defaultdict(lambda: {'count': 0, 'additions': 0, 'deletions': 0})
+
+    authors = defaultdict(bucket)
+    weeks   = defaultdict(bucket)
+    days    = defaultdict(bucket)
     for c in commits:
         author = (c.get('author') or '').strip() or 'Unknown'
         day = c['date']
         week = _iso_week_start(day)
         for f in c['files']:
             path = f['path']
-            authors[author][path] += 1
-            weeks[week][path] += 1
-            days[day][path] += 1
+            for grouped in (authors[author], weeks[week], days[day]):
+                grouped[path]['count'] += 1
+                grouped[path]['additions'] += int(f.get('add') or 0)
+                grouped[path]['deletions'] += int(f.get('del') or 0)
 
     def pack(counter_map):
         out = {}
-        for key, counts in counter_map.items():
+        for key, file_stats in counter_map.items():
             out[key] = [
-                {'file': path, 'count': count}
-                for path, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+                {
+                    'file': path,
+                    'count': row['count'],
+                    'additions': row['additions'],
+                    'deletions': row['deletions'],
+                }
+                for path, row in sorted(file_stats.items(), key=lambda item: (-item[1]['count'], item[0]))
             ]
         return out
 

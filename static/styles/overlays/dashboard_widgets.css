@@ -1020,6 +1020,88 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     min-width: 0;
 }
 
+.dash-commit-day-health {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    margin-bottom: 12px;
+    padding: 11px 12px;
+    border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-elevated) 72%, transparent);
+}
+
+.dash-commit-day-health__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+}
+
+.dash-commit-day-health__head span {
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 720;
+}
+
+.dash-commit-day-health__head b {
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    font-weight: 760;
+    font-variant-numeric: tabular-nums;
+}
+
+.dash-commit-day-health__note {
+    color: color-mix(in srgb, var(--text) 62%, var(--muted));
+    font-size: 10px;
+    line-height: 1.45;
+}
+
+.dash-commit-day-health__chips {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    gap: 7px;
+    min-width: 0;
+}
+
+.dash-commit-day-health__chips span {
+    min-width: 0;
+    padding: 7px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-card) 72%, transparent);
+}
+
+.dash-commit-day-health__chips small,
+.dash-commit-day-health__chips b,
+.dash-commit-day-health__chips em {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-commit-day-health__chips small {
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.dash-commit-day-health__chips b,
+.dash-commit-day-health__chips em {
+    margin-top: 3px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 720;
+    font-variant-numeric: tabular-nums;
+}
+
 .dash-commit-drill-list {
     display: flex;
     flex-direction: column;
@@ -1172,6 +1254,29 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     font-size: 11px;
 }
 
+.dash-commit-rows-unavailable {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    padding: 9px 10px;
+    border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.dash-commit-rows-unavailable strong {
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.dash-commit-rows-unavailable span {
+    color: color-mix(in srgb, var(--text) 64%, var(--muted));
+    font-size: 11px;
+    line-height: 1.45;
+}
+
 .dash-commit-health-breakdown__overall {
     display: flex;
     align-items: center;
@@ -1309,6 +1414,13 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
     color: var(--status-bad);
 }
 
+.dash-commit-file-row__delta--meta {
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+    justify-content: flex-end;
+}
+
 .dash-commit-file-row__note {
     padding: 6px;
     color: var(--muted);
@@ -1350,6 +1462,11 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
         width: 100%;
     }
 
+    .dash-commit-day-health__head {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
     .dash-commit-drill-summary {
         grid-template-columns: 24px minmax(0, 1fr);
     }
@@ -1360,4 +1477,3 @@ body.dash-customize #dashboard-bento.dash-reflowing .dash-widget:not(.dash-dragg
         justify-content: flex-start;
     }
 }
-
