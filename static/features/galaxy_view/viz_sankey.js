@@ -11,6 +11,20 @@ let _overviewSankeyResizeObserver = null;
 let _overviewSankeyResizeTimer = null;
 let _overviewSankeyStack = [{ level: 'module' }];
 
+// Zoom/pan viewport (treemap parity): world is the rendered SVG, the canvas
+// layer is CSS-transformed by {x, y, k}.
+let _overviewSankeyViewport = { x: 0, y: 0, k: 1 };
+let _overviewSankeyWorld = { w: 0, h: 0 };
+let _overviewSankeyDrag = null;
+let _overviewSankeySuppressClick = false;
+// Selection synced from/to the Explorer; re-applied as `.active` on re-render.
+let _overviewSankeySelectedId = '';
+// Last layout's positioned nodes, kept so selection can look up node geometry.
+let _overviewSankeyLastLayout = null;
+
+const _OVERVIEW_SANKEY_MIN_ZOOM = 0.4;
+const _OVERVIEW_SANKEY_MAX_ZOOM = 6;
+
 const _OVERVIEW_SANKEY_TOP_MODULES = 15;
 const _OVERVIEW_SANKEY_MAX_SIDE_NODES = 24;
 const _OVERVIEW_SANKEY_NODE_W = 14;
@@ -308,6 +322,118 @@ function _sankeyLayout(model, w, h) {
     return { left: L.placed, right: R.placed, ribbons, x0, x1, height: Math.max(L.bottom, R.bottom) + _OVERVIEW_SANKEY_PAD };
 }
 
+// ── Viewport (zoom / pan) ───────────────────────────────────────────────────
+function _sankeyGrid() {
+    return document.querySelector('#overview-sankey-host .overview-sankey-grid');
+}
+
+function _sankeyClampViewport() {
+    const grid = _sankeyGrid();
+    if (!grid) return;
+    const vw = grid.clientWidth || 1;
+    const vh = grid.clientHeight || 1;
+    const worldW = Math.max(1, _overviewSankeyWorld.w * _overviewSankeyViewport.k);
+    const worldH = Math.max(1, _overviewSankeyWorld.h * _overviewSankeyViewport.k);
+    const slack = Math.max(96, Math.min(vw, vh) * 0.72);
+    const minX = Math.min(0, vw - worldW) - slack;
+    const maxX = Math.max(0, vw - worldW) + slack;
+    const minY = Math.min(0, vh - worldH) - slack;
+    const maxY = Math.max(0, vh - worldH) + slack;
+    _overviewSankeyViewport.x = Math.min(maxX, Math.max(minX, _overviewSankeyViewport.x));
+    _overviewSankeyViewport.y = Math.min(maxY, Math.max(minY, _overviewSankeyViewport.y));
+}
+
+function _sankeyApplyTransform() {
+    const canvas = document.querySelector('#overview-sankey-host .overview-sankey-canvas');
+    if (!canvas) return;
+    _sankeyClampViewport();
+    canvas.style.transform = `translate(${_overviewSankeyViewport.x}px, ${_overviewSankeyViewport.y}px) scale(${_overviewSankeyViewport.k})`;
+}
+
+function _sankeyZoomAt(clientX, clientY, nextK) {
+    const grid = _sankeyGrid();
+    if (!grid) return;
+    const rect = grid.getBoundingClientRect();
+    const k = Math.max(_OVERVIEW_SANKEY_MIN_ZOOM, Math.min(_OVERVIEW_SANKEY_MAX_ZOOM, nextK));
+    const px = clientX - rect.left;
+    const py = clientY - rect.top;
+    const wx = (px - _overviewSankeyViewport.x) / _overviewSankeyViewport.k;
+    const wy = (py - _overviewSankeyViewport.y) / _overviewSankeyViewport.k;
+    _overviewSankeyViewport.x = px - wx * k;
+    _overviewSankeyViewport.y = py - wy * k;
+    _overviewSankeyViewport.k = k;
+    _sankeyApplyTransform();
+}
+
+function _sankeyResetViewport() {
+    _overviewSankeyViewport = { x: 0, y: 0, k: 1 };
+    _sankeyApplyTransform();
+}
+
+// Center the placed node `entry` in the grid viewport (used by Explorer sync).
+function _sankeyCenterEntry(entry, animated = true) {
+    const grid = _sankeyGrid();
+    const canvas = document.querySelector('#overview-sankey-host .overview-sankey-canvas');
+    if (!grid || !canvas || !entry) return;
+    const k = Math.max(1, Math.min(2.4, _overviewSankeyViewport.k || 1));
+    _overviewSankeyViewport.k = k;
+    _overviewSankeyViewport.x = (grid.clientWidth || 0) / 2 - (entry.x + _OVERVIEW_SANKEY_NODE_W / 2) * k;
+    _overviewSankeyViewport.y = (grid.clientHeight || 0) / 2 - (entry.y + entry.h / 2) * k;
+    canvas.classList.toggle('is-animating', !!animated);
+    _sankeyApplyTransform();
+    if (animated) setTimeout(() => canvas.classList.remove('is-animating'), 220);
+}
+
+function _sankeyInstallInteractions(grid) {
+    if (!grid || grid.dataset.sankeyBound === '1') return;
+    grid.dataset.sankeyBound = '1';
+    grid.addEventListener('wheel', event => {
+        if (_overviewMode !== 'sankey') return;
+        event.preventDefault();
+        const factor = event.deltaY < 0 ? 1.14 : 1 / 1.14;
+        _sankeyZoomAt(event.clientX, event.clientY, _overviewSankeyViewport.k * factor);
+        if (typeof refreshGraphZoomControls === 'function') refreshGraphZoomControls();
+    }, { passive: false });
+    grid.addEventListener('pointerdown', event => {
+        if (_overviewMode !== 'sankey' || event.button !== 0) return;
+        // Capture is deferred to pointermove (once a real drag starts) so that a
+        // plain click still retargets to the node, not the captured grid.
+        _overviewSankeyDrag = { id: event.pointerId, sx: event.clientX, sy: event.clientY, x: _overviewSankeyViewport.x, y: _overviewSankeyViewport.y, moved: false, captured: false };
+    });
+    grid.addEventListener('pointermove', event => {
+        const drag = _overviewSankeyDrag;
+        if (!drag || drag.id !== event.pointerId) return;
+        const dx = event.clientX - drag.sx;
+        const dy = event.clientY - drag.sy;
+        if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
+        if (!drag.moved) return;
+        if (!drag.captured) { grid.setPointerCapture?.(event.pointerId); drag.captured = true; }
+        event.preventDefault();
+        grid.classList.add('dragging');
+        _overviewSankeyViewport.x = drag.x + dx;
+        _overviewSankeyViewport.y = drag.y + dy;
+        _sankeyApplyTransform();
+    });
+    const finishDrag = event => {
+        const drag = _overviewSankeyDrag;
+        if (!drag || drag.id !== event.pointerId) return;
+        if (drag.captured) grid.releasePointerCapture?.(event.pointerId);
+        grid.classList.remove('dragging');
+        _overviewSankeyDrag = null;
+        if (drag.moved) {
+            _overviewSankeySuppressClick = true;
+            setTimeout(() => { _overviewSankeySuppressClick = false; }, 0);
+        }
+    };
+    grid.addEventListener('pointerup', finishDrag);
+    grid.addEventListener('pointercancel', finishDrag);
+    grid.addEventListener('dblclick', event => {
+        event.preventDefault();
+        _sankeyResetViewport();
+        if (typeof refreshGraphZoomControls === 'function') refreshGraphZoomControls();
+    });
+}
+
 // ── Rendering ─────────────────────────────────────────────────────────────────
 function _sankeySvgEl(tag, attrs) {
     const el = document.createElementNS(_OVERVIEW_SANKEY_SVG_NS, tag);
@@ -354,10 +480,25 @@ function _sankeyRibbonTooltip(r, model, event) {
         sMeta?.color || _OVERVIEW_SANKEY_GRAY, event);
 }
 
+// Sankey → Explorer: reflect a drilled node in the left Explorer + code panel.
+// File nodes reveal the file and open its code; module nodes highlight the
+// module row. All targets are global functions that may be absent in edge cases.
+function _sankeySyncExplorer(drill) {
+    if (!drill) return;
+    if (drill.level === 'func' && drill.file) {
+        if (typeof revealSidebarExplorerPath === 'function') revealSidebarExplorerPath(drill.file, 'file');
+        if (typeof loadFileInPanel === 'function') loadFileInPanel(drill.file);
+        if (typeof updateCallGraphBtn === 'function') updateCallGraphBtn(drill.file);
+    } else if (drill.level === 'file' && drill.module) {
+        if (typeof setSidebarActive === 'function') setSidebarActive(drill.module);
+    }
+}
+
 function _sankeyRenderNodes(svg, placed, side, model) {
     placed.forEach(entry => {
         const meta = model.nodes.get(entry.id) || { label: entry.id, color: _OVERVIEW_SANKEY_GRAY };
-        const g = _sankeySvgEl('g', { class: `overview-sankey-node${meta.drill ? ' drillable' : ''}${meta.gray ? ' gray' : ''}` });
+        const isActive = entry.id === _overviewSankeySelectedId;
+        const g = _sankeySvgEl('g', { class: `overview-sankey-node${meta.drill ? ' drillable' : ''}${meta.gray ? ' gray' : ''}${isActive ? ' active' : ''}` });
         g.appendChild(_sankeySvgEl('rect', {
             x: entry.x, y: entry.y, width: _OVERVIEW_SANKEY_NODE_W, height: entry.h,
             rx: 2, fill: meta.color,
@@ -377,8 +518,12 @@ function _sankeyRenderNodes(svg, placed, side, model) {
         g.addEventListener('mouseleave', _galaxyHideTooltip);
         if (meta.drill) {
             g.addEventListener('click', () => {
+                if (_overviewSankeySuppressClick) return; // a pan-drag, not a click
                 _galaxyHideTooltip();
+                _sankeySyncExplorer(meta.drill);
+                _overviewSankeySelectedId = '';
                 _overviewSankeyStack.push(meta.drill);
+                _overviewSankeyViewport = { x: 0, y: 0, k: 1 };
                 _overviewRenderSankey();
             });
         }
@@ -413,7 +558,9 @@ function _sankeyRenderHeader(host) {
         back.textContent = `← ${T('sankeyBack')}`;
         back.addEventListener('click', () => {
             _galaxyHideTooltip();
+            _overviewSankeySelectedId = '';
             _overviewSankeyStack.pop();
+            _overviewSankeyViewport = { x: 0, y: 0, k: 1 };
             _overviewRenderSankey();
         });
         header.appendChild(back);
@@ -438,23 +585,37 @@ function _overviewRenderSankey() {
     const frame = _overviewSankeyStack[_overviewSankeyStack.length - 1];
     const model = _sankeyBuildModel(frame);
     if (!model.links.length) {
+        _overviewSankeyLastLayout = null;
         const empty = document.createElement('div');
         empty.className = 'overview-sankey-empty';
         empty.textContent = T('sankeyNoFlows');
         body.appendChild(empty);
         return;
     }
-    const w = Math.max(420, body.clientWidth || host.clientWidth || 800);
-    const h = Math.max(220, body.clientHeight || 480);
+    const grid = document.createElement('div');
+    grid.className = 'overview-sankey-grid';
+    const canvas = document.createElement('div');
+    canvas.className = 'overview-sankey-canvas';
+    grid.appendChild(canvas);
+    body.appendChild(grid);
+
+    const w = Math.max(420, grid.clientWidth || body.clientWidth || host.clientWidth || 800);
+    const h = Math.max(220, grid.clientHeight || body.clientHeight || 480);
     const layout = _sankeyLayout(model, w, h);
+    _overviewSankeyLastLayout = layout;
     const svgH = Math.max(h, layout.height);
+    _overviewSankeyWorld = { w, h: svgH };
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${svgH}px`;
     const svg = _sankeySvgEl('svg', {
         width: w, height: svgH, viewBox: `0 0 ${w} ${svgH}`, class: 'overview-sankey-svg',
     });
     _sankeyRenderRibbons(svg, layout, model);
     _sankeyRenderNodes(svg, layout.left, 'left', model);
     _sankeyRenderNodes(svg, layout.right, 'right', model);
-    body.appendChild(svg);
+    canvas.appendChild(svg);
+    _sankeyInstallInteractions(grid);
+    _sankeyApplyTransform();
 }
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
@@ -490,6 +651,9 @@ function _overviewSankeyDestroy() {
         _overviewSankeyResizeObserver = null;
     }
     _overviewSankeyStack = [{ level: 'module' }];
+    _overviewSankeyViewport = { x: 0, y: 0, k: 1 };
+    _overviewSankeySelectedId = '';
+    _overviewSankeyLastLayout = null;
     const host = document.getElementById('overview-sankey-host');
     if (host) host.innerHTML = '';
 }
@@ -505,6 +669,49 @@ window.overviewSankeyClose = function () {
 };
 
 window.overviewSankeyDestroy = _overviewSankeyDestroy;
+
+// +/- toolbar buttons: zoom about the grid centre.
+window.overviewSankeyZoomByStep = function (direction) {
+    const grid = _sankeyGrid();
+    if (!grid) return false;
+    const rect = grid.getBoundingClientRect();
+    const buttonFactor = window.GRAPH_ZOOM_SETTINGS?.buttonFactor || 1.12;
+    const factor = direction > 0 ? buttonFactor : 1 / buttonFactor;
+    _sankeyZoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, _overviewSankeyViewport.k * factor);
+    if (typeof refreshGraphZoomControls === 'function') refreshGraphZoomControls();
+    return true;
+};
+
+window.overviewSankeyZoomState = function () {
+    return {
+        zoom: _overviewSankeyViewport.k || 1,
+        minZoom: _OVERVIEW_SANKEY_MIN_ZOOM,
+        maxZoom: _OVERVIEW_SANKEY_MAX_ZOOM,
+    };
+};
+
+// Explorer → Sankey: navigate to the file's module (file level) and highlight
+// + centre that file node. Returns true if the node was found.
+window.overviewSankeySelectFile = function (path) {
+    if (_overviewMode !== 'sankey' || !state?.galaxyActive) return false;
+    if (!path) return false;
+    const modId = typeof resolveModuleForFile === 'function' ? resolveModuleForFile(path) : null;
+    if (!modId || modId === '_root') return false;
+    _overviewSankeyStack = [{ level: 'module' }, { level: 'file', module: modId }];
+    _overviewSankeySelectedId = `f:${path}`;
+    _overviewSankeyViewport = { x: 0, y: 0, k: 1 };
+    _overviewRenderSankey();
+    if (typeof loadFileInPanel === 'function') loadFileInPanel(path);
+    if (typeof updateCallGraphBtn === 'function') updateCallGraphBtn(path);
+    const entry = _overviewSankeyLastLayout
+        && (_overviewSankeyLastLayout.left.get(_overviewSankeySelectedId)
+            || _overviewSankeyLastLayout.right.get(_overviewSankeySelectedId));
+    if (entry) {
+        _sankeyCenterEntry(entry, true);
+        return true;
+    }
+    return false;
+};
 
 window.isOverviewSankeyActive = function () {
     return !!state?.galaxyActive && _overviewMode === 'sankey';

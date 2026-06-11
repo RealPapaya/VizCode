@@ -134,7 +134,12 @@ if (typeof _overviewBaseZoomGalaxyByStep === 'function') {
             }
             return;
         }
-        if (_overviewMode === 'sankey') return; // Sankey is fit-to-view
+        if (_overviewMode === 'sankey') {
+            if (typeof window.overviewSankeyZoomByStep === 'function') {
+                window.overviewSankeyZoomByStep(direction);
+            }
+            return;
+        }
         return _overviewBaseZoomGalaxyByStep.apply(this, arguments);
     };
 }
@@ -148,7 +153,12 @@ if (typeof _overviewBaseGalaxyHighlightByPath === 'function') {
             }
             return false;
         }
-        if (_overviewMode === 'sankey') return false;
+        if (_overviewMode === 'sankey') {
+            if (typeof window.overviewSankeySelectFile === 'function') {
+                return window.overviewSankeySelectFile(filePath);
+            }
+            return false;
+        }
         return _overviewBaseGalaxyHighlightByPath.apply(this, arguments);
     };
 }

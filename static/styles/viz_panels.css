@@ -290,8 +290,29 @@
 .overview-sankey-body {
     position: relative;
     flex: 1 1 auto;
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow: hidden;
+}
+
+.overview-sankey-grid {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    cursor: grab;
+}
+
+.overview-sankey-grid.dragging {
+    cursor: grabbing;
+}
+
+.overview-sankey-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+}
+
+.overview-sankey-canvas.is-animating {
+    transition: transform 0.2s ease;
 }
 
 .overview-sankey-label {
@@ -321,6 +342,11 @@
 .overview-sankey-node.drillable:hover rect {
     filter: brightness(1.25);
     stroke: rgba(255, 255, 255, 0.55);
+}
+
+.overview-sankey-node.active rect {
+    stroke: var(--accent);
+    stroke-width: 1.5;
 }
 
 .overview-sankey-ribbon {
