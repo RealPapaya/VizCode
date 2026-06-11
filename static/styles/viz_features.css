@@ -3066,13 +3066,25 @@
 }
 
 .pref-ai-save-status {
-    flex: 1;
-    min-width: 0;
+    display: none;
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
     color: var(--muted);
-    font-size: 11px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 150px;
+    overflow-y: auto;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.pref-ai-save-status:not(:empty) {
+    display: block;
 }
 
 .pref-ai-save-btn,

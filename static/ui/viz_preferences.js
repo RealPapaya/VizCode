@@ -879,9 +879,9 @@ function _buildPrefAiSettingsHTML() {
               `)}
               <div class="pref-ai-save-row">
                 <button type="button" id="pref-ai-open-key-folder" class="pref-ai-secondary-btn" data-i18n="prefAiOpenKeyFolder">Open key folder</button>
-                <span id="pref-ai-save-status" class="pref-ai-save-status"></span>
                 <button type="button" id="pref-ai-save" class="pref-ai-save-btn" data-i18n="prefAiSave">Save</button>
               </div>
+              <div id="pref-ai-save-status" class="pref-ai-save-status"></div>
             </div>
           </div>
         </div>
@@ -897,9 +897,9 @@ function _buildPrefAiSettingsHTML() {
               <div class="pref-ai-save-row">
                 <button type="button" id="pref-ai-cli-refresh" class="pref-ai-secondary-btn" data-i18n="prefAiCliRefresh">Refresh</button>
                 <button type="button" id="pref-ai-cli-test" class="pref-ai-secondary-btn" data-i18n="prefAiCliTest">Test</button>
-                <span id="pref-ai-cli-status" class="pref-ai-save-status"></span>
                 <button type="button" id="pref-ai-cli-save" class="pref-ai-save-btn" data-i18n="prefAiSave">Save</button>
               </div>
+              <div id="pref-ai-cli-status" class="pref-ai-save-status"></div>
             </div>
           </div>
         </div>
