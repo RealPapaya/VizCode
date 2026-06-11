@@ -287,6 +287,10 @@ function refreshGraphZoomControls() {
             const eps = 0.0001;
             if (zoomInBtn) zoomInBtn.disabled = zoomState.zoom >= zoomState.maxZoom - eps;
             if (zoomOutBtn) zoomOutBtn.disabled = zoomState.zoom <= zoomState.minZoom + eps;
+        } else if (typeof window.isOverviewSankeyActive === 'function' && window.isOverviewSankeyActive()) {
+            // Sankey is fit-to-view — zoom steps don't apply
+            if (zoomInBtn) zoomInBtn.disabled = true;
+            if (zoomOutBtn) zoomOutBtn.disabled = true;
         } else {
             if (zoomInBtn) zoomInBtn.disabled = false;
             if (zoomOutBtn) zoomOutBtn.disabled = false;

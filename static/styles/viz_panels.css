@@ -243,6 +243,105 @@
     font-size: 12px;
 }
 
+/* ── Overview Sankey ───────────────────────────────────────────────────────── */
+#overview-sankey-host {
+    background: var(--bg);
+    user-select: none;
+}
+
+#overview-sankey-host.active {
+    display: flex;
+    flex-direction: column;
+}
+
+.overview-sankey-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    flex: 0 0 auto;
+}
+
+.overview-sankey-back {
+    border: 1px solid var(--border);
+    background: var(--panel2);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.overview-sankey-back:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.overview-sankey-crumb {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.overview-sankey-body {
+    position: relative;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.overview-sankey-label {
+    fill: var(--text);
+    font-size: 10px;
+    font-family: var(--code-font);
+    pointer-events: none;
+}
+
+.overview-sankey-node rect {
+    stroke: rgba(255, 255, 255, 0.18);
+    stroke-width: 0.5;
+}
+
+.overview-sankey-node.gray rect {
+    opacity: 0.55;
+}
+
+.overview-sankey-node.gray .overview-sankey-label {
+    fill: var(--muted);
+}
+
+.overview-sankey-node.drillable {
+    cursor: pointer;
+}
+
+.overview-sankey-node.drillable:hover rect {
+    filter: brightness(1.25);
+    stroke: rgba(255, 255, 255, 0.55);
+}
+
+.overview-sankey-ribbon {
+    opacity: 0.32;
+    transition: opacity 0.12s ease;
+}
+
+.overview-sankey-ribbon:hover {
+    opacity: 0.68;
+}
+
+.overview-sankey-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 12px;
+}
+
 .galaxy-stats-badge {
     position: absolute;
     top: 12px;

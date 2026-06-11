@@ -8,23 +8,31 @@ let _overviewMode = 'galaxy';
 function _overviewEnsureHosts() {
     const container = document.getElementById('galaxy-container');
     if (!container) return {};
-    let treemapHost = document.getElementById('overview-treemap-host');
-    if (!treemapHost) {
-        treemapHost = document.createElement('div');
-        treemapHost.id = 'overview-treemap-host';
-        treemapHost.className = 'overview-mode-host';
-        container.appendChild(treemapHost);
-    }
-    return { container, treemapHost };
+    const ensureHost = id => {
+        let host = document.getElementById(id);
+        if (!host) {
+            host = document.createElement('div');
+            host.id = id;
+            host.className = 'overview-mode-host';
+            container.appendChild(host);
+        }
+        return host;
+    };
+    const treemapHost = ensureHost('overview-treemap-host');
+    const sankeyHost = ensureHost('overview-sankey-host');
+    return { container, treemapHost, sankeyHost };
 }
 
 function _overviewSetHostMode(mode) {
-    const { container, treemapHost } = _overviewEnsureHosts();
-    if (!container || !treemapHost) return;
+    const { container, treemapHost, sankeyHost } = _overviewEnsureHosts();
+    if (!container || !treemapHost || !sankeyHost) return;
     const isTreemap = mode === 'treemap';
+    const isSankey = mode === 'sankey';
     container.classList.toggle('overview-treemap-active', isTreemap);
+    container.classList.toggle('overview-sankey-active', isSankey);
     treemapHost.classList.toggle('active', isTreemap);
-    if (!isTreemap && typeof _gSig !== 'undefined' && _gSig?.refresh) {
+    sankeyHost.classList.toggle('active', isSankey);
+    if (!isTreemap && !isSankey && typeof _gSig !== 'undefined' && _gSig?.refresh) {
         requestAnimationFrame(() => {
             try { _gSig.refresh(); } catch (_) {}
         });
@@ -40,15 +48,29 @@ function _overviewDestroyTreemap() {
     if (host) host.innerHTML = '';
 }
 
+function _overviewDestroySankey() {
+    if (typeof window.overviewSankeyDestroy === 'function') {
+        window.overviewSankeyDestroy();
+        return;
+    }
+    const host = document.getElementById('overview-sankey-host');
+    if (host) host.innerHTML = '';
+}
+
 function _overviewEnter(mode = 'galaxy') {
-    _overviewMode = mode === 'treemap' ? 'treemap' : 'galaxy';
+    _overviewMode = mode === 'treemap' || mode === 'sankey' ? mode : 'galaxy';
     if (typeof window._lswEnterOverview === 'function') window._lswEnterOverview(_overviewMode);
     _overviewSetHostMode(_overviewMode);
     if (_overviewMode === 'treemap') {
+        if (typeof window.overviewSankeyClose === 'function') window.overviewSankeyClose();
         if (typeof window.overviewTreemapOpen === 'function') window.overviewTreemapOpen();
+    } else if (_overviewMode === 'sankey') {
+        if (typeof window.overviewTreemapClose === 'function') window.overviewTreemapClose();
+        if (typeof window.overviewSankeyOpen === 'function') window.overviewSankeyOpen();
     } else {
         if (typeof window.overviewTreemapClose === 'function') window.overviewTreemapClose();
-        else if (typeof _galaxyHideTooltip === 'function') _galaxyHideTooltip();
+        if (typeof window.overviewSankeyClose === 'function') window.overviewSankeyClose();
+        if (typeof _galaxyHideTooltip === 'function') _galaxyHideTooltip();
         if (typeof _gGraph !== 'undefined' && _gGraph && typeof _galaxyBuildFilterPanel === 'function') {
             _galaxyBuildFilterPanel();
         }
@@ -61,6 +83,7 @@ function _overviewExit() {
     if (typeof window._lswExitOverview === 'function') window._lswExitOverview();
     _overviewSetHostMode('galaxy');
     _overviewDestroyTreemap();
+    _overviewDestroySankey();
 }
 
 window.setOverviewMode = function (mode) {
@@ -111,6 +134,7 @@ if (typeof _overviewBaseZoomGalaxyByStep === 'function') {
             }
             return;
         }
+        if (_overviewMode === 'sankey') return; // Sankey is fit-to-view
         return _overviewBaseZoomGalaxyByStep.apply(this, arguments);
     };
 }
@@ -124,6 +148,7 @@ if (typeof _overviewBaseGalaxyHighlightByPath === 'function') {
             }
             return false;
         }
+        if (_overviewMode === 'sankey') return false;
         return _overviewBaseGalaxyHighlightByPath.apply(this, arguments);
     };
 }
@@ -131,10 +156,12 @@ if (typeof _overviewBaseGalaxyHighlightByPath === 'function') {
 const _overviewBaseRefreshTheme = window._galaxyRefreshThemeColors;
 if (typeof _overviewBaseRefreshTheme === 'function') {
     window._galaxyRefreshThemeColors = function () {
-        const wasTreemap = _overviewMode === 'treemap';
+        const prevMode = _overviewMode;
         const result = _overviewBaseRefreshTheme.apply(this, arguments);
-        if (wasTreemap && typeof window.overviewTreemapOpen === 'function') {
+        if (prevMode === 'treemap' && typeof window.overviewTreemapOpen === 'function') {
             window.overviewTreemapOpen();
+        } else if (prevMode === 'sankey' && typeof window.overviewSankeyOpen === 'function') {
+            window.overviewSankeyOpen();
         }
         return result;
     };
