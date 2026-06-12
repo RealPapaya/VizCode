@@ -4148,10 +4148,6 @@
     padding-bottom: 2px;
 }
 
-.dash-commit-activity-detail__heatmap-body .dash-temporal-heatmap-svg {
-    min-width: 420px;
-}
-
 .dash-commit-activity-detail-stats,
 .dash-churn-timeline-detail-stats {
     display: grid;

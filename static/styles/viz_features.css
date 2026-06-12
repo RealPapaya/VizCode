@@ -951,17 +951,13 @@
 }
 .dash-temporal-heatmap-svg {
     display: block;
-    width: 100%;
-    min-width: 380px;
+    width: auto;
+    max-width: none;
     height: auto;
 }
 
 .dash-widget[data-id="commit_heatmap"] .dash-temporal-heatmap-body {
-    overflow-x: hidden;
-}
-
-.dash-widget[data-id="commit_heatmap"] .dash-temporal-heatmap-svg {
-    min-width: 0;
+    overflow-x: auto;
 }
 
 .dash-widget[data-id="commit_heatmap"] .dash-temporal-heatmap-legend {

@@ -247,6 +247,7 @@ function _dashTemporalHeatmapSVG(model) {
 
     return `
 <svg class="dash-temporal-heatmap-svg"
+     width="${width}" height="${height}"
      viewBox="0 0 ${width} ${height}"
      role="img"
      aria-label="${_dashEscape(_dashT('dashTemporalHeatmap'))}"
