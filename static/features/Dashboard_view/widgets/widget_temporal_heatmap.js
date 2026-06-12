@@ -9,6 +9,74 @@ const _DASH_HEATMAP_MONTHS = [
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
+const _DASH_COMMIT_ACTIVITY_RANGES = [30, 60, 90, 180, 0];
+
+function _dashCommitActivityInitialDays(stats) {
+    const dates = (stats.commit_activity_daily || [])
+        .map(row => String(row.date || '').trim())
+        .filter(_dashHeatmapValidISO)
+        .sort();
+    if (dates.length < 2) return 0;
+    const start = _dashHeatmapParseISO(dates[0]);
+    const end = _dashHeatmapParseISO(dates[dates.length - 1]);
+    if (!start || !end) return 0;
+    return Math.round((end - start) / 86400000) + 1 > 180 ? 180 : 0;
+}
+
+function _dashCommitActivityRangeDays(container, stats) {
+    if (container?.dataset.commitActivityDays != null) {
+        return Math.max(0, Number(container.dataset.commitActivityDays) || 0);
+    }
+    const days = _dashCommitActivityInitialDays(stats);
+    if (container) container.dataset.commitActivityDays = String(days);
+    return days;
+}
+
+function _dashCommitActivityFilteredStats(stats, days) {
+    if (!days) return stats;
+    const dates = (stats.commit_activity_daily || [])
+        .map(row => String(row.date || '').trim())
+        .filter(_dashHeatmapValidISO)
+        .sort();
+    // Anchor ranges to the latest recorded activity so archived projects still
+    // show useful 30/60/90-day views.
+    const endStr = dates[dates.length - 1] || stats.window_end || stats.period_end;
+    const end = _dashHeatmapParseISO(endStr);
+    if (!end) return stats;
+    const cutoff = _dashHeatmapISOStr(_dashHeatmapAddDays(end, -(days - 1)));
+    return Object.assign({}, stats, {
+        commit_activity_daily: (stats.commit_activity_daily || [])
+            .filter(row => String(row.date || '') >= cutoff && String(row.date || '') <= endStr),
+        window_start: cutoff,
+        window_end: endStr,
+        period_start: cutoff,
+        period_end: endStr,
+        window_days: days,
+    });
+}
+
+function _dashCommitActivityRangeHTML(activeDays) {
+    return `
+<span class="dash-commit-activity-ranges" role="group" aria-label="Commit activity date range">
+  ${_DASH_COMMIT_ACTIVITY_RANGES.map(days => {
+        const label = days ? `${days}d` : 'All';
+        const active = days === activeDays ? ' active' : '';
+        return `<button type="button" class="dash-commit-activity-range${active}" data-commit-activity-days="${days}" aria-pressed="${days === activeDays}">${label}</button>`;
+    }).join('')}
+</span>`;
+}
+
+function _dashBindCommitActivityRanges(container, render) {
+    container?.querySelectorAll('[data-commit-activity-days]').forEach(btn => {
+        btn.addEventListener('click', event => {
+            event.stopPropagation();
+            const days = Math.max(0, Number(btn.dataset.commitActivityDays) || 0);
+            container.dataset.commitActivityDays = String(days);
+            render();
+        });
+    });
+}
+
 // Index 0 = empty cell (surface-elevated), 1..5 = accent at increasing alpha.
 function _dashHeatmapColors() {
     return [
@@ -873,58 +941,62 @@ function _dashMergeCommitHistory(payload) {
     });
 }
 
-_dashRegisterWidget({
-    id: 'commit_heatmap',
-    labelKey: 'dashTemporalHeatmap',
-    descriptionKey: 'dashDescCommitHeatmap',
-    defaultSize: 'M',
-    render(container, size, stats) {
-        if (size === 'S') {
-            const rows = stats.commit_activity_daily || [];
-            const activeDays = rows.filter(r => (r.commits || 0) > 0).length;
-            const peak = rows.reduce((best, r) => ((r.commits || 0) > (best.commits || 0) ? r : best), {});
-            const topFiles = (stats.file_churn || []).slice(0, 2).map(f => ({
-                label: String(f.file || '').split('/').pop(),
-                value: f.commits,
-                title: f.file,
-                onclick: `_dashGoToGraphFile(${_dashJson(f.file)}, null)`,
-            }));
-            const pills = [
-                { label: 'Days', value: activeDays },
-                peak.date && { label: 'Peak', value: peak.commits, onclick: `_dashOpenCommitDayDrilldown(${_dashJson(peak.date)})` },
-                ...topFiles,
-            ].filter(Boolean);
-            container.innerHTML = `
+function _dashRenderCommitActivityWidget(container, size, stats) {
+    const days = _dashCommitActivityRangeDays(container, stats);
+    const filteredStats = _dashCommitActivityFilteredStats(stats, days);
+    if (size === 'S') {
+        const rows = filteredStats.commit_activity_daily || [];
+        const activeDays = rows.filter(r => (r.commits || 0) > 0).length;
+        const peak = rows.reduce((best, r) => ((r.commits || 0) > (best.commits || 0) ? r : best), {});
+        const topFiles = (stats.file_churn || []).slice(0, 2).map(f => ({
+            label: String(f.file || '').split('/').pop(),
+            value: f.commits,
+            title: f.file,
+            onclick: `_dashGoToGraphFile(${_dashJson(f.file)}, null)`,
+        }));
+        const pills = [
+            { label: 'Days', value: activeDays },
+            peak.date && { label: 'Peak', value: peak.commits, onclick: `_dashOpenCommitDayDrilldown(${_dashJson(peak.date)})` },
+            ...topFiles,
+        ].filter(Boolean);
+        container.innerHTML = `
 <div class="dash-kpi-s">
   <div class="dash-kpi-s-body">
     <div class="dash-widget-title">${_dashEscape(_dashT('dashTemporalHeatmap'))}</div>
-    <div class="dash-widget-stat">${_dashFmtNum(stats.commits_analyzed || 0)}</div>
+    <div class="dash-widget-stat">${_dashFmtNum(rows.reduce((sum, row) => sum + Number(row.commits || 0), 0))}</div>
     <div class="dash-widget-sub">${activeDays} active days</div>
     ${_dashMiniPills(pills)}
   </div>
 </div>`;
-            return;
-        }
-        _dashRenderTemporalHeatmap(container, stats);
-        if (size === 'L') {
-            container.classList.add('dash-commit-activity-l');
-            _dashHeatmapAppendStats(container, stats);
-            _dashHeatmapAppendChurnFiles(container, stats);
-        }
-    },
+        return;
+    }
+    _dashRenderTemporalHeatmap(container, filteredStats);
+    container.querySelector('.dash-card-title')?.insertAdjacentHTML(
+        'beforeend',
+        _dashCommitActivityRangeHTML(days)
+    );
+    if (size === 'L') {
+        container.classList.add('dash-commit-activity-l');
+        _dashHeatmapAppendStats(container, filteredStats);
+        _dashHeatmapAppendChurnFiles(container, stats);
+    }
+    _dashBindCommitActivityRanges(container, () => _dashRenderCommitActivityWidget(container, size, stats));
+}
 
-    renderDetail(container, stats) {
-        const activity = _dashCommitActivityModel(stats);
-        const totalCommits = activity.model ? activity.model.totalCommits : Number(stats.commits_analyzed || 0);
-        const peakLabel = activity.peak.date
-            ? `Peak day ${_dashEscape(activity.peak.date)} with ${_dashFmtExactNum(activity.peak.commits || 0)} commits.`
-            : 'No peak day in this window.';
-        const rangeLabel = [stats.period_start, stats.period_end].filter(Boolean).join(' to ');
-        const heroFiles = _dashCommitActivityFileRowsHTML(stats, 5, true);
-        const fileRows = _dashCommitActivityFileRowsHTML(stats, 10, false);
-        const heatmapHTML = _dashCommitActivityHeatmapHTML(activity);
+function _dashRenderCommitActivityDetail(container, stats) {
+    const days = _dashCommitActivityRangeDays(container, stats);
+    const filteredStats = _dashCommitActivityFilteredStats(stats, days);
+    const activity = _dashCommitActivityModel(filteredStats);
+    const totalCommits = activity.model ? activity.model.totalCommits : 0;
+    const peakLabel = activity.peak.date
+        ? `Peak day ${_dashEscape(activity.peak.date)} with ${_dashFmtExactNum(activity.peak.commits || 0)} commits.`
+        : 'No peak day in this window.';
+    const rangeLabel = [filteredStats.period_start, filteredStats.period_end].filter(Boolean).join(' to ');
+    const heroFiles = _dashCommitActivityFileRowsHTML(stats, 5, true);
+    const fileRows = _dashCommitActivityFileRowsHTML(stats, 10, false);
+    const heatmapHTML = _dashCommitActivityHeatmapHTML(activity);
 
-        container.innerHTML = `
+    container.innerHTML = `
 <div class="dash-commit-activity-detail">
   <section class="dash-commit-activity-detail__hero">
     <div class="dash-commit-activity-detail__hero-copy">
@@ -942,6 +1014,7 @@ _dashRegisterWidget({
     <section class="dash-commit-activity-detail-section">
       <div class="dash-commit-activity-detail-section__head">
         <div class="dash-commit-activity-detail-section__title">Daily Activity</div>
+        ${_dashCommitActivityRangeHTML(days)}
       </div>
       <div class="dash-commit-activity-detail-section__body">
         <div class="dash-commit-activity-detail__heatmap-body">${heatmapHTML}</div>
@@ -963,6 +1036,19 @@ _dashRegisterWidget({
     </section>
   </div>
 </div>`;
-        _dashBindTemporalHeatmapTooltips(container.querySelector('.dash-commit-activity-detail__heatmap-body'));
+    _dashBindTemporalHeatmapTooltips(container.querySelector('.dash-commit-activity-detail__heatmap-body'));
+    _dashBindCommitActivityRanges(container, () => _dashRenderCommitActivityDetail(container, stats));
+}
+
+_dashRegisterWidget({
+    id: 'commit_heatmap',
+    labelKey: 'dashTemporalHeatmap',
+    descriptionKey: 'dashDescCommitHeatmap',
+    defaultSize: 'M',
+    render(container, size, stats) {
+        _dashRenderCommitActivityWidget(container, size, stats);
+    },
+    renderDetail(container, stats) {
+        _dashRenderCommitActivityDetail(container, stats);
     },
 });

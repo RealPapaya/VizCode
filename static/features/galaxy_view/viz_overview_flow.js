@@ -28,6 +28,8 @@ function _overviewSetHostMode(mode) {
     if (!container || !treemapHost || !sankeyHost) return;
     const isTreemap = mode === 'treemap';
     const isSankey = mode === 'sankey';
+    const isAlternateOverview = isTreemap || isSankey;
+    container.classList.toggle('overview-alternate-active', isAlternateOverview);
     container.classList.toggle('overview-treemap-active', isTreemap);
     container.classList.toggle('overview-sankey-active', isSankey);
     treemapHost.classList.toggle('active', isTreemap);

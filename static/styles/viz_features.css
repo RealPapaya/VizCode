@@ -1017,6 +1017,44 @@
     white-space: nowrap;
 }
 
+.dash-commit-activity-ranges {
+    display: inline-flex;
+    gap: 2px;
+    margin-left: auto;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--panel) 60%, transparent);
+    flex: 0 0 auto;
+}
+
+.dash-commit-activity-range {
+    padding: 2px 6px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.4;
+    text-transform: none;
+    transition: background 0.14s, color 0.14s;
+    white-space: nowrap;
+}
+
+.dash-commit-activity-range:hover {
+    color: var(--text);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.dash-commit-activity-range.active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
 /* L-size stats row below the heatmap */
 .dash-temporal-heatmap-stats {
     display: flex;

@@ -46,8 +46,14 @@
     display: block;
 }
 
-#galaxy-container.overview-treemap-active #galaxy-layout-badge {
+/* Keep Galaxy-only chrome isolated from alternate overview surfaces. These
+   elements can have a higher z-index than the hosts, especially the large
+   codebase folder gate, so stacking order alone is not a sufficient boundary. */
+#galaxy-container.overview-alternate-active > #g-folder-select,
+#galaxy-container.overview-alternate-active > #galaxy-change-folders-btn,
+#galaxy-container.overview-alternate-active > #galaxy-layout-badge {
     display: none !important;
+    pointer-events: none !important;
 }
 
 /* Galactic core glow — radial gradient at center */
