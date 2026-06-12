@@ -516,7 +516,7 @@ HTML_SKELETON = """\
   </div>
 </div>
 
-<!-- Data embedded as JSON text — parsed by JSON.parse(), not JS engine (10x faster) -->
+<!-- Data embedded as HTML-safe JSON text — parsed by JSON.parse(), not JS engine (10x faster) -->
 <script type="application/json" id="viz-data">{DATA}</script>
 <script>(function(){{
   var l=document.getElementById('loading');
@@ -535,6 +535,24 @@ HTML_TEMPLATE = HTML_SKELETON
 
 
 # ─── build_html ───────────────────────────────────────────────────────────────
+def json_for_html_script(data, *, ensure_ascii=False, separators=None, default=None) -> str:
+    """Serialize JSON without allowing data to terminate an inline script element."""
+    text = json.dumps(
+        data,
+        ensure_ascii=ensure_ascii,
+        separators=separators,
+        default=default,
+    )
+    return (
+        text
+        .replace('&', r'\u0026')
+        .replace('<', r'\u003c')
+        .replace('>', r'\u003e')
+        .replace('\u2028', r'\u2028')
+        .replace('\u2029', r'\u2029')
+    )
+
+
 def build_html(data: dict, job_id: str = None) -> str:
     """Read shared static assets and embed them inline into the HTML skeleton."""
     base = _ROOT_DIR / 'static'
@@ -658,11 +676,16 @@ def build_html(data: dict, job_id: str = None) -> str:
     def _json_default(o):
         if isinstance(o, (set, frozenset)): return sorted(o)
         raise TypeError(f'Not serialisable: {type(o)}')
-    json_str     = json.dumps(data, ensure_ascii=False, separators=(',', ':'), default=_json_default)
+    json_str     = json_for_html_script(
+        data,
+        ensure_ascii=False,
+        separators=(',', ':'),
+        default=_json_default,
+    )
     root_name    = Path(data['stats']['root']).name or 'VIZCODE'
-    job_id_json  = json.dumps(job_id)   # "null" or '"abc1234"'
+    job_id_json  = json_for_html_script(job_id)   # "null" or '"abc1234"'
     pt           = data.get('project_type', {})
-    pt_json      = json.dumps(pt, default=_json_default)
+    pt_json      = json_for_html_script(pt, default=_json_default)
 
     return HTML_SKELETON.format(
         CSS=css, JS=js,

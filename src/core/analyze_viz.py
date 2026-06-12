@@ -2897,7 +2897,13 @@ def _load_health_history(root: str) -> list:
 
 
 # ─── HTML assembly — delegated to html_builder ───────────────────────────────
-from html_builder import HTML_SKELETON, HTML_TEMPLATE, build_html, inject_data  # noqa: E402
+from html_builder import (  # noqa: E402
+    HTML_SKELETON,
+    HTML_TEMPLATE,
+    build_html,
+    inject_data,
+    json_for_html_script,
+)
 
 
 # ─── main ─────────────────────────────────────────────────────────────────────
@@ -2939,8 +2945,13 @@ def main():
         def _json_default(o):
             if isinstance(o, (set, frozenset)): return sorted(o)
             raise TypeError(f'Not serialisable: {type(o)}')
-        json_str = json.dumps(data, ensure_ascii=False, separators=(',', ':'), default=_json_default)
-        pt_json  = json.dumps(pt, default=_json_default)
+        json_str = json_for_html_script(
+            data,
+            ensure_ascii=False,
+            separators=(',', ':'),
+            default=_json_default,
+        )
+        pt_json  = json_for_html_script(pt, default=_json_default)
         root_name = Path(data['stats']['root']).name or 'VIZCODE'
         html = HTML_SKELETON\
             .replace('{DATA}', json_str)\
