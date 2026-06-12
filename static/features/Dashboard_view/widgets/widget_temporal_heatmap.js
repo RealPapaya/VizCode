@@ -189,7 +189,10 @@ function _dashBuildTemporalHeatmapModel(rows, stats) {
 }
 
 function _dashTemporalHeatmapSVG(model) {
-    const cell = 10;
+    let cell = 10;
+    if (model.weeks <= 6) cell = 15;
+    else if (model.weeks <= 10) cell = 14;
+    else if (model.weeks <= 15) cell = 12;
     const gap = 3;
     const labelW = 24;
     const monthH = 16;
