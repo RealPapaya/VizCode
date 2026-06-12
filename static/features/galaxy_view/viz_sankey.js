@@ -480,14 +480,14 @@ function _sankeyRibbonTooltip(r, model, event) {
         sMeta?.color || _OVERVIEW_SANKEY_GRAY, event);
 }
 
-// Sankey → Explorer: reflect a drilled node in the left Explorer + code panel.
-// File nodes reveal the file and open its code; module nodes highlight the
-// module row. All targets are global functions that may be absent in edge cases.
+// Sankey → Explorer: reflect a drilled node in the left Explorer. File nodes
+// reveal the file in the tree (but intentionally do NOT pop the code panel —
+// a sankey file click drills the flow, it shouldn't open code); module nodes
+// highlight the module row. All targets are global functions that may be absent.
 function _sankeySyncExplorer(drill) {
     if (!drill) return;
     if (drill.level === 'func' && drill.file) {
         if (typeof revealSidebarExplorerPath === 'function') revealSidebarExplorerPath(drill.file, 'file');
-        if (typeof loadFileInPanel === 'function') loadFileInPanel(drill.file);
         if (typeof updateCallGraphBtn === 'function') updateCallGraphBtn(drill.file);
     } else if (drill.level === 'file' && drill.module) {
         if (typeof setSidebarActive === 'function') setSidebarActive(drill.module);

@@ -18,6 +18,27 @@
     display: flex
 }
 
+/* Sankey overview: the code panel floats over the diagram rather than taking
+   flex width, so opening it never squeezes or reflows the Sankey image. */
+body.overview-sankey-mode #layout {
+    position: relative;
+}
+
+body.overview-sankey-mode #code-panel.open {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    height: 100%;
+    z-index: 40;
+    box-shadow: -8px 0 24px rgba(0, 0, 0, .35);
+}
+
+/* Resizer would dangle in flow once the panel is absolute — hide it here. */
+body.overview-sankey-mode #resizer {
+    display: none !important;
+}
+
 /* Code Panel Header */
 #cp-header {
     background: var(--panel2);

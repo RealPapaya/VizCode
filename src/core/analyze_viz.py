@@ -1394,61 +1394,76 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     # ── Open per-file parse cache ─────────────────────────────────────────────
     _memo = parse_memo.open_memo(Path(root))
 
-    # ── Phase 1: cache lookup in parent (SHA-256 + dict get — fast) ──────────
-    # Hashing every file once here lets us send only the misses to workers and
-    # keeps the memo dict single-owner.
+    # ── Phase 1: read + hash every file IN PARALLEL, then memo-lookup single-
+    # threaded so the memo dict keeps a single owner. Reads are I/O-bound and
+    # SHA-256 releases the GIL, so a thread pool overlaps the disk waits that
+    # previously ran as a serial pre-pass scaling with repo size (and blocked
+    # the parse pool from starting). Lookups/writes stay on the main thread. ──
     pending = []           # files needing a parse
     cached_hits = {}       # fp → 7-tuple from memo
     pending_hashes = {}    # fp → (file_sha, p_sha) so we can record_entry later
 
-    for i, fp in enumerate(all_files):
-        fp_path = Path(fp)
-        ext = fp_path.suffix.lower()
-        rel = os.path.relpath(fp, root).replace('\\', '/')
+    def _read_and_hash(fp):
+        """Thread worker: read + hash one file. Returns (fp, file_sha), or
+        (fp, None) when the read fails. Pure/stateless → thread-safe."""
         try:
-            file_bytes = fp_path.read_bytes()
+            data = Path(fp).read_bytes()
         except Exception:
-            pending.append(fp)
-            pending_hashes[fp] = ('', '')
-            continue
-        file_sha = parse_memo.digest_bytes(file_bytes)
-        parser_fn = _get_parser_fn(ext)
-        p_sha = _parser_fingerprints.get(parser_fn)
-        if p_sha is None:
-            p_sha = parse_memo.parser_fingerprint(parser_fn)
-            _parser_fingerprints[parser_fn] = p_sha
-        hit = parse_memo.lookup_entry(_memo, rel, file_sha, p_sha)
-        if hit is not None:
-            cached_hits[fp] = hit
-        else:
-            pending.append(fp)
-            pending_hashes[fp] = (file_sha, p_sha)
-        if (i + 1) % 20 == 0 or (i + 1) == total:
-            # analyzed_files counts every file checked (hit OR miss) so the TUI
-            # gets a steady ramp during lookup. Phase-2 emissions may report
-            # smaller numbers (cached + parsed-so-far), but the TUI tracks
-            # monotonic-max for real_analyzed so this never regresses the bar.
-            checked = i + 1
-            pct = _stage_pct('analysis', (checked / total) if total else 1.0, ease_power=0.72)
-            _cb(
-                pct,
-                f'{checked}/{total} source files analyzed',
-                stage='analysis',
-                analyzed_files=checked,
-                total_files=total,
-                project_total_files=total_project_files,
-                project_processed_files=checked,
-                source_files_total=total,
-            )
+            return (fp, None)
+        return (fp, parse_memo.digest_bytes(data))
+
+    # I/O-bound → oversubscribe relative to cores, capped so we don't open an
+    # unbounded number of file handles at once on huge repos.
+    _io_workers = min(32, max(4, (os.cpu_count() or 2) * 4))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=_io_workers) as _io_pool:
+        for i, (fp, file_sha) in enumerate(_io_pool.map(_read_and_hash, all_files)):
+            rel = os.path.relpath(fp, root).replace('\\', '/')
+            if file_sha is None:
+                pending.append(fp)
+                pending_hashes[fp] = ('', '')
+            else:
+                ext = Path(fp).suffix.lower()
+                parser_fn = _get_parser_fn(ext)
+                p_sha = _parser_fingerprints.get(parser_fn)
+                if p_sha is None:
+                    p_sha = parse_memo.parser_fingerprint(parser_fn)
+                    _parser_fingerprints[parser_fn] = p_sha
+                hit = parse_memo.lookup_entry(_memo, rel, file_sha, p_sha)
+                if hit is not None:
+                    cached_hits[fp] = hit
+                else:
+                    pending.append(fp)
+                    pending_hashes[fp] = (file_sha, p_sha)
+            if (i + 1) % 20 == 0 or (i + 1) == total:
+                # analyzed_files counts every file checked (hit OR miss) so the
+                # TUI gets a steady ramp during lookup. Phase-2 emissions may
+                # report smaller numbers (cached + parsed-so-far), but the TUI
+                # tracks monotonic-max for real_analyzed so this never regresses.
+                checked = i + 1
+                pct = _stage_pct('analysis', (checked / total) if total else 1.0, ease_power=0.72)
+                _cb(
+                    pct,
+                    f'{checked}/{total} source files analyzed',
+                    stage='analysis',
+                    analyzed_files=checked,
+                    total_files=total,
+                    project_total_files=total_project_files,
+                    project_processed_files=checked,
+                    source_files_total=total,
+                )
 
     # ── Phase 2: parse pending files (parallel when worth it) ────────────────
     parsed_results = {}    # fp → 7-tuple
     PARSE_PARALLEL_THRESHOLD = 100
     _workers_env = os.environ.get('VIZCODE_PARSE_WORKERS')
+    # Parsing is CPU-bound → use all cores but one (headroom for the main
+    # process + OS). Previously capped at 8, which idled cores on 16/32-core
+    # machines. Override with VIZCODE_PARSE_WORKERS.
+    _default_workers = max(1, (os.cpu_count() or 2) - 1)
     try:
-        _max_workers = int(_workers_env) if _workers_env else min(8, (os.cpu_count() or 2))
+        _max_workers = int(_workers_env) if _workers_env else _default_workers
     except ValueError:
-        _max_workers = min(8, (os.cpu_count() or 2))
+        _max_workers = _default_workers
     use_parallel = len(pending) >= PARSE_PARALLEL_THRESHOLD and _max_workers > 1
     cached_count = len(cached_hits)
 

@@ -32,6 +32,9 @@ function _overviewSetHostMode(mode) {
     container.classList.toggle('overview-sankey-active', isSankey);
     treemapHost.classList.toggle('active', isTreemap);
     sankeyHost.classList.toggle('active', isSankey);
+    // Body marker so the code panel can float over the Sankey (overlay, not
+    // squeeze) instead of consuming flex width and reflowing the diagram.
+    document.body.classList.toggle('overview-sankey-mode', isSankey);
     if (!isTreemap && !isSankey && typeof _gSig !== 'undefined' && _gSig?.refresh) {
         requestAnimationFrame(() => {
             try { _gSig.refresh(); } catch (_) {}

@@ -50,10 +50,21 @@ class AnthropicProvider(BaseProvider):
         anthropic_msgs = _to_anthropic_messages(messages)
         anthropic_tools = _to_anthropic_tools(tools)
 
+        # Prompt caching: mark the end of the stable prefix (system + tool defs)
+        # with a single cache_control breakpoint so repeated tool-use rounds
+        # reuse cached tokens.  The system prompt is sent as a list of text
+        # blocks; the breakpoint goes on the last tool definition when tools are
+        # present, otherwise on the system block itself.
+        system_payload = [{"type": "text", "text": system}]
+        if anthropic_tools:
+            anthropic_tools[-1]["cache_control"] = {"type": "ephemeral"}
+        else:
+            system_payload[-1]["cache_control"] = {"type": "ephemeral"}
+
         body = {
             "model":      self._model,
             "max_tokens": max_tokens or _MAX_TOKENS,
-            "system":     system,
+            "system":     system_payload,
             "messages":   anthropic_msgs,
             "stream":     True,
         }
