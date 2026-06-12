@@ -38,6 +38,7 @@ from pathlib import Path
 
 # ─── Tunables ────────────────────────────────────────────────────────────────
 DEFAULT_WINDOW_DAYS = 180
+AUTO_FALLBACK_WINDOWS = (365, 730, 1460, 3650)  # progressively include dormant repos
 COMMIT_FILE_LIMIT   = 20      # skip commits touching > N files (refactor noise)
 COMMIT_DETAIL_FILE_LIMIT = 60  # cap per-commit file lists in dashboard payloads
 COUPLING_MIN        = 3       # filter pairs below this co-change count
@@ -712,6 +713,19 @@ def compute_git_history(root: str,
         return None
 
     commits = _parse_log(text)
+    effective_days = since_days
+    if not commits:
+        for fallback_days in AUTO_FALLBACK_WINDOWS:
+            if fallback_days <= since_days:
+                continue
+            fallback_text = _run_git_log(root, fallback_days)
+            if fallback_text is None:
+                break
+            fallback_commits = _parse_log(fallback_text)
+            if fallback_commits:
+                commits = fallback_commits
+                effective_days = fallback_days
+                break
     if not commits:
         # git ran but the window has no commits — return empty-but-valid shape
         # so the frontend can render the "no commits in window" state.
@@ -728,10 +742,10 @@ def compute_git_history(root: str,
     # strict subset of churn, so this is enough for the drilldown panel.
     top_churn_paths = {r['file'] for r in file_churn[:TOP_FILE_CHURN]}
     per_file_timeline = _aggregate_per_file_timeline(commits, top_churn_paths)
-    window_start, window_end = _window_bounds(since_days)
+    window_start, window_end = _window_bounds(effective_days)
 
     payload = {
-        'window_days':      since_days,
+        'window_days':      effective_days,
         'window_start':     window_start,
         'window_end':       window_end,
         'period_start':     commits[-1]['date'],

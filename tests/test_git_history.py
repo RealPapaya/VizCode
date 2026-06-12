@@ -56,6 +56,27 @@ def test_compute_git_history_returns_empty_payload_when_window_has_no_commits(mo
     assert result['window_days'] == 180
 
 
+def test_compute_git_history_falls_back_for_dormant_repo(monkeypatch):
+    older_log = 'COMMIT abc123 2024-07-22 Dev\n2\t1\tsrc/app.py\n'
+    calls = []
+
+    monkeypatch.setattr(git_history, '_head_sha', lambda _root: 'abc123')
+    monkeypatch.setattr(git_history, '_load_cache', lambda *_args: None)
+    monkeypatch.setattr(
+        git_history,
+        '_run_git_log',
+        lambda _root, days: calls.append(days) or (older_log if days == 730 else ''),
+    )
+    monkeypatch.setattr(git_history, '_save_cache', lambda *_args: None)
+
+    result = git_history.compute_git_history('/repo', since_days=180)
+
+    assert calls == [180, 365, 730]
+    assert result['commits_analyzed'] == 1
+    assert result['window_days'] == 730
+    assert result['period_end'] == '2024-07-22'
+
+
 def test_aggregate_commits_by_day_keeps_commit_file_details():
     commits = [{
         'sha': 'abcdef1234567890',

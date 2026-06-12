@@ -19,7 +19,13 @@ function _dashRenderTemporal(container, stats, size, scope) {
     if (!stats.has_git_history) return;
     if (!stats.commits_analyzed) return;
 
-    _dashTemporalDays = Math.min(Number(stats.window_days || 180), 180);
+    const latestActivity = String(stats.period_end || '');
+    const recentCutoff = new Date();
+    recentCutoff.setUTCDate(recentCutoff.getUTCDate() - 180);
+    const recentCutoffDate = `${recentCutoff.getUTCFullYear()}-${String(recentCutoff.getUTCMonth() + 1).padStart(2, '0')}-${String(recentCutoff.getUTCDate()).padStart(2, '0')}`;
+    _dashTemporalDays = latestActivity && latestActivity < recentCutoffDate
+        ? 0
+        : Math.min(Number(stats.window_days || 180), 180);
 
     if (size === 'S') {
         const topFiles = (stats.file_churn || []).slice(0, 3).map(f => ({
