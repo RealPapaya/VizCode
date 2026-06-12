@@ -116,11 +116,12 @@ def _save_cache(root: str, window_days: int, head_sha: str, payload: dict) -> No
 
 # ─── git log invocation + parser ─────────────────────────────────────────────
 
-def _run_git_log(root: str, since_days: int) -> str:
-    """Return raw `git log` text, or empty string on any failure.
+def _run_git_log(root: str, since_days: int) -> str | None:
+    """Return raw `git log` text, or ``None`` on any failure.
 
     The COMMIT header carries SHA / date / author name so the parser can
     aggregate per-author activity without a second git invocation.
+    An empty string is a successful result when the window has no commits.
     """
     try:
         proc = subprocess.run(
@@ -139,9 +140,9 @@ def _run_git_log(root: str, since_days: int) -> str:
         return proc.stdout
     except (FileNotFoundError, subprocess.TimeoutExpired,
             subprocess.CalledProcessError):
-        return ''
+        return None
     except Exception:
-        return ''
+        return None
 
 
 def _parse_log(text: str) -> list:
@@ -707,7 +708,7 @@ def compute_git_history(root: str,
         return cached
 
     text = _run_git_log(root, since_days)
-    if not text:
+    if text is None:
         return None
 
     commits = _parse_log(text)

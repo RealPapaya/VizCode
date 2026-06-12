@@ -43,6 +43,19 @@ def test_run_git_log_uses_legacy_subprocess_capture(monkeypatch):
     assert git_history._run_git_log('/repo', 180) == raw_log
 
 
+def test_compute_git_history_returns_empty_payload_when_window_has_no_commits(monkeypatch):
+    monkeypatch.setattr(git_history, '_head_sha', lambda _root: 'abc123')
+    monkeypatch.setattr(git_history, '_load_cache', lambda *_args: None)
+    monkeypatch.setattr(git_history, '_run_git_log', lambda *_args: '')
+    monkeypatch.setattr(git_history, '_save_cache', lambda *_args: None)
+
+    result = git_history.compute_git_history('/repo', since_days=180)
+
+    assert result is not None
+    assert result['commits_analyzed'] == 0
+    assert result['window_days'] == 180
+
+
 def test_aggregate_commits_by_day_keeps_commit_file_details():
     commits = [{
         'sha': 'abcdef1234567890',
