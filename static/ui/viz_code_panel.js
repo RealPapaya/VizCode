@@ -307,7 +307,10 @@ function initResizer() {
         startW = panel.offsetWidth;
         resizer.classList.add('dragging');
         panel.style.transition = 'none';
-        document.getElementById('graph-wrap').style.pointerEvents = 'none';
+        const graphWrap = document.getElementById('graph-wrap');
+        const sankeyHost = document.getElementById('overview-sankey-host');
+        if (graphWrap) graphWrap.style.pointerEvents = 'none';
+        if (sankeyHost) sankeyHost.style.pointerEvents = 'none';
         document.addEventListener('mousemove', onDrag);
         document.addEventListener('mouseup', stopDrag);
         e.preventDefault();
@@ -320,14 +323,16 @@ function initResizer() {
             const newW = Math.max(200, Math.min(1200, startW + delta));
             panel.style.width = newW + 'px';
             document.documentElement.style.setProperty('--code-panel', newW + 'px');
-            // Only resize cy on drag end or less frequently to prevent lag
         });
     }
     function stopDrag() {
         resizer.classList.remove('dragging');
         panel.style.transition = '';
         panel.style.width = '';
-        document.getElementById('graph-wrap').style.pointerEvents = '';
+        const graphWrap = document.getElementById('graph-wrap');
+        const sankeyHost = document.getElementById('overview-sankey-host');
+        if (graphWrap) graphWrap.style.pointerEvents = '';
+        if (sankeyHost) sankeyHost.style.pointerEvents = '';
         document.removeEventListener('mousemove', onDrag);
         document.removeEventListener('mouseup', stopDrag);
         if (cy) cy.resize();

@@ -406,7 +406,7 @@
     line-height: 1.35;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38);
 }
-.galaxy-tooltip .gt-name { font-weight: 700; font-size: 12px; margin-bottom: 2px; color: var(--text); }
+.galaxy-tooltip .gt-name { font-weight: 700; font-size: 12px; margin-bottom: 2px; color: var(--text); white-space: normal; word-break: break-word; }
 .galaxy-tooltip .gt-type { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
 .galaxy-tooltip .gt-loc { color: var(--muted); font-size: 10px; font-family: 'JetBrains Mono', monospace; white-space: normal; word-break: break-all; }
 .galaxy-tooltip .gt-mod { color: var(--muted); font-size: 10px; }
