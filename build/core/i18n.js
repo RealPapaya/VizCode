@@ -293,7 +293,6 @@
       relImportedBy: "imported by",
       relExternalCallers: "external callers",
       relCalledBy: "called by",
-      layoutLabel: "Layout",
       layoutUnavailable: "CDN script may not have loaded",
       layoutApplied: "Layout: {{label}}",
       layoutRequires: 'Layout "{{label}}" requires cytoscape-{{requires}} \u2014 {{reason}}',
@@ -597,7 +596,6 @@
       dashAiPromptError: "AI generation failed",
       dashAiPromptSelectAtLeastOne: "Select at least one finding.",
       dashAiPromptOverallHint: "The request will include the full widget metrics and the highest-priority findings for triage.",
-      chatOutputDesc_health_report: "Diagnose dead code, god files, circular dependencies",
       // ── Widget descriptions (detail panel tooltip) ──
       dashDescOverview: "A high-level snapshot of your codebase \u2014 total files, functions, lines of code, and top file types across all modules.",
       dashDescCodeHealth: "An aggregate quality score out of 10 based on structure, duplication, complex methods, and architectural issues.",
@@ -740,7 +738,6 @@
       symbolEdgeStyleLabel: "\u908A\u7DDA\u8DEF\u7531\u6A23\u5F0F",
       symbolEdgeStyleBezier: "\u8C9D\u8332\u66F2\u7DDA",
       symbolEdgeStyleOrthogonal: "\u76F4\u89D2\u6298\u7DDA",
-      layoutLabel: "\u4F48\u5C40\u63A7\u5236",
       layoutInfoAlgorithm: "\u6F14\u7B97\u6CD5",
       layoutInfoBestFor: "\u9069\u7528\u5834\u666F",
       layoutInfoPros: "\u512A\u9EDE",

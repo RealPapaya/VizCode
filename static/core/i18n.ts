@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (translations data table). NOTE: surfaced 3 duplicate translation keys (lines ~301/605/923) to dedupe in an i18n cleanup pass.
-/**
+﻿/**
  * Shared i18n strings for both launcher.html and the generated visualizer page.
  * The visualizer inlines this file via analyze_viz.py; the launcher loads it
  * directly from /static/i18n.js.
@@ -299,7 +298,6 @@
             relImportedBy: 'imported by',
             relExternalCallers: 'external callers',
             relCalledBy: 'called by',
-            layoutLabel: 'Layout',
             layoutUnavailable: 'CDN script may not have loaded',
             layoutApplied: 'Layout: {{label}}',
             layoutRequires: 'Layout "{{label}}" requires cytoscape-{{requires}} — {{reason}}',
@@ -603,7 +601,6 @@
             dashAiPromptError: 'AI generation failed',
             dashAiPromptSelectAtLeastOne: 'Select at least one finding.',
             dashAiPromptOverallHint: 'The request will include the full widget metrics and the highest-priority findings for triage.',
-            chatOutputDesc_health_report: 'Diagnose dead code, god files, circular dependencies',
             // ── Widget descriptions (detail panel tooltip) ──
             dashDescOverview: 'A high-level snapshot of your codebase — total files, functions, lines of code, and top file types across all modules.',
             dashDescCodeHealth: 'An aggregate quality score out of 10 based on structure, duplication, complex methods, and architectural issues.',
@@ -746,7 +743,6 @@
             symbolEdgeStyleLabel: '邊線路由樣式',
             symbolEdgeStyleBezier: '貝茲曲線',
             symbolEdgeStyleOrthogonal: '直角折線',
-            layoutLabel: '佈局控制',
             layoutInfoAlgorithm: '演算法',
             layoutInfoBestFor: '適用場景',
             layoutInfoPros: '優點',
