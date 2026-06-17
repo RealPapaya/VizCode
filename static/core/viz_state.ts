@@ -5,23 +5,62 @@
 //       _shapeMode, SIMPLE_NODE_SIZE_*, _registeredLayouts
 
 // ─── State ────────────────────────────────────────────────────────────────────
-const state = {
-    level: 0,        // 0=modules 1=files(subdirs) 1.5=files(subdir expanded) 2=functions
-    tab: 'files',    // 'files' | 'calls'
+interface AppState {
+    level: number;          // 0=modules 1=files(subdirs) 1.5=files(subdir expanded) 2=functions
+    tab: 'files' | 'calls';
+    activeModule: string | null;
+    activeSubDir: string | null;  // null = folder overview; string = inside a sub-folder
+    activeFile: string | null;
+    history: any[];
+    pinnedNodes: Set<string>;
+    galaxyActive: boolean;
+    globalNav?: any;   // global nav-history stack (viz_nav_history)
+}
+
+const state: AppState = {
+    level: 0,
+    tab: 'files',
     activeModule: null,
-    activeSubDir: null,   // null = showing folder overview; string = inside a sub-folder
+    activeSubDir: null,
     activeFile: null,
     history: [],
     pinnedNodes: new Set(),
     galaxyActive: false,
 };
 
-let _shapeMode = 'detailed';  // 'detailed' | 'simple'
+let _shapeMode: 'detailed' | 'simple' = 'detailed';
 const SIMPLE_NODE_SIZE_SM = 26;
 const SIMPLE_NODE_SIZE_MD = 36;
 const SIMPLE_NODE_SIZE_LG = 48;
 
-const l2State = {
+interface L2State {
+    activeFile: string | null;
+    activeFuncIdx: number;
+    expandedModules: Set<string>;
+    externalModules: any[];
+    fileHistory: any[];
+    fileHistoryIdx: number;
+    showExternalEdges: boolean;
+    showExternalFuncs: boolean;
+    expandOriginPos: any;
+    preserveViewport: any;
+    _prevNodeIds: any;
+    _animGen: number;
+    _l1Snapshot: any;            // { pan, zoom, selectedNodeId } saved when entering L2
+    fileHistorySnapshots: any[]; // per-history-slot viewport+expand snapshots
+    // Dynamic fields attached at runtime by the L2 call-flow renderer:
+    _expandInitialized?: boolean;
+    _sysMap?: any;
+    _funcs?: any;
+    sysCategories?: any;
+    expandedSysCategories?: Set<string>;
+    _fidMap?: any;
+    _extMap?: any;
+    _potMap?: any;
+    _unkMap?: any;
+}
+
+const l2State: L2State = {
     activeFile: null,
     activeFuncIdx: 0,
     expandedModules: new Set(),
@@ -34,27 +73,41 @@ const l2State = {
     preserveViewport: null,
     _prevNodeIds: null,
     _animGen: 0,
-    _l1Snapshot: null,          // { pan, zoom, selectedNodeId } saved when entering L2
-    fileHistorySnapshots: [],   // per-history-slot viewport+expand snapshots
+    _l1Snapshot: null,
+    fileHistorySnapshots: [],
 };
 
 // ─── Dependency Map (L1) external-files state ─────────────────────────────────
-const depMapState = {
+interface DepMapState {
+    showExternalFiles: boolean;
+    showEdgeTypeLabels: boolean;
+    expandedExtModules: Set<string>;
+    currentExtModules: any[];
+    currentModId: string | null;
+    pendingFocusFile: string | null;
+    navHistory: any[];       // [{ modId, subDir }]
+    navHistoryIdx: number;
+    _navigating: boolean;    // true while stepping through history (don't push)
+    expandOriginPos: any;    // { x, y } graph coords of the group node before re-render
+    preserveViewport: any;   // { pan, zoom } to restore after layout
+    _prevNodeIds: any;
+    _animGen: number;        // increment every render; stale setTimeout callbacks bail out
+}
+
+const depMapState: DepMapState = {
     showExternalFiles: false,
     showEdgeTypeLabels: false,
     expandedExtModules: new Set(),
     currentExtModules: [],
     currentModId: null,
     pendingFocusFile: null,
-    // Navigation history (Prev/Next)
-    navHistory: [],       // [{ modId, subDir }]
+    navHistory: [],
     navHistoryIdx: -1,
-    _navigating: false,   // true while stepping through history (don't push)
-    // Expand animation
-    expandOriginPos: null,   // { x, y } graph coords of the group node before re-render
-    preserveViewport: null,  // { pan, zoom } to restore after layout
+    _navigating: false,
+    expandOriginPos: null,
+    preserveViewport: null,
     _prevNodeIds: null,
-    _animGen: 0,             // increment every render; stale setTimeout callbacks bail out
+    _animGen: 0,
 };
 
 // ─── Layout result cache (LRU) ───────────────────────────────────────────────
@@ -64,7 +117,7 @@ const depMapState = {
 const _layoutCache = new Map();
 const _LAYOUT_CACHE_MAX = 30;
 
-function _layoutCacheKey(level, modId, subDir, fileRel) {
+function _layoutCacheKey(level, modId?, subDir?, fileRel?) {
     if (level === 0) return 'L0';
     if (level === 1) return `L1:${modId || ''}:${subDir || ''}`;
     if (level === 2) return `L2:${fileRel || ''}`;
@@ -122,8 +175,8 @@ window.pushFileHistorySnapshot = pushFileHistorySnapshot;
 window.pushNavHistory = pushNavHistory;
 
 // File-ID → module/file lookup, built once after DATA is parsed
-let _fileIdToModule = {};
-let _fileIdToFile = {};
+let _fileIdToModule: Record<number, string> = {};
+let _fileIdToFile: Record<number, FileNode> = {};
 
 function buildFileIdLookup() {
     Object.entries(DATA.files_by_module).forEach(([modId, files]) => {
@@ -135,7 +188,25 @@ function buildFileIdLookup() {
 }
 
 // Code panel state
-const codeState = {
+interface CodeState {
+    jobId: string | null;
+    currentFile: string | null;
+    currentFunc: any;
+    currentData: any;
+    currentExt: string;
+    currentName: string;
+    currentLangHint: string;
+    funcLineMap: Record<string, number>;  // funcName -> lineIndex (0-based)
+    funcList: any[];                       // list of {name, line}
+    funcIdx: number;
+    isOpen: boolean;
+    userClosed: boolean;
+    rawLines: string[];
+    multiSnip: boolean;
+    viewMode: string;
+}
+
+const codeState: CodeState = {
     jobId: window.JOB_ID || null,
     currentFile: null,
     currentFunc: null,
@@ -182,9 +253,9 @@ function _isLayoutAvailable(name) {
     return _registeredLayouts.has(name);
 }
 
-let cy = null;
+let cy: any = null;
 let tooltipPinned = false;
-let tooltipHideTimer = null;
+let tooltipHideTimer: any = null;
 const GRAPH_ZOOM_SETTINGS = Object.freeze({
     minZoom: 0.04,
     maxZoom: 5,

@@ -341,11 +341,13 @@
     fill: var(--muted);
 }
 
-.overview-sankey-node.drillable {
+.overview-sankey-node.drillable,
+.overview-sankey-node.selectable {
     cursor: pointer;
 }
 
-.overview-sankey-node.drillable:hover rect {
+.overview-sankey-node.drillable:hover rect,
+.overview-sankey-node.selectable:hover rect {
     filter: brightness(1.25);
     stroke: rgba(255, 255, 255, 0.55);
 }

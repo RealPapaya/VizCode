@@ -4,7 +4,7 @@
 //       cancelRender, T, getSavedFont, _currentRootName, _formatL2Stats,
 //       isAlreadyAtLocation, _edgeLine, _tC
 
-function T(key, vars) {
+function T(key: string, vars?: any) {
     return window._i18n ? window._i18n.t(key, vars) : key;
 }
 
@@ -71,7 +71,7 @@ function showMsg(msg) {
     const el = document.getElementById('loading');
     if (!el) return;
     el.classList.add('show');
-    const spinner = document.querySelector('#loading .spinner');
+    const spinner = document.querySelector('#loading .spinner') as HTMLElement | null;
     if (spinner) spinner.style.display = 'none';
     document.getElementById('loading-msg').textContent = msg;
 }
@@ -129,6 +129,8 @@ function showSelectFileFirstToast() {
 }
 
 // Returns `light` value when parchment theme is active, otherwise `dark`.
+// @ts-ignore -- _tC is also declared (identically) in viz_preferences.js; JS permits
+// function redeclaration so this is harmless at runtime. Dedupe in a later pass.
 function _tC(dark, light) {
     const t = document.documentElement.getAttribute('data-theme') || 'dark';
     return t === 'parchment' ? light : dark;
@@ -156,9 +158,9 @@ function escapeRe(s) {
 }
 
 // ─── Loading ──────────────────────────────────────────────────────────────────
-function showLoading(v, msg) {
+function showLoading(v: boolean, msg?: string) {
     const el = document.getElementById('loading');
-    const sp = document.querySelector('#loading .spinner');
+    const sp = document.querySelector('#loading .spinner') as HTMLElement | null;
     el.classList.toggle('show', v);
     if (v && msg) document.getElementById('loading-msg').textContent = msg;
     if (sp) sp.style.display = '';

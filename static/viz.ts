@@ -38,11 +38,12 @@
 const _gtip = { el: null, timer: null, DELAY: 380 };
 const _jobViewerLease = {
     jobId: window.JOB_ID || null,
-    viewerId: null,
-    openPromise: null,
-    pingTimer: null,
+    viewerId: null as any,
+    openPromise: null as any,
+    pingTimer: null as any,
     pingMs: 20000,
     closeSent: false,
+    _initDone: false,
 };
 
 function _initGlobalTooltip() {
@@ -249,7 +250,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 }
                                                 const totalFiles = s.total_all_files ?? (s.files + (s.other_files || 0));
                 if (document.getElementById('st-files')) document.getElementById('st-files').textContent = totalFiles.toLocaleString();
-                if (document.getElementById('st-mods')) document.getElementById('st-mods').textContent = (DATA.modules || []).length || s.modules;
+                if (document.getElementById('st-mods')) document.getElementById('st-mods').textContent = String((DATA.modules || []).length || s.modules);
                 if (document.getElementById('st-funcs')) document.getElementById('st-funcs').textContent = s.functions.toLocaleString();
 
                 buildSidebar();
@@ -307,7 +308,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 updateSidebarStats();
                 if (typeof scheduleGalaxyPrecompute === 'function') scheduleGalaxyPrecompute();
                 // Chat panel init (VizBridge)
-                if (typeof initChat === 'function') initChat();
+                if (typeof window.initChat === 'function') window.initChat();
 
                 // Ensure Canvas redraws after Google Fonts are fully loaded
                 document.fonts.ready.then(() => {
@@ -334,13 +335,13 @@ function onKey(e) {
     if (e.key === 'Escape') {
         const srPanel = document.getElementById('sr-panel');
         if (srPanel && srPanel.classList.contains('visible')) {
-            document.getElementById('search').value = '';
+            (document.getElementById('search') as HTMLInputElement).value = '';
             _srState.query = '';
             _srClose();
             _resetGraphHighlightPreservingPin();
             return;
         }
-        document.getElementById('search').value = '';
+        (document.getElementById('search') as HTMLInputElement).value = '';
         _resetGraphHighlightPreservingPin();
         goBack();
     }
@@ -445,7 +446,7 @@ async function _openPath(relPath, action = 'reveal') {
 
 // ─── Helper: switch sidebar to Explorer tab ───────────────────────────
 function _sbSwitchToExplorer() {
-    const tab = document.querySelector('.sb-tab[data-tab="explorer"]');
+    const tab = document.querySelector('.sb-tab[data-tab="explorer"]') as HTMLElement | null;
     if (tab) tab.click();
 }
 

@@ -15,8 +15,8 @@ const L2_LEGEND_ITEMS = [
     { color: '#64748b', label: 'System / unknown', style: 'dotted' },
 ];
 
-function extColor(ext) {
-    const map = {
+function extColor(ext: string): string {
+    const map: Record<string, string> = {
         // ── C / C++ / Systems ────────────────────────────────────────────────
         '.c': '#3b82f6', '.cpp': '#06b6d4', '.cc': '#06b6d4', '.cxx': '#06b6d4',
         '.h': '#8b5cf6', '.hpp': '#7c3aed', '.hxx': '#7c3aed', '.hh': '#7c3aed',
@@ -340,22 +340,22 @@ const FILE_TYPE_FULL_NAME = {
     'binary':       'Binary File',
 };
 
-function fileTypeFullName(ft, ext) {
+function fileTypeFullName(ft: string, ext: string): string {
     if (FILE_TYPE_FULL_NAME[ft]) return FILE_TYPE_FULL_NAME[ft];
     if (ext) return ext.replace(/^\./, '').toUpperCase() + ' File';
     return 'File';
 }
 
-function fileNodeData(f, modColor) {
+function fileNodeData(f: FileNode, modColor?: string) {
     const ft = f.file_type || 'other';
-    const shape = FILE_TYPE_SHAPE[ft] || FILE_TYPE_SHAPE['other'];
+    const shape = (FILE_TYPE_SHAPE as Record<string, any>)[ft] || FILE_TYPE_SHAPE['other'];
     const isSimple = _shapeMode === 'simple';
     const eff = isSimple ? { sh: 'ellipse', w: SIMPLE_NODE_SIZE_SM, h: SIMPLE_NODE_SIZE_SM } : shape;
     const baseColor = extColor(f.ext);
 
     // Build tooltip with BIOS metadata
     // Format: label\n§path§\nkey: val\n...  (§path§ marks the path line)
-    const bm = f.bios_meta || {};
+    const bm: any = f.bios_meta || {};
     let ttLines = [`${f.label}`, `§${f.path}§`];
     ttLines.push(`${T('fileType')}: ${fileTypeFullName(ft, f.ext)}`);
     ttLines.push(`${T('fileSize')}: ${fmtSize(f.size)}`);
@@ -387,9 +387,9 @@ function kindStyle(kind) {
 }
 
 // ─── Other/Binary file node (not deeply analysed) ────────────────────────────
-function otherFileNodeData(f) {
+function otherFileNodeData(f: FileNode) {
     const ft = f.file_type || 'other';
-    const shape = FILE_TYPE_SHAPE[ft] || FILE_TYPE_SHAPE['other'];
+    const shape = (FILE_TYPE_SHAPE as Record<string, any>)[ft] || FILE_TYPE_SHAPE['other'];
     const isSimple = _shapeMode === 'simple';
     const eff = isSimple ? { sh: 'ellipse', w: SIMPLE_NODE_SIZE_SM, h: SIMPLE_NODE_SIZE_SM } : shape;
     const isBin = ft === 'binary';

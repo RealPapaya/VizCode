@@ -387,7 +387,7 @@ function _srFilteredGroups() {
 
 // ── Build available ext chips from all results ────────────────────────────────
 function _srAvailableExts() {
-    const counts = {};
+    const counts: Record<string, number> = {};
     for (const g of _srState._contentGroups) {
         counts[g.ext] = (counts[g.ext] || 0) + g.count;
     }
@@ -428,11 +428,11 @@ function _srCollapseAll() {
     _srState._openGroups.clear();
     _srState._openFolders.clear();
     // Toggle DOM directly — avoid full re-render
-    document.querySelectorAll('#sr-results .sr-match-lines').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('#sr-results .sr-match-lines').forEach(el => (el as HTMLElement).style.display = 'none');
     document.querySelectorAll('#sr-results .sr-chevron').forEach(el => {
         el.classList.remove('open'); el.textContent = '▸';
     });
-    document.querySelectorAll('#sr-results .sr-tree-folder-body').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('#sr-results .sr-tree-folder-body').forEach(el => (el as HTMLElement).style.display = 'none');
     _srRenderActionBar();
 }
 
@@ -454,7 +454,7 @@ function _srExpandAll() {
             if (!hdr) return;
             const grp = hdr.closest('.sr-file-group');
             if (!grp) return;
-            let lines = grp.querySelector('.sr-match-lines');
+            let lines = grp.querySelector('.sr-match-lines') as HTMLElement | null;
             if (!lines) {
                 // Need to build and insert match lines HTML
                 lines = document.createElement('div');
@@ -610,7 +610,7 @@ function _srRenderActionBar() {
     const bar = document.getElementById('sr-action-bar');
     if (!bar) return;
 
-    const active = document.activeElement;
+    const active = document.activeElement as HTMLInputElement | null;
     const restoreFocus = active && bar.contains(active) && active.classList.contains('sr-ab-filter-input')
         ? { id: active.id, start: active.selectionStart, end: active.selectionEnd }
         : null;
@@ -682,8 +682,8 @@ function _srRenderActionBar() {
             _srState.viewMode = 'tree'; _srRenderResults(); _srRenderActionBar();
         });
 
-        const incInput = document.getElementById('sr-ab-inc');
-        const excInput = document.getElementById('sr-ab-exc');
+        const incInput = document.getElementById('sr-ab-inc') as HTMLInputElement | null;
+        const excInput = document.getElementById('sr-ab-exc') as HTMLInputElement | null;
         function _abChanged() {
             _srState.include = incInput?.value.trim() || '';
             _srState.exclude = excInput?.value.trim() || '';
@@ -698,7 +698,7 @@ function _srRenderActionBar() {
         bar.querySelectorAll('.sr-ab-filter-clear').forEach(btn => {
             btn.addEventListener('click', () => {
                 clearTimeout(_srCodeFilterTimer);
-                if (btn.dataset.target === 'inc') { _srState.include = ''; if (incInput) incInput.value = ''; }
+                if ((btn as HTMLElement).dataset.target === 'inc') { _srState.include = ''; if (incInput) incInput.value = ''; }
                 else { _srState.exclude = ''; if (excInput) excInput.value = ''; }
                 if (_srState.query) _srDebounce(_srState.query);
                 else _srRenderActionBar();
@@ -738,8 +738,8 @@ function _srRenderActionBar() {
   </div>
 </div>`;
 
-        const iInc = document.getElementById('sr-ab-fi-inc');
-        const iExc = document.getElementById('sr-ab-fi-exc');
+        const iInc = document.getElementById('sr-ab-fi-inc') as HTMLInputElement | null;
+        const iExc = document.getElementById('sr-ab-fi-exc') as HTMLInputElement | null;
 
         // View toggle buttons
         const fiViewList = document.getElementById('sr-fi-view-list');
@@ -758,16 +758,16 @@ function _srRenderActionBar() {
         const fiExpandAll = document.getElementById('sr-fi-expand-all');
         if (fiCollapseAll) fiCollapseAll.addEventListener('click', () => {
             _srState._openFileFolders.clear();
-            document.querySelectorAll('#sr-results .sr-fi-tree-body').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('#sr-results .sr-fi-tree-body').forEach(el => (el as HTMLElement).style.display = 'none');
             document.querySelectorAll('#sr-results .sr-fi-tree-chevron').forEach(el => {
                 el.classList.remove('open'); el.textContent = '▸';
             });
         });
         if (fiExpandAll) fiExpandAll.addEventListener('click', () => {
             document.querySelectorAll('#sr-results .sr-fi-tree-folder-hdr').forEach(hdr => {
-                const fpath = hdr.dataset.fpath;
+                const fpath = (hdr as HTMLElement).dataset.fpath;
                 if (fpath) _srState._openFileFolders.add(fpath);
-                const body = hdr.nextElementSibling;
+                const body = hdr.nextElementSibling as HTMLElement | null;
                 if (body) body.style.display = '';
                 const chev = hdr.querySelector('.sr-fi-tree-chevron');
                 if (chev) { chev.classList.add('open'); chev.textContent = '▾'; }
@@ -789,7 +789,7 @@ function _srRenderActionBar() {
         bar.querySelectorAll('.sr-ab-filter-clear').forEach(btn => {
             btn.addEventListener('click', () => {
                 clearTimeout(_srFileFilterTimer);
-                if (btn.dataset.target === 'inc') { _srState.include = ''; if (iInc) iInc.value = ''; }
+                if ((btn as HTMLElement).dataset.target === 'inc') { _srState.include = ''; if (iInc) iInc.value = ''; }
                 else { _srState.exclude = ''; if (iExc) iExc.value = ''; }
                 _srState.results = _srSearchFiles(_srState.query);
                 _srRenderResults(); _srRenderActionBar();
@@ -806,7 +806,7 @@ function _srRenderActionBar() {
 
     if (restoreFocus?.id) {
         requestAnimationFrame(() => {
-            const el = document.getElementById(restoreFocus.id);
+            const el = document.getElementById(restoreFocus.id) as HTMLInputElement | null;
             if (!el) return;
             el.focus({ preventScroll: true });
             if (typeof el.setSelectionRange === 'function' && restoreFocus.start != null) {
@@ -1421,7 +1421,7 @@ function _srUpdateActive() {
     if (!el) return;
     // Support both old sr-row style and new sr-fi-row style
     el.querySelectorAll('.sr-row[data-rtype="top"], .sr-fi-row').forEach(row => {
-        const idx = parseInt(row.dataset.idx, 10);
+        const idx = parseInt((row as HTMLElement).dataset.idx, 10);
         row.classList.toggle('sr-active', idx === _srState.activeIdx);
     });
     const active = el.querySelector('.sr-active');
@@ -1491,9 +1491,9 @@ function _srSetMode(mode) {
     _srState.mode = mode;
     try { localStorage.setItem('vizcode-search-mode', mode); } catch (_) {}
     document.querySelectorAll('.sr-mode').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.mode === mode);
+        btn.classList.toggle('active', (btn as HTMLElement).dataset.mode === mode);
     });
-    const input = document.getElementById('search');
+    const input = document.getElementById('search') as HTMLInputElement | null;
     const filters = document.getElementById('sr-filters');
     if (input) input.placeholder = mode === 'files' ? T('searchPlaceholderFiles') : T('searchPlaceholderCode');
     if (filters) filters.classList.toggle('visible', mode === 'code');
@@ -1517,7 +1517,7 @@ function _srSetMode(mode) {
 
 // ── initSearch ────────────────────────────────────────────────────────────────
 function initSearch() {
-    const input = document.getElementById('search');
+    const input = document.getElementById('search') as HTMLInputElement | null;
     if (!input) return;
 
     // Mode pills — restore last-used mode from localStorage
@@ -1525,7 +1525,7 @@ function initSearch() {
     if (_savedMode === 'code' || _savedMode === 'files') _srSetMode(_savedMode);
 
     document.querySelectorAll('.sr-mode').forEach(btn => {
-        btn.addEventListener('click', () => _srSetMode(btn.dataset.mode));
+        btn.addEventListener('click', () => _srSetMode((btn as HTMLElement).dataset.mode));
     });
 
     // Toggle buttons (Aa / ab / .*)
@@ -1608,7 +1608,7 @@ function initSearch() {
         const searchUiIds = ['sr-panel', 'search-wrap', 'sr-modes', 'sr-toggles', 'sr-filters', 'search'];
         const inside = searchUiIds.some(id => {
             const el = document.getElementById(id);
-            return el && el.contains(e.target);
+            return el && el.contains(e.target as Node);
         });
         if (!inside) {
             panel.classList.remove('visible');

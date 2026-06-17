@@ -200,6 +200,15 @@ class Handler(BaseHTTPRequestHandler):
                     'html':'text/html','json':'application/json'}.get(ext, 'text/plain')
             self.serve_disk(os.path.join('static', filename), mime)
 
+        elif p.startswith('/build/'):
+            # Compiled frontend JS (esbuild output of static/*.ts|js). Served raw,
+            # mirroring the /static/ branch above. See html_builder.build_html.
+            filename = p[len('/build/'):]
+            ext = filename.rsplit('.', 1)[-1] if '.' in filename else ''
+            mime = {'css':'text/css','js':'application/javascript',
+                    'html':'text/html','json':'application/json'}.get(ext, 'text/plain')
+            self.serve_disk(os.path.join('build', filename), mime)
+
         elif p == '/progress':
             jid = qs.get('job', [''])[0]
             with JOBS_LOCK:
