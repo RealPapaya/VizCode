@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_circular_deps
+﻿// @module Dashboard_view/widgets/widget_circular_deps
 // Dedicated widget — circular dependencies with severity tier, expandable
 // file chain, per-file graph jump, and a "view all" overlay. S/M/L sizes.
 
@@ -57,7 +56,7 @@ function _dashCircCard(cycle, idx) {
 }
 
 function _dashCircToggle(idx) {
-  const stats = (window.DATA && window.DATA.stats) || {};
+  const stats: any = (window.DATA && window.DATA.stats) || {};
   const cycles = stats.top_circular_deps || [];
   const cycle = cycles[idx];
   if (!cycle) return;
@@ -131,7 +130,7 @@ function _dashCircCardDetail(cycle, idx) {
 }
 
 function _dashCircDetailToggle(idx) {
-  const stats  = (window.DATA && window.DATA.stats) || {};
+  const stats: any  = (window.DATA && window.DATA.stats) || {};
   const cycles = stats.top_circular_deps || [];
   const cycle  = cycles[idx];
   if (!cycle) return;
@@ -153,7 +152,7 @@ function _dashCircStatusColor(count) {
 }
 
 // ── L / detail layout with prominent panel header ──
-function _dashRenderCircularDeps(container, stats, opts) {
+function _dashRenderCircularDeps(container, stats, opts?) {
   if (!container) return;
   const cycles = stats.top_circular_deps || [];
   const count = stats.circular_dependencies || 0;

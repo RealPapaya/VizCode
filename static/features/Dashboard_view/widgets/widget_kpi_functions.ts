@@ -1,10 +1,9 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_kpi_functions
+﻿// @module Dashboard_view/widgets/widget_kpi_functions
 
 function _kpiFuncModules() {
   return Object.entries((window.DATA || {}).files_by_module || {})
     .map(([mod, files]) => {
-      const cnt = (files || []).reduce((s, f) => s + (f.func_count || (f.functions || []).length), 0);
+      const cnt = (files || []).reduce((s, f) => s + (f.func_count || ((f as any).functions || []).length), 0);
       return [mod, mod.split('/').pop() || mod, cnt];
     })
     .filter(([, , n]) => n > 0)
@@ -99,7 +98,7 @@ _dashRegisterWidget({
 
     // ── Module function counts ─────────────────────────────────────────────────
     const allModEntries = Object.entries(DATA.files_by_module || {}).map(([mod, files]) => {
-      const fnCount = (files || []).reduce((s, f) => s + (f.func_count || (f.functions || []).length), 0);
+      const fnCount = (files || []).reduce((s, f) => s + (f.func_count || ((f as any).functions || []).length), 0);
       return [mod, mod.split('/').pop() || mod, fnCount];
     }).filter(([, , count]) => count > 0).sort((a, b) => b[2] - a[2]);
     const modEntries = allModEntries.slice(0, 12);

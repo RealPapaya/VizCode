@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_duplication
+﻿// @module Dashboard_view/widgets/widget_duplication
 
 _dashRegisterWidget({
   id: 'duplication',

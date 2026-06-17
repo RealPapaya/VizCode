@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_temporal_heatmap
+﻿// @module Dashboard_view/widgets/widget_temporal_heatmap
 // GitHub-style daily commit activity heatmap rendered with SVG.
 
 // Heatmap colour ramp comes from accent alpha steps at render time —
@@ -21,7 +20,7 @@ function _dashCommitActivityInitialDays(stats) {
     const start = _dashHeatmapParseISO(dates[0]);
     const end = _dashHeatmapParseISO(dates[dates.length - 1]);
     if (!start || !end) return 0;
-    return Math.round((end - start) / 86400000) + 1 > 180 ? 180 : 0;
+    return Math.round((Number(end) - Number(start)) / 86400000) + 1 > 180 ? 180 : 0;
 }
 
 function _dashCommitActivityRangeDays(container, stats) {
@@ -183,7 +182,7 @@ function _dashBuildTemporalHeatmapModel(rows, stats) {
 
     const gridStart = _dashHeatmapWeekStart(start);
     const gridEnd = _dashHeatmapWeekEnd(end);
-    const totalDays = Math.round((gridEnd - gridStart) / 86400000) + 1;
+    const totalDays = Math.round((Number(gridEnd) - Number(gridStart)) / 86400000) + 1;
     const weeks = Math.max(1, Math.ceil(totalDays / 7));
 
     return { dayMap, start, end, gridStart, totalDays, weeks, maxCommits, totalCommits };
@@ -428,8 +427,8 @@ ${rows.map((row, i) => {
 
 function _dashCommitActivityModel(stats) {
     const rows = stats.commit_activity_daily || [];
-    const model = rows.length ? _dashBuildTemporalHeatmapModel(rows, stats) : null;
-    const dayValues = model ? Array.from(model.dayMap.entries()) : [];
+    const model: any = rows.length ? _dashBuildTemporalHeatmapModel(rows, stats) : null;
+    const dayValues: any[] = model ? Array.from(model.dayMap.entries()) : [];
     const activeDays = dayValues.filter(([, d]) => d.commits > 0).length;
     const peak = dayValues.reduce((best, [date, d]) => (
         d.commits > Number(best.commits || 0)
@@ -503,7 +502,7 @@ const _DASH_COMMIT_DRILL_ID = 'dash-commit-day-drilldown-overlay';
 let _dashCommitDrillEscBound = false;
 
 function _dashOpenCommitDayDrilldown(date) {
-    const stats = (window.DATA && DATA.stats) || {};
+    const stats: any = (window.DATA && DATA.stats) || {};
     const day = String(date || '').trim();
     let commits = _dashCommitRowsForDay(day, stats);
     if (!commits.length && !stats._commitHistoryFetched && !stats._commitHistoryFetching) {
@@ -556,7 +555,7 @@ function _dashOpenCommitDayDrilldown(date) {
 </div>`;
     document.body.appendChild(overlay);
     overlay.addEventListener('click', e => {
-        if (e.target === overlay || e.target.closest('[data-close-commit-day]')) {
+        if (e.target === overlay || (e.target as HTMLElement).closest('[data-close-commit-day]')) {
             _dashCloseCommitDayDrilldown();
         }
     });
@@ -896,14 +895,14 @@ function _dashOpenCommitDayLoading(day) {
 </div>`;
     document.body.appendChild(overlay);
     overlay.addEventListener('click', e => {
-        if (e.target === overlay || e.target.closest('[data-close-commit-day]')) {
+        if (e.target === overlay || (e.target as HTMLElement).closest('[data-close-commit-day]')) {
             _dashCloseCommitDayDrilldown();
         }
     });
 }
 
-function _dashFetchCommitHistory(day, btn) {
-    const stats = (window.DATA && DATA.stats) || {};
+function _dashFetchCommitHistory(day, btn?) {
+    const stats: any = (window.DATA && DATA.stats) || {};
     if (stats._commitHistoryFetching) return;
     stats._commitHistoryFetching = true;
     if (btn) {

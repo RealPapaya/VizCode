@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_temporal_coupling
+﻿// @module Dashboard_view/widgets/widget_temporal_coupling
 // Phase 2 — Change Coupling (file pairs that change together).
 
 function _dashRenderTemporalCoupling(container, stats) {

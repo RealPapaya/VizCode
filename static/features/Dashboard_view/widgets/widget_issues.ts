@@ -1,11 +1,10 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_issues
+﻿// @module Dashboard_view/widgets/widget_issues
 // Architecture Issues — overview-only widget. Shows three KPI tiles
 // (Circular / Dead / Entry) as a quick health snapshot. Detailed
 // drill-down lives in the dedicated widget_circular_deps / widget_dead_code
 // / widget_entry_points widgets.
 
-function _dashOvStatusColor(value, mode) {
+function _dashOvStatusColor(value, mode?) {
   // mode: 'warn' → > 0 is warn; 'good' → > 0 is good (entry points etc.)
   if (mode === 'good') return value > 0 ? 'var(--status-good)' : 'var(--muted)';
   return value > 0 ? 'var(--status-warn)' : 'var(--status-good)';

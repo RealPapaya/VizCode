@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_temporal_hotspot
+﻿// @module Dashboard_view/widgets/widget_temporal_hotspot
 // Phase 2 — Hotspot files (churn × complexity ranking).
 
 function _dashRenderTemporalHotspot(container, stats) {

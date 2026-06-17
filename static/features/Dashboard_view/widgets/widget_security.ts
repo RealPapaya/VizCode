@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_security
+﻿// @module Dashboard_view/widgets/widget_security
 //
 // Security findings widget. Consumes `stats.security_findings` built by
 // src/core/security_scanner.py:

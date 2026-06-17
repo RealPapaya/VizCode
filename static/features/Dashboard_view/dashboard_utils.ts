@@ -149,7 +149,7 @@ function _dashJson(value) {
     return JSON.stringify(value).replace(/"/g, '&quot;');
 }
 
-function _dashMiniPills(items, options) {
+function _dashMiniPills(items, options?) {
     const opts = options || {};
     const rows = (items || []).filter(Boolean).slice(0, opts.limit || 3);
     if (!rows.length) {

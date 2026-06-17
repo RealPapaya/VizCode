@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_branch_overview
+﻿// @module Dashboard_view/widgets/widget_branch_overview
 
 _dashRegisterWidget({
     id: 'branch_overview',
@@ -96,7 +95,7 @@ function _dashBranchRowCompact(b, base) {
 
 // ── L size (4×2): branch list + diff panel ────────────────────────────────────
 
-function _dashRenderBranchLarge(container, stats, branchData, opts) {
+function _dashRenderBranchLarge(container, stats, branchData, opts?) {
     const isDetail = !!(opts && opts.detail);
     if (isDetail) {
         container.innerHTML = _dashReportSection({

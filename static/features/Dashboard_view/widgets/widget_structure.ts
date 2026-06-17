@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_structure
+﻿// @module Dashboard_view/widgets/widget_structure
 // Structure: file types doughnut, language distribution bar, module treemap.
 
 const _DASH_TYPES_KEY     = 'structure_file_types';
@@ -83,7 +82,7 @@ function _dashStructureRankRowsHTML(rows, resolver, titlePrefix) {
     }).join('');
 }
 
-function _dashRenderStructure(container, stats, options) {
+function _dashRenderStructure(container, stats, options?) {
     if (!container) return;
     const scope = (options && options.scope) || '';
     const isDetail = !!(options && options.detail);
@@ -120,8 +119,8 @@ function _dashRenderStructure(container, stats, options) {
     const layoutClose = isDetail ? '' : '</div></div></div>';
 
     if (isDetail) {
-        const typeRows = Object.entries(stats.type_counts || {}).sort((a, b) => b[1] - a[1]);
-        const langRows = Object.entries(stats.language_distribution || {}).sort((a, b) => b[1] - a[1]);
+        const typeRows = Object.entries(stats.type_counts || {}).sort((a, b) => Number(b[1]) - Number(a[1]));
+        const langRows = Object.entries(stats.language_distribution || {}).sort((a, b) => Number(b[1]) - Number(a[1]));
         const detailTypeCount = typeRows.length;
         const detailExtCount = langRows.length;
         const files = stats.files || _dashAllFiles().length;
@@ -219,13 +218,13 @@ ${layoutClose}`;
     _dashBuildTreemap(scope);
 }
 
-function _dashChartFileTypes(stats, scope) {
+function _dashChartFileTypes(stats, scope?) {
     const keys = _dashStructureKeys(scope);
     const canvas = document.getElementById(keys.typesId);
     if (!canvas || typeof Chart === 'undefined') return;
 
     const tc = stats.type_counts || {};
-    const sorted = Object.entries(tc).sort((a, b) => b[1] - a[1]);
+    const sorted = Object.entries(tc).sort((a, b) => Number(b[1]) - Number(a[1]));
     if (!sorted.length) return;
 
     const isDetail = scope === 'detail';
@@ -284,7 +283,7 @@ function _dashChartLanguageDist(stats, scope) {
     if (!canvas || typeof Chart === 'undefined') return;
 
     const langs = stats.language_distribution || {};
-    const sorted = Object.entries(langs).sort((a, b) => b[1] - a[1]).slice(0, 12);
+    const sorted = Object.entries(langs).sort((a, b) => Number(b[1]) - Number(a[1])).slice(0, 12);
     if (!sorted.length) return;
 
     const isDetail = scope === 'detail';
@@ -381,7 +380,7 @@ _dashRegisterWidget({
     render(container, size, stats) {
         if (size === 'S') {
             const langs = Object.entries(stats.language_distribution || {})
-                .sort((a, b) => b[1] - a[1])
+                .sort((a, b) => Number(b[1]) - Number(a[1]))
                 .slice(0, 3)
                 .map(([ext, cnt]) => ({
                     label: ext || 'unknown',

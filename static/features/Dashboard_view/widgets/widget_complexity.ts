@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_complexity
+﻿// @module Dashboard_view/widgets/widget_complexity
 
 function _dashComplexityBucketFunctions(range) {
     const m = /^(\d+)(?:-(\d+)|\+)$/.exec(String(range || ''));

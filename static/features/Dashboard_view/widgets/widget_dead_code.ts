@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_dead_code
+﻿// @module Dashboard_view/widgets/widget_dead_code
 
 function _kpiDeadCodeRing(pct, color, width, height) {
     const r    = Math.round(Math.min(width, height) * 0.38);

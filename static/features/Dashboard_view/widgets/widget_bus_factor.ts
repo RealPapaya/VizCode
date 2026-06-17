@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_bus_factor
+﻿// @module Dashboard_view/widgets/widget_bus_factor
 
 _dashRegisterWidget({
     id: 'bus_factor',

@@ -19,7 +19,7 @@ function _dashCommitActivityInitialDays(stats) {
   const start = _dashHeatmapParseISO(dates[0]);
   const end = _dashHeatmapParseISO(dates[dates.length - 1]);
   if (!start || !end) return 0;
-  return Math.round((end - start) / 864e5) + 1 > 180 ? 180 : 0;
+  return Math.round((Number(end) - Number(start)) / 864e5) + 1 > 180 ? 180 : 0;
 }
 function _dashCommitActivityRangeDays(container, stats) {
   if (container?.dataset.commitActivityDays != null) {
@@ -154,7 +154,7 @@ function _dashBuildTemporalHeatmapModel(rows, stats) {
   if (!start || !end || start > end) return null;
   const gridStart = _dashHeatmapWeekStart(start);
   const gridEnd = _dashHeatmapWeekEnd(end);
-  const totalDays = Math.round((gridEnd - gridStart) / 864e5) + 1;
+  const totalDays = Math.round((Number(gridEnd) - Number(gridStart)) / 864e5) + 1;
   const weeks = Math.max(1, Math.ceil(totalDays / 7));
   return { dayMap, start, end, gridStart, totalDays, weeks, maxCommits, totalCommits };
 }

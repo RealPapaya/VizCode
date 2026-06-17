@@ -144,7 +144,9 @@ interface Stats {
 
   has_git_history?: boolean;
 
-  [key: string]: unknown;
+  // Long tail of health/git/analytics fields is `any` during migration so the
+  // many dashboard widgets reading stats.<field> don't each need a cast.
+  [key: string]: any;
 }
 
 // ─── Top-level payload (window.DATA) ──────────────────────────────────────────
@@ -172,7 +174,8 @@ interface VizData {
   file_community: Record<string, number>;
   meta: Record<string, unknown>;
   stats: Stats;
-  [key: string]: unknown;
+  // Untyped extras (job_id, precompute payloads, etc.) are `any` during migration.
+  [key: string]: any;
 }
 
 // Bare-global accesses (injected JSON / page globals).

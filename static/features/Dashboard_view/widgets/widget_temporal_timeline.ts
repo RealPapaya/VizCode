@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_temporal_timeline
+﻿// @module Dashboard_view/widgets/widget_temporal_timeline
 // Phase 2 — Code Churn Timeline. Line chart of commits per week with
 // secondary additions/deletions overlay. Toggleable to bar chart.
 

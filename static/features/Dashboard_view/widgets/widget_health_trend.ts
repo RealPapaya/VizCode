@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_health_trend
+﻿// @module Dashboard_view/widgets/widget_health_trend
 
 _dashRegisterWidget({
     id: 'health_trend',
@@ -211,7 +210,7 @@ function _dashRenderBfPanel(detailContainer) {
 function _dashBfStart(mode, btn) {
     if (btn) btn.disabled = true;
     const jobId = (typeof DATA !== 'undefined' && DATA.job_id) ? DATA.job_id : '';
-    const stats = (typeof DATA !== 'undefined' && DATA.stats) ? DATA.stats : {};
+    const stats: any = (typeof DATA !== 'undefined' && DATA.stats) ? DATA.stats : {};
     const days = mode === 'commits'
         ? Math.max(7, Math.min(365, Number(stats.window_days || 90)))
         : 90;
@@ -327,7 +326,7 @@ function _dashBfRunFull(btn) {
     _dashBfStart('full', btn);
 }
 
-function _dashBfShowError(msg, bfEl) {
+function _dashBfShowError(msg, bfEl?) {
     const el = bfEl || document.querySelector('#dash-ht-bf-panel');
     if (el) el.innerHTML = `
 <div class="dash-report-section">

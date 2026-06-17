@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_tech_debt
+﻿// @module Dashboard_view/widgets/widget_tech_debt
 
 const _DASH_DEBT_ORDER = [
     { key: 'circular',    label: 'dashDebtCircular'    },
@@ -28,8 +27,8 @@ _dashRegisterWidget({
         const hours     = Number(stats.tech_debt_hours || 0);
         const breakdown = stats.tech_debt_breakdown || {};
         const colors    = _dashAccentForSlices(_DASH_DEBT_ORDER.length);
-        const totalMin  = Object.values(breakdown).reduce((a, n) => a + Number(n || 0), 0);
-        const denom     = totalMin || 1;
+        const totalMin  = Object.values(breakdown).reduce((a: number, n) => a + Number(n || 0), 0);
+        const denom     = Number(totalMin) || 1;
         const hoursStat = `${hours.toFixed(1)}<small style="font-size:var(--text-xs);color:var(--muted);margin-left:3px">h</small>`;
 
         if (size === 'S') {
@@ -96,8 +95,8 @@ _dashRegisterWidget({
         const hours        = Number(stats.tech_debt_hours || 0);
         const breakdown    = stats.tech_debt_breakdown || {};
         const colors       = _dashAccentForSlices(_DASH_DEBT_ORDER.length);
-        const totalMin     = Object.values(breakdown).reduce((a, n) => a + Number(n || 0), 0);
-        const denom        = totalMin || 1;
+        const totalMin     = Object.values(breakdown).reduce((a: number, n) => a + Number(n || 0), 0);
+        const denom        = Number(totalMin) || 1;
         const nonZero      = _DASH_DEBT_ORDER.filter(d => Number(breakdown[d.key] || 0) > 0);
         const canvasId     = 'dash-detail-debt-chart';
         const chartKey     = 'tech_debt_detail_chart';

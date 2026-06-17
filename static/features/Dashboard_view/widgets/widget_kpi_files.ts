@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_kpi_files
+﻿// @module Dashboard_view/widgets/widget_kpi_files
 
 function _kpiFileExts() {
   const map = new Map();
@@ -40,7 +39,7 @@ function _dashKpiDetailStatsHTML(items) {
   }).join('')}</div>`;
 }
 
-function _dashKpiDetailSectionHTML({ title, subtitle, body, className } = {}) {
+function _dashKpiDetailSectionHTML({ title, subtitle, body, className }: any = {}) {
   const cls = className ? ` ${className}` : '';
   const subtitleHTML = subtitle && String(subtitle).includes('<')
     ? String(subtitle)
@@ -57,16 +56,16 @@ function _dashKpiDetailSectionHTML({ title, subtitle, body, className } = {}) {
 </section>`;
 }
 
-function _dashKpiDetailGridHTML(items, { columns } = {}) {
+function _dashKpiDetailGridHTML(items, { columns }: any = {}) {
   const cols = columns ? ` dash-kpi-detail-grid--${columns}` : '';
   return `<div class="dash-kpi-detail-grid${cols}">${(items || []).join('')}</div>`;
 }
 
-function _dashKpiDetailChartHTML(html, { size } = {}) {
+function _dashKpiDetailChartHTML(html, { size }: any = {}) {
   return `<div class="dash-chart-wrap dash-kpi-detail-chart dash-kpi-detail-chart--${size || 'md'}">${html || ''}</div>`;
 }
 
-function _dashKpiDetailListHTML(html, { className } = {}) {
+function _dashKpiDetailListHTML(html, { className }: any = {}) {
   const cls = className ? ` ${className}` : '';
   return `<div class="dash-kpi-detail-list${cls}">${html || ''}</div>`;
 }

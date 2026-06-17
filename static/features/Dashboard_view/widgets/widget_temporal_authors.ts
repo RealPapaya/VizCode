@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_temporal_authors
+﻿// @module Dashboard_view/widgets/widget_temporal_authors
 // Phase 2 — Author Activity (per-author commits / additions / deletions
 // over the analysed git window). Read-only ranking, no drill-through.
 

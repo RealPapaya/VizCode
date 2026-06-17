@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_kpi_strip
+﻿// @module Dashboard_view/widgets/widget_kpi_strip
 // KPI strip — files / functions / real LOC / Code Health badge.
 
 function _dashRenderKpiStrip(container, stats) {
@@ -111,7 +110,7 @@ function _dashRenderKpiDetail(host, kpiId, stats) {
     const allFuncs = [];
     for (const [modId, files] of Object.entries(DATA.files_by_module || {})) {
       (files || []).forEach(f => {
-        (f.functions || []).forEach(fn => {
+        ((f as any).functions || []).forEach(fn => {
           allFuncs.push({ file: f.path, name: fn.name, lines: fn.lines || 0 });
         });
       });

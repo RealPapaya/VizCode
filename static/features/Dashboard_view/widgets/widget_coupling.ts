@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_coupling
+﻿// @module Dashboard_view/widgets/widget_coupling
 // Coupling — top imported and top caller files with severity tiers,
 // concentration index, and graph jump. S/M/L all redesigned.
 

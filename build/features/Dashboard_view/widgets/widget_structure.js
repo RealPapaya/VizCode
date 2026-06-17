@@ -94,8 +94,8 @@ function _dashRenderStructure(container, stats, options) {
     <div class="dash-structure-layout" style="${layoutStyle}">`;
   const layoutClose = isDetail ? "" : "</div></div></div>";
   if (isDetail) {
-    const typeRows = Object.entries(stats.type_counts || {}).sort((a, b) => b[1] - a[1]);
-    const langRows = Object.entries(stats.language_distribution || {}).sort((a, b) => b[1] - a[1]);
+    const typeRows = Object.entries(stats.type_counts || {}).sort((a, b) => Number(b[1]) - Number(a[1]));
+    const langRows = Object.entries(stats.language_distribution || {}).sort((a, b) => Number(b[1]) - Number(a[1]));
     const detailTypeCount = typeRows.length;
     const detailExtCount = langRows.length;
     const files = stats.files || _dashAllFiles().length;
@@ -191,7 +191,7 @@ function _dashChartFileTypes(stats, scope) {
   const canvas = document.getElementById(keys.typesId);
   if (!canvas || typeof Chart === "undefined") return;
   const tc = stats.type_counts || {};
-  const sorted = Object.entries(tc).sort((a, b) => b[1] - a[1]);
+  const sorted = Object.entries(tc).sort((a, b) => Number(b[1]) - Number(a[1]));
   if (!sorted.length) return;
   const isDetail = scope === "detail";
   const type = _dashChartCurrentType(keys.typesKey, _DASH_TYPES_DEFAULT);
@@ -241,7 +241,7 @@ function _dashChartLanguageDist(stats, scope) {
   const canvas = document.getElementById(keys.langId);
   if (!canvas || typeof Chart === "undefined") return;
   const langs = stats.language_distribution || {};
-  const sorted = Object.entries(langs).sort((a, b) => b[1] - a[1]).slice(0, 12);
+  const sorted = Object.entries(langs).sort((a, b) => Number(b[1]) - Number(a[1])).slice(0, 12);
   if (!sorted.length) return;
   const isDetail = scope === "detail";
   const type = _dashChartCurrentType(keys.langKey, _DASH_LANG_DEFAULT);
@@ -320,7 +320,7 @@ _dashRegisterWidget({
   defaultSize: "L",
   render(container, size, stats) {
     if (size === "S") {
-      const langs = Object.entries(stats.language_distribution || {}).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([ext, cnt]) => ({
+      const langs = Object.entries(stats.language_distribution || {}).sort((a, b) => Number(b[1]) - Number(a[1])).slice(0, 3).map(([ext, cnt]) => ({
         label: ext || "unknown",
         value: cnt,
         onclick: `_dashOpenFileGroupDrilldown('Files ${_dashEscape(ext || "unknown")}', _dashFilesByExt(${_dashJson(ext)}))`

@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_overview
+﻿// @module Dashboard_view/widgets/widget_overview
 // Codebase snapshot: Files, Functions, LOC, and top File Types in one widget.
 // High-level summary — intentionally shallower than the dedicated KPI widgets.
 

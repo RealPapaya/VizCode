@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_graph_intelligence
+﻿// @module Dashboard_view/widgets/widget_graph_intelligence
 // Graph Intelligence: Hotspot Nodes and Surprising Connections.
 
 function _dashRenderGraphIntelligence(container, stats) {

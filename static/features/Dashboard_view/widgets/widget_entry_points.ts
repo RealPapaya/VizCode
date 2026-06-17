@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_entry_points
+﻿// @module Dashboard_view/widgets/widget_entry_points
 // Dedicated widget — entry points (files not imported by anyone) + isolated
 // files (no edges at all). Both lists are clickable → jump to graph.
 
@@ -20,7 +19,7 @@ function _dashEntryRows(files, limit) {
   return slice.map((f, i) => _dashEntryRow(f, i)).join('');
 }
 
-function _dashRenderEntryPoints(container, stats, opts) {
+function _dashRenderEntryPoints(container, stats, opts?) {
   if (!container) return;
   const entries = stats.entry_point_files || [];
   const isolated = stats.isolated_file_paths || [];

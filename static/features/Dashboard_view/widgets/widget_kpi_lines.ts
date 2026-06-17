@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_kpi_lines
+﻿// @module Dashboard_view/widgets/widget_kpi_lines
 
 _dashRegisterWidget({
     id: 'kpi_lines',

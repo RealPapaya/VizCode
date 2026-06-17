@@ -23,7 +23,7 @@ _dashRegisterWidget({
     const breakdown = stats.tech_debt_breakdown || {};
     const colors = _dashAccentForSlices(_DASH_DEBT_ORDER.length);
     const totalMin = Object.values(breakdown).reduce((a, n) => a + Number(n || 0), 0);
-    const denom = totalMin || 1;
+    const denom = Number(totalMin) || 1;
     const hoursStat = `${hours.toFixed(1)}<small style="font-size:var(--text-xs);color:var(--muted);margin-left:3px">h</small>`;
     if (size === "S") {
       const pills = _DASH_DEBT_ORDER.map((d) => ({ label: _dashT(d.label), value: Number(breakdown[d.key] || 0), key: d.key })).sort((a, b) => b.value - a.value).slice(0, 3).map((d) => ({
@@ -82,7 +82,7 @@ _dashRegisterWidget({
     const breakdown = stats.tech_debt_breakdown || {};
     const colors = _dashAccentForSlices(_DASH_DEBT_ORDER.length);
     const totalMin = Object.values(breakdown).reduce((a, n) => a + Number(n || 0), 0);
-    const denom = totalMin || 1;
+    const denom = Number(totalMin) || 1;
     const nonZero = _DASH_DEBT_ORDER.filter((d) => Number(breakdown[d.key] || 0) > 0);
     const canvasId = "dash-detail-debt-chart";
     const chartKey = "tech_debt_detail_chart";

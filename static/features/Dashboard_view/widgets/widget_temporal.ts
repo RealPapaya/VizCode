@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_temporal
+﻿// @module Dashboard_view/widgets/widget_temporal
 // Phase 2 orchestrator. Lays out the temporal sub-cards and delegates
 // rendering to the per-card sub-widgets. Returns early when there is no git
 // history or no commits in the analysed window.
@@ -14,7 +13,7 @@ function _dashTemporalFind(container, base, scope) {
     return container?.querySelector(`#${_dashTemporalId(base, scope)}`) || null;
 }
 
-function _dashRenderTemporal(container, stats, size, scope) {
+function _dashRenderTemporal(container, stats, size, scope?) {
     if (!container) return;
     container.innerHTML = '';
     if (!stats.has_git_history) return;

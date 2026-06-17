@@ -1,9 +1,8 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
-// @module Dashboard_view/widgets/widget_code_health
+﻿// @module Dashboard_view/widgets/widget_code_health
 
 const _DASH_HEALTH_TRACK_LEN = Math.PI * 88;
 
-function _dashHealthGaugeSvg(score, color, opts = {}) {
+function _dashHealthGaugeSvg(score, color, opts: any = {}) {
     const pct       = Math.max(0, Math.min(1, score / 10));
     const fillLen   = (pct * _DASH_HEALTH_TRACK_LEN).toFixed(2);
     const gapLen    = _DASH_HEALTH_TRACK_LEN.toFixed(2);
