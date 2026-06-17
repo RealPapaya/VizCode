@@ -1,4 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
+﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
 // @module Dashboard_view/widgets/widget_temporal_coupling
 // Phase 2 — Change Coupling (file pairs that change together).
 

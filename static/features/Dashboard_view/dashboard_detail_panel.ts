@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
-// @module Dashboard_view/dashboard_detail_panel
+﻿// @module Dashboard_view/dashboard_detail_panel
 // Shared zoom-to-center detail overlay.
 // Usage: _dashOpenDetailPanel(widgetId, originRect)
 //   originRect = the widget's getBoundingClientRect()
@@ -117,7 +116,7 @@ function _dashGetDetailBody() {
 }
 
 function _dashDetailHeroHTML(widgetId, widget, stats) {
-    const model = _dashDetailReportModel(widgetId, widget, stats || {});
+    const model: any = _dashDetailReportModel(widgetId, widget, stats || {});
     if (model.noHero) return '';
     const metrics = (model.metrics || []).map(m => _dashReportMetricHTML(m)).join('');
     const visual = model.visual || _dashReportBarsHTML(model.metrics || []);
@@ -165,7 +164,7 @@ function _dashReportBarsHTML(items) {
 </div>`;
 }
 
-function _dashReportSection({ title, subtitle, accent, body, className } = {}) {
+function _dashReportSection({ title, subtitle, accent, body, className }: any = {}) {
     const cls = className ? ` ${className}` : '';
     const accentStyle = accent ? ` style="--dash-report-accent:${accent}"` : '';
     const subtitleHTML = subtitle && String(subtitle).includes('<')
@@ -183,17 +182,17 @@ function _dashReportSection({ title, subtitle, accent, body, className } = {}) {
 </section>`;
 }
 
-function _dashReportGrid(items, { columns } = {}) {
+function _dashReportGrid(items, { columns }: any = {}) {
     const cols = columns ? ` dash-report-grid--${columns}` : '';
     return `<div class="dash-report-grid${cols}">${(items || []).join('')}</div>`;
 }
 
-function _dashReportChart(html, { size } = {}) {
+function _dashReportChart(html, { size }: any = {}) {
     const chartSize = size || 'md';
     return `<div class="dash-chart-wrap dash-report-chart dash-report-chart--${chartSize}">${html || ''}</div>`;
 }
 
-function _dashReportList(html, { className, id } = {}) {
+function _dashReportList(html, { className, id }: any = {}) {
     const cls = className ? ` ${className}` : '';
     const idAttr = id ? ` id="${_dashEscape(id)}"` : '';
     return `<div class="dash-report-list${cls}"${idAttr}>${html || ''}</div>`;
@@ -364,7 +363,7 @@ function _dashDetailMetricAction(widgetId, label, value, stats) {
         const rows = [];
         for (const files of Object.values((window.DATA && DATA.files_by_module) || {})) {
             for (const file of files || []) {
-                for (const fn of file.functions || []) {
+                for (const fn of (file as any).functions || []) {
                     rows.push({ file: file.path, name: fn.name, line: fn.line || 0, value: fn.lines != null ? `${fn.lines} lines` : '' });
                 }
             }
@@ -378,8 +377,8 @@ function _dashDetailMetricAction(widgetId, label, value, stats) {
         line: r.line || 0,
         value: r.value ?? (r.complexity != null ? `cx ${r.complexity}` : ''),
     }));
-    const openFiles = (title, rows, options) => () => _dashOpenFileGroupDrilldown(title, rows, options || {});
-    const openFunctions = (title, rows, options) => () => _dashOpenFunctionGroupDrilldown(title, rows, options || {});
+    const openFiles = (title, rows, options?) => () => _dashOpenFileGroupDrilldown(title, rows, options || {});
+    const openFunctions = (title, rows, options?) => () => _dashOpenFunctionGroupDrilldown(title, rows, options || {});
     const fmtExact = typeof _dashFmtExactNum === 'function' ? _dashFmtExactNum : _dashFmtNum;
 
     if (text.includes('comment')) {
@@ -586,7 +585,7 @@ function _dashDetailReportModel(widgetId, widget, stats) {
 
     if (widgetId === 'kpi_functions') {
         const modCount = Object.values((window.DATA || {}).files_by_module || {})
-            .filter(list => (list || []).some(f => (f.func_count || (f.functions || []).length) > 0)).length;
+            .filter(list => (list || []).some(f => (f.func_count || ((f as any).functions || []).length) > 0)).length;
         return Object.assign(base, {
             title: 'Functions',
             eyebrow: 'Function inventory',
@@ -636,8 +635,8 @@ function _dashDetailReportModel(widgetId, widget, stats) {
     }
 
     if (widgetId === 'tech_debt') {
-        const bd = stats.tech_debt_breakdown || {};
-        const minutes = Object.values(bd).reduce((sum, v) => sum + Number(v || 0), 0);
+        const bd: any = stats.tech_debt_breakdown || {};
+        const minutes = Object.values(bd).reduce((sum: number, v) => sum + Number(v || 0), 0);
         return Object.assign(base, {
             title: _dashT('dashTechDebtTitle') || 'Tech Debt',
             eyebrow: 'Remediation estimate',
@@ -910,7 +909,7 @@ function _dashDetailReportModel(widgetId, widget, stats) {
     return base;
 }
 
-function _dashCloseDetailPanel(immediate) {
+function _dashCloseDetailPanel(immediate?) {
     const current  = _dashDetailCurrent;
     const backdrop = current?.backdrop || document.getElementById('dash-detail-backdrop');
     const panel    = current?.panel || document.getElementById('dash-detail-panel');

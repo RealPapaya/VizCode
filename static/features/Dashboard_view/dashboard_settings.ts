@@ -1,4 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
+﻿// @ts-nocheck -- JS->TS migration: deferred (not in page load order / unused). Curate or remove later.
 // @module Dashboard_view/dashboard_settings
 // Global settings modal: only controls git_window_days.
 // Widget layout is configured per-tab via the tab editor in dashboard_dom.js.

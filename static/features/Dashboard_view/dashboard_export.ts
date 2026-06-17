@@ -1,4 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
+﻿// @ts-nocheck -- JS->TS migration: deferred (not in page load order / unused). Curate or remove later.
 // @module Dashboard_view/dashboard_export
 // Print-driven dashboard export. Toggles a body class so print CSS in
 // viz_overlays.css can isolate the dashboard overlay and re-style it for

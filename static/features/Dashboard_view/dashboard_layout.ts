@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
-// @module Dashboard_view/dashboard_layout
+﻿// @module Dashboard_view/dashboard_layout
 // 6x3 bento grid model. Owns:
 //   - Default layout definition
 //   - Browser-style dashboard tabs and localStorage persistence
@@ -64,7 +63,7 @@ function _dashDefaultLayout() {
     return _DASH_DEFAULT_LAYOUT.map(c => ({ ...c }));
 }
 
-function _dashDefaultTab(layout) {
+function _dashDefaultTab(layout?) {
     return {
         id:     _DASH_DEFAULT_TAB_ID,
         name:   'Default',
@@ -136,12 +135,12 @@ function _dashSaveTabsState(state) {
     return normalized;
 }
 
-function _dashGetActiveTab(state) {
+function _dashGetActiveTab(state?) {
     const cfg = state || _dashLoadTabsState();
     return cfg.tabs.find(tab => tab.id === cfg.activeTabId) || cfg.tabs[0];
 }
 
-function _dashActiveTabEditable(state) {
+function _dashActiveTabEditable(state?) {
     const active = _dashGetActiveTab(state);
     return !!active && !active.locked;
 }
@@ -159,6 +158,7 @@ function _dashSaveLayout(cells) {
     _dashSaveTabsState(state);
 }
 
+// @ts-ignore -- duplicate; live impl (dead dashboard_config.ts also declares it)
 function _dashSwitchTab(tabId) {
     const state = _dashLoadTabsState();
     if (!state.tabs.some(tab => tab.id === tabId)) return;
@@ -219,6 +219,7 @@ function _dashDeleteTab(tabId) {
     _dashMountLayout();
 }
 
+// @ts-ignore -- duplicate; live impl (dead dashboard_config.ts also declares it)
 function _dashReorderTabs(orderedIds) {
     const state = _dashLoadTabsState();
     if (!Array.isArray(orderedIds) || orderedIds.length === 0) return;
@@ -259,7 +260,7 @@ function _dashAllWidgetIds() {
         ..._DASH_DEFAULT_LAYOUT.map(c => c.id),
         ..._DASH_OPTIONAL_IDS,
         ...Object.entries(_dashWidgetRegistry)
-            .filter(([, widget]) => !widget.deprecated)
+            .filter(([, widget]: [string, any]) => !widget.deprecated)
             .map(([id]) => id),
     ];
     const result = [...new Set(ordered)].filter(id => {
@@ -438,7 +439,7 @@ function _dashExactPackCells(cells, flow) {
 // Re-pack cells to ensure no overlaps. This never intentionally drops widgets:
 // if a greedy pass cannot place everything, a tiny exact solver finds a complete
 // placement for the 6x3 dashboard grid.
-function _dashReflowCells(cells, options) {
+function _dashReflowCells(cells, options?) {
     const keepOrder = !!(options && options.keepOrder);
     const flow = !!(options && options.flow);
     const normalized = (Array.isArray(cells) ? cells : [])
@@ -505,8 +506,8 @@ function _dashMountLayout() {
 
         el.addEventListener('click', e => {
             if (document.body.classList.contains('dash-customize')) return;
-            if (e.target.closest('.dash-widget-size-picker,.dash-size-btn,.dash-widget-remove-btn,.dash-chart-toggle,.dash-chart-toggle-btn')) return;
-            const actionable = e.target.closest('[data-clickable="true"], [onclick], a[href]');
+            if ((e.target as HTMLElement).closest('.dash-widget-size-picker,.dash-size-btn,.dash-widget-remove-btn,.dash-chart-toggle,.dash-chart-toggle-btn')) return;
+            const actionable = (e.target as HTMLElement).closest('[data-clickable="true"], [onclick], a[href]');
             if (!actionable || !el.contains(actionable)) return;
 
             e.preventDefault();
@@ -516,13 +517,13 @@ function _dashMountLayout() {
 
         el.addEventListener('click', e => {
             if (document.body.classList.contains('dash-customize')) {
-                if (e.target.closest('.dash-widget-remove-btn')) {
+                if ((e.target as HTMLElement).closest('.dash-widget-remove-btn')) {
                     e.stopPropagation();
                     _dashRemoveWidget(cell.id);
                 }
                 return;
             }
-            if (e.target.closest('.dash-widget-size-picker,.dash-size-btn,.dash-chart-toggle,.dash-chart-toggle-btn')) return;
+            if ((e.target as HTMLElement).closest('.dash-widget-size-picker,.dash-size-btn,.dash-chart-toggle,.dash-chart-toggle-btn')) return;
             _dashOpenDetailPanel(cell.id, el.getBoundingClientRect());
         });
 

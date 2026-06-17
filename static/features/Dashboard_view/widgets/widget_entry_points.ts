@@ -1,4 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
+﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
 // @module Dashboard_view/widgets/widget_entry_points
 // Dedicated widget — entry points (files not imported by anyone) + isolated
 // files (no edges at all). Both lists are clickable → jump to graph.

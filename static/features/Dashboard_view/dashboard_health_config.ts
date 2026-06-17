@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
-// @module Dashboard_view/dashboard_health_config
+﻿// @module Dashboard_view/dashboard_health_config
 // Visual config for the Code Health widget. Tune labels / colours / threshold
 // bands here without touching widget rendering code. The numerical formula
 // and weights live on the backend in src/core/code_health.py.

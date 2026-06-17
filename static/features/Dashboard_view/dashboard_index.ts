@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
-// @module Dashboard_view/dashboard_index
+﻿// @module Dashboard_view/dashboard_index
 // Public entry — globals openDashboard / closeDashboard.
 
 async function openDashboard() {

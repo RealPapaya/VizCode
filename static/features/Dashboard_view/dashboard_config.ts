@@ -1,4 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
+﻿// @ts-nocheck -- JS->TS migration: deferred (not in page load order / unused). Curate or remove later.
 // @module Dashboard_view/dashboard_config
 // Tab-based dashboard config: load / save / defaults.
 //
@@ -19,12 +19,13 @@ const _DASH_CONFIG_DEFAULTS = {
     git_window_days: 180,
 };
 
-let _dashConfig = null;   // populated by _dashLoadConfig before each render
+let _dashConfig: any = null;   // populated by _dashLoadConfig before each render
 
 function _dashConfigDefault() {
     return JSON.parse(JSON.stringify(_DASH_CONFIG_DEFAULTS));
 }
 
+// @ts-ignore -- duplicate; dashboard_config.ts is not in the page load order (dead code)
 function _dashConfigCurrent() {
     if (!_dashConfig) _dashConfig = _dashConfigDefault();
     return _dashConfig;
@@ -109,6 +110,7 @@ async function _dashResetConfig() {
 // ── Active-tab helpers ──────────────────────────────────────────────────────
 
 // Returns { widget_order, widget_visible } for the currently active tab.
+// @ts-ignore -- duplicate; dashboard_config.ts is not in the page load order (dead code)
 function _dashGetActiveTabConfig(cfg) {
     const activeId = cfg.active_tab || 'system';
     if (activeId === 'system') {
@@ -132,6 +134,7 @@ function _dashGetActiveTabConfig(cfg) {
 
 // ── Tab CRUD ────────────────────────────────────────────────────────────────
 
+// @ts-ignore -- duplicate; dashboard_config.ts is not in the page load order (dead code)
 async function _dashSwitchTab(tabId) {
     const cfg = _dashConfigCurrent();
     cfg.active_tab = tabId;
@@ -170,6 +173,7 @@ async function _dashSaveCustomTabLayout(id, name, order, visible) {
     await _dashSaveConfig(cfg);
 }
 
+// @ts-ignore -- duplicate; dashboard_config.ts is not in the page load order (dead code)
 async function _dashReorderTabs(orderedIds) {
     const cfg = _dashConfigCurrent();
     if (!Array.isArray(cfg.custom_tabs)) return;

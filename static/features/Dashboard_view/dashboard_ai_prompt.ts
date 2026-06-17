@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
-// @module Dashboard_view/dashboard_ai_prompt
+﻿// @module Dashboard_view/dashboard_ai_prompt
 // AI-assisted remediation prompt generator for problem-focused dashboard
 // detail panels. This module is intentionally frontend-only: it reuses the
 // existing /chat-config readiness check and /chat-stream SSE endpoint.
@@ -570,7 +569,7 @@
         head.insertBefore(btn, close || null);
     }
 
-    function _dashAiOpen(widgetId, stats, defaultScope) {
+    function _dashAiOpen(widgetId, stats, defaultScope?) {
         const items = _dashAiItemsFor(widgetId, stats || {});
         const existing = _dashAiJobs.get(widgetId);
         if (!items.length && !existing) return;

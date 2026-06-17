@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
-// @module Dashboard_view/dashboard_customize
+﻿// @module Dashboard_view/dashboard_customize
 // Inline Edit Mode: drag handles, S/M/L size pickers, Add Widget picker, Reset.
 
 const _DASH_LS_CUSTOMIZE = 'vizcode.dashboard.customize';
@@ -285,8 +284,8 @@ function _dashResolveDragLayout(draggedId, targetCol, targetRow) {
 
     dragged.col = targetCol;
     dragged.row = targetRow;
-    dragged._dashPreferredCol = targetCol;
-    dragged._dashPreferredRow = targetRow;
+    (dragged as any)._dashPreferredCol = targetCol;
+    (dragged as any)._dashPreferredRow = targetRow;
 
     const ordered = [...others];
     ordered.splice(insertAt, 0, dragged);
@@ -297,7 +296,7 @@ function _dashApplyDragReflow(reflowed) {
     const bento = document.getElementById('dashboard-bento');
     if (!bento) return;
 
-    const targetById = new Map(reflowed.map(c => [c.id, c]));
+    const targetById = new Map<string, any>(reflowed.map(c => [c.id, c]));
     bento.querySelectorAll('.dash-widget:not(.dash-dragging)').forEach(el => {
         const targetCell = targetById.get(el.dataset.id);
         if (!targetCell) {

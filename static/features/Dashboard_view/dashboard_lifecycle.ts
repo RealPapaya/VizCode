@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
-// @module Dashboard_view/dashboard_lifecycle
+﻿// @module Dashboard_view/dashboard_lifecycle
 // Hide / restore peer UI when entering / leaving Dashboard mode. Peer UI
 // listed once here so adding a new sibling overlay needs one edit per side.
 

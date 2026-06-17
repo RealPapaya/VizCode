@@ -1,4 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
+﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
 // @module Dashboard_view/widgets/widget_temporal_timeline
 // Phase 2 — Code Churn Timeline. Line chart of commits per week with
 // secondary additions/deletions overlay. Toggleable to bar chart.

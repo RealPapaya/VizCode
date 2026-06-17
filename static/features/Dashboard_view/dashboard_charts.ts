@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
-// @module Dashboard_view/dashboard_charts
+﻿// @module Dashboard_view/dashboard_charts
 // Chart.js helpers shared by every widget. Owns the _dashCharts registry so
 // charts can be destroyed / recreated on re-render.
 //

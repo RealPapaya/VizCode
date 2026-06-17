@@ -61,6 +61,13 @@ interface Func {
   is_public: boolean;
   is_efiapi: boolean;
   doc?: string;
+  // Stats/dashboard-derived func-like objects (longest_functions,
+  // complexity_top_offenders, etc.) reuse this shape with these extra fields:
+  name?: string;
+  line?: number;
+  end_line?: number;
+  lines?: number;
+  complexity?: number;
 }
 
 interface FuncEdge {

@@ -1,4 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
+﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
 // @module Dashboard_view/widgets/widget_temporal
 // Phase 2 orchestrator. Lays out the temporal sub-cards and delegates
 // rendering to the per-card sub-widgets. Returns early when there is no git

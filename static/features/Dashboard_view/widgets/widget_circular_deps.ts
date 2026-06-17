@@ -1,4 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
+﻿// @ts-nocheck -- JS->TS migration: deferred (leaf widget renderer). Curate later.
 // @module Dashboard_view/widgets/widget_circular_deps
 // Dedicated widget — circular dependencies with severity tier, expandable
 // file chain, per-file graph jump, and a "view all" overlay. S/M/L sizes.

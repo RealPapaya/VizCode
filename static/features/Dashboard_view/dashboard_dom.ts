@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
-// @module Dashboard_view/dashboard_dom
+﻿// @module Dashboard_view/dashboard_dom
 // Builds the dashboard overlay shell once and renders the browser-style tab bar.
 
 let _dashBuilt = false;
@@ -250,5 +249,7 @@ function _dashRefreshSections() { return []; }
 function _dashApplyToolbarLabels() {}
 
 // Kept for call-sites in dashboard_config that no longer run.
+// @ts-ignore -- duplicate stub (real impl elsewhere)
 function _dashConfigCurrent() { return {}; }
+// @ts-ignore -- duplicate stub (real impl elsewhere)
 function _dashGetActiveTabConfig() { return {}; }

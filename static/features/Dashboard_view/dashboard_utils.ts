@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
-// @module Dashboard_view/dashboard_utils
+﻿// @module Dashboard_view/dashboard_utils
 // Small formatting, DATA-walking, and shared widget-list UI helpers.
 
 function _dashFmtNum(n) {
@@ -182,7 +181,7 @@ function _dashResolvedLine(filePath, funcName, line) {
     return Number(sym?.line) > 0 ? Number(sym.line) : 0;
 }
 
-function _dashCloseDashboardWindows(options) {
+function _dashCloseDashboardWindows(options?) {
     const opts = options || {};
     if (typeof _dashCloseGroupDrilldown === 'function') _dashCloseGroupDrilldown();
     if (typeof _dashCloseCommitDayDrilldown === 'function') _dashCloseCommitDayDrilldown();
@@ -331,11 +330,11 @@ function _dashNormalizeFileList(files) {
     return out;
 }
 
-function _dashOpenFileGroupDrilldown(title, files, options) {
+function _dashOpenFileGroupDrilldown(title, files, options?) {
     _dashOpenGroupDrilldown(title, _dashNormalizeFileList(files), 'file', options || {});
 }
 
-function _dashOpenFunctionGroupDrilldown(title, functions, options) {
+function _dashOpenFunctionGroupDrilldown(title, functions, options?) {
     const rows = (functions || []).filter(fn => fn && fn.file).map(fn => ({
         file: String(fn.file).replace(/\\/g, '/'),
         name: fn.name || fn.label || '?',
@@ -393,7 +392,7 @@ function _dashOpenGroupDrilldown(title, rows, kind, options) {
 </div>`;
     document.body.appendChild(overlay);
     overlay.addEventListener('click', e => {
-        if (e.target === overlay || e.target.closest('[data-close-group]')) _dashCloseGroupDrilldown();
+        if (e.target === overlay || (e.target as HTMLElement).closest('[data-close-group]')) _dashCloseGroupDrilldown();
     });
     if (!_dashGroupDrillEscBound) {
         document.addEventListener('keydown', _dashGroupDrillKeyHandler);
@@ -457,7 +456,7 @@ function _dashSettingsBindReorder(list, onReorder) {
     let dragged = null;
 
     list.addEventListener('dragstart', e => {
-        const row = e.target.closest('.dash-settings-row');
+        const row = (e.target as HTMLElement).closest('.dash-settings-row');
         if (!row) return;
         dragged = row;
         row.classList.add('dragging');
@@ -471,7 +470,7 @@ function _dashSettingsBindReorder(list, onReorder) {
     list.addEventListener('dragover', e => {
         e.preventDefault();
         if (!dragged) return;
-        const target = e.target.closest('.dash-settings-row');
+        const target = (e.target as HTMLElement).closest('.dash-settings-row');
         if (!target || target === dragged) return;
         const rect = target.getBoundingClientRect();
         const before = (e.clientY - rect.top) < rect.height / 2;

@@ -1,5 +1,4 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
-// @module Dashboard_view/dashboard_drilldown
+﻿// @module Dashboard_view/dashboard_drilldown
 // In-dashboard detail panel for hotspot files. Opens an overlay above the
 // dashboard (not a navigation event) showing:
 //   1. Functions in this file ranked by current cyclomatic complexity
