@@ -5,3 +5,7 @@
 build/** linguist-generated=true
 build/** -diff
 build/** merge=ours
+# Treat build output as binary so core.autocrlf never rewrites line endings:
+# esbuild always emits LF, the repo stores LF — without this, autocrlf=true users
+# see every build/*.js as "modified" (CRLF in working tree) after each rebuild.
+build/** -text
