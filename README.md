@@ -2,27 +2,24 @@
 
 > **Understand any codebase at a glance — without installing anything.**
 
-VizCode is a local-first code visualization tool that scans your project and renders an interactive dependency graph directly in your browser. No cloud uploads, no API keys, no `pip install`. Just run it and explore.
-
-![VizCode dashboard showing code health, commit activity, code churn, file overview, tech debt, and architecture issues](docs/images/hero.png)
-
-**Explore large codebases visually:** dependency graphs, symbol navigation, code health, architecture issues, AI-ready reports, and local browser analysis.
-
-[Demo](#demo) · [Quick start](#quick-start) · [AI integration](#ai-assistant-integration)
+VizCode is a local-first code visualization tool that scans your project and renders an interactive dependency graph directly in your browser. No cloud uploads, no API keys, no `pip install`. Just run it and explore dependency graphs, symbol navigation, code health, architecture issues, AI-ready reports, and local browser analysis.
 
 ---
 
 ## Demo
 
-Watch VizCode scan a project, open the browser UI, and move from high-level code health into graph and symbol-level exploration.
+### VizcodeDemo
 
-### Demo Videos
+<!-- 在 GitHub 網頁編輯 README，把 VizcodeDemo.mp4 直接拖進來，
+     會自動產生一行 https://github.com/user-attachments/assets/... 連結，
+     貼在下面這一行（保持「裸連結」，不要包 <video> 或 []()）即可內嵌播放。 -->
+https://github.com/user-attachments/assets/REPLACE_WITH_UPLOADED_VizcodeDemo
 
-https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo.mp4
+### VizcodeDemo2
 
-https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo2.mp4
+https://github.com/user-attachments/assets/REPLACE_WITH_UPLOADED_VizcodeDemo2
 
-### Codebase Overview
+### Interface Preview
 
 VizCode starts with a dashboard that summarizes project size, code health, commit activity, churn, hotspots, tech debt, and architecture issues before you dive into individual files.
 
