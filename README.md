@@ -16,11 +16,11 @@ VizCode is a local-first code visualization tool that scans your project and ren
 
 Watch VizCode scan a project, open the browser UI, and move from high-level code health into graph and symbol-level exploration.
 
-### Short Demo
+![VizCode demo reel](docs/images/demo-reel.webp)
+
+### Full Videos
 
 https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo.mp4
-
-### Full Walkthrough
 
 https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo2.mp4
 

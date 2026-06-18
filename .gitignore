@@ -10,6 +10,7 @@ venv/
 # ── VizCode caches & local state ────────────────────────────────────────────
 .vizcode/
 .local/
+.local-tools/
 *.log
 scan_result_debug.json
 parsers/
