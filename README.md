@@ -8,13 +8,27 @@ VizCode is a local-first code visualization tool that scans your project and ren
 
 **Explore large codebases visually:** dependency graphs, symbol navigation, code health, architecture issues, AI-ready reports, and local browser analysis.
 
-[Watch demo video](https://github.com/RealPapaya/VizCode/releases/latest) · [Quick start](#quick-start) · [AI integration](#ai-assistant-integration)
+[Demo](#demo) · [Quick start](#quick-start) · [AI integration](#ai-assistant-integration)
 
 ---
 
 ## Demo
 
-[Watch the latest demo video](https://github.com/RealPapaya/VizCode/releases/latest) to see VizCode scan a project, open the browser UI, and move from high-level code health into graph and symbol-level exploration.
+Watch VizCode scan a project, open the browser UI, and move from high-level code health into graph and symbol-level exploration.
+
+### Short Demo
+
+<video src="https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo.mp4" controls width="100%"></video>
+
+### Full Walkthrough
+
+<video src="https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo2.mp4" controls width="100%"></video>
+
+### Codebase Overview
+
+VizCode starts with a dashboard that summarizes project size, code health, commit activity, churn, hotspots, tech debt, and architecture issues before you dive into individual files.
+
+![VizCode dashboard showing code health, commit activity, code churn, file overview, tech debt, and architecture issues](docs/images/hero.png)
 
 ---
 
