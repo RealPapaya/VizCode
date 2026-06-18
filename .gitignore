@@ -26,6 +26,14 @@ note/
 # build` after editing any static/*.ts and commit the regenerated build/.
 node_modules/
 
+# README/demo media
+# Keep large videos in GitHub Releases or YouTube, not in the repository.
+docs/videos/*.mp4
+docs/videos/*.mov
+docs/videos/*.webm
+!docs/videos/.gitkeep
+!docs/videos/README.md
+
 # ── OS / IDE ────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db

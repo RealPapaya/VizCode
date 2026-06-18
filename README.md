@@ -4,11 +4,32 @@
 
 VizCode is a local-first code visualization tool that scans your project and renders an interactive dependency graph directly in your browser. No cloud uploads, no API keys, no `pip install`. Just run it and explore.
 
-![VizCode Screenshot](docs/screenshot.png)
+![VizCode dashboard showing code health, commit activity, code churn, file overview, tech debt, and architecture issues](docs/images/hero.png)
+
+**Explore large codebases visually:** dependency graphs, symbol navigation, code health, architecture issues, AI-ready reports, and local browser analysis.
+
+[Watch demo video](https://github.com/RealPapaya/VizCode/releases/latest) · [Quick start](#quick-start) · [AI integration](#ai-assistant-integration)
 
 ---
 
-## ✨ Features
+## Demo
+
+[Watch the latest demo video](https://github.com/RealPapaya/VizCode/releases/latest) to see VizCode scan a project, open the browser UI, and move from high-level code health into graph and symbol-level exploration.
+
+---
+
+## Why VizCode?
+
+Most code tools make you read files one by one. VizCode turns the project into a navigable map so you can see structure, hotspots, dependencies, symbols, and AI context before opening source.
+
+- **See architecture first** — jump from project overview to modules, files, functions, and symbols.
+- **Find risky areas fast** — code health, churn, dead code, circular dependencies, tech debt, and hotspots.
+- **Navigate with context** — search, graph traversal, back/forward history, and symbol-focused views.
+- **Feed AI better context** — MCP tools expose structured codebase knowledge instead of raw file dumps.
+
+---
+
+## Features
 
 - **Zero dependencies** — pure Python standard library on the backend. Nothing to install.
 - **Multi-language** — deep parsers for Python, JavaScript/TypeScript, Go, C/C++/BIOS/EDK2. 50+ additional languages via a universal fallback parser (Java, Rust, Swift, Kotlin, Ruby, PHP, and more).
