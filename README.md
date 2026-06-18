@@ -124,18 +124,18 @@ python src/vizcode.py <path> --ai "..."   # one-shot question, prints the answer
 
 ```
 launch.bat  (or /vizcode --parse)
-  └─▶ vizcode.py          (TUI — pick a directory)
-        └─▶ server.py     (HTTP server on :7777)
-              └─▶ analyze_viz.py   (scan → build graph JSON)
-                    ├─▶ detector.py        (auto-detect project type)
-                    └─▶ parsers/*.py       (per-language AST extraction)
+  └─▶ src/vizcode.py            (TUI — pick a directory)
+        └─▶ src/server/server.py     (HTTP server on :7777)
+              └─▶ src/core/analyze_viz.py   (scan → build graph JSON)
+                    ├─▶ src/core/detector.py     (auto-detect project type)
+                    └─▶ src/parsers/*.py         (per-language AST extraction)
                               ↓
-                    browser ← launcher.html + inlined JS/CSS
+                    browser ← html_builder.py + build/*.js (compiled TS)
 
-python vizcode.py <path> --scan-only   (headless scan for AI tools)
+python src/vizcode.py <path> --scan-only   (headless scan for AI tools)
   └─▶ .vizcode/scan_cache.json
   └─▶ .vizcode/INDEX.md + L1/ + L2/ + L3/ (hierarchical report tree)
-  └─▶ mcp_server.py                   (MCP stdio, used by all AI tools)
+  └─▶ src/server/mcp_server.py        (MCP stdio, used by all AI tools)
         └─▶ vizcode_l0 / l1 / l2 / l3 / query / path / health / …
 
 /vizcode --ai  (Claude Code only — semantic enrichment)
@@ -165,45 +165,38 @@ The browser graph shows static edges (imports, calls). The MCP server additional
 
 ```
 VizCode/
-├── vizcode.py           # TUI entry point  (--scan-only for headless scan)
-├── server.py            # HTTP server + API endpoints
-├── analyze_viz.py       # Core analysis engine
-├── detector.py          # Project type detection
-├── semantic_enricher.py # Semantic cache I/O (read/write .vizcode/semantic_cache.json)
-├── mcp_server.py        # MCP stdio server (vizcode_query/path/explain)
-├── parsers/
-│   ├── python_parser.py
-│   ├── js_parser.py
-│   ├── go_parser.py
-│   ├── c_cpp_parser.py
-│   ├── csharp_parser.py
-│   ├── bios_parser.py
-│   └── common_parser.py
-├── static/
-│   ├── viz.js / viz.css          # Main frontend (boot + styles)
-│   ├── viz_graph.js              # Cytoscape graph engine
-│   ├── viz_search.js             # Streaming fuzzy search
-│   ├── viz_galaxy.js             # Galaxy View (Sigma.js WebGL)
-│   ├── symbol_view.js            # Symbol-Centric Graph
-│   ├── trail_layouter.js         # Sugiyama layout engine
-│   └── ...
-├── .mcp.json            # MCP server declaration for Claude Code
+├── src/
+│   ├── vizcode.py            # CLI / TUI entry point  (--scan-only / --chat / --ai)
+│   ├── core/                 # analyze_viz (graph pipeline) · html_builder · detector ·
+│   │                         #   semantic_enricher · analytics_helpers · git_history · …
+│   ├── parsers/              # one parser per language: python, js, go, c_cpp, csharp +
+│   │                         #   ~35 long-tail · firmware (uefi/acpi/asm) · common_parser
+│   └── server/               # server (HTTP+API) · job_manager · fetcher · mcp_server
 ├── ai/
-│   ├── install.py       # Deploy AI configs: python ai/install.py --all
-│   ├── skill_body.md    # Shared skill content (single source of truth)
-│   ├── mcp_template.json
-│   └── templates/       # Per-platform frontmatter (cursor/windsurf/gemini/copilot)
+│   ├── vizbridge.py          # Web AI: provider routing + tool-use loop
+│   ├── chat_cli.py · install.py
+│   └── providers/            # anthropic · openai · gemini · grok · ollama · custom
+├── static/                   # TypeScript SOURCE — edit here (*.ts)
+│   ├── viz.ts                # SPA bootstrap (D3 + Cytoscape main view)
+│   ├── core/ ui/ styles/     # i18n/state/constants · layout/sidebar/toolbar · css
+│   ├── features/             # graph/ · galaxy_view/ · Dashboard_view/ · symbol_view/ · …
+│   └── types/                # data.d.ts (backend JSON contract) · globals.d.ts
+├── build/                    # COMMITTED esbuild output — the *.js the browser loads.
+│                             #   Generated from static/*.ts; never hand-edit.
+├── package.json · build.mjs · dev.mjs · tsconfig.json   # frontend toolchain (npm)
 ├── .vizcode/
 │   ├── scan_cache.json        # Per-file AST cache
 │   ├── semantic_cache.json    # AI-inferred edges (written by /vizcode --ai)
 │   ├── INDEX.md               # L0 report (~100-200 lines, always start here)
-│   ├── L1/<module>.md         # Per-module file map
-│   ├── L2/<module>/<file>.md  # Per-file function call graph
-│   └── L3/<module>/<file>.md  # Per-file symbol browser
-├── launch.bat           # One-click launcher (Windows)
-├── launch.sh            # One-click launcher (macOS / Linux)
-└── pyproject.toml       # Packaging — `pip install -e .` for a `vizcode` command
+│   └── L1/ · L2/ · L3/        # Per-module / file / symbol report trees
+├── .mcp.json                 # MCP server declaration for Claude Code
+├── launch.bat · launch.sh    # One-click launchers (Windows / macOS / Linux)
+└── pyproject.toml            # Packaging — `pip install -e .` for a `vizcode` command
 ```
+
+> **Backend is zero-install** (pure Python stdlib). The **frontend is TypeScript** but
+> ships pre-compiled in `build/`, so end-users still need nothing but Python. Node is
+> only required to *modify* the frontend — see [Development](#-development).
 
 ---
 
@@ -221,20 +214,54 @@ VizCode/
 
 ---
 
+## 🧑‍💻 Development
+
+End-users need **nothing but Python** — `build/` is committed. Node is only required if
+you want to **change the frontend**, which is written in TypeScript under `static/**/*.ts`
+and compiled to `build/**/*.js` with [esbuild](https://esbuild.github.io/).
+
+```bash
+npm install          # one-time: esbuild + typescript (dev-only)
+
+npm run build        # compile static/*.ts → build/*.js  (commit build/ with your change)
+npm run check        # type-check only (tsc --noEmit) — keep it clean
+npm run dev          # ⚡ watch + run: rebuilds build/ on save AND launches the app
+```
+
+### `npm run dev` — the live dev loop
+
+```bash
+npm run dev                 # analyse "." (dogfood VizCode on itself)
+npm run dev -- <path>       # analyse another project
+```
+
+It starts an esbuild **watch** (rebuilds `build/` on every `.ts` save) and launches
+`python src/vizcode.py <path>` (server + browser). Edit a `.ts` file, then just **refresh
+the browser (Ctrl+F5)** — no restart needed, because the server re-reads `build/` on every
+request. Stop with `Ctrl+C`. *(Adding a brand-new `.ts` file? Restart `npm run dev` so the
+watch list picks it up.)*
+
+> **Editing the frontend:** change `static/**/*.ts`, **never** `build/**/*.js` (generated).
+> Run `npm run build` and commit the regenerated `build/` alongside your source change.
+> Backend → frontend JSON shapes live in `static/types/data.d.ts`.
+
+---
+
 ## 🛠️ Extending VizCode
 
 ### Add a new language parser
 
-1. Create `parsers/mylang_parser.py` with a `scan_mylang(src, ext)` function returning a 6-tuple:
+1. Create `src/parsers/mylang_parser.py` with a `scan_mylang(src, ext)` function returning a 6-tuple:
    ```python
    return (imports, funcdefs, funccalls, extra, calls_by_func, symbol_defs)
    ```
-2. Dispatch it in `analyze_viz.py` → `scan_file()`.
-3. Register the extension in `SCAN_EXT` / `FILE_TYPE_MAP`.
+2. Dispatch it in `src/core/analyze_viz.py` → `scan_file()`, and register the extension in `SCAN_EXT`.
+3. Add the file type to `src/core/detector.py` and the legend in `static/core/viz_constants.ts`.
 
 ### Add a new theme
 
-Edit `static/themes.css` — each theme is a single CSS class applied to `<body>`.
+Edit the theme CSS under `static/styles/` — each theme is a single CSS class applied to
+`<body>`. Run `npm run build` afterwards so the change lands in `build/`.
 
 ---
 
