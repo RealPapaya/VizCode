@@ -89,6 +89,11 @@ const CY_STYLE = [
             'text-events': 'no',
         }
     },
+    // Perf-lite (very large graphs only — toggled by _applyAdaptivePerfMode):
+    // opaque edges are >2× faster to draw with arrows than semitransparent ones, and
+    // edge-label text is the single most expensive per-edge cost. Placed BEFORE the
+    // state rules below so :selected / .edge-hovered / .faded / .hl-* still win.
+    { selector: 'edge.perf-lite', style: { 'opacity': 1, 'label': '' } },
     // Edge selected state — bold highlight without shadow (shadow is expensive on canvas)
     {
         selector: 'edge:selected', style: {

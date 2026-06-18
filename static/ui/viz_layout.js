@@ -605,7 +605,28 @@ function _currentViewKey() {
     return null;
 }
 
+// ── Adaptive perf mode ──────────────────────────────────────────────────────
+// Above this many edges, drop the two most expensive at-rest edge costs (label
+// text + semitransparent draw) by tagging every edge .perf-lite. Below it, edges
+// render exactly as before. Gated high on purpose: typical graphs are byte-for-byte
+// unchanged — only graphs already heavy enough to lag get the cheaper draw. Note:
+// re-evaluated on every full level render (this is the single choke point for
+// L0/L1/L2); small incremental expansions inherit the last-applied mode.
+const _PERF_LITE_EDGE_THRESHOLD = 600;
+function _applyAdaptivePerfMode() {
+    if (typeof cy === 'undefined' || !cy) return;
+    const edges = cy.edges();
+    const lite = edges.length >= _PERF_LITE_EDGE_THRESHOLD;
+    const tagged = edges.filter('.perf-lite').length;
+    if (lite && tagged !== edges.length) {
+        cy.batch(() => edges.addClass('perf-lite'));
+    } else if (!lite && tagged) {
+        cy.batch(() => edges.removeClass('perf-lite'));
+    }
+}
+
 function applyLayoutWithCache(viewKey, config, onStop) {
+    _applyAdaptivePerfMode();
     const cached = viewKey ? _layoutCacheGet(viewKey) : null;
     if (cached && cached.positions && cached.positions.size) {
         console.log(`[layout] cache hit: ${viewKey}`);
