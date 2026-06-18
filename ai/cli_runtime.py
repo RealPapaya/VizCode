@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import queue
+import re
 import shutil
 import subprocess
 import sys
@@ -37,7 +38,7 @@ class CliDefinition:
     version_args: tuple[str, ...] = ("--version",)
     prompt_transport: str = "stdin"  # "stdin" or "arg"
 
-    def launch_args(self, model: str = "") -> list[str]:
+    def launch_args(self, model: str = "", reasoning: str = "") -> list[str]:
         model = (model or "").strip()
         if self.key == "claude":
             args = ["--print"]
@@ -45,9 +46,15 @@ class CliDefinition:
                 args += ["--model", model]
             return args
         if self.key == "codex":
-            args = ["exec"]
+            # read-only sandbox: this is a Q&A chat, codex must never edit the repo.
+            # A low default reasoning effort keeps replies responsive (the vizcode_*
+            # tools do the heavy analysis; codex only routes calls + phrases the answer).
+            args = ["exec", "--sandbox", "read-only"]
             if model:
                 args += ["--model", model]
+            effort = (reasoning or "").strip()
+            if effort:
+                args += ["-c", f'model_reasoning_effort="{effort}"']
             return args
         if self.key == "gemini":
             args = []
@@ -205,9 +212,26 @@ def availability_report(cfg: dict | None = None) -> dict:
     }
 
 
+_PROTOCOL_MARKER_RE = re.compile(r'^(?:[-*>]\s+|\d+[.)]\s+)+')
+
+
+def _normalize_protocol_candidate(line: str) -> str:
+    """Strip Markdown wrappers codex sometimes adds around a protocol line.
+
+    Tolerates surrounding inline-code backticks and leading bullet / blockquote /
+    list markers so e.g. '`VIZCODE_TOOL {...}`' or '- VIZCODE_TOOL {...}' still parse
+    as protocol lines instead of leaking to the user as prose.
+    """
+    s = line.strip()
+    if len(s) >= 2 and s.startswith("`") and s.endswith("`"):
+        s = s.strip("`").strip()
+    s = _PROTOCOL_MARKER_RE.sub("", s)
+    return s
+
+
 def parse_protocol_line(line: str, tool_id: str) -> dict | None:
     """Parse a strict CLI protocol line into a provider event."""
-    stripped = line.strip()
+    stripped = _normalize_protocol_candidate(line)
     event_kind = ""
     payload = ""
     if stripped.startswith(_TOOL_PREFIX):
@@ -257,6 +281,7 @@ class CliRuntime:
         key = str(cfg.get("cli_agent") or "claude").lower()
         self._defn = CLI_DEFINITIONS.get(key) or CLI_DEFINITIONS["claude"]
         self._model = str(cfg.get("cli_model") or "").strip()
+        self._reasoning = str(cfg.get("codex_reasoning_effort") or "low").strip()
         self._timeout = int(cfg.get("cli_timeout_seconds") or _DEFAULT_TIMEOUT_SECONDS)
 
     @property
@@ -282,7 +307,7 @@ class CliRuntime:
             return
 
         prompt = build_cli_prompt(system, messages, tools)
-        cmd = [detected["path"], *self._defn.launch_args(self._model)]
+        cmd = [detected["path"], *self._defn.launch_args(self._model, self._reasoning)]
         stdin_text = prompt
         if self._defn.prompt_transport == "arg":
             cmd.append(prompt)
@@ -381,8 +406,10 @@ class CliRuntime:
             try:
                 parsed = parse_protocol_line(line, f"cli_tool_{tool_counter}")
             except Exception as exc:
-                yield {"type": "error", "message": f"Invalid CLI protocol line: {exc}"}
-                return
+                # A single malformed protocol line must not kill the turn — note it and
+                # keep reading so codex's surrounding prose still reaches the user.
+                yield {"type": "status", "message": f"Ignored malformed tool request ({exc})."}
+                continue
             if parsed:
                 if parsed["type"] == "tool_use":
                     tool_counter += 1
