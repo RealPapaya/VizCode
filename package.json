@@ -1,0 +1,14 @@
+{
+  "name": "vizcode-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Build + type-check toolchain for the VizCode frontend. The app itself runs with no Node — build/ is committed so end-users stay zero-install.",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0"
+  }
+}

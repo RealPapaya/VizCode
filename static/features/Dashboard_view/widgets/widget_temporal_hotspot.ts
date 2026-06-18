@@ -1,0 +1,39 @@
+﻿// @module Dashboard_view/widgets/widget_temporal_hotspot
+// Phase 2 — Hotspot files (churn × complexity ranking).
+
+function _dashRenderTemporalHotspot(container, stats) {
+    if (!container) return;
+
+    const items = stats.hotspot_files || [];
+    const isReport = container.classList.contains('dash-report-section');
+    container.innerHTML = isReport ? `
+<div class="dash-report-section-head">
+  <div class="dash-report-section-title">${_dashEscape(_dashT('dashTemporalHotspot'))}</div>
+</div>
+<div class="dash-report-section-body"><div class="dash-report-list" id="dash-temporal-hotspot-list"></div></div>` : `
+<div class="dash-card-title">
+  <span class="dash-card-title-dot"></span>${_dashEscape(_dashT('dashTemporalHotspot'))}
+</div>
+<div class="dash-list" id="dash-temporal-hotspot-list"></div>`;
+
+    const list = container.querySelector('#dash-temporal-hotspot-list');
+    if (!list) return;
+    if (!items.length) {
+        list.innerHTML = `<div class="dash-empty">${_dashEscape(_dashT('dashTemporalEmpty'))}</div>`;
+        return;
+    }
+    const max = items[0].score || 1;
+    list.innerHTML = items.slice(0, 10).map((it, i) => {
+        const fileShort = String(it.file || '').split('/').pop();
+        const cxLabel = (it.avg_complexity != null) ? `cx ${it.avg_complexity}` : 'cx —';
+        const fileJSON = JSON.stringify(it.file).replace(/"/g, '&quot;');
+        return `
+<div class="dash-list-row" data-clickable="true" data-tip="${_dashEscape(it.file)}"
+     onclick="_dashOpenDrilldown(${fileJSON})">
+  <span class="dash-list-rank">${i + 1}</span>
+  <span class="dash-list-name">${_dashEscape(fileShort)}<span class="dash-list-meta">${cxLabel} · ${it.churn} commits</span></span>
+  <div class="dash-list-bar-track"><div class="dash-list-bar-fill" style="width:${Math.round(it.score / max * 100)}%"></div></div>
+  <span class="dash-list-val">${it.score}</span>
+</div>`;
+    }).join('');
+}

@@ -1,0 +1,7 @@
+# Compiled frontend output (esbuild). Committed so end-users stay zero-install,
+# but generated from static/*.ts|js — never hand-edit. These attributes keep the
+# generated files out of diffs and auto-resolve merge conflicts in their favour
+# (re-run `npm run build` after merging to regenerate).
+build/** linguist-generated=true
+build/** -diff
+build/** merge=ours

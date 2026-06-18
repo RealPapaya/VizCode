@@ -34,9 +34,15 @@ body.overview-sankey-mode #code-panel.open {
     box-shadow: -8px 0 24px rgba(0, 0, 0, .35);
 }
 
-/* Resizer would dangle in flow once the panel is absolute — hide it here. */
+/* Resizer in Sankey mode: overlaps the left edge of the floating code panel (acts as its own handle),
+   so the visual boundary matches exactly where the panel starts despite the box-shadow overhang. */
 body.overview-sankey-mode #resizer {
-    display: none !important;
+    position: absolute;
+    right: calc(var(--code-panel) - 6px);
+    top: 0;
+    bottom: 0;
+    height: 100%;
+    z-index: 42;
 }
 
 /* Code Panel Header */

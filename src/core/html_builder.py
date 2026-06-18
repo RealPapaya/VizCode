@@ -573,6 +573,12 @@ def build_html(data: dict, job_id: str = None) -> str:
         base / 'features' / 'symbol_view' / 'symbol_view.css',
         base / 'styles' / 'viz_chat.css',
     ]
+    # JS is read from the compiled output (build/), produced by `npm run build`
+    # (esbuild strips TypeScript types; see package.json / build.mjs). CSS above
+    # stays in static/ — it is not compiled. The `missing` check below then also
+    # guards that the build ran. css_assets is already materialised above, so
+    # reassigning `base` here only affects the js_assets paths.
+    base = _ROOT_DIR / 'build'
     js_assets = [
         # ── core ──────────────────────────────────────────────────────────────
         base / 'core' / 'i18n.js',
