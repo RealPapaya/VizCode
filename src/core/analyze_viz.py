@@ -1236,12 +1236,16 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         key: {'stage': key, 'stage_label': label, 'stage_index': idx + 1, 'stage_total': len(stage_flow)}
         for idx, (key, label) in enumerate(stage_flow)
     }
+    # Stage windows are sized to wall-clock reality on large repos: the single
+    # pruned walk (scan) is fast, parsing (analysis) dominates, dependency
+    # resolution (edge) is the next-heaviest. Keep scan/detect small so the bar
+    # doesn't sit frozen in a phase that only owns a sliver of the runtime.
     stage_ranges = {
-        'scan': (0, 18),
-        'detect': (18, 26),
-        'analysis': (26, 84),
-        'node': (84, 90),
-        'edge': (90, 99),
+        'scan': (0, 6),
+        'detect': (6, 9),
+        'analysis': (9, 86),
+        'node': (86, 91),
+        'edge': (91, 99),
         'finalize': (99, 100),
     }
 
@@ -1270,43 +1274,45 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     if include_dirs:
         skip_dirs -= set(include_dirs)
 
-    raw_total_project_files = 0
-    raw_total_project_dirs = 0
-    for _dp, _dns, _fns in os.walk(root):
-        raw_total_project_dirs += len(_dns)
-        raw_total_project_files += len(_fns)
-
     def _rel_path(path: str) -> str:
         return os.path.relpath(path, root).replace('\\', '/')
 
+    # Single-pass walk. skip_dirs (node_modules/.git/build/…) and .gitignore'd
+    # directories are PRUNED, never descended — previously we did a full unpruned
+    # walk just to count them, plus a re-walk of every ignored subtree, which is
+    # what made the first slice of the bar eat most of the wall-clock on big
+    # repos. The tradeoff: files inside skipped dirs are no longer enumerated, so
+    # the "in skipped dirs" count is reported as 0 and total_dirs_skipped counts
+    # skipped subtree *roots* rather than every nested folder. Progress is
+    # emitted as we go so the bar advances instead of freezing at 0 %.
     def _collect_project_files(ignore_filter: _GitIgnoreFilter):
         visible_paths = []
-        ignored_rel_paths = set()
+        ignored_file_count = 0
         dirs_scanned = 0
-
-        def _remember_ignored_file(abs_path: str) -> None:
-            ignored_rel_paths.add(_rel_path(abs_path))
-
-        def _remember_ignored_dir(abs_dir: str) -> None:
-            for _idp, _idns, _ifns in os.walk(abs_dir):
-                _idns[:] = [d for d in _idns if d not in skip_dirs]
-                for _ifn in _ifns:
-                    _remember_ignored_file(os.path.join(_idp, _ifn))
+        skipped_dir_roots = 0
+        next_emit = 2000
 
         for dirpath, dirnames, filenames in os.walk(root):
-            dirnames[:] = [d for d in dirnames if d not in skip_dirs]
+            kept_dirs = []
+            for d in dirnames:
+                if d in skip_dirs:
+                    skipped_dir_roots += 1
+                else:
+                    kept_dirs.append(d)
+            dirnames[:] = kept_dirs
+
             if ignore_filter.enabled and dirnames:
                 rel_dirs = [f'{_rel_path(os.path.join(dirpath, d))}/' for d in dirnames]
                 ignored_dirs = ignore_filter.ignored(rel_dirs)
-                kept_dirs = []
-                for dirname in dirnames:
-                    abs_dir = os.path.join(dirpath, dirname)
-                    rel_dir = _rel_path(abs_dir).rstrip('/')
-                    if rel_dir in ignored_dirs:
-                        _remember_ignored_dir(abs_dir)
-                    else:
-                        kept_dirs.append(dirname)
-                dirnames[:] = kept_dirs
+                if ignored_dirs:
+                    kept_dirs = []
+                    for dirname in dirnames:
+                        rel_dir = _rel_path(os.path.join(dirpath, dirname)).rstrip('/')
+                        if rel_dir in ignored_dirs:
+                            skipped_dir_roots += 1
+                        else:
+                            kept_dirs.append(dirname)
+                    dirnames[:] = kept_dirs
             dirs_scanned += len(dirnames)
 
             if ignore_filter.enabled and filenames:
@@ -1317,32 +1323,46 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
 
             for fname in filenames:
                 fp = os.path.join(dirpath, fname)
-                rel = _rel_path(fp)
-                if rel in ignored_files_here:
-                    ignored_rel_paths.add(rel)
+                if ignored_files_here and _rel_path(fp) in ignored_files_here:
+                    ignored_file_count += 1
                     continue
                 visible_paths.append(fp)
+
+            if len(visible_paths) >= next_emit:
+                next_emit += 2000
+                # Asymptotic 0→1 ramp: the bar advances with files found but
+                # never reaches the top of the scan window before the walk ends.
+                frac = len(visible_paths) / (len(visible_paths) + 8000)
+                _cb(
+                    _stage_pct('scan', frac),
+                    f'Scanning files… {len(visible_paths):,} found',
+                    stage='scan',
+                )
 
         source_paths = []
         for fp in visible_paths:
             ext = Path(fp).suffix.lower()
             if ext in SCAN_EXT and ext not in SKIP_EXT:
                 source_paths.append(fp)
-        return visible_paths, source_paths, len(ignored_rel_paths), dirs_scanned
+        return visible_paths, source_paths, ignored_file_count, dirs_scanned, skipped_dir_roots
 
     ignore_filter = _build_git_ignore_filter(root)
     try:
-        visible_file_paths, all_files, ignored_files, total_dirs_scanned = _collect_project_files(ignore_filter)
+        visible_file_paths, all_files, ignored_files, total_dirs_scanned, skipped_dir_roots = _collect_project_files(ignore_filter)
     except _GitIgnoreFilterError:
         ignore_filter = _GitIgnoreFilter(root, enabled=False)
-        visible_file_paths, all_files, ignored_files, total_dirs_scanned = _collect_project_files(ignore_filter)
+        visible_file_paths, all_files, ignored_files, total_dirs_scanned, skipped_dir_roots = _collect_project_files(ignore_filter)
 
-    total_project_files = max(0, raw_total_project_files - ignored_files)
-    total_project_dirs = raw_total_project_dirs
+    # "Project files" = everything we actually walked (skip/ignored dir contents
+    # are intentionally excluded — we no longer descend them). total_dirs_skipped
+    # is derived downstream as total_project_dirs - total_dirs_scanned, which
+    # equals the skipped subtree-root count.
+    total_project_files = len(visible_file_paths)
+    total_project_dirs = total_dirs_scanned + skipped_dir_roots
 
     total = len(all_files)
     _cb(
-        _stage_pct('scan', 0.7),
+        _stage_pct('scan', 1.0),
         f'Found {total_project_files} project files ({total} source files)',
         stage='scan',
         total_files=total,
@@ -1562,7 +1582,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     except Exception:
         pass  # cache write failures are non-fatal
 
-    # ── Phase X: Collect ALL other files + count skipped dirs + total dirs ───────
+    # ── Phase X: Collect ALL other (non-source) files for the UI ─────────────────
     # Other files are not analysed for deps but shown in UI for full codebase picture.
     _cb(
         _stage_pct('node', 0.0),
@@ -2624,10 +2644,10 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             'binary_files':       total_binary,   # subset of other_files that are binary
             # ── Full codebase counts (matches Windows Properties) ──
             'total_visible_files':total_visible_files,  # analysed + other (no skip dirs)
-            'total_all_files':    total_all_files,      # includes skipped dirs
+            'total_all_files':    total_all_files,      # files outside skip/ignored dirs (their contents are not descended)
             'total_dirs':         total_dirs_scanned,   # non-skipped subdirectory count
-            'total_dirs_skipped': total_dirs_skipped,   # dirs completely ignored
-            'skipped_files':      total_files_skipped,  # files inside skipped dirs
+            'total_dirs_skipped': total_dirs_skipped,   # skipped/ignored subtree roots (not descended into)
+            'skipped_files':      total_files_skipped,  # 0 — skip dirs are no longer walked, so their file count is unknown
             'skipped_dir_names':  sorted(skip_dirs),    # which dirs were skipped
             'ignore_filter_enabled': ignore_filter.enabled,
             'ignore_filter_mode':    ignore_filter.mode,
