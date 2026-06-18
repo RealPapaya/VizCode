@@ -14,17 +14,17 @@ Use it when you want to move from "what is in this repo?" to "how do these files
 
 Drill into a file to inspect functions, calls, symbols, and the relationships inside a file or across connected files.
 
-![VizCode demo showing function drill down and dependency exploration](docs/images/vizcode-demo-explore.webp)
+![VizCode demo showing function drill down and dependency exploration](docs/images/vizcode-demo-scan.webp)
 
-Full MP4: [VizcodeDemo2.mp4](https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo2.mp4)
+Full MP4: [VizcodeDemo.mp4](https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo.mp4)
 
 ### Overview Mode
 
 Start from the full repository view to understand project size, modules, dependencies, code health, churn, hotspots, tech debt, and architecture issues.
 
-![VizCode demo showing overview mode, project scan, and browser launch](docs/images/vizcode-demo-scan.webp)
+![VizCode demo showing overview mode, project scan, and browser launch](docs/images/vizcode-demo-explore.webp)
 
-Full MP4: [VizcodeDemo.mp4](https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo.mp4)
+Full MP4: [VizcodeDemo2.mp4](https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo2.mp4)
 
 ### Interface Preview
 
