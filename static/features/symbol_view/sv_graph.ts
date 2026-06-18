@@ -1,4 +1,3 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (large dynamic SVG renderer). Curate later.
 // ── Symbol View — Graph renderer (V3: dagre LR flow graph + focus fade) ─
 // Single unified view per file: all classes/functions/methods are laid out
 // by dagre. Clicking a node focuses it (scales up, shows rich detail card);
@@ -124,7 +123,7 @@ function _svAccessStroke(access) {
     return '';
 }
 
-function _svResolveEdgeStroke(ed, fromNode) {
+function _svResolveEdgeStroke(ed, fromNode?) {
     // Access-based coloring (public=yellow / private=blue) is only meaningful
     // for call edges, where it conveys the caller's visibility. Structural
     // edges (inheritance, implements, type_usage, …) are colored by their type
@@ -476,7 +475,7 @@ function _svSectionKey(classId, sectionKey) {
 
 function _svClearCompoundSections(classId) {
     if (!classId || !_svState.compoundSectionExpanded) return;
-    for (const key of Array.from(_svState.compoundSectionExpanded)) {
+    for (const key of Array.from(_svState.compoundSectionExpanded) as string[]) {
         if (key.startsWith(`${classId}:`)) _svState.compoundSectionExpanded.delete(key);
     }
 }
@@ -519,7 +518,7 @@ function _svSetCompoundSectionsExpanded(classId) {
     }
 }
 
-function _svOpenCompoundInline(classId, opts = {}) {
+function _svOpenCompoundInline(classId, opts: any = {}) {
     if (!classId || !_svState.fileRel) return;
     const toggle = opts.toggle !== false;
     if (toggle && !_svState.compoundCollapsed.has(classId)) {
@@ -1053,7 +1052,7 @@ function _svUpdateBreadcrumbFile(fileRel, model) {
 }
 
 // ── Model: classify symbols and run dagre layout ──────────────────────────
-function _svBuildFileGraphModel(resp, fileRel, focusOpts) {
+function _svBuildFileGraphModel(resp, fileRel, focusOpts?) {
     const symbols = resp.symbols || [];
     const edges = resp.edges || [];
     const extEdges = resp.external_edges || [];
@@ -1986,7 +1985,7 @@ function _svNodeClass(n) {
     return classes.join(' ');
 }
 
-function _svFocusCardMarkupLegacy(sym, opts = {}) {
+function _svFocusCardMarkupLegacy(sym, opts: any = {}) {
     const callers = opts.callers || 0;
     const callees = opts.callees || 0;
     const lineCount = opts.lineCount || 1;
@@ -2036,7 +2035,7 @@ function _svFocusCardMarkupLegacy(sym, opts = {}) {
       </div>`;
 }
 
-function _svFocusCardMarkup(sym, opts = {}) {
+function _svFocusCardMarkup(sym, opts: any = {}) {
     const callers = opts.callers || 0;
     const callees = opts.callees || 0;
     const lineCount = opts.lineCount || 1;
@@ -2136,7 +2135,7 @@ function _svFocusCardCounts(focusId) {
     return { callers, callees };
 }
 
-function _svAppendFocusSection(g, key, title, bodyLines, y, opts = {}) {
+function _svAppendFocusSection(g, key, title, bodyLines, y, opts: any = {}) {
     const collapsed = _svState.detailSectionCollapsed.has(key);
     const section = _svSvgEl('g', { class: 'sv-fd-svg-section', 'data-section': key });
     section.style.cursor = 'pointer';
@@ -2703,7 +2702,7 @@ function _svBuildOrthogonalPath({ sx, sy, ex, ey }, obstacles) {
     // Try: midpoint first, then left/right edges of every obstacle.
     // Sort by proximity to midpoint so routing stays natural.
     const midX = (sx + ex) / 2;
-    const cands = new Set();
+    const cands = new Set<number>();
     cands.add(midX);
     if (obstacles) {
         for (const o of obstacles) {
@@ -2799,7 +2798,7 @@ function _svBindNodeClicks() {
     });
 }
 
-function _svHandleNodeClick(symId, el) {
+function _svHandleNodeClick(symId, el?) {
     const model = _svState.currentGraph;
     if (!model) return;
     const node = model.byNodeId[symId];
@@ -3057,7 +3056,7 @@ function _svApplyEdgeTypeFilter() {
 function _svPresentKindDefs() {
     const model = _svState.currentGraph;
     if (!model || !Array.isArray(model.nodes)) return [];
-    const present = new Set();
+    const present = new Set<string>();
     for (const n of model.nodes) {
         if (!n || n.isFocusCard) continue;          // focus card mirrors a real node
         const k = n.kind;

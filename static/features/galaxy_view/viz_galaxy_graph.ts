@@ -1,4 +1,3 @@
-﻿// @ts-nocheck -- JS->TS migration: deferred (complex symbol-graph builder). Curate later.
 'use strict';
 
 // ── Galaxy Graph Builder ──────────────────────────────────────────────────────
@@ -191,7 +190,7 @@ function _galaxyBuildGraph(allowedMods?) {
 
     _gGraph = new Graph({ multi: true });
 
-    const D: any = window.DATA || {};
+    const D: VizData = (window.DATA || {}) as VizData;
     _gApplyThemeTypeColors();
 
     // ── Path-prefix filter: build allowed file path set ─────────────────────

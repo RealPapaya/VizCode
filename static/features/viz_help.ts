@@ -1,4 +1,3 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
 // ─── VizCode Help Panel ────────────────────────────────────────────────────────
 // Injects the circular "?" button above the Settings icon in the left rail,
 // and renders a polished help modal with shortcut reference + usage guide.

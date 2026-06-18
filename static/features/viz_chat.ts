@@ -1,4 +1,3 @@
-﻿// @ts-nocheck -- JS->TS migration: renamed to .ts, type-curation pending. Remove this line and fix errors to enable checking.
 // ── VizBridge Chat Panel ──────────────────────────────────────────────────────
 //
 // Floating AI chat panel for VizCode graph visualization.
@@ -1470,7 +1469,7 @@
         if (!optionsWrap) return;
         optionsWrap.innerHTML = '';
 
-        Array.from(sel.options).forEach(opt => {
+        Array.from(sel.options).forEach((opt: any) => {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'chat-cfg-provider-option';
@@ -1573,7 +1572,7 @@
     async function _openConfigModal() {
         _openAiSettingsFromChat();
         return;
-        let cfg = {};
+        let cfg: any = {};
         try {
             const r = await fetch('/chat-config');
             if (r.ok) cfg = await r.json();
@@ -1925,7 +1924,7 @@
             if (e.target === _modal) _closeConfigModal();
         });
         document.addEventListener('click', function (e) {
-            if (!e.target.closest('.chat-cfg-provider-dd')) {
+            if (!(e.target as HTMLElement).closest('.chat-cfg-provider-dd')) {
                 document.querySelectorAll('.chat-cfg-provider-dd[data-open="true"]').forEach(dd => _setChatProviderDropdownOpen(dd, false));
             }
         });
@@ -2042,7 +2041,7 @@
     const _DEFAULT_MODE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="16" cy="6" r="2.5" fill="currentColor" stroke="none"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="8" cy="12" r="2.5" fill="currentColor" stroke="none"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="13" cy="18" r="2.5" fill="currentColor" stroke="none"/></svg>';
     const _DEPTH_ORDER = ['quick', 'general', 'deep'];
 
-    function _t(k, fb) { return window._i18n ? window._i18n.t(k) : fb; }
+    function _t(k, fb?) { return window._i18n ? window._i18n.t(k) : fb; }
 
         function _depthItems() {
         return [
@@ -2232,13 +2231,13 @@
         document.addEventListener('click', function (e) {
             const depthPicker = document.getElementById('chat-depth-picker');
             if (depthPicker && depthPicker.classList.contains('open') &&
-                !e.target.closest('#chat-depth-picker') &&
-                !e.target.closest('#chat-depth-btn')) {
+                !(e.target as HTMLElement).closest('#chat-depth-picker') &&
+                !(e.target as HTMLElement).closest('#chat-depth-btn')) {
                 _closeDepthPicker();
             }
             if (_modePickerOpen &&
-                !e.target.closest('#chat-output-picker') &&
-                !e.target.closest('#chat-mode-btn')) {
+                !(e.target as HTMLElement).closest('#chat-output-picker') &&
+                !(e.target as HTMLElement).closest('#chat-mode-btn')) {
                 _closeOutputPicker();
             }
         });
@@ -2304,7 +2303,7 @@
     let _floatParent      = null;
     let _floatNextSibling = null;
 
-    function _applyPanelMode(mode, skipResize) {
+    function _applyPanelMode(mode, skipResize?) {
         _panelMode = mode;
         localStorage.setItem('vizcode.chat.panelMode', mode);
 
