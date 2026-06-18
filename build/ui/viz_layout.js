@@ -521,7 +521,20 @@ function _currentViewKey() {
   if (state.level === 2) return _layoutCacheKey(2, null, null, l2State.activeFile || state.activeFile);
   return null;
 }
+const _PERF_LITE_EDGE_THRESHOLD = 600;
+function _applyAdaptivePerfMode() {
+  if (typeof cy === "undefined" || !cy) return;
+  const edges = cy.edges();
+  const lite = edges.length >= _PERF_LITE_EDGE_THRESHOLD;
+  const tagged = edges.filter(".perf-lite").length;
+  if (lite && tagged !== edges.length) {
+    cy.batch(() => edges.addClass("perf-lite"));
+  } else if (!lite && tagged) {
+    cy.batch(() => edges.removeClass("perf-lite"));
+  }
+}
 function applyLayoutWithCache(viewKey, config, onStop) {
+  _applyAdaptivePerfMode();
   const cached = viewKey ? _layoutCacheGet(viewKey) : null;
   if (cached && cached.positions && cached.positions.size) {
     console.log(`[layout] cache hit: ${viewKey}`);

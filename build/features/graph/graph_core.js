@@ -10,6 +10,16 @@ function initCy() {
     wheelSensitivity: GRAPH_ZOOM_SETTINGS.wheelSensitivity,
     boxSelectionEnabled: false,
     // ── Performance ───────────────────────────────────────────────────────────
+    // Skip the expensive bits — bezier edges + arrows, and label text — ONLY while
+    // the camera is being manipulated (pan / wheel-zoom / pinch / node drag). Both
+    // come back the instant the viewport settles, so arrows and labels stay intact
+    // at rest: no permanent visual change. This is what actually keeps pan/zoom
+    // smooth on large L1/L2 graphs, and replaces the texture trick (which left
+    // black artifacts on the dark canvas).
+    hideEdgesOnViewport: true,
+    // hide edges mid-move → smooth big-graph pan/zoom
+    hideLabelsOnViewport: true,
+    // hide label text mid-move → less canvas text work
     textureOnViewport: false,
     // avoids black artifacts on dark bg
     motionBlur: false,
