@@ -18,11 +18,11 @@ Watch VizCode scan a project, open the browser UI, and move from high-level code
 
 ### Short Demo
 
-<video src="https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo.mp4" controls width="100%"></video>
+https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo.mp4
 
 ### Full Walkthrough
 
-<video src="https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo2.mp4" controls width="100%"></video>
+https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo2.mp4
 
 ### Codebase Overview
 

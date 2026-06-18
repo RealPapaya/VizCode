@@ -20,13 +20,15 @@ https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo.mp4
 https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo2.mp4
 ```
 
-## Inline README Video
+## README Video Links
 
-The README embeds the release MP4 files directly with HTML video tags:
+GitHub README strips normal HTML `<video>` tags, so release MP4 files should be linked directly as plain URLs:
 
-```html
-<video src="https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo.mp4" controls width="100%"></video>
-<video src="https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo2.mp4" controls width="100%"></video>
+```text
+https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo.mp4
+https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo2.mp4
 ```
 
 If you rename release assets later, update those filenames in `README.md`.
+
+For a true inline player on GitHub, upload the MP4 into a GitHub issue, PR, discussion, or comment editor and paste the generated `https://github.com/user-attachments/assets/...` URL into the README.
