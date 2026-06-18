@@ -2,27 +2,29 @@
 
 > **Understand any codebase at a glance — without installing anything.**
 
-VizCode is a local-first code visualization tool that scans your project and renders an interactive dependency graph directly in your browser. No cloud uploads, no API keys, no `pip install`. Just run it and explore.
-
-![VizCode dashboard showing code health, commit activity, code churn, file overview, tech debt, and architecture issues](docs/images/hero.png)
-
-**Explore large codebases visually:** dependency graphs, symbol navigation, code health, architecture issues, AI-ready reports, and local browser analysis.
-
-[Demo](#demo) · [Quick start](#quick-start) · [AI integration](#ai-assistant-integration)
+VizCode is a local-first code visualization tool that scans your project and renders an interactive dependency graph directly in your browser. No cloud uploads, no API keys, no `pip install`. Just run it and explore dependency graphs, symbol navigation, code health, architecture issues, AI-ready reports, and local browser analysis.
 
 ---
 
 ## Demo
 
-Watch VizCode scan a project, open the browser UI, and move from high-level code health into graph and symbol-level exploration.
+### VizcodeDemo
 
-### Demo Videos
+<p align="center">
+  <video src="https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo.mp4" controls muted playsinline preload="metadata" width="100%"></video>
+  <br>
+  <a href="https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo.mp4">Open VizcodeDemo.mp4</a>
+</p>
 
-https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo.mp4
+### VizcodeDemo2
 
-https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo2.mp4
+<p align="center">
+  <video src="https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo2.mp4" controls muted playsinline preload="metadata" width="100%"></video>
+  <br>
+  <a href="https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo2.mp4">Open VizcodeDemo2.mp4</a>
+</p>
 
-### Codebase Overview
+### Interface Preview
 
 VizCode starts with a dashboard that summarizes project size, code health, commit activity, churn, hotspots, tech debt, and architecture issues before you dive into individual files.
 
