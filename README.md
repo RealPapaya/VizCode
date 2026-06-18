@@ -8,16 +8,13 @@ VizCode is a local-first code visualization tool that scans your project and ren
 
 ## Demo
 
-### VizcodeDemo
+Watch VizCode scan a project, open the browser UI, and move from high-level code health into graph and symbol-level exploration.
 
-<!-- 在 GitHub 網頁編輯 README，把 VizcodeDemo.mp4 直接拖進來，
-     會自動產生一行 https://github.com/user-attachments/assets/... 連結，
-     貼在下面這一行（保持「裸連結」，不要包 <video> 或 []()）即可內嵌播放。 -->
-https://github.com/user-attachments/assets/REPLACE_WITH_UPLOADED_VizcodeDemo
+### Demo Videos
 
-### VizcodeDemo2
+https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo.mp4
 
-https://github.com/user-attachments/assets/REPLACE_WITH_UPLOADED_VizcodeDemo2
+https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo2.mp4
 
 ### Interface Preview
 
