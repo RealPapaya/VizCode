@@ -75,45 +75,50 @@ If the output is `valid`, skip Phase 3–4 and go straight to Phase 5 (the exist
 
 ### Phase 3 — Semantic Analysis
 
-**Principle: If AST can compute it, don't ask the LLM. LLM only fills in what AST cannot see.**
+**Principle: If AST can compute it, don't ask the LLM. LLM only fills in what AST cannot see — and even then it _confirms_ local candidates rather than _discovering_ from scratch. Confirming costs a fraction of the tokens of discovery.**
 
-#### Step A — Get structure via AST (do not read raw JSON)
+#### Step A — Generate candidate edges locally (zero tokens)
 
-Call MCP tools in sequence to obtain structured data:
+Run the local heuristic detector. It is pure Python (no model in the loop) and finds the cross-file relationships AST import-resolution misses — subprocess spawns, shared-data-file coupling, and cross-file interface/inheritance — already de-duplicated against static import edges:
 
-1. **`vizcode_l0()`** — Get global module clusters + cross-module dependency edges parsed by AST
-2. **`vizcode_l1(module)`** — Call for each module to get the file list within the module + import edges
+```bash
+python "<VIZCODE_ROOT>/src/core/edge_candidates.py" "<PROJECT_PATH>" > "<PROJECT_PATH>/.vizcode/_tmp_candidates.json"
+```
 
-These two steps are sufficient to establish all **statically knowable relationships** (imports, includes, call chains) — no LLM inference needed.
+Read `_tmp_candidates.json`. Each entry looks like:
+```json
+{"source": "launcher.py", "target": "worker.py", "signal": "subprocess",
+ "evidence": "subprocess.run(['python', 'worker.py'])", "suggested_confidence": 0.8}
+```
 
-> If you need to drill into function-level call relationships for a specific file, call `vizcode_l2(file)`. For Phase 3, L0+L1 is usually enough.
+If the file is `[]` (no candidates), skip Phase 3–4 entirely and report zero inferred edges.
 
-#### Step B — LLM infers only semantic edges invisible to AST
+#### Step B — Confirm each candidate (do not re-discover)
 
-Based on the structure from Step A, **skip** all module pairs that already have static edges.
+For **each** candidate, make a keep/drop judgment using its `signal` + `evidence`:
 
-Only infer new semantic edges for the following cases:
-- **Subprocess / runtime spawn** (e.g., `vizcode.py` launches `server.py` via subprocess)
-- **Shared data files** (A writes a cache, B reads it, but neither imports the other)
-- **Protocol/interface relationships** (A implements an interface defined by B, but no direct import)
-- **Collaborative pipelines** (A produces data, B consumes it, passed through non-import means)
+- **Keep** it if the evidence shows a genuine runtime/data/contract relationship. Set a final `confidence` (you may keep `suggested_confidence`, or adjust it) and write a one-line `reason` (≤160 chars, same language as the user).
+- **Drop** it if the evidence is a coincidence (e.g. a same-named class across unrelated languages, an unrelated filename match).
 
-Produce a list of inferred edges. Each edge:
+Only when a candidate's endpoints are ambiguous, call `vizcode_l0()` / `vizcode_l1(module)` to disambiguate — do not pull L0/L1 for every candidate.
+
+Emit the kept candidates as the inferred-edge list. Each edge:
 ```json
 {
-  "source": "module_a.py",
-  "target": "module_b.py",
+  "source": "launcher.py",
+  "target": "worker.py",
   "confidence": 0.85,
-  "reason": "module_a orchestrates module_b for AST parsing; caller/callee relationship"
+  "reason": "launcher spawns worker.py via subprocess at runtime"
 }
 ```
 
 Rules:
-- Only create edges between modules that appear in `vizcode_l0()` output (no external libraries)
-- `confidence` range: 0.5–1.0 (below 0.5 is noise, omit it)
-- `reason` max 160 characters, in the same language as the user
-- Aim for 1–3 meaningful inferred edges per module pair, not exhaustive coverage
-- **Do not** duplicate static import edges already captured by L0/L1
+- `source`/`target` must be the exact scan_cache keys (project-relative paths) the candidate used — they must match graph/MCP module keys.
+- `confidence` range: 0.5–1.0 (below 0.5 is noise, drop it).
+- Prefer confirming candidates. Only add a brand-new edge the detector missed if it is clearly important (e.g. a collaborative pipeline passed via a queue or env var) — this should be rare.
+- **Do not** duplicate static import edges; the detector already excludes them.
+
+Then delete the temp file: `rm -f "<PROJECT_PATH>/.vizcode/_tmp_candidates.json"`
 
 ### Phase 4 — Write Semantic Cache
 
