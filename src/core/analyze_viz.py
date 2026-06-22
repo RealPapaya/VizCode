@@ -94,6 +94,7 @@ try:
     from parsers.elm_parser      import scan_elm, ELM_EXTENSIONS as _ELM_EXTENSIONS
     from parsers.html_parser     import scan_html, HTML_EXTENSIONS as _HTML_EXTENSIONS
     from parsers.yaml_parser     import scan_yaml, YAML_EXTENSIONS as _YAML_EXTENSIONS
+    from parsers.md_parser       import scan_markdown, MARKDOWN_EXTENSIONS as _MARKDOWN_EXTENSIONS
     from parsers.powershell_parser import scan_powershell, POWERSHELL_EXTENSIONS as _POWERSHELL_EXTENSIONS
     from parsers.toml_parser     import scan_toml, TOML_EXTENSIONS as _TOML_EXTENSIONS
     from parsers.json_parser   import scan_json
@@ -140,6 +141,7 @@ except ImportError as _pe:
     _ELM_EXTENSIONS = set()
     _HTML_EXTENSIONS = set()
     _YAML_EXTENSIONS = set()
+    _MARKDOWN_EXTENSIONS = set()
     _POWERSHELL_EXTENSIONS = set()
     _TOML_EXTENSIONS = set()
     _console_print(f'[WARN] Could not load language parsers: {_pe}', file=sys.stderr)
@@ -256,6 +258,8 @@ def _get_parser_fn(ext: str):
         return scan_html
     if ext in _YAML_EXTENSIONS:
         return scan_yaml
+    if ext in _MARKDOWN_EXTENSIONS:
+        return scan_markdown
     if ext in _POWERSHELL_EXTENSIONS:
         return scan_powershell
     if ext in _TOML_EXTENSIONS:
@@ -268,6 +272,9 @@ def _get_parser_fn(ext: str):
 SKIP_DIRS  = {
     # BIOS / build
     'Build', 'build', '.git', '__pycache__', 'Conf', 'DEBUG', 'RELEASE', '.claude',
+    # VizCode's own output dirs — never scan generated caches/reports (esp. the
+    # report-tree .md files, now that markdown is a scanned ext)
+    '.vizcode', '.local',
     # JavaScript / Node
     'node_modules', '.next', '.nuxt', 'dist', 'out', '.output', '.cache',
     'coverage', '.nyc_output', 'storybook-static',
@@ -320,6 +327,8 @@ SCAN_EXT   = {
     '.html', '.htm', '.xhtml',
     # ── Config / Data ──────────────────────────────────────────────────────
     '.json', '.yaml', '.yml', '.toml',
+    # ── Docs (link/structure extraction only — see md_parser) ──────────────
+    '.md', '.markdown', '.mdown', '.mkd', '.rst', '.txt',
     # ── Scripting (Windows) ────────────────────────────────────────────────
     '.ps1', '.psm1', '.psd1',
 }
@@ -386,6 +395,9 @@ FILE_TYPE_MAP = {
     '.json': 'json_config',
     '.yaml': 'yaml_source', '.yml': 'yaml_source',
     '.toml': 'toml_source',
+    # Docs
+    '.md': 'markdown_doc', '.markdown': 'markdown_doc', '.mdown': 'markdown_doc',
+    '.mkd': 'markdown_doc', '.rst': 'rst_doc', '.txt': 'text_doc',
     # Scripting (Windows)
     '.ps1': 'powershell_source', '.psm1': 'powershell_source',
     '.psd1': 'powershell_source',
@@ -892,6 +904,8 @@ def _compute_parse_result(file_bytes: bytes, ext: str) -> tuple:
         raw = scan_html(src, ext)
     elif ext in _YAML_EXTENSIONS and _PARSERS_LOADED:
         raw = scan_yaml(src, ext)
+    elif ext in _MARKDOWN_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_markdown(src, ext)
     elif ext in _POWERSHELL_EXTENSIONS and _PARSERS_LOADED:
         raw = scan_powershell(src, ext)
     elif ext in _TOML_EXTENSIONS and _PARSERS_LOADED:

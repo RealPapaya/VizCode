@@ -5,7 +5,7 @@ edge_candidates.py — local, zero-token detector of cross-file edges AST cannot
 Produces CANDIDATE edges only. The Claude Code skill (SKILL.md Phase 3) feeds
 these to the model, which judges keep/drop + final confidence. The model therefore
 *confirms* rather than *discovers* relationships, collapsing semantic-extraction
-output tokens to near zero (see docs/TOKEN_ROADMAP.md, P1).
+output tokens to near zero (see note/TOKEN_ROADMAP.md, P1).
 
 All signals are pure stdlib regex/AST over source text — no network, no model.
 

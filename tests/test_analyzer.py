@@ -410,13 +410,15 @@ class TestGitIgnoreFiltering:
         _write(tmp_path / 'ignored.py', 'eval("1 + 1")\n')
         _write(tmp_path / 'ignored.js', 'console.log("ignored")\n')
         _write(tmp_path / 'ignored.css', '.ignored { color: red; }\n')
-        _write(tmp_path / 'notes.txt', 'visible other file\n')
+        # .dat is neither a scanned source ext nor skipped -> a "visible other file"
+        # (.txt is now a scanned doc, so it would count as a source file here).
+        _write(tmp_path / 'notes.dat', 'visible other file\n')
 
         graph = build_graph(str(tmp_path))
         paths = _all_dashboard_paths(graph)
 
         assert 'kept.py' in paths
-        assert 'notes.txt' in paths
+        assert 'notes.dat' in paths
         assert 'ignored.py' not in paths
         assert 'ignored.js' not in paths
         assert 'ignored.css' not in paths
