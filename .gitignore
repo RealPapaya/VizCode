@@ -10,6 +10,7 @@ venv/
 # ── VizCode caches & local state ────────────────────────────────────────────
 .vizcode/
 .local/
+.local-tools/
 *.log
 scan_result_debug.json
 parsers/
@@ -25,6 +26,14 @@ note/
 # serves, committed so end-users run with zero Node install. Re-run `npm run
 # build` after editing any static/*.ts and commit the regenerated build/.
 node_modules/
+
+# README/demo media
+# Keep large videos in GitHub Releases or YouTube, not in the repository.
+docs/videos/*.mp4
+docs/videos/*.mov
+docs/videos/*.webm
+!docs/videos/.gitkeep
+!docs/videos/README.md
 
 # ── OS / IDE ────────────────────────────────────────────────────────────────
 .DS_Store

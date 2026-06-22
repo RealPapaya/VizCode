@@ -126,6 +126,14 @@ _QUERY_LOG_FILENAME = "ai_query_log.jsonl"
 # active provider token ceiling.
 _CHARS_PER_TOKEN = 3
 
+# Appended to the system prompt when a CLI agent has no tools left for the turn,
+# forcing it to answer in prose instead of emitting another protocol line.
+_CLI_FINAL_TURN_HINT = (
+    "\n\nFINAL TURN: You have no more tools available. Using ONLY the tool results "
+    "already shown in this conversation, answer the user's question directly in prose. "
+    "Do NOT output any VIZCODE_TOOL or VIZCODE_UI line."
+)
+
 
 def _clip_text(text: str, limit: int, label: str = "content") -> str:
     if limit <= 0 or len(text) <= limit:
@@ -797,16 +805,28 @@ class VizBridge:
 
         # Working copy of messages — we append assistant + tool_result turns
         working = _trim_working_history(list(messages))
+        produced_text = False
 
         for _round in range(max_tool_rounds):
             working = _trim_working_history(working)
+            # CLI agents emit protocol lines from the prompt, not via a tools API, so on
+            # the final round we drop the tool schemas and tell the agent to answer
+            # directly — otherwise it can spend its last turn on another tool request and
+            # leave the user with an empty reply ("no response").
+            is_last_round = (_round == max_tool_rounds - 1)
+            if _mode == "cli" and is_last_round:
+                round_tool_defs: list[dict] = []
+                round_system = system + _CLI_FINAL_TURN_HINT
+            else:
+                round_tool_defs = tool_defs
+                round_system = system
             pending_tool_calls: list[dict] = []
             assistant_content:  list[dict] = []
             ui_results: dict[str, str] = {}   # tool_use id -> result for UI tools already fired mid-stream
             synthetic_tool_blobs: list[str] = []
             text_buf = ""
 
-            for ev in provider.stream_chat(working, tool_defs, system, max_tokens=max_tokens):
+            for ev in provider.stream_chat(working, round_tool_defs, round_system, max_tokens=max_tokens):
                 if ev["type"] == "delta":
                     text_buf += ev["text"]
                     yield ev
@@ -869,6 +889,7 @@ class VizBridge:
                 text_buf = text_buf.replace(blob, "")
             text_buf = text_buf.strip()
             if text_buf:
+                produced_text = True
                 assistant_content.insert(0, {"type": "text", "text": text_buf})
 
             if assistant_content:
@@ -904,5 +925,30 @@ class VizBridge:
                 })
             working = _trim_working_history(working)
 
-        # Safety: exceeded max rounds
+        # Safety: exceeded max rounds. In CLI mode the agent may have spent every round
+        # on tool requests without ever answering — force one final tool-free pass so the
+        # user gets prose instead of an empty bubble ("no response").
+        if _mode == "cli" and not produced_text:
+            working = _trim_working_history(working)
+            got_final = False
+            for ev in provider.stream_chat(working, [], system + _CLI_FINAL_TURN_HINT,
+                                           max_tokens=max_tokens):
+                if ev["type"] == "delta":
+                    got_final = True
+                    yield ev
+                elif ev["type"] == "error":
+                    yield ev
+                    break
+                elif ev["type"] == "done":
+                    break
+                # ignore any further tool_use in this forced answer-only pass
+            if not got_final:
+                yield {
+                    "type": "delta",
+                    "text": (
+                        "The local CLI agent finished without producing an answer. "
+                        "Try a simpler question, switch depth to 'general', or use API mode."
+                    ),
+                }
+
         yield {"type": "done"}

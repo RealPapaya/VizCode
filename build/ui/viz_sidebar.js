@@ -36,6 +36,21 @@ function initIconRail() {
     applyRailState(expanded);
     _startPanelResizeLoop(_RAIL_TRANSITION_MS);
   });
+  const logoToggle = document.getElementById("rail-logo-toggle");
+  if (logoToggle) {
+    const expandViaLogo = () => {
+      if (document.body.classList.contains("rail-expanded")) return;
+      applyRailState(true);
+      _startPanelResizeLoop(_RAIL_TRANSITION_MS);
+    };
+    logoToggle.addEventListener("click", expandViaLogo);
+    logoToggle.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        expandViaLogo();
+      }
+    });
+  }
 }
 function _applySidebarTab() {
   if (_sbActiveTab === "filters" && typeof window.isOverviewTreemapActive === "function" && window.isOverviewTreemapActive()) {

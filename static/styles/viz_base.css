@@ -115,6 +115,49 @@ body.rail-expanded #app-rail .rail-logo {
     margin-bottom: 0;
 }
 
+/* ── Logo doubles as the expand control while the rail is collapsed ─────── */
+.rail-logo .rail-logo-img {
+    transition: opacity .2s ease, transform .25s cubic-bezier(.34, 1.56, .64, 1);
+}
+
+.rail-logo .rail-logo-expand {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    color: var(--accent);
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(.6);
+    pointer-events: none;
+    transition: opacity .2s ease, transform .25s cubic-bezier(.34, 1.56, .64, 1);
+}
+
+/* Collapsed: clicking the logo expands; hovering swaps it to the expand chevron */
+body:not(.rail-expanded) #app-rail .rail-logo {
+    cursor: pointer;
+}
+
+body:not(.rail-expanded) #app-rail .rail-logo:hover .rail-logo-img {
+    opacity: 0;
+    transform: scale(.7);
+}
+
+body:not(.rail-expanded) #app-rail .rail-logo:hover .rail-logo-expand {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+/* Collapsed: the dedicated expand button is replaced by the logo */
+body:not(.rail-expanded) #app-rail #rail-toggle-btn {
+    display: none;
+}
+
+/* Expanded: logo is inert; the dedicated button handles collapse */
+body.rail-expanded #app-rail .rail-logo .rail-logo-expand {
+    display: none;
+}
+
 .rail-divider {
     width: 28px;
     height: 0.5px;
