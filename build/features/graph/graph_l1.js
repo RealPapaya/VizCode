@@ -443,7 +443,7 @@ Type: ${ft}
   const _l1IsRevisit = !!(_l1Cached && _l1Cached.positions && _l1Cached.positions.size);
   if (_l1IsRevisit) showLoading(false);
   const _l1Token = ++_renderToken;
-  setTimeout(() => {
+  const _runL1Render = () => {
     if (_renderToken !== _l1Token) return;
     cy.elements().stop(true, false);
     const prevNodeIds = new Set(cy.nodes().map((n) => n.id()));
@@ -476,21 +476,16 @@ Type: ${ft}
     const mainEls = cy.elements().filter((el) => !el.data("isExtra"));
     const extraEls = cy.nodes().filter((n) => n.data("isExtra"));
     if (_l1IsRevisit) {
-      console.log(`[layout] cache hit: ${_l1Key}`);
       extraEls.style("display", "element");
-      const lay = cy.layout({
-        name: "preset",
-        positions: (n) => _l1Cached.positions.get(n.id()) || { x: 0, y: 0 },
-        animate: false,
-        fit: false
+      cy.batch(() => {
+        cy.nodes().forEach((n) => {
+          const p = _l1Cached.positions.get(n.id());
+          if (p) n.position(p);
+        });
       });
-      lay.one("layoutstop", () => {
-        if (_renderToken !== _l1Token) return;
-        updateBreadcrumb();
-        showLoading(false);
-        _postLayoutL1();
-      });
-      lay.run();
+      updateBreadcrumb();
+      showLoading(false);
+      _postLayoutL1();
       return;
     }
     const _snapshotL1Positions = () => {
@@ -546,7 +541,9 @@ Type: ${ft}
       _postLayoutL1();
     });
     layMain.run();
-  }, 0);
+  };
+  if (_l1IsRevisit) _runL1Render();
+  else setTimeout(_runL1Render, 0);
 }
 function _postLayoutL1() {
   applyEdgeFilter();

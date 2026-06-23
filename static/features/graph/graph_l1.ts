@@ -461,9 +461,12 @@ function renderFilesFlat(modId, files, subPath?) {
     const _l1IsRevisit = !!(_l1Cached && _l1Cached.positions && _l1Cached.positions.size);
     if (_l1IsRevisit) showLoading(false);
 
-    // ── Yield to browser so the loading spinner can paint before heavy work ──
+    // ── Render body ───────────────────────────────────────────────────────────
+    // First visit: defer via setTimeout so the spinner can paint before the heavy layout.
+    // Revisit (cache hit): run SYNCHRONOUSLY — there is no spinner to paint, so the yield
+    // only added latency and made the graph feel disconnected from the click.
     const _l1Token = ++_renderToken;
-    setTimeout(() => {
+    const _runL1Render = () => {
         if (_renderToken !== _l1Token) return; // cancelled
 
         // Stop any running animations to avoid corrupting cytoscape state
@@ -509,21 +512,18 @@ function renderFilesFlat(modId, files, subPath?) {
 
         // L1 cache key + cached lookup were computed synchronously above (_l1Key / _l1Cached)
         if (_l1IsRevisit) {
-            console.log(`[layout] cache hit: ${_l1Key}`);
+            // Apply cached positions directly + synchronously — no preset-layout round-trip
+            // (which fires layoutstop a frame later). The graph snaps into place at once.
             extraEls.style('display', 'element');
-            const lay = cy.layout({
-                name: 'preset',
-                positions: (n) => _l1Cached.positions.get(n.id()) || { x: 0, y: 0 },
-                animate: false,
-                fit: false,
+            cy.batch(() => {
+                cy.nodes().forEach(n => {
+                    const p = _l1Cached.positions.get(n.id());
+                    if (p) n.position(p);
+                });
             });
-            lay.one('layoutstop', () => {
-                if (_renderToken !== _l1Token) return;
-                updateBreadcrumb();
-                showLoading(false);
-                _postLayoutL1();
-            });
-            lay.run();
+            updateBreadcrumb();
+            showLoading(false);
+            _postLayoutL1();
             return;
         }
 
@@ -599,7 +599,9 @@ function renderFilesFlat(modId, files, subPath?) {
         });
 
         layMain.run();
-    }, 0);
+    };
+    if (_l1IsRevisit) _runL1Render();      // revisit: synchronous, snaps in on click
+    else setTimeout(_runL1Render, 0);      // first visit: yield so the spinner paints first
 }
 
 // ── Post-layout handler: handles expand animation OR focus fly-in ──────────────
