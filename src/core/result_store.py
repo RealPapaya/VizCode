@@ -4,12 +4,12 @@ result_store.py — persist & restore a full build_graph() result.
 
 Unlike scan_cache.json (parser-output layer only), this stores the *assembled*
 graph data dict that build_html() consumes, so a previous scan can be reopened
-without re-analyzing. It also writes a standalone offline HTML snapshot.
+with full functionality (AI, source panel, …) after a server restart without
+re-analyzing.
 
-Both artifacts live under <root>/.vizcode/:
+Artifacts live under <root>/.vizcode/:
   - result.json       the full graph `data` dict (sets are flattened to lists)
   - result_meta.json  tiny header for cheap listing on the homepage
-  - viz.html          self-contained offline snapshot (read-only visualization)
 
 Schema note: result.json mirrors whatever build_graph() returns. Bump
 RESULT_SCHEMA_REV whenever that shape changes incompatibly so stale snapshots
@@ -26,7 +26,6 @@ RESULT_SCHEMA_REV = 1
 
 _RESULT_FILE   = "result.json"
 _META_FILE     = "result_meta.json"
-_SNAPSHOT_FILE = "viz.html"
 
 
 def _vizcode_dir(root) -> Path:
@@ -80,21 +79,6 @@ def save_result(root, data: dict):
             json.dumps(meta, ensure_ascii=False), encoding="utf-8",
         )
         return d / _RESULT_FILE
-    except Exception:
-        return None
-
-
-def save_html_snapshot(root, html: str):
-    """Write a standalone offline HTML snapshot under .vizcode/viz.html.
-
-    Returns the Path on success, None on failure (non-fatal).
-    """
-    try:
-        d = _vizcode_dir(root)
-        d.mkdir(parents=True, exist_ok=True)
-        path = d / _SNAPSHOT_FILE
-        path.write_text(html, encoding="utf-8")
-        return path
     except Exception:
         return None
 

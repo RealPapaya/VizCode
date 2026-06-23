@@ -407,18 +407,12 @@ def _run_analysis_thread(jid: str, root: str, pre_fn=None, generate_report: bool
                              daemon=True, name=f'search-idx-{jid}').start()
 
             # ── Persist the assembled result so the scan can be reopened later ──
-            # result.json restores full functionality on server restart (Part B);
-            # viz.html is a standalone offline snapshot (Part A, read-only viz).
+            # result.json restores full functionality on the next server start.
             try:
                 import result_store
-                result_store.save_result(root_to_use, graph_data)
-                try:
-                    html = analyze_bios.build_html(graph_data)
-                    result_store.save_html_snapshot(root_to_use, html)
-                except Exception as _he:
-                    print(f'[SNAPSHOT] Job {jid}: html snapshot skipped: {_he}')
-                print(f'[PERSIST] Job {jid}: result.json + viz.html written to '
-                      f'{os.path.join(root_to_use, ".vizcode")}')
+                if result_store.save_result(root_to_use, graph_data):
+                    print(f'[PERSIST] Job {jid}: result.json written to '
+                          f'{os.path.join(root_to_use, ".vizcode")}')
             except Exception as _pe:
                 print(f'[PERSIST] Job {jid}: persist skipped: {_pe}')
 

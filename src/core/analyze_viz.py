@@ -3091,14 +3091,10 @@ def main():
     _console_print(f'\nOutput: {out} ({size/1024:.0f} KB)')
     _console_print(f'Open in Chrome: file:///{Path(out).absolute().as_posix()}')
 
-    # Persist under .vizcode/ so the scan can be reopened (result.json) and
-    # shared as a standalone offline snapshot (viz.html).
+    # Persist under .vizcode/ so the scan can be reopened later (result.json).
     try:
         import result_store
         result_store.save_result(args.root, data)
-        snap = result_store.save_html_snapshot(args.root, html)
-        if snap:
-            _console_print(f'Snapshot: file:///{snap.absolute().as_posix()}')
     except Exception as _pe:
         _console_print(f'Warning: could not persist result: {_pe}')
 
