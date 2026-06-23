@@ -168,7 +168,6 @@
             'compound-sizing-wrt-labels': 'include',
             'min-width': 60,
             'min-height': 40,
-            'cursor': 'pointer',
         }
     },
 ];

@@ -209,12 +209,17 @@ function _refreshDashboardLocale() {
     _dashBuilt = true;
   }
 }
+function _cyFontFamily(font) {
+  const first = String(font || "").split(",")[0].trim().replace(/^['"]|['"]$/g, "");
+  return first || "JetBrains Mono";
+}
 function withFont(styleList, font) {
+  const cyFont = _cyFontFamily(font);
   return styleList.map((s) => {
     if (!s || !s.selector || !s.style) return s;
     const sel = s.selector;
     if (sel === "node" || sel.startsWith("node") || sel === "edge" || sel.startsWith("edge")) {
-      return { ...s, style: { ...s.style, "font-family": font } };
+      return { ...s, style: { ...s.style, "font-family": cyFont } };
     }
     return s;
   });
@@ -228,7 +233,7 @@ let _lastCyStyleKey = null;
 function applyCyFont(font) {
   if (!cy || typeof cy.style !== "function") return;
   try {
-    const cyFont = (font || "").replace(/["']/g, "");
+    const cyFont = _cyFontFamily(font);
     const theme = document.documentElement.getAttribute("data-theme") || "dark";
     const key = theme + "|" + cyFont;
     if (key === _lastCyStyleKey) return;
@@ -424,7 +429,7 @@ function applyCyTheme(theme) {
   try {
     const savedFont = _PREFS && typeof _PREFS.get === "function" ? _PREFS.get("font") : "'JetBrains Mono', monospace";
     const uiFont = getComputedStyle(document.body).fontFamily || _uiFontForLang(savedFont, _PREFS && typeof _PREFS.get === "function" ? _PREFS.get("lang") : "en");
-    const base = withFont(CY_STYLE, uiFont.replace(/["']/g, ""));
+    const base = withFont(CY_STYLE, uiFont);
     const overrides = CY_THEME_OVERRIDES[theme] || [];
     cy.style([...base, ...overrides]);
     cy.resize();

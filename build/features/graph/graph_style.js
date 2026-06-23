@@ -186,8 +186,7 @@ const CY_STYLE = [
       "shape": "roundrectangle",
       "compound-sizing-wrt-labels": "include",
       "min-width": 60,
-      "min-height": 40,
-      "cursor": "pointer"
+      "min-height": 40
     }
   }
 ];

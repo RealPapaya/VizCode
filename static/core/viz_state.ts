@@ -259,7 +259,6 @@ let tooltipHideTimer: any = null;
 const GRAPH_ZOOM_SETTINGS = Object.freeze({
     minZoom: 0.04,
     maxZoom: 5,
-    wheelSensitivity: 0.12,
     buttonFactor: 1.12,
     animationMs: 140,
 });

@@ -7,7 +7,6 @@ function initCy() {
     elements: [],
     minZoom: GRAPH_ZOOM_SETTINGS.minZoom,
     maxZoom: GRAPH_ZOOM_SETTINGS.maxZoom,
-    wheelSensitivity: GRAPH_ZOOM_SETTINGS.wheelSensitivity,
     boxSelectionEnabled: false,
     // ── Performance ───────────────────────────────────────────────────────────
     // Skip the expensive bits — bezier edges + arrows, and label text — ONLY while
@@ -141,11 +140,11 @@ function initCy() {
   });
   document.getElementById("cy").addEventListener("contextmenu", (e) => e.preventDefault());
   cy.style().selector(".ms-selected").style({
-    "overlay-color": "var(--accent, #dfa745)",
+    "overlay-color": "#dfa745",
     "overlay-opacity": 0.22,
     "overlay-padding": 6,
     "border-width": 3,
-    "border-color": "var(--accent, #dfa745)",
+    "border-color": "#dfa745",
     "border-opacity": 0.85
   }).update();
 }
