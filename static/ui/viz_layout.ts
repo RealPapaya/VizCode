@@ -566,6 +566,84 @@ function _setLayoutBadge(label) {
 }
 
 
+// ── Adaptive animation ───────────────────────────────────────────────────────
+// Force-directed layouts (cose/fcose/cola) with `animate:true` render EVERY
+// physics iteration to the canvas — on a big graph that's thousands of full
+// redraws (edge styling + labels), which is the jank/"teleport" source. Instead:
+//   • mid-size  → 'end'  : compute final positions off-screen, tween ONCE
+//   • huge      → false  : snap; the closing fit animation supplies the motion
+// Discrete layouts (dagre/elk) only tween old→new once, so they only need
+// trimming on very large graphs.
+const _FORCE_LAYOUTS = new Set(['cose', 'fcose', 'cola']);
+function _adaptiveAnimate(config) {
+    const n = (typeof cy !== 'undefined' && cy) ? cy.nodes().length : 0;
+    const e = (typeof cy !== 'undefined' && cy) ? cy.edges().length : 0;
+    // Edge count is the real cost axis: dense graphs (few nodes, many edges) are
+    // what make a layout slow, and a slow compute is what breaks inline animation.
+    const dense = (n > 250 || e > 150);
+    const huge  = (n > 1200 || e > 2500);
+
+    if (_FORCE_LAYOUTS.has(config.name)) {
+        // cola: constraint solver, animates incrementally — already smooth, leave.
+        // cose: O(n²) main-thread physics; 'end' concentrates the whole simulation
+        //       into one freeze (measured 1166ms), animate:true spreads it across
+        //       frames. Neither is great on dense graphs — leave native, steer
+        //       users to fcose (strictly better) instead.
+        if (config.name === 'cola' || config.name === 'cose') return config;
+        // fcose: cheap compute (~130ms), per-iteration render is the cost — 'end'
+        // computes off-screen then tweens once.
+        if (huge) config.animate = false;
+        else if (dense) config.animate = 'end';
+    } else {
+        // Discrete (dagre/elk): with animate:true cytoscape records the tween's
+        // start time at run() BEGIN, then dagre's dense-graph compute blocks long
+        // enough (~450ms on L0) that by the time it paints, the tween is already
+        // "over" → it snaps to final positions ("teleport"). 'end' starts the
+        // single tween AFTER compute, so the motion is real. Only flips on dense
+        // graphs — L1/L2 compute is fast and animate:true is fine there.
+        if (huge) config.animate = false;
+        else if (dense) config.animate = 'end';
+    }
+    return config;
+}
+
+// Two-phase transition for layouts whose compute blocks the main thread (dagre):
+// compute headless, capture start+end positions, then tween old→new ourselves.
+// This sidesteps cytoscape's inline animation entirely, so the motion is reliable
+// regardless of how the layout plugin treats `animate`. The heavy compute is
+// deferred one painted frame so the "Applying…" badge shows before the freeze.
+function _runLayoutManualTween(config, onSettled) {
+    const dur = config.animationDuration || 500;
+    const easing = config.animationEasing || 'ease-in-out-cubic';
+    const start = new Map();
+    cy.nodes().forEach(n => {
+        const p = n.position();
+        start.set(n.id(), { x: p.x, y: p.y });
+    });
+
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        const headless = cy.layout(Object.assign({}, config, { animate: false, fit: false }));
+        headless.one('layoutstop', () => {
+            const end = new Map();
+            cy.nodes().forEach(n => {
+                const p = n.position();
+                end.set(n.id(), { x: p.x, y: p.y });
+            });
+            // Snap back to start (batched — no intermediate paint), then tween to end.
+            cy.batch(() => cy.nodes().forEach(n => {
+                const s = start.get(n.id());
+                if (s) n.position(s);
+            }));
+            cy.nodes().forEach(n => {
+                const t = end.get(n.id());
+                if (t) n.animate({ position: t }, { duration: dur, easing, queue: false });
+            });
+            setTimeout(onSettled, dur + 20);
+        });
+        headless.run();
+    }));
+}
+
 function applyLayoutPreset(id) {
     const preset = LAYOUT_PRESETS.find(p => p.id === id);
     if (!preset || !cy) return;
@@ -593,12 +671,19 @@ function applyLayoutPreset(id) {
         b.classList.toggle('active', b.dataset.layoutId === id);
     });
 
-    const config = preset.config();
-    const lay = cy.layout(config);
+    // Cheapen edge draw on heavy graphs (manual switch must apply it too), and
+    // kill any in-flight fit/zoom/element tween so the new layout doesn't snap
+    // from a mid-animation position ("teleport").
+    _applyAdaptivePerfMode();
+    cy.stop(true);
+    cy.elements().stop(true);
+
+    const config = _adaptiveAnimate(preset.config());
     _setLayoutBadge(preset.label);
-    lay.one('layoutstop', () => {
+
+    // Shared "layout settled" handler: clear badge, cache final positions, fit.
+    const _onSettled = () => {
         _setLayoutBadge(null);
-        // Snapshot positions into cache for instant re-entry
         if (curKey) {
             const positions = new Map();
             cy.nodes().forEach(n => {
@@ -608,8 +693,20 @@ function applyLayoutPreset(id) {
             _layoutCacheSet(curKey, positions);
         }
         cy.animate({ fit: { eles: cy.elements(), padding: 40 }, duration: 400, easing: 'ease-in-out-cubic' });
-    });
-    lay.run();
+    };
+
+    // dagre is the only main-thread discrete layout: its dense-graph compute blocks
+    // long enough that cytoscape's inline animation can't tween from it (animate:true
+    // measures across the freeze and lands at the end; animate:'end' isn't honoured by
+    // discrete layouts at all) — either way it "teleports". Drive the transition
+    // manually so the motion is guaranteed.
+    if (config.name === 'dagre') {
+        _runLayoutManualTween(config, _onSettled);
+    } else {
+        const lay = cy.layout(config);
+        lay.one('layoutstop', _onSettled);
+        lay.run();
+    }
 
     showToast(T('layoutApplied', { label: _layoutLabel(preset) }), 'info');
 }
@@ -664,7 +761,7 @@ function applyLayoutWithCache(viewKey, config, onStop) {
         return;
     }
 
-    const lay = cy.layout(config);
+    const lay = cy.layout(_adaptiveAnimate(config));
     lay.one('layoutstop', () => {
         if (viewKey) {
             const positions = new Map();

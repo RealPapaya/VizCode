@@ -498,6 +498,51 @@ function _setLayoutBadge(label) {
   badge.innerHTML = label ? `<span class="layout-badge-icon">${_LAYOUT_SVGS.applying}</span><span>${escapeHtml(label)}...</span>` : "";
   badge.style.display = label ? "" : "none";
 }
+const _FORCE_LAYOUTS = /* @__PURE__ */ new Set(["cose", "fcose", "cola"]);
+function _adaptiveAnimate(config) {
+  const n = typeof cy !== "undefined" && cy ? cy.nodes().length : 0;
+  const e = typeof cy !== "undefined" && cy ? cy.edges().length : 0;
+  const dense = n > 250 || e > 150;
+  const huge = n > 1200 || e > 2500;
+  if (_FORCE_LAYOUTS.has(config.name)) {
+    if (config.name === "cola" || config.name === "cose") return config;
+    if (huge) config.animate = false;
+    else if (dense) config.animate = "end";
+  } else {
+    if (huge) config.animate = false;
+    else if (dense) config.animate = "end";
+  }
+  return config;
+}
+function _runLayoutManualTween(config, onSettled) {
+  const dur = config.animationDuration || 500;
+  const easing = config.animationEasing || "ease-in-out-cubic";
+  const start = /* @__PURE__ */ new Map();
+  cy.nodes().forEach((n) => {
+    const p = n.position();
+    start.set(n.id(), { x: p.x, y: p.y });
+  });
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const headless = cy.layout(Object.assign({}, config, { animate: false, fit: false }));
+    headless.one("layoutstop", () => {
+      const end = /* @__PURE__ */ new Map();
+      cy.nodes().forEach((n) => {
+        const p = n.position();
+        end.set(n.id(), { x: p.x, y: p.y });
+      });
+      cy.batch(() => cy.nodes().forEach((n) => {
+        const s = start.get(n.id());
+        if (s) n.position(s);
+      }));
+      cy.nodes().forEach((n) => {
+        const t = end.get(n.id());
+        if (t) n.animate({ position: t }, { duration: dur, easing, queue: false });
+      });
+      setTimeout(onSettled, dur + 20);
+    });
+    headless.run();
+  }));
+}
 function applyLayoutPreset(id) {
   const preset = LAYOUT_PRESETS.find((p) => p.id === id);
   if (!preset || !cy) return;
@@ -515,10 +560,12 @@ function applyLayoutPreset(id) {
   document.querySelectorAll("#layout-switcher .ls-btn").forEach((b) => {
     b.classList.toggle("active", b.dataset.layoutId === id);
   });
-  const config = preset.config();
-  const lay = cy.layout(config);
+  _applyAdaptivePerfMode();
+  cy.stop(true);
+  cy.elements().stop(true);
+  const config = _adaptiveAnimate(preset.config());
   _setLayoutBadge(preset.label);
-  lay.one("layoutstop", () => {
+  const _onSettled = () => {
     _setLayoutBadge(null);
     if (curKey) {
       const positions = /* @__PURE__ */ new Map();
@@ -529,8 +576,14 @@ function applyLayoutPreset(id) {
       _layoutCacheSet(curKey, positions);
     }
     cy.animate({ fit: { eles: cy.elements(), padding: 40 }, duration: 400, easing: "ease-in-out-cubic" });
-  });
-  lay.run();
+  };
+  if (config.name === "dagre") {
+    _runLayoutManualTween(config, _onSettled);
+  } else {
+    const lay = cy.layout(config);
+    lay.one("layoutstop", _onSettled);
+    lay.run();
+  }
   showToast(T("layoutApplied", { label: _layoutLabel(preset) }), "info");
 }
 function _currentViewKey() {
@@ -568,7 +621,7 @@ function applyLayoutWithCache(viewKey, config, onStop) {
     lay2.run();
     return;
   }
-  const lay = cy.layout(config);
+  const lay = cy.layout(_adaptiveAnimate(config));
   lay.one("layoutstop", () => {
     if (viewKey) {
       const positions = /* @__PURE__ */ new Map();
