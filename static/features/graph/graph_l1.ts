@@ -450,6 +450,17 @@ function renderFilesFlat(modId, files, subPath?) {
     // Invalidate any in-flight expand animations from previous render
     depMapState._animGen++;
 
+    // ── Cheap-revisit detection ───────────────────────────────────────────────
+    // The layout cache key depends only on modId / subPath / ext-state — all known
+    // now, synchronously, before we yield. If it's a hit, this is a fast revisit:
+    // suppress the loading overlay *in this same sync task* so it never paints (no
+    // flash). Cache miss (first visit) keeps the overlay → spinner shows during the
+    // slow layout. Net effect: only the first visit to a folder spins.
+    const _l1Key = `L1:${modId || ''}:${subPath || ''}|ext=${depMapState.showExternalFiles ? 1 : 0}|exp=${Array.from(depMapState.expandedExtModules || []).sort().join(',')}`;
+    const _l1Cached = _layoutCacheGet(_l1Key);
+    const _l1IsRevisit = !!(_l1Cached && _l1Cached.positions && _l1Cached.positions.size);
+    if (_l1IsRevisit) showLoading(false);
+
     // ── Yield to browser so the loading spinner can paint before heavy work ──
     const _l1Token = ++_renderToken;
     setTimeout(() => {
@@ -498,10 +509,8 @@ function renderFilesFlat(modId, files, subPath?) {
         const mainEls = cy.elements().filter(el => !el.data('isExtra'));
         const extraEls = cy.nodes().filter(n => n.data('isExtra'));
 
-        // L1 cache key — subdir + ext-files toggle + expanded ext-modules all change the node set
-        const _l1Key = `L1:${modId || ''}:${subPath || ''}|ext=${depMapState.showExternalFiles ? 1 : 0}|exp=${Array.from(depMapState.expandedExtModules || []).sort().join(',')}`;
-        const _l1Cached = _layoutCacheGet(_l1Key);
-        if (_l1Cached && _l1Cached.positions && _l1Cached.positions.size) {
+        // L1 cache key + cached lookup were computed synchronously above (_l1Key / _l1Cached)
+        if (_l1IsRevisit) {
             console.log(`[layout] cache hit: ${_l1Key}`);
             extraEls.style('display', 'element');
             const lay = cy.layout({

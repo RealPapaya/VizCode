@@ -438,6 +438,10 @@ Type: ${ft}
     if (statsEl) statsEl.textContent = `${capped.length} files`;
   }
   depMapState._animGen++;
+  const _l1Key = `L1:${modId || ""}:${subPath || ""}|ext=${depMapState.showExternalFiles ? 1 : 0}|exp=${Array.from(depMapState.expandedExtModules || []).sort().join(",")}`;
+  const _l1Cached = _layoutCacheGet(_l1Key);
+  const _l1IsRevisit = !!(_l1Cached && _l1Cached.positions && _l1Cached.positions.size);
+  if (_l1IsRevisit) showLoading(false);
   const _l1Token = ++_renderToken;
   setTimeout(() => {
     if (_renderToken !== _l1Token) return;
@@ -473,9 +477,7 @@ Type: ${ft}
     }
     const mainEls = cy.elements().filter((el) => !el.data("isExtra"));
     const extraEls = cy.nodes().filter((n) => n.data("isExtra"));
-    const _l1Key = `L1:${modId || ""}:${subPath || ""}|ext=${depMapState.showExternalFiles ? 1 : 0}|exp=${Array.from(depMapState.expandedExtModules || []).sort().join(",")}`;
-    const _l1Cached = _layoutCacheGet(_l1Key);
-    if (_l1Cached && _l1Cached.positions && _l1Cached.positions.size) {
+    if (_l1IsRevisit) {
       console.log(`[layout] cache hit: ${_l1Key}`);
       extraEls.style("display", "element");
       const lay = cy.layout({
