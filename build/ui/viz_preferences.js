@@ -224,11 +224,15 @@ const ZH_TW_UI_FONT = "'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', 'Hei
 function _uiFontForLang(font, lang) {
   return (lang || "").toLowerCase() === "zh-tw" ? `${font}, ${ZH_TW_UI_FONT}, ${DEFAULT_UI_FONT}` : `${font}, ${DEFAULT_UI_FONT}`;
 }
+let _lastCyStyleKey = null;
 function applyCyFont(font) {
   if (!cy || typeof cy.style !== "function") return;
   try {
     const cyFont = (font || "").replace(/["']/g, "");
     const theme = document.documentElement.getAttribute("data-theme") || "dark";
+    const key = theme + "|" + cyFont;
+    if (key === _lastCyStyleKey) return;
+    _lastCyStyleKey = key;
     const overrides = CY_THEME_OVERRIDES[theme] || [];
     cy.style([...withFont(CY_STYLE, cyFont), ...overrides]);
     cy.nodes().style("font-family", cyFont);

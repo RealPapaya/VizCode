@@ -469,6 +469,8 @@ function renderFilesFlat(modId, files, subPath?) {
     const _runL1Render = () => {
         if (_renderToken !== _l1Token) return; // cancelled
 
+        const _tStart = performance.now();   // [MEASURE] temp
+
         // Stop any running animations to avoid corrupting cytoscape state
         cy.elements().stop(true, false);   // jumpToEnd=false so we don't flash final positions
 
@@ -478,8 +480,11 @@ function renderFilesFlat(modId, files, subPath?) {
 
                 // batch() suppresses per-element style/reflow during the bulk rebuild —
         // this is the dominant cost on every (re)visit, independent of the layout cache.
+        const _tBeforeAdd = performance.now();   // [MEASURE] temp
         cy.batch(() => { cy.json({ elements: [] }); cy.add(els); });
+        const _tAfterAdd = performance.now();    // [MEASURE] temp
         applyCyFont(getSavedFont());
+        const _tAfterFont = performance.now();   // [MEASURE] temp
 
         // ── Empty-state overlay (always freshly created; _clearL1EmptyOverlay removed any prior) ──
         if (cy.nodes().length === 0) {
@@ -515,15 +520,19 @@ function renderFilesFlat(modId, files, subPath?) {
             // Apply cached positions directly + synchronously — no preset-layout round-trip
             // (which fires layoutstop a frame later). The graph snaps into place at once.
             extraEls.style('display', 'element');
+            const _tPos0 = performance.now();    // [MEASURE] temp
             cy.batch(() => {
                 cy.nodes().forEach(n => {
                     const p = _l1Cached.positions.get(n.id());
                     if (p) n.position(p);
                 });
             });
+            const _tPos1 = performance.now();    // [MEASURE] temp
             updateBreadcrumb();
             showLoading(false);
             _postLayoutL1();
+            const _tEnd = performance.now();     // [MEASURE] temp
+            console.log(`[revisit ${modId}${subPath ? '/' + subPath : ''}] nodes=${cy.nodes().length} edges=${cy.edges().length} | preAdd(stop+set)=${(_tBeforeAdd - _tStart).toFixed(0)}ms rebuild(cy.add)=${(_tAfterAdd - _tBeforeAdd).toFixed(0)}ms font(applyCyFont)=${(_tAfterFont - _tAfterAdd).toFixed(0)}ms filters=${(_tPos0 - _tAfterFont).toFixed(0)}ms posApply=${(_tPos1 - _tPos0).toFixed(0)}ms postLayout=${(_tEnd - _tPos1).toFixed(0)}ms total=${(_tEnd - _tStart).toFixed(0)}ms`);
             return;
         }
 

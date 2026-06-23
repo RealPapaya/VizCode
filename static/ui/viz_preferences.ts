@@ -226,11 +226,21 @@ function _uiFontForLang(font, lang) {
         : `${font}, ${DEFAULT_UI_FONT}`;
 }
 
+// Tracks the (theme|font) the cy stylesheet was last built for. Re-parsing + re-applying
+// the whole stylesheet costs ~200ms on big graphs and is only needed when font/theme
+// actually change — the stylesheet persists on the cy instance across cy.add(), so new
+// elements pick it up automatically. Render paths call this every time; the guard makes
+// the steady-state calls (same font/theme) a no-op. Theme switches change data-theme, so
+// the key differs and the stylesheet is correctly rebuilt.
+let _lastCyStyleKey = null;
 function applyCyFont(font) {
     if (!cy || typeof cy.style !== 'function') return;
     try {
         const cyFont = (font || '').replace(/["']/g, '');
         const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+        const key = theme + '|' + cyFont;
+        if (key === _lastCyStyleKey) return;   // stylesheet already current — skip the costly re-parse
+        _lastCyStyleKey = key;
         const overrides = CY_THEME_OVERRIDES[theme] || [];
         cy.style([...withFont(CY_STYLE, cyFont), ...overrides]);
         // Ensure existing elements are updated immediately

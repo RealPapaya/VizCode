@@ -445,14 +445,18 @@ Type: ${ft}
   const _l1Token = ++_renderToken;
   const _runL1Render = () => {
     if (_renderToken !== _l1Token) return;
+    const _tStart = performance.now();
     cy.elements().stop(true, false);
     const prevNodeIds = new Set(cy.nodes().map((n) => n.id()));
     depMapState._prevNodeIds = prevNodeIds;
+    const _tBeforeAdd = performance.now();
     cy.batch(() => {
       cy.json({ elements: [] });
       cy.add(els);
     });
+    const _tAfterAdd = performance.now();
     applyCyFont(getSavedFont());
+    const _tAfterFont = performance.now();
     if (cy.nodes().length === 0) {
       const emptyOverlay = document.createElement("div");
       emptyOverlay.id = "l1-empty-overlay";
@@ -477,15 +481,19 @@ Type: ${ft}
     const extraEls = cy.nodes().filter((n) => n.data("isExtra"));
     if (_l1IsRevisit) {
       extraEls.style("display", "element");
+      const _tPos0 = performance.now();
       cy.batch(() => {
         cy.nodes().forEach((n) => {
           const p = _l1Cached.positions.get(n.id());
           if (p) n.position(p);
         });
       });
+      const _tPos1 = performance.now();
       updateBreadcrumb();
       showLoading(false);
       _postLayoutL1();
+      const _tEnd = performance.now();
+      console.log(`[revisit ${modId}${subPath ? "/" + subPath : ""}] nodes=${cy.nodes().length} edges=${cy.edges().length} | preAdd(stop+set)=${(_tBeforeAdd - _tStart).toFixed(0)}ms rebuild(cy.add)=${(_tAfterAdd - _tBeforeAdd).toFixed(0)}ms font(applyCyFont)=${(_tAfterFont - _tAfterAdd).toFixed(0)}ms filters=${(_tPos0 - _tAfterFont).toFixed(0)}ms posApply=${(_tPos1 - _tPos0).toFixed(0)}ms postLayout=${(_tEnd - _tPos1).toFixed(0)}ms total=${(_tEnd - _tStart).toFixed(0)}ms`);
       return;
     }
     const _snapshotL1Positions = () => {
