@@ -407,8 +407,10 @@ Known system API \u2014 no source in this codebase.`
     if (_renderToken !== _l2Token) return;
     cy.elements().stop(true, false);
     l2State._prevNodeIds = new Set(cy.nodes().map((n) => n.id()));
-    cy.json({ elements: [] });
-    cy.add(els);
+    cy.batch(() => {
+      cy.json({ elements: [] });
+      cy.add(els);
+    });
     applyCyFont(getSavedFont());
     applyExternalEdgeVisibility();
     const l2LayoutId = _PREFS.get("layoutL2");

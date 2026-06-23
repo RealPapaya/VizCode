@@ -109,8 +109,10 @@ Analysed: ${m.file_count} | Funcs: ${m.func_count}${ttExtra}`,
       }
     });
   });
-  cy.json({ elements: [] });
-  cy.add(els);
+  cy.batch(() => {
+    cy.json({ elements: [] });
+    cy.add(els);
+  });
   applyCyFont(getSavedFont());
   const l0LayoutId = _PREFS.get("layoutL0");
   const l0Preset = LAYOUT_PRESETS.find((p) => p.id === l0LayoutId);
@@ -138,6 +140,21 @@ function _fitGraphAfterNavigation(padding = 40) {
 function _clearL1EmptyOverlay() {
   const ov = document.getElementById("l1-empty-overlay");
   if (ov) ov.remove();
+}
+const _L1_FORCE_LAYOUTS = /* @__PURE__ */ new Set(["cose", "fcose", "cola"]);
+const _L1_FORCE_DOWNGRADE_NODES = 200;
+const _L1_DAGRE_LR = { name: "dagre", rankDir: "LR", animate: false, nodeSep: 30, rankSep: 90, padding: 40 };
+function _resolveL1Layout(nodeCount) {
+  const id = _PREFS.get("layoutL1");
+  const preset = LAYOUT_PRESETS.find((p) => p.id === id);
+  const available = preset && (!preset.requires || _isLayoutAvailable(preset.requires));
+  if (available) {
+    const cfg = { ...preset.config(), animate: false };
+    const tooBig = _L1_FORCE_LAYOUTS.has(cfg.name) && nodeCount > _L1_FORCE_DOWNGRADE_NODES;
+    if (!tooBig) return { effectiveId: id, config: cfg };
+    console.log(`[layout] '${cfg.name}' downgraded to dagre (${nodeCount} nodes > ${_L1_FORCE_DOWNGRADE_NODES})`);
+  }
+  return { effectiveId: "dagre-lr", config: { ..._L1_DAGRE_LR } };
 }
 function drillToModule(modId, opts) {
   if (typeof pushGlobalNavSnapshot === "function" && !isGlobalNavRestoring()) {
@@ -427,8 +444,12 @@ Type: ${ft}
     cy.elements().stop(true, false);
     const prevNodeIds = new Set(cy.nodes().map((n) => n.id()));
     depMapState._prevNodeIds = prevNodeIds;
-    cy.json({ elements: [] });
-    cy.add(els);
+    console.time("[l1] rebuild");
+    cy.batch(() => {
+      cy.json({ elements: [] });
+      cy.add(els);
+    });
+    console.timeEnd("[l1] rebuild");
     applyCyFont(getSavedFont());
     if (cy.nodes().length === 0) {
       const emptyOverlay = document.createElement("div");
@@ -481,11 +502,7 @@ Type: ${ft}
       _layoutCacheSet(_l1Key, positions);
     };
     if (extraEls.length === 0) {
-      const l1LayoutId = _PREFS.get("layoutL1");
-      const l1Preset = LAYOUT_PRESETS.find((p) => p.id === l1LayoutId);
-      const canUse = l1Preset && (!l1Preset.requires || _isLayoutAvailable(l1Preset.requires));
-      const effectiveId = canUse ? l1LayoutId : "dagre-lr";
-      const l1Config = canUse ? { ...l1Preset.config(), animate: false } : { name: "dagre", rankDir: "LR", animate: false, nodeSep: 30, rankSep: 90, padding: 40 };
+      const { effectiveId, config: l1Config } = _resolveL1Layout(cy.nodes().length);
       _syncLayoutIndicator(effectiveId);
       refreshLayoutSwitcher();
       const lay = cy.layout(l1Config);
@@ -500,11 +517,8 @@ Type: ${ft}
       return;
     }
     extraEls.style("display", "none");
-    const l1LayoutId2 = _PREFS.get("layoutL1");
-    const l1Preset2 = LAYOUT_PRESETS.find((p) => p.id === l1LayoutId2);
-    const canUse2 = l1Preset2 && (!l1Preset2.requires || _isLayoutAvailable(l1Preset2.requires));
-    const l1Config2 = canUse2 ? { ...l1Preset2.config(), animate: false } : { name: "dagre", rankDir: "LR", animate: false, nodeSep: 30, rankSep: 90, padding: 40 };
-    _syncLayoutIndicator(canUse2 ? l1LayoutId2 : "dagre-lr");
+    const { effectiveId: _l1eid2, config: l1Config2 } = _resolveL1Layout(mainEls.length);
+    _syncLayoutIndicator(_l1eid2);
     const layMain = cy.layout(l1Config2);
     layMain.one("layoutstop", () => {
       if (_renderToken !== _l1Token) return;

@@ -86,8 +86,8 @@
         });
     });
 
-    cy.json({ elements: [] });
-    cy.add(els);
+    // batch() suppresses per-element style/reflow during the bulk rebuild
+    cy.batch(() => { cy.json({ elements: [] }); cy.add(els); });
     applyCyFont(getSavedFont());
 
     const l0LayoutId = _PREFS.get('layoutL0');
@@ -121,6 +121,29 @@ function _fitGraphAfterNavigation(padding = 40) {
 function _clearL1EmptyOverlay() {
     const ov = document.getElementById('l1-empty-overlay');
     if (ov) ov.remove();
+}
+
+// Heavy force-directed layouts (physics sims) choke on large node sets. Above this
+// node count we transparently fall back to dagre (fast, deterministic) so opening a
+// big folder doesn't spin for seconds. The result is still position-cached for revisits.
+const _L1_FORCE_LAYOUTS = new Set(['cose', 'fcose', 'cola']);
+const _L1_FORCE_DOWNGRADE_NODES = 200;
+const _L1_DAGRE_LR = { name: 'dagre', rankDir: 'LR', animate: false, nodeSep: 30, rankSep: 90, padding: 40 };
+
+// Resolve the L1 layout: honour the user's preference, but fall back to dagre when the
+// preferred preset's CDN extension is missing OR when a force-directed layout would be
+// too slow for the current node count.
+function _resolveL1Layout(nodeCount) {
+    const id = _PREFS.get('layoutL1');
+    const preset = LAYOUT_PRESETS.find(p => p.id === id);
+    const available = preset && (!preset.requires || _isLayoutAvailable(preset.requires));
+    if (available) {
+        const cfg = { ...preset.config(), animate: false };
+        const tooBig = _L1_FORCE_LAYOUTS.has(cfg.name) && nodeCount > _L1_FORCE_DOWNGRADE_NODES;
+        if (!tooBig) return { effectiveId: id, config: cfg };
+        console.log(`[layout] '${cfg.name}' downgraded to dagre (${nodeCount} nodes > ${_L1_FORCE_DOWNGRADE_NODES})`);
+    }
+    return { effectiveId: 'dagre-lr', config: { ..._L1_DAGRE_LR } };
 }
 
 // ─── L1: Module → show ALL files flat (no folder nodes ever) ─────────────────
@@ -439,8 +462,11 @@ function renderFilesFlat(modId, files, subPath?) {
         const prevNodeIds = new Set(cy.nodes().map(n => n.id()));
         depMapState._prevNodeIds = prevNodeIds;
 
-                cy.json({ elements: [] });
-        cy.add(els);
+                // batch() suppresses per-element style/reflow during the bulk rebuild —
+        // this is the dominant cost on every (re)visit, independent of the layout cache.
+        console.time('[l1] rebuild');
+        cy.batch(() => { cy.json({ elements: [] }); cy.add(els); });
+        console.timeEnd('[l1] rebuild');
         applyCyFont(getSavedFont());
 
         // ── Empty-state overlay (always freshly created; _clearL1EmptyOverlay removed any prior) ──
@@ -505,13 +531,7 @@ function renderFilesFlat(modId, files, subPath?) {
 
         if (extraEls.length === 0) {
             // Simple path: no extras, just run the user's preferred layout
-            const l1LayoutId = _PREFS.get('layoutL1');
-            const l1Preset = LAYOUT_PRESETS.find(p => p.id === l1LayoutId);
-            const canUse = l1Preset && (!l1Preset.requires || _isLayoutAvailable(l1Preset.requires));
-            const effectiveId = canUse ? l1LayoutId : 'dagre-lr';
-            const l1Config = canUse
-                ? { ...l1Preset.config(), animate: false }
-                : { name: 'dagre', rankDir: 'LR', animate: false, nodeSep: 30, rankSep: 90, padding: 40 };
+            const { effectiveId, config: l1Config } = _resolveL1Layout(cy.nodes().length);
             _syncLayoutIndicator(effectiveId);
             refreshLayoutSwitcher();
             const lay = cy.layout(l1Config);
@@ -529,14 +549,10 @@ function renderFilesFlat(modId, files, subPath?) {
         // Hide extra nodes while main layout runs so they don't affect positions
         extraEls.style('display', 'none');
 
-        // Use user's preferred layout for the main nodes (extras get grid-placed below)
-        const l1LayoutId2 = _PREFS.get('layoutL1');
-        const l1Preset2 = LAYOUT_PRESETS.find(p => p.id === l1LayoutId2);
-        const canUse2 = l1Preset2 && (!l1Preset2.requires || _isLayoutAvailable(l1Preset2.requires));
-        const l1Config2 = canUse2
-            ? { ...l1Preset2.config(), animate: false }
-            : { name: 'dagre', rankDir: 'LR', animate: false, nodeSep: 30, rankSep: 90, padding: 40 };
-        _syncLayoutIndicator(canUse2 ? l1LayoutId2 : 'dagre-lr');
+        // Use user's preferred layout for the main nodes (extras get grid-placed below).
+        // Force layout runs on main nodes only — extras are hidden and grid-placed.
+        const { effectiveId: _l1eid2, config: l1Config2 } = _resolveL1Layout(mainEls.length);
+        _syncLayoutIndicator(_l1eid2);
 
         const layMain = cy.layout(l1Config2);
 

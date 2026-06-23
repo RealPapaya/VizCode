@@ -358,8 +358,8 @@ function renderL2Flowchart(fileRel, focusFuncName = null) {
 
         // Reset element collection — json({elements:[]}) releases internal batch buffers
         // more cleanly than .elements().remove(), which leaves dirty lists around.
-        cy.json({ elements: [] });
-        cy.add(els);
+        // batch() suppresses per-element style/reflow during the bulk rebuild.
+        cy.batch(() => { cy.json({ elements: [] }); cy.add(els); });
         applyCyFont(getSavedFont());
         applyExternalEdgeVisibility();
 
