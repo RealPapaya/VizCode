@@ -1360,12 +1360,102 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                 source_paths.append(fp)
         return visible_paths, source_paths, ignored_file_count, dirs_scanned, skipped_dir_roots
 
+    def _collect_project_files_git():
+        """Fast path: enumerate non-ignored files with a SINGLE `git ls-files`.
+
+        The os.walk path above spawns one `git check-ignore` subprocess PER
+        directory — thousands of process launches on a big repo (≈40 ms each on
+        Windows), which dominated wall-clock. `git ls-files` lets git's C core
+        walk the tree and apply .gitignore once, in one subprocess. We still
+        apply skip_dirs (node_modules/build/…) on top, since those are VizCode's
+        own skips that may not be in .gitignore. Raises _GitIgnoreFilterError on
+        any git failure so the caller falls back to the os.walk path.
+        """
+        try:
+            proc = subprocess.run(
+                ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+                cwd=root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=120,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+            raise _GitIgnoreFilterError(str(exc)) from exc
+        if proc.returncode != 0:
+            raise _GitIgnoreFilterError(
+                proc.stderr.decode('utf-8', errors='replace') if proc.stderr else 'git ls-files failed'
+            )
+        rels = proc.stdout.decode('utf-8', errors='surrogateescape').split('\0')
+
+        visible_paths = []
+        skipped_by_dir = 0
+        dir_set = set()
+        total_seen = 0
+        next_emit = 2000
+        for rel in rels:
+            if not rel:
+                continue
+            total_seen += 1
+            parts = rel.split('/')
+            # Drop anything whose directory chain hits a skip_dirs name.
+            if any(seg in skip_dirs for seg in parts[:-1]):
+                skipped_by_dir += 1
+                continue
+            visible_paths.append(os.path.join(root, *parts))
+            if len(parts) > 1:
+                dir_set.add('/'.join(parts[:-1]))
+            if len(visible_paths) >= next_emit:
+                next_emit += 2000
+                frac = len(visible_paths) / (len(visible_paths) + 8000)
+                _cb(
+                    _stage_pct('scan', frac),
+                    f'Scanning files… {len(visible_paths):,} found',
+                    stage='scan',
+                )
+
+        source_paths = []
+        for fp in visible_paths:
+            ext = Path(fp).suffix.lower()
+            if ext in SCAN_EXT and ext not in SKIP_EXT:
+                source_paths.append(fp)
+
+        # ignored_files stat = count of .gitignore'd files (matches the old
+        # per-file check-ignore semantics). One cheap extra subprocess; cosmetic,
+        # so any failure just yields 0.
+        ignored_file_count = 0
+        try:
+            iproc = subprocess.run(
+                ['git', 'ls-files', '--others', '--ignored', '--exclude-standard', '-z'],
+                cwd=root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=60,
+            )
+            if iproc.returncode == 0:
+                ignored_file_count = sum(
+                    1 for x in iproc.stdout.decode('utf-8', errors='surrogateescape').split('\0') if x
+                )
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            pass
+
+        # skipped_dir_roots unknown in the git path → 0 (cosmetic).
+        return visible_paths, source_paths, ignored_file_count, len(dir_set), 0
+
     ignore_filter = _build_git_ignore_filter(root)
-    try:
-        visible_file_paths, all_files, ignored_files, total_dirs_scanned, skipped_dir_roots = _collect_project_files(ignore_filter)
-    except _GitIgnoreFilterError:
-        ignore_filter = _GitIgnoreFilter(root, enabled=False)
-        visible_file_paths, all_files, ignored_files, total_dirs_scanned, skipped_dir_roots = _collect_project_files(ignore_filter)
+    collected = None
+    if ignore_filter.enabled:
+        # Git repo, root not itself ignored → try the single-subprocess fast path.
+        try:
+            collected = _collect_project_files_git()
+        except _GitIgnoreFilterError:
+            collected = None
+    if collected is None:
+        try:
+            collected = _collect_project_files(ignore_filter)
+        except _GitIgnoreFilterError:
+            ignore_filter = _GitIgnoreFilter(root, enabled=False)
+            collected = _collect_project_files(ignore_filter)
+    visible_file_paths, all_files, ignored_files, total_dirs_scanned, skipped_dir_roots = collected
 
     # "Project files" = everything we actually walked (skip/ignored dir contents
     # are intentionally excluded — we no longer descend them). total_dirs_skipped
