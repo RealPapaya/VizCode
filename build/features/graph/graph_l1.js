@@ -554,10 +554,16 @@ Type: ${ft}
   else setTimeout(_runL1Render, 0);
 }
 function _postLayoutL1() {
+  const _p0 = performance.now();
   applyEdgeFilter();
+  const _p1 = performance.now();
   buildEdgeFilter();
+  const _p2 = performance.now();
   buildNodeLegend();
+  const _p3 = performance.now();
   updateSidebarStats();
+  const _p4 = performance.now();
+  console.log(`[postLayout] applyEdgeFilter=${(_p1 - _p0).toFixed(0)}ms buildEdgeFilter=${(_p2 - _p1).toFixed(0)}ms buildNodeLegend=${(_p3 - _p2).toFixed(0)}ms updateSidebarStats=${(_p4 - _p3).toFixed(0)}ms`);
   const savedVP = depMapState.preserveViewport;
   const originPos = depMapState.expandOriginPos;
   const focusPath = depMapState.pendingFocusFile;
@@ -647,7 +653,9 @@ function _postLayoutL1() {
     }, 80);
     return;
   }
+  const _pf0 = performance.now();
   cy.fit(cy.elements(), 40);
+  console.log(`[postLayout] cy.fit=${(performance.now() - _pf0).toFixed(0)}ms`);
 }
 function setCodeBtnEnabled(enabled) {
   const btn = document.getElementById("code-toggle-btn");

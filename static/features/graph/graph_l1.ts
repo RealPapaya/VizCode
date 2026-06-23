@@ -615,11 +615,17 @@ function renderFilesFlat(modId, files, subPath?) {
 
 // ── Post-layout handler: handles expand animation OR focus fly-in ──────────────
 function _postLayoutL1() {
+    const _p0 = performance.now();   // [MEASURE] temp
     // Refresh legend with only the edge types / node shapes visible in this view
     applyEdgeFilter();
+    const _p1 = performance.now();   // [MEASURE] temp
     buildEdgeFilter();
+    const _p2 = performance.now();   // [MEASURE] temp
     buildNodeLegend();
+    const _p3 = performance.now();   // [MEASURE] temp
     updateSidebarStats();
+    const _p4 = performance.now();   // [MEASURE] temp
+    console.log(`[postLayout] applyEdgeFilter=${(_p1 - _p0).toFixed(0)}ms buildEdgeFilter=${(_p2 - _p1).toFixed(0)}ms buildNodeLegend=${(_p3 - _p2).toFixed(0)}ms updateSidebarStats=${(_p4 - _p3).toFixed(0)}ms`);
 
     const savedVP = depMapState.preserveViewport;
     const originPos = depMapState.expandOriginPos;
@@ -726,7 +732,9 @@ function _postLayoutL1() {
     }
 
     // ── Case 3: Normal navigation — fit to all elements ──────────────────────
+    const _pf0 = performance.now();   // [MEASURE] temp
     cy.fit(cy.elements(), 40);
+    console.log(`[postLayout] cy.fit=${(performance.now() - _pf0).toFixed(0)}ms`);   // [MEASURE] temp
 }
 
 // ─── Call Graph Button helpers ────────────────────────────────────────────────
