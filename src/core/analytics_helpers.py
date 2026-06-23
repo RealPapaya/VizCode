@@ -9,6 +9,62 @@ import json
 import os
 from collections import defaultdict, Counter
 
+# ─── C0: Edge trust labels (EXTRACTED / INFERRED / AMBIGUOUS) ─────────────────
+
+#: Three-state trust label vocabulary. Canonical mapping lives here; mcp_server
+#: keeps a stdlib-only mirror (_confidence_label) because it runs as a
+#: standalone process and does not import core.
+TRUST_LABELS = ('EXTRACTED', 'INFERRED', 'AMBIGUOUS')
+
+
+def confidence_label(kind, confidence) -> str:
+    """Map an edge's (kind, confidence) to a three-state trust label.
+
+    - EXTRACTED — parsed straight from source (static import/include, AST-exact).
+    - INFERRED  — semantically inferred with usable confidence (>= 0.5).
+    - AMBIGUOUS — low confidence (< 0.5), conflicting, or unknown.
+
+    The point is token economy: an LLM can trust EXTRACTED/INFERRED edges as-is
+    and only re-open source for AMBIGUOUS ones.
+    """
+    k = (kind or '').lower()
+    try:
+        conf = float(confidence)
+    except (TypeError, ValueError):
+        conf = None
+
+    # Semantic / AI-inferred edges are graded purely by confidence.
+    if 'infer' in k or k == 'semantic':
+        return 'INFERRED' if (conf is not None and conf >= 0.5) else 'AMBIGUOUS'
+
+    # Everything else is a statically extracted relationship. A missing or
+    # full-certainty confidence means a clean AST extraction; a parser hint with
+    # reduced confidence degrades the trust accordingly.
+    if conf is None or conf >= 1.0:
+        return 'EXTRACTED'
+    if conf >= 0.5:
+        return 'INFERRED'
+    return 'AMBIGUOUS'
+
+
+def _edge_kind(edge_type: str) -> str:
+    """Coarse kind from a file-edge `type` string (mirrors _score_edge)."""
+    return 'inferred' if 'infer' in (edge_type or '') else 'import'
+
+
+def edge_trust_summary(data: dict) -> dict:
+    """Count file-to-file edges by trust label.
+
+    Returns a dict keyed by TRUST_LABELS, e.g. {'EXTRACTED': 120, ...}.
+    """
+    counts = {lbl: 0 for lbl in TRUST_LABELS}
+    for edge_list in data.get('file_edges_by_module', {}).values():
+        for e in edge_list:
+            label = confidence_label(_edge_kind(e.get('type', '')), e.get('confidence'))
+            counts[label] += 1
+    return counts
+
+
 # ─── C1: Hotspot Nodes ───────────────────────────────────────────────────────
 
 def hotspot_nodes(data: dict, top_n: int = 10) -> list:
@@ -145,6 +201,8 @@ def surprising_connections(data: dict, top_n: int = 5) -> list:
                     'target': tgt.get('path', ''),
                     'score':  score,
                     'reason': reason,
+                    'label':  confidence_label(
+                        _edge_kind(edge.get('type', '')), edge.get('confidence')),
                 })
 
     scored.sort(key=lambda x: x['score'], reverse=True)
@@ -195,8 +253,9 @@ def _report_connections(connections: list) -> list:
         lines.append('No surprising connections detected.')
         return lines
     for c in connections:
+        trust = f" [{c['label']}]" if c.get('label') else ''
         lines.append(
-            f"- `{c['source']}` → `{c['target']}`"
+            f"- `{c['source']}` → `{c['target']}`{trust}"
             f"  (score: {c['score']}) — {c['reason']}"
         )
     return lines
@@ -474,6 +533,14 @@ def _write_index(data: dict, output_dir: str) -> None:
     )
     lines.append(f'- God files: {god_str}')
 
+    trust = edge_trust_summary(data)
+    lines += ['', '## Edge Trust\n']
+    lines.append(
+        f"- EXTRACTED (parsed from source): {trust['EXTRACTED']}"
+        f" | INFERRED (semantic ≥0.5): {trust['INFERRED']}"
+        f" | AMBIGUOUS (verify before trusting): {trust['AMBIGUOUS']}"
+    )
+
     top_cycles = stats.get('top_circular_deps', [])
     if top_cycles:
         lines.append('\n**Circular Dependency Chains:**')
@@ -491,8 +558,9 @@ def _write_index(data: dict, output_dir: str) -> None:
     if connections:
         lines += ['', '## Surprising Connections\n']
         for c in connections:
+            trust_tag = f" [{c['label']}]" if c.get('label') else ''
             lines.append(
-                f"- `{c['source']}` \u2192 `{c['target']}`"
+                f"- `{c['source']}` \u2192 `{c['target']}`{trust_tag}"
                 f" (score {c['score']}) \u2014 {c['reason']}"
             )
 
