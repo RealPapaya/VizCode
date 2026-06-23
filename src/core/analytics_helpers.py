@@ -11,21 +11,25 @@ from collections import defaultdict, Counter
 
 # ─── C0: Edge trust labels (EXTRACTED / INFERRED / AMBIGUOUS) ─────────────────
 
-#: Three-state trust label vocabulary. Canonical mapping lives here; mcp_server
-#: keeps a stdlib-only mirror (_confidence_label) because it runs as a
-#: standalone process and does not import core.
-TRUST_LABELS = ('EXTRACTED', 'INFERRED', 'AMBIGUOUS')
+#: Four-tier trust label vocabulary, ordered most→least trustworthy. Canonical
+#: mapping lives here; mcp_server keeps a stdlib-only mirror (_confidence_label)
+#: because it runs as a standalone process and does not import core.
+TRUST_LABELS = ('EXTRACTED', 'DERIVED', 'INFERRED', 'AMBIGUOUS')
 
 
 def confidence_label(kind, confidence) -> str:
-    """Map an edge's (kind, confidence) to a three-state trust label.
+    """Map an edge's (kind/origin, confidence) to a four-tier trust label.
 
     - EXTRACTED — parsed straight from source (static import/include, AST-exact).
-    - INFERRED  — semantically inferred with usable confidence (>= 0.5).
+    - DERIVED   — local deterministic heuristic (subprocess/shared-file/interface)
+                  that was also model-confirmed: two independent signals, so it is
+                  trusted just below a clean AST extraction.
+    - INFERRED  — pure model-inferred relationship with usable confidence (>= 0.5).
     - AMBIGUOUS — low confidence (< 0.5), conflicting, or unknown.
 
-    The point is token economy: an LLM can trust EXTRACTED/INFERRED edges as-is
-    and only re-open source for AMBIGUOUS ones.
+    The point is token economy: an LLM can trust EXTRACTED/DERIVED/INFERRED edges
+    as-is and only re-open source for AMBIGUOUS ones. Splitting DERIVED out of the
+    broad INFERRED bucket stops the model re-verifying locally grounded edges.
     """
     k = (kind or '').lower()
     try:
@@ -33,7 +37,11 @@ def confidence_label(kind, confidence) -> str:
     except (TypeError, ValueError):
         conf = None
 
-    # Semantic / AI-inferred edges are graded purely by confidence.
+    # Locally derived + model-confirmed edges: trust unless confidence is low.
+    if 'deriv' in k:
+        return 'DERIVED' if (conf is None or conf >= 0.5) else 'AMBIGUOUS'
+
+    # Pure model-inferred edges are graded purely by confidence.
     if 'infer' in k or k == 'semantic':
         return 'INFERRED' if (conf is not None and conf >= 0.5) else 'AMBIGUOUS'
 
@@ -47,9 +55,12 @@ def confidence_label(kind, confidence) -> str:
     return 'AMBIGUOUS'
 
 
-def _edge_kind(edge_type: str) -> str:
-    """Coarse kind from a file-edge `type` string (mirrors _score_edge)."""
-    return 'inferred' if 'infer' in (edge_type or '') else 'import'
+def _edge_trust_kind(e: dict) -> str:
+    """Trust-kind for a file edge: explicit `origin` wins, else inferred from `type`."""
+    origin = (e.get('origin') or '').lower()
+    if origin:
+        return origin
+    return 'inferred' if 'infer' in (e.get('type') or '') else 'import'
 
 
 def edge_trust_summary(data: dict) -> dict:
@@ -60,7 +71,7 @@ def edge_trust_summary(data: dict) -> dict:
     counts = {lbl: 0 for lbl in TRUST_LABELS}
     for edge_list in data.get('file_edges_by_module', {}).values():
         for e in edge_list:
-            label = confidence_label(_edge_kind(e.get('type', '')), e.get('confidence'))
+            label = confidence_label(_edge_trust_kind(e), e.get('confidence'))
             counts[label] += 1
     return counts
 
@@ -202,7 +213,7 @@ def surprising_connections(data: dict, top_n: int = 5) -> list:
                     'score':  score,
                     'reason': reason,
                     'label':  confidence_label(
-                        _edge_kind(edge.get('type', '')), edge.get('confidence')),
+                        _edge_trust_kind(edge), edge.get('confidence')),
                 })
 
     scored.sort(key=lambda x: x['score'], reverse=True)
@@ -537,7 +548,8 @@ def _write_index(data: dict, output_dir: str) -> None:
     lines += ['', '## Edge Trust\n']
     lines.append(
         f"- EXTRACTED (parsed from source): {trust['EXTRACTED']}"
-        f" | INFERRED (semantic ≥0.5): {trust['INFERRED']}"
+        f" | DERIVED (local heuristic, confirmed): {trust['DERIVED']}"
+        f" | INFERRED (model ≥0.5): {trust['INFERRED']}"
         f" | AMBIGUOUS (verify before trusting): {trust['AMBIGUOUS']}"
     )
 

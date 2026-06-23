@@ -119,21 +119,25 @@ def _imp_name(imp) -> str:
 # ─── Index building ───────────────────────────────────────────────────────────
 
 def _confidence_label(kind, confidence) -> str:
-    """Map an edge's (kind, confidence) to a three-state trust label.
+    """Map an edge's (kind/origin, confidence) to a four-tier trust label.
 
     EXTRACTED — parsed straight from source (static import, AST-exact).
-    INFERRED  — semantically inferred with usable confidence (>= 0.5).
+    DERIVED   — local deterministic heuristic + model-confirmed (two signals).
+    INFERRED  — pure model-inferred relationship with usable confidence (>= 0.5).
     AMBIGUOUS — low confidence (< 0.5), conflicting, or unknown.
 
     Stdlib-only mirror of analytics_helpers.confidence_label; kept local because
     this server runs as a standalone process and does not import core. Lets an
-    LLM trust EXTRACTED/INFERRED edges and only re-open source for AMBIGUOUS ones.
+    LLM trust EXTRACTED/DERIVED/INFERRED edges and only re-open source for
+    AMBIGUOUS ones.
     """
     k = (kind or "").lower()
     try:
         conf = float(confidence)
     except (TypeError, ValueError):
         conf = None
+    if "deriv" in k:
+        return "DERIVED" if (conf is None or conf >= 0.5) else "AMBIGUOUS"
     if "infer" in k or k == "semantic":
         return "INFERRED" if (conf is not None and conf >= 0.5) else "AMBIGUOUS"
     if conf is None or conf >= 1.0:
@@ -147,7 +151,7 @@ def _build_index(scan: dict, sem: dict):
     """
     Returns:
         modules  — dict[name -> payload dict]  (from scan_cache entries)
-        edges    — list[{source, target, kind, confidence, reason, label}]
+        edges    — list[{source, target, kind, confidence, reason, label, origin?}]
         adj      — dict[name -> list[name]]  (adjacency for BFS, both directions)
     """
     modules = {}
@@ -191,13 +195,19 @@ def _build_index(scan: dict, sem: dict):
             if not src or not tgt:
                 continue
             conf = e.get("confidence", 0.0)
+            # Provenance splits the broad "inferred" bucket: a "derived" edge is
+            # a local deterministic candidate (subprocess/shared-file/interface)
+            # that the model confirmed. `kind` stays "inferred" so existing
+            # kind-based filters keep working; `origin` drives the trust label.
+            origin = "derived" if str(e.get("origin", "")).lower() == "derived" else "inferred"
             edges.append({
                 "source":     src,
                 "target":     tgt,
                 "kind":       "inferred",
                 "confidence": conf,
                 "reason":     e.get("reason", ""),
-                "label":      _confidence_label("inferred", conf),
+                "origin":     origin,
+                "label":      _confidence_label(origin, conf),
             })
 
     # Adjacency list (undirected for BFS path finding)

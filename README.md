@@ -140,6 +140,20 @@ Semantic analysis (`--ai`) is Claude-only. It enriches `.vizcode/semantic_cache.
 
 ---
 
+## Token Efficiency
+
+Most AI code tools have to read source files (and often docs) into the model just to map a repository, so the very first scan already costs thousands of tokens. VizCode separates *understanding the structure* from *asking the AI about it*: structure is extracted locally, and the AI only ever sees compact, structured answers.
+
+| Step | How VizCode does it | Token cost |
+|------|---------------------|------------|
+| First scan / structure extraction | `--scan-only` runs pure-Python parsers; **no model in the loop** | **0 tokens** |
+| Answering a question | MCP returns a centrality-ranked subgraph (signatures + key edges), never raw file bodies | Small, bounded |
+| Trusting a relationship | Edges are labeled `EXTRACTED` / `DERIVED` / `INFERRED` / `AMBIGUOUS` | Avoids re-opening source to "verify" |
+
+Because the scan is local and deterministic, you can regenerate the structure as often as you like without spending tokens, and the AI only pays for the questions you actually ask.
+
+---
+
 ## When To Generate An AI Report
 
 Choose **YES** when:

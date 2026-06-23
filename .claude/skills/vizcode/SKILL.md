@@ -108,14 +108,16 @@ Emit the kept candidates as the inferred-edge list. Each edge:
   "source": "launcher.py",
   "target": "worker.py",
   "confidence": 0.85,
-  "reason": "launcher spawns worker.py via subprocess at runtime"
+  "reason": "launcher spawns worker.py via subprocess at runtime",
+  "origin": "derived"
 }
 ```
 
 Rules:
 - `source`/`target` must be the exact scan_cache keys (project-relative paths) the candidate used — they must match graph/MCP module keys.
 - `confidence` range: 0.5–1.0 (below 0.5 is noise, drop it).
-- Prefer confirming candidates. Only add a brand-new edge the detector missed if it is clearly important (e.g. a collaborative pipeline passed via a queue or env var) — this should be rare.
+- `origin`: set `"derived"` for every edge you kept from the candidate list (it came from a local detector signal + your confirmation = trusted tier `DERIVED`). Set `"inferred"` only for a brand-new edge you added yourself with no candidate behind it.
+- Prefer confirming candidates. Only add a brand-new edge the detector missed if it is clearly important (e.g. a collaborative pipeline passed via a queue or env var) — this should be rare, and is the only case that uses `"origin": "inferred"`.
 - **Do not** duplicate static import edges; the detector already excludes them.
 
 Then delete the temp file: `rm -f "<PROJECT_PATH>/.vizcode/_tmp_candidates.json"`
