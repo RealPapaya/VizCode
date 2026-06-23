@@ -460,7 +460,7 @@ function buildEdgeFilter() {
       if (edgeActiveFilter.has(t)) edgeActiveFilter.delete(t);
       else edgeActiveFilter.add(t);
       row.classList.toggle("active", edgeActiveFilter.has(t));
-      applyEdgeFilter();
+      applyEdgeFilter(true);
       updateSidebarStats();
     });
   });
@@ -476,15 +476,21 @@ function buildEdgeFilter() {
         edgeActiveFilter.clear();
         wrap.querySelectorAll(".ef-row").forEach((row) => row.classList.remove("active"));
       }
-      applyEdgeFilter();
+      applyEdgeFilter(true);
       updateSidebarStats();
     });
   });
 }
-function applyEdgeFilter() {
+function applyEdgeFilter(force = false) {
   if (!cy) return;
+  const allActive = edgeActiveFilter.size >= Object.keys(EDGE_TYPE_STYLE).length;
+  if (allActive && !force) return;
   cy.batch(() => {
     const all = cy.edges();
+    if (allActive) {
+      all.style("display", "element");
+      return;
+    }
     const toShow = all.filter((e) => edgeActiveFilter.has(e.data("etype") || "include"));
     toShow.style("display", "element");
     all.not(toShow).style("display", "none");
@@ -701,8 +707,8 @@ function updateSidebarStats() {
     edgesEl.textContent = "\u2013";
     return;
   }
-  nodesEl.textContent = cy.nodes(":visible").length + " nodes";
-  edgesEl.textContent = cy.edges(":visible").length + " edges";
+  nodesEl.textContent = cy.nodes().length + " nodes";
+  edgesEl.textContent = cy.edges().length + " edges";
 }
 function _updateGuideHeight(container) {
   if (!container || !container.classList.contains("open")) return;

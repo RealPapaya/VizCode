@@ -550,7 +550,7 @@ function buildEdgeFilter() {
             if (edgeActiveFilter.has(t)) edgeActiveFilter.delete(t);
             else edgeActiveFilter.add(t);
             row.classList.toggle('active', edgeActiveFilter.has(t));
-            applyEdgeFilter();
+            applyEdgeFilter(true);   // user toggled — force re-apply
             updateSidebarStats();
         });
     });
@@ -567,18 +567,23 @@ function buildEdgeFilter() {
                 edgeActiveFilter.clear();
                 wrap.querySelectorAll('.ef-row').forEach(row => row.classList.remove('active'));
             }
-            applyEdgeFilter();
+            applyEdgeFilter(true);   // user toggled — force re-apply
             updateSidebarStats();
         });
     });
 }
 
-function applyEdgeFilter() {
+function applyEdgeFilter(force = false) {
     if (!cy) return;
-    // Group then bulk-apply (2 style calls) instead of one .style() per edge — the
-    // per-edge path cost ~30-50ms on dense graphs (hundreds of edges).
+    // Fast path: when every edge type is active, freshly-added edges are already visible
+    // (no display override), so a render-time call has nothing to do. Touching display on
+    // hundreds of edges costs ~30-50ms, so skip it unless the user actually toggled the
+    // filter (force). When some types are hidden, group + bulk-apply in 2 style calls.
+    const allActive = edgeActiveFilter.size >= Object.keys(EDGE_TYPE_STYLE).length;
+    if (allActive && !force) return;
     cy.batch(() => {
         const all = cy.edges();
+        if (allActive) { all.style('display', 'element'); return; }
         const toShow = all.filter(e => edgeActiveFilter.has(e.data('etype') || 'include'));
         toShow.style('display', 'element');
         all.not(toShow).style('display', 'none');
@@ -842,8 +847,9 @@ function updateSidebarStats() {
     const edgesEl = document.getElementById('sb-stat-edges');
     if (!nodesEl || !edgesEl) return;
     if (!cy) { nodesEl.textContent = '\u2013'; edgesEl.textContent = '\u2013'; return; }
-    nodesEl.textContent = cy.nodes(':visible').length + ' nodes';
-    edgesEl.textContent = cy.edges(':visible').length + ' edges';
+    // [MEASURE] temp: :visible forces a full style recompute; testing if cost just shifts to cy.fit
+    nodesEl.textContent = cy.nodes().length + ' nodes';
+    edgesEl.textContent = cy.edges().length + ' edges';
 }
 
 // ─── Sidebar tree ─────────────────────────────────────────────────────────────
