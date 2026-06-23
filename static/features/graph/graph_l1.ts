@@ -475,9 +475,7 @@ function renderFilesFlat(modId, files, subPath?) {
 
                 // batch() suppresses per-element style/reflow during the bulk rebuild —
         // this is the dominant cost on every (re)visit, independent of the layout cache.
-        console.time('[l1] rebuild');
         cy.batch(() => { cy.json({ elements: [] }); cy.add(els); });
-        console.timeEnd('[l1] rebuild');
         applyCyFont(getSavedFont());
 
         // ── Empty-state overlay (always freshly created; _clearL1EmptyOverlay removed any prior) ──

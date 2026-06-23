@@ -158,6 +158,30 @@ function escapeRe(s) {
 }
 
 // ─── Loading ──────────────────────────────────────────────────────────────────
+let _loadingHintTimer: any = null;
+const _LARGE_GRAPH_HINT_MS = 5000;
+
+// Show/hide the "large graph, please wait" hint under the spinner. Created lazily and
+// reused; sits between the loading message and the Cancel button.
+function _setLoadingHint(show: boolean) {
+    const el = document.getElementById('loading');
+    if (!el) return;
+    let hint = document.getElementById('loading-hint');
+    if (show) {
+        if (!hint) {
+            hint = document.createElement('div');
+            hint.id = 'loading-hint';
+            const cancelBtn = document.getElementById('loading-cancel-btn');
+            if (cancelBtn) el.insertBefore(hint, cancelBtn);
+            else el.appendChild(hint);
+        }
+        hint.textContent = T('largeGraphHint');
+        hint.style.display = '';
+    } else if (hint) {
+        hint.style.display = 'none';
+    }
+}
+
 function showLoading(v: boolean, msg?: string) {
     const el = document.getElementById('loading');
     const sp = document.querySelector('#loading .spinner') as HTMLElement | null;
@@ -166,6 +190,19 @@ function showLoading(v: boolean, msg?: string) {
     if (sp) sp.style.display = '';
     const cancelBtn = document.getElementById('loading-cancel-btn');
     if (cancelBtn) cancelBtn.style.display = v ? '' : 'none';
+
+    // Large-graph hint: if the spinner is still up after 5s, reassure the user it's a
+    // big render rather than a hang. Cleared the moment loading ends (or a new load starts).
+    if (_loadingHintTimer) { clearTimeout(_loadingHintTimer); _loadingHintTimer = null; }
+    if (v) {
+        _setLoadingHint(false);   // clear any stale hint from a previous render
+        _loadingHintTimer = setTimeout(() => {
+            _setLoadingHint(true);
+            _loadingHintTimer = null;
+        }, _LARGE_GRAPH_HINT_MS);
+    } else {
+        _setLoadingHint(false);
+    }
 }
 
 function cancelRender() {

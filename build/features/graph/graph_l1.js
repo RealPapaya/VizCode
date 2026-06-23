@@ -448,12 +448,10 @@ Type: ${ft}
     cy.elements().stop(true, false);
     const prevNodeIds = new Set(cy.nodes().map((n) => n.id()));
     depMapState._prevNodeIds = prevNodeIds;
-    console.time("[l1] rebuild");
     cy.batch(() => {
       cy.json({ elements: [] });
       cy.add(els);
     });
-    console.timeEnd("[l1] rebuild");
     applyCyFont(getSavedFont());
     if (cy.nodes().length === 0) {
       const emptyOverlay = document.createElement("div");

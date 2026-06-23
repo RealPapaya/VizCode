@@ -119,6 +119,26 @@ function escapeHtml(s) {
 function escapeRe(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+let _loadingHintTimer = null;
+const _LARGE_GRAPH_HINT_MS = 5e3;
+function _setLoadingHint(show) {
+  const el = document.getElementById("loading");
+  if (!el) return;
+  let hint = document.getElementById("loading-hint");
+  if (show) {
+    if (!hint) {
+      hint = document.createElement("div");
+      hint.id = "loading-hint";
+      const cancelBtn = document.getElementById("loading-cancel-btn");
+      if (cancelBtn) el.insertBefore(hint, cancelBtn);
+      else el.appendChild(hint);
+    }
+    hint.textContent = T("largeGraphHint");
+    hint.style.display = "";
+  } else if (hint) {
+    hint.style.display = "none";
+  }
+}
 function showLoading(v, msg) {
   const el = document.getElementById("loading");
   const sp = document.querySelector("#loading .spinner");
@@ -127,6 +147,19 @@ function showLoading(v, msg) {
   if (sp) sp.style.display = "";
   const cancelBtn = document.getElementById("loading-cancel-btn");
   if (cancelBtn) cancelBtn.style.display = v ? "" : "none";
+  if (_loadingHintTimer) {
+    clearTimeout(_loadingHintTimer);
+    _loadingHintTimer = null;
+  }
+  if (v) {
+    _setLoadingHint(false);
+    _loadingHintTimer = setTimeout(() => {
+      _setLoadingHint(true);
+      _loadingHintTimer = null;
+    }, _LARGE_GRAPH_HINT_MS);
+  } else {
+    _setLoadingHint(false);
+  }
 }
 function cancelRender() {
   _renderToken++;
