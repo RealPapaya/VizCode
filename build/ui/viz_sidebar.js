@@ -484,10 +484,10 @@ function buildEdgeFilter() {
 function applyEdgeFilter() {
   if (!cy) return;
   cy.batch(() => {
-    cy.edges().forEach((edge) => {
-      const etype = edge.data("etype") || "include";
-      edge.style("display", edgeActiveFilter.has(etype) ? "element" : "none");
-    });
+    const all = cy.edges();
+    const toShow = all.filter((e) => edgeActiveFilter.has(e.data("etype") || "include"));
+    toShow.style("display", "element");
+    all.not(toShow).style("display", "none");
   });
 }
 function buildSvEdgeFilter(wrap) {

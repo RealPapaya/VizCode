@@ -575,11 +575,13 @@ function buildEdgeFilter() {
 
 function applyEdgeFilter() {
     if (!cy) return;
+    // Group then bulk-apply (2 style calls) instead of one .style() per edge — the
+    // per-edge path cost ~30-50ms on dense graphs (hundreds of edges).
     cy.batch(() => {
-        cy.edges().forEach(edge => {
-            const etype = edge.data('etype') || 'include';
-            edge.style('display', edgeActiveFilter.has(etype) ? 'element' : 'none');
-        });
+        const all = cy.edges();
+        const toShow = all.filter(e => edgeActiveFilter.has(e.data('etype') || 'include'));
+        toShow.style('display', 'element');
+        all.not(toShow).style('display', 'none');
     });
 }
 
