@@ -847,9 +847,13 @@ function updateSidebarStats() {
     const edgesEl = document.getElementById('sb-stat-edges');
     if (!nodesEl || !edgesEl) return;
     if (!cy) { nodesEl.textContent = '\u2013'; edgesEl.textContent = '\u2013'; return; }
-    // [MEASURE] temp: :visible forces a full style recompute; testing if cost just shifts to cy.fit
+    // `:visible` forces a full style recompute (~50ms on dense graphs). Hidden nodes/edges
+    // are filtered out of `els` before they're ever added (file-type filter), so the only
+    // in-graph hiding is the edge-type filter. When every edge type is active, total counts
+    // equal visible counts \u2014 use the O(1) lengths and skip the costly `:visible` pass.
+    const allEdges = edgeActiveFilter.size >= Object.keys(EDGE_TYPE_STYLE).length;
     nodesEl.textContent = cy.nodes().length + ' nodes';
-    edgesEl.textContent = cy.edges().length + ' edges';
+    edgesEl.textContent = (allEdges ? cy.edges().length : cy.edges(':visible').length) + ' edges';
 }
 
 // ─── Sidebar tree ─────────────────────────────────────────────────────────────

@@ -707,8 +707,9 @@ function updateSidebarStats() {
     edgesEl.textContent = "\u2013";
     return;
   }
+  const allEdges = edgeActiveFilter.size >= Object.keys(EDGE_TYPE_STYLE).length;
   nodesEl.textContent = cy.nodes().length + " nodes";
-  edgesEl.textContent = cy.edges().length + " edges";
+  edgesEl.textContent = (allEdges ? cy.edges().length : cy.edges(":visible").length) + " edges";
 }
 function _updateGuideHeight(container) {
   if (!container || !container.classList.contains("open")) return;

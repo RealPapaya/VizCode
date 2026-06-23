@@ -555,7 +555,6 @@ function applyLayoutWithCache(viewKey, config, onStop) {
   _applyAdaptivePerfMode();
   const cached = viewKey ? _layoutCacheGet(viewKey) : null;
   if (cached && cached.positions && cached.positions.size) {
-    console.log(`[layout] cache hit: ${viewKey}`);
     const lay2 = cy.layout({
       name: "preset",
       positions: (n) => cached.positions.get(n.id()) || { x: 0, y: 0 },

@@ -141,7 +141,6 @@ function _resolveL1Layout(nodeCount) {
         const cfg = { ...preset.config(), animate: false };
         const tooBig = _L1_FORCE_LAYOUTS.has(cfg.name) && nodeCount > _L1_FORCE_DOWNGRADE_NODES;
         if (!tooBig) return { effectiveId: id, config: cfg };
-        console.log(`[layout] '${cfg.name}' downgraded to dagre (${nodeCount} nodes > ${_L1_FORCE_DOWNGRADE_NODES})`);
     }
     return { effectiveId: 'dagre-lr', config: { ..._L1_DAGRE_LR } };
 }
@@ -232,7 +231,6 @@ function drillToModule(modId, opts?) {
 
 // Render flat file nodes in graph — the only graph view for L1
 function renderFilesFlat(modId, files, subPath?) {
-    const _tFnStart = performance.now();   // [MEASURE] temp
     _clearL1EmptyOverlay();
     // Apply File Type Filter (for fully-analysed files)
     const visible = files.filter(f => ftActiveFilter.has(f.file_type || 'other'));
@@ -470,8 +468,6 @@ function renderFilesFlat(modId, files, subPath?) {
     const _runL1Render = () => {
         if (_renderToken !== _l1Token) return; // cancelled
 
-        const _tStart = performance.now();   // [MEASURE] temp
-
         // Stop any running animations to avoid corrupting cytoscape state
         cy.elements().stop(true, false);   // jumpToEnd=false so we don't flash final positions
 
@@ -479,13 +475,9 @@ function renderFilesFlat(modId, files, subPath?) {
         const prevNodeIds = new Set(cy.nodes().map(n => n.id()));
         depMapState._prevNodeIds = prevNodeIds;
 
-                // batch() suppresses per-element style/reflow during the bulk rebuild —
-        // this is the dominant cost on every (re)visit, independent of the layout cache.
-        const _tBeforeAdd = performance.now();   // [MEASURE] temp
+                // batch() suppresses per-element style/reflow during the bulk rebuild.
         cy.batch(() => { cy.json({ elements: [] }); cy.add(els); });
-        const _tAfterAdd = performance.now();    // [MEASURE] temp
         applyCyFont(getSavedFont());
-        const _tAfterFont = performance.now();   // [MEASURE] temp
 
         // ── Empty-state overlay (always freshly created; _clearL1EmptyOverlay removed any prior) ──
         if (cy.nodes().length === 0) {
@@ -521,19 +513,15 @@ function renderFilesFlat(modId, files, subPath?) {
             // Apply cached positions directly + synchronously — no preset-layout round-trip
             // (which fires layoutstop a frame later). The graph snaps into place at once.
             extraEls.style('display', 'element');
-            const _tPos0 = performance.now();    // [MEASURE] temp
             cy.batch(() => {
                 cy.nodes().forEach(n => {
                     const p = _l1Cached.positions.get(n.id());
                     if (p) n.position(p);
                 });
             });
-            const _tPos1 = performance.now();    // [MEASURE] temp
             updateBreadcrumb();
             showLoading(false);
             _postLayoutL1();
-            const _tEnd = performance.now();     // [MEASURE] temp
-            console.log(`[revisit ${modId}${subPath ? '/' + subPath : ''}] nodes=${cy.nodes().length} edges=${cy.edges().length} | elsBuild=${(_tStart - _tFnStart).toFixed(0)}ms preAdd(stop+set)=${(_tBeforeAdd - _tStart).toFixed(0)}ms rebuild(cy.add)=${(_tAfterAdd - _tBeforeAdd).toFixed(0)}ms font(applyCyFont)=${(_tAfterFont - _tAfterAdd).toFixed(0)}ms filters=${(_tPos0 - _tAfterFont).toFixed(0)}ms posApply=${(_tPos1 - _tPos0).toFixed(0)}ms postLayout=${(_tEnd - _tPos1).toFixed(0)}ms clickToEnd=${(_tEnd - _tFnStart).toFixed(0)}ms`);
             return;
         }
 
@@ -616,17 +604,11 @@ function renderFilesFlat(modId, files, subPath?) {
 
 // ── Post-layout handler: handles expand animation OR focus fly-in ──────────────
 function _postLayoutL1() {
-    const _p0 = performance.now();   // [MEASURE] temp
     // Refresh legend with only the edge types / node shapes visible in this view
     applyEdgeFilter();
-    const _p1 = performance.now();   // [MEASURE] temp
     buildEdgeFilter();
-    const _p2 = performance.now();   // [MEASURE] temp
     buildNodeLegend();
-    const _p3 = performance.now();   // [MEASURE] temp
     updateSidebarStats();
-    const _p4 = performance.now();   // [MEASURE] temp
-    console.log(`[postLayout] applyEdgeFilter=${(_p1 - _p0).toFixed(0)}ms buildEdgeFilter=${(_p2 - _p1).toFixed(0)}ms buildNodeLegend=${(_p3 - _p2).toFixed(0)}ms updateSidebarStats=${(_p4 - _p3).toFixed(0)}ms`);
 
     const savedVP = depMapState.preserveViewport;
     const originPos = depMapState.expandOriginPos;
@@ -733,9 +715,7 @@ function _postLayoutL1() {
     }
 
     // ── Case 3: Normal navigation — fit to all elements ──────────────────────
-    const _pf0 = performance.now();   // [MEASURE] temp
     cy.fit(cy.elements(), 40);
-    console.log(`[postLayout] cy.fit=${(performance.now() - _pf0).toFixed(0)}ms`);   // [MEASURE] temp
 }
 
 // ─── Call Graph Button helpers ────────────────────────────────────────────────

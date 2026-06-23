@@ -152,7 +152,6 @@ function _resolveL1Layout(nodeCount) {
     const cfg = { ...preset.config(), animate: false };
     const tooBig = _L1_FORCE_LAYOUTS.has(cfg.name) && nodeCount > _L1_FORCE_DOWNGRADE_NODES;
     if (!tooBig) return { effectiveId: id, config: cfg };
-    console.log(`[layout] '${cfg.name}' downgraded to dagre (${nodeCount} nodes > ${_L1_FORCE_DOWNGRADE_NODES})`);
   }
   return { effectiveId: "dagre-lr", config: { ..._L1_DAGRE_LR } };
 }
@@ -228,7 +227,6 @@ function drillToModule(modId, opts) {
   buildFtFilter(modId, null);
 }
 function renderFilesFlat(modId, files, subPath) {
-  const _tFnStart = performance.now();
   _clearL1EmptyOverlay();
   const visible = files.filter((f) => ftActiveFilter.has(f.file_type || "other"));
   const showOther = ftActiveFilter.has("other");
@@ -446,18 +444,14 @@ Type: ${ft}
   const _l1Token = ++_renderToken;
   const _runL1Render = () => {
     if (_renderToken !== _l1Token) return;
-    const _tStart = performance.now();
     cy.elements().stop(true, false);
     const prevNodeIds = new Set(cy.nodes().map((n) => n.id()));
     depMapState._prevNodeIds = prevNodeIds;
-    const _tBeforeAdd = performance.now();
     cy.batch(() => {
       cy.json({ elements: [] });
       cy.add(els);
     });
-    const _tAfterAdd = performance.now();
     applyCyFont(getSavedFont());
-    const _tAfterFont = performance.now();
     if (cy.nodes().length === 0) {
       const emptyOverlay = document.createElement("div");
       emptyOverlay.id = "l1-empty-overlay";
@@ -482,19 +476,15 @@ Type: ${ft}
     const extraEls = cy.nodes().filter((n) => n.data("isExtra"));
     if (_l1IsRevisit) {
       extraEls.style("display", "element");
-      const _tPos0 = performance.now();
       cy.batch(() => {
         cy.nodes().forEach((n) => {
           const p = _l1Cached.positions.get(n.id());
           if (p) n.position(p);
         });
       });
-      const _tPos1 = performance.now();
       updateBreadcrumb();
       showLoading(false);
       _postLayoutL1();
-      const _tEnd = performance.now();
-      console.log(`[revisit ${modId}${subPath ? "/" + subPath : ""}] nodes=${cy.nodes().length} edges=${cy.edges().length} | elsBuild=${(_tStart - _tFnStart).toFixed(0)}ms preAdd(stop+set)=${(_tBeforeAdd - _tStart).toFixed(0)}ms rebuild(cy.add)=${(_tAfterAdd - _tBeforeAdd).toFixed(0)}ms font(applyCyFont)=${(_tAfterFont - _tAfterAdd).toFixed(0)}ms filters=${(_tPos0 - _tAfterFont).toFixed(0)}ms posApply=${(_tPos1 - _tPos0).toFixed(0)}ms postLayout=${(_tEnd - _tPos1).toFixed(0)}ms clickToEnd=${(_tEnd - _tFnStart).toFixed(0)}ms`);
       return;
     }
     const _snapshotL1Positions = () => {
@@ -555,16 +545,10 @@ Type: ${ft}
   else setTimeout(_runL1Render, 0);
 }
 function _postLayoutL1() {
-  const _p0 = performance.now();
   applyEdgeFilter();
-  const _p1 = performance.now();
   buildEdgeFilter();
-  const _p2 = performance.now();
   buildNodeLegend();
-  const _p3 = performance.now();
   updateSidebarStats();
-  const _p4 = performance.now();
-  console.log(`[postLayout] applyEdgeFilter=${(_p1 - _p0).toFixed(0)}ms buildEdgeFilter=${(_p2 - _p1).toFixed(0)}ms buildNodeLegend=${(_p3 - _p2).toFixed(0)}ms updateSidebarStats=${(_p4 - _p3).toFixed(0)}ms`);
   const savedVP = depMapState.preserveViewport;
   const originPos = depMapState.expandOriginPos;
   const focusPath = depMapState.pendingFocusFile;
@@ -654,9 +638,7 @@ function _postLayoutL1() {
     }, 80);
     return;
   }
-  const _pf0 = performance.now();
   cy.fit(cy.elements(), 40);
-  console.log(`[postLayout] cy.fit=${(performance.now() - _pf0).toFixed(0)}ms`);
 }
 function setCodeBtnEnabled(enabled) {
   const btn = document.getElementById("code-toggle-btn");
