@@ -9,6 +9,23 @@ function _syncLayoutIndicator(id) {
     });
 }
 
+function _layoutSvg(body) {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${body}</svg>`;
+}
+
+const _LAYOUT_SVGS = {
+    panel: _layoutSvg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9 9v11"/><path d="M15 9v11"/>'),
+    chevron: _layoutSvg('<polyline points="6 9 12 15 18 9"/>'),
+    dagreLR: _layoutSvg('<rect x="3" y="5" width="5.5" height="5" rx="1.2"/><rect x="15.5" y="9.5" width="5.5" height="5" rx="1.2"/><rect x="3" y="14" width="5.5" height="5" rx="1.2"/><path d="M8.5 7.5h2.2a4.8 4.8 0 0 1 4.8 4.8"/><path d="M8.5 16.5h2.2a4.8 4.8 0 0 0 4.8-4.8"/><path d="m18.5 9.2 2.5 2.8-2.5 2.8"/>'),
+    dagreTB: _layoutSvg('<rect x="9.25" y="3" width="5.5" height="5" rx="1.2"/><rect x="4" y="16" width="5.5" height="5" rx="1.2"/><rect x="14.5" y="16" width="5.5" height="5" rx="1.2"/><path d="M12 8v3.2a3.8 3.8 0 0 1-3.8 3.8"/><path d="M12 8v3.2a3.8 3.8 0 0 0 3.8 3.8"/><path d="m9.8 18.5-2.8 2.5-2.8-2.5"/>'),
+    cose: _layoutSvg('<circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M7 7.2 10 10"/><path d="m17 7.2-3 2.8"/><path d="M7.8 16.7 10 14"/><path d="m16.2 16.7-2.2-2.7"/>'),
+    fcose: _layoutSvg('<rect x="3" y="4" width="8" height="7" rx="2"/><rect x="13" y="4" width="8" height="7" rx="2"/><rect x="8" y="14" width="8" height="6" rx="2"/><circle cx="7" cy="7.5" r="1"/><circle cx="17" cy="7.5" r="1"/><circle cx="12" cy="17" r="1"/><path d="M9.5 10.5 11 14"/><path d="M14.5 10.5 13 14"/>'),
+    cola: _layoutSvg('<path d="M7 4v7a5 5 0 0 0 10 0V4"/><path d="M7 4h4"/><path d="M13 4h4"/><path d="M7 9h4"/><path d="M13 9h4"/><path d="M4 18h16"/>'),
+    elkLayered: _layoutSvg('<rect x="3" y="5" width="5" height="5" rx="1.2"/><rect x="16" y="5" width="5" height="5" rx="1.2"/><rect x="16" y="15" width="5" height="5" rx="1.2"/><path d="M8 7.5h4v0h4"/><path d="M12 7.5v10h4"/><path d="m18.5 15 2.5 2.5-2.5 2.5"/>'),
+    elkStress: _layoutSvg('<circle cx="12" cy="12" r="8"/><path d="M4 12h16"/><path d="M12 4a13 13 0 0 1 0 16"/><path d="M12 4a13 13 0 0 0 0 16"/><circle cx="8" cy="9" r="1" fill="currentColor" stroke="none"/><circle cx="15.5" cy="13.5" r="1" fill="currentColor" stroke="none"/>'),
+    applying: _layoutSvg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9 9v11"/><path d="M15 9v11"/><path d="M19 2v4"/><path d="M17 4h4"/>'),
+};
+
 
 
 
@@ -16,7 +33,7 @@ const LAYOUT_PRESETS = [
     // ── Original presets (unchanged) ──────────────────────────────────────────
     {
         id: 'dagre-lr',
-        icon: '→',
+        icon: _LAYOUT_SVGS.dagreLR,
         label: 'Hierarchy LR',
         tip: 'Hierarchical Left → Right (DAG)',
         levels: [0, 1, 2],
@@ -28,7 +45,7 @@ const LAYOUT_PRESETS = [
     },
     {
         id: 'dagre-tb',
-        icon: '↓',
+        icon: _LAYOUT_SVGS.dagreTB,
         label: 'Hierarchy TB',
         tip: 'Hierarchical Top → Bottom (DAG)',
         levels: [0, 1, 2],
@@ -40,7 +57,7 @@ const LAYOUT_PRESETS = [
     },
     {
         id: 'cose',
-        icon: '⚡',
+        icon: _LAYOUT_SVGS.cose,
         label: 'Force',
         tip: 'Force-Directed (CoSE) — physics simulation',
         levels: [0, 1, 2],
@@ -65,7 +82,7 @@ const LAYOUT_PRESETS = [
     // Requires: cytoscape-fcose
     {
         id: 'fcose',
-        icon: '🧩',
+        icon: _LAYOUT_SVGS.fcose,
         label: 'Smart Cluster',
         tip: 'fCoSE — fastest force-directed, compound-aware, best for modules & hairball graphs (requires fcose CDN)',
         levels: [0, 1, 2],
@@ -113,7 +130,7 @@ const LAYOUT_PRESETS = [
     // Requires: webcola + cytoscape-cola
     {
         id: 'cola',
-        icon: '🧲',
+        icon: _LAYOUT_SVGS.cola,
         label: 'Smooth Physics',
         tip: 'Cola — constraint physics, smoothest animation, directed-flow aware, best for L1/L2 < 200 nodes (requires cola CDN)',
         levels: [1, 2],
@@ -147,7 +164,7 @@ const LAYOUT_PRESETS = [
     // Requires: cytoscape-elk (loaded via CDN in <head>)
     {
         id: 'elk-layered',
-        icon: '⛓',
+        icon: _LAYOUT_SVGS.elkLayered,
         label: 'ELK Flow',
         tip: 'ELK Layered — precise directed DAG with orthogonal edges, better than Dagre (requires elk CDN)',
         levels: [1, 2],   // Call-flow graphs only; L0 module graph has no fixed direction
@@ -201,7 +218,7 @@ const LAYOUT_PRESETS = [
     // Requires: cytoscape-elk
     {
         id: 'elk-stress',
-        icon: '🌐',
+        icon: _LAYOUT_SVGS.elkStress,
         label: 'ELK Stress',
         tip: 'ELK Stress — best for 300+ node graphs, distance-proportional placement, no hairball (requires elk CDN)',
         levels: [0, 1, 2],
@@ -507,9 +524,9 @@ function _buildLayoutSwitcherHTML() {
 
     return `
         <div class="ls-header">
-            <span class="ls-header-icon">⊞</span>
+            <span class="ls-header-icon">${_LAYOUT_SVGS.panel}</span>
             <span class="ls-header-text">${T('layoutLabel')}</span>
-            <span class="ls-chevron">▾</span>
+            <span class="ls-chevron">${_LAYOUT_SVGS.chevron}</span>
         </div>
         <div class="ls-btns">
             ${visiblePresets.map(p => {
@@ -521,7 +538,7 @@ function _buildLayoutSwitcherHTML() {
         return `
                 <button class="ls-btn${p.id === layoutSwitcherState.currentId ? ' active' : ''}${unavailable ? ' ls-unavailable' : ''}"
                         data-layout-id="${p.id}"
-                        data-tip="${lTip}${unavailable ? '\n⚠ CDN 未載入' : ''}">
+                        data-tip="${lTip}${unavailable ? '\nCDN 未載入' : ''}">
                     <span class="ls-icon">${p.icon}</span>
                     <span class="ls-name">${lName}</span>
                     ${unavailable ? '<span class="ls-warn">!</span>' : ''}
@@ -541,7 +558,7 @@ function _setLayoutBadge(label) {
         if (wrap) wrap.appendChild(badge);
     }
     if (!badge) return;
-    badge.textContent = label ? `⚙ ${label}…` : '';
+    badge.innerHTML = label ? `<span class="layout-badge-icon">${_LAYOUT_SVGS.applying}</span><span>${escapeHtml(label)}...</span>` : '';
     badge.style.display = label ? '' : 'none';
 }
 
@@ -552,7 +569,7 @@ function applyLayoutPreset(id) {
 
     // Guard: if this preset requires an extension that wasn't loaded, warn and bail
     if (preset.requires && !_isLayoutAvailable(preset.requires)) {
-        showToast(`⚠ Layout "${preset.label}" requires cytoscape-${preset.requires} — CDN script may not have loaded`, 'error');
+        showToast(`Layout "${preset.label}" requires cytoscape-${preset.requires} — CDN script may not have loaded`, 'error');
         console.warn(`[layout] "${preset.requires}" extension not registered. Add the CDN script to analyze_viz.py <head>.`);
         return;
     }
