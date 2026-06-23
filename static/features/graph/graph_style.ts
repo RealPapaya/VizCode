@@ -77,6 +77,10 @@
             'target-arrow-color': 'data(ec)',
             'curve-style': 'bezier',
             'opacity': 0.75,
+        }
+    },
+    {
+        selector: 'edge[edgeLabel]', style: {
             'label': 'data(edgeLabel)',
             'font-size': 9,
             'text-rotation': 'autorotate',
