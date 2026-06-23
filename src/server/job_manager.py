@@ -3,7 +3,7 @@ job_manager.py — VIZCODE Job Lifecycle & Viewer Tracking
 Extracted from server.py: JOBS state, viewer heartbeat, analysis thread, search index.
 """
 
-import os, sys, json, threading, time, uuid, shutil
+import os, sys, json, threading, time, uuid, shutil, hashlib
 from pathlib import Path
 from typing import Dict
 
@@ -240,6 +240,89 @@ def _close_job_viewer(jid: str, viewer_id: str):
     return True, remaining
 
 
+# ─── Reopen: restore persisted scans on startup ───────────────────────────────
+# The global history file (written by vizcode.py) lists recently scanned roots.
+_HISTORY_FILE = os.path.join(_ROOT_DIR, '.vizcode', 'vizcode_history.json')
+
+
+def _restore_jid(root: str) -> str:
+    """Deterministic job id for a restored scan so its /result link is stable."""
+    h = hashlib.sha1(str(Path(root).resolve()).encode('utf-8')).hexdigest()[:12]
+    return f'r_{h}'
+
+
+def restore_recent_jobs(max_jobs: int = 8) -> int:
+    """Load persisted result.json files (most-recent scans) back into JOBS.
+
+    Lets /result?job=<id> work immediately after a server restart without
+    re-analyzing. Returns the number of scans restored. Never raises.
+    """
+    try:
+        import result_store
+    except Exception:
+        return 0
+    try:
+        roots = json.loads(Path(_HISTORY_FILE).read_text(encoding='utf-8'))
+    except Exception:
+        roots = []
+    if not isinstance(roots, list):
+        return 0
+
+    restored = 0
+    for root in roots[:max_jobs]:
+        if not isinstance(root, str) or not os.path.isdir(root):
+            continue
+        meta = result_store.load_meta(root)
+        if not meta:
+            continue
+        data = result_store.load_result(root)
+        if not isinstance(data, dict):
+            continue
+        jid = _restore_jid(root)
+        job = _make_job_dict(root)
+        # Restored scans sort *older* than any live scan (started=now) so a fresh
+        # analysis always wins the "most recent job" fallbacks used across the API.
+        job.update({
+            'pct': 100, 'done': True, 'data': data,
+            'started': float(meta.get('built_at_epoch') or 0.0),
+            'restored': True,
+            'restored_meta': {
+                'name':     meta.get('name', Path(root).name),
+                'built_at': meta.get('built_at', ''),
+                'summary':  meta.get('summary', {}),
+            },
+            'msg': 'Restored from previous scan',
+        })
+        with JOBS_LOCK:
+            # Don't clobber a live job that happens to share this deterministic id.
+            existing = JOBS.get(jid)
+            if not existing or existing.get('restored'):
+                JOBS[jid] = job
+                restored += 1
+    if restored:
+        print(f'[RESTORE] Reopened {restored} previous scan(s) into memory')
+    return restored
+
+
+def list_restored_jobs() -> list:
+    """Return restored scans for the homepage 'reopen' entry, newest first."""
+    with JOBS_LOCK:
+        items = [
+            {
+                'job':      jid,
+                'root':     job.get('root', ''),
+                'name':     (job.get('restored_meta') or {}).get('name', ''),
+                'built_at': (job.get('restored_meta') or {}).get('built_at', ''),
+                'summary':  (job.get('restored_meta') or {}).get('summary', {}),
+                'started':  job.get('started', 0),
+            }
+            for jid, job in JOBS.items()
+            if job.get('restored') and job.get('data')
+        ]
+    items.sort(key=lambda x: x.get('started', 0), reverse=True)
+    return items
+
+
 def _run_analysis_thread(jid: str, root: str, pre_fn=None, generate_report: bool = False):
     """Background thread: optionally run pre_fn(tmp_dir) then build_graph(root).
 
@@ -322,6 +405,22 @@ def _run_analysis_thread(jid: str, root: str, pre_fn=None, generate_report: bool
             print(f'\n[DONE] Job {jid}: {s.get("total_all_files", s["files"])} files, {s["functions"]} funcs')
             threading.Thread(target=_build_search_index, args=(jid, root_to_use),
                              daemon=True, name=f'search-idx-{jid}').start()
+
+            # ── Persist the assembled result so the scan can be reopened later ──
+            # result.json restores full functionality on server restart (Part B);
+            # viz.html is a standalone offline snapshot (Part A, read-only viz).
+            try:
+                import result_store
+                result_store.save_result(root_to_use, graph_data)
+                try:
+                    html = analyze_bios.build_html(graph_data)
+                    result_store.save_html_snapshot(root_to_use, html)
+                except Exception as _he:
+                    print(f'[SNAPSHOT] Job {jid}: html snapshot skipped: {_he}')
+                print(f'[PERSIST] Job {jid}: result.json + viz.html written to '
+                      f'{os.path.join(root_to_use, ".vizcode")}')
+            except Exception as _pe:
+                print(f'[PERSIST] Job {jid}: persist skipped: {_pe}')
 
         except Exception as e:
             import traceback

@@ -73,6 +73,7 @@ from job_manager import (
     _make_job_dict, _read_json_body,
     _open_job_viewer, _ping_job_viewer, _close_job_viewer,
     _run_analysis_thread, _cleanup_all_job_temps, _reap_loop,
+    restore_recent_jobs, list_restored_jobs,
 )
 from fetcher import _extract_zip, _clone_git_repo, _fetch_npm_package, ZIP_MAX_BYTES
 
@@ -208,6 +209,14 @@ class Handler(BaseHTTPRequestHandler):
             mime = {'css':'text/css','js':'application/javascript',
                     'html':'text/html','json':'application/json'}.get(ext, 'text/plain')
             self.serve_disk(os.path.join('build', filename), mime)
+
+        elif p == '/api/recent-scans':
+            # Previously-scanned projects restored into memory on startup.
+            # Each item links directly to /result?job=<id> — instant, no rescan.
+            try:
+                self.json_resp({'scans': list_restored_jobs()})
+            except Exception as _e:
+                self.json_resp({'scans': [], 'error': str(_e)}, 500)
 
         elif p == '/progress':
             jid = qs.get('job', [''])[0]
@@ -2532,6 +2541,13 @@ def main():
         )
 
     threading.Thread(target=_reap_loop, daemon=True, name='temp-reaper').start()
+
+    # Reopen previously-scanned projects so /result works right after a restart.
+    try:
+        restore_recent_jobs()
+    except Exception as _re:
+        print(f'[RESTORE] skipped: {_re}')
+
     try:
         port = int(sys.argv[1]) if len(sys.argv) > 1 else PORT
     except ValueError:
