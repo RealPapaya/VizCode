@@ -228,6 +228,7 @@ function drillToModule(modId, opts) {
   buildFtFilter(modId, null);
 }
 function renderFilesFlat(modId, files, subPath) {
+  const _tFnStart = performance.now();
   _clearL1EmptyOverlay();
   const visible = files.filter((f) => ftActiveFilter.has(f.file_type || "other"));
   const showOther = ftActiveFilter.has("other");
@@ -493,7 +494,7 @@ Type: ${ft}
       showLoading(false);
       _postLayoutL1();
       const _tEnd = performance.now();
-      console.log(`[revisit ${modId}${subPath ? "/" + subPath : ""}] nodes=${cy.nodes().length} edges=${cy.edges().length} | preAdd(stop+set)=${(_tBeforeAdd - _tStart).toFixed(0)}ms rebuild(cy.add)=${(_tAfterAdd - _tBeforeAdd).toFixed(0)}ms font(applyCyFont)=${(_tAfterFont - _tAfterAdd).toFixed(0)}ms filters=${(_tPos0 - _tAfterFont).toFixed(0)}ms posApply=${(_tPos1 - _tPos0).toFixed(0)}ms postLayout=${(_tEnd - _tPos1).toFixed(0)}ms total=${(_tEnd - _tStart).toFixed(0)}ms`);
+      console.log(`[revisit ${modId}${subPath ? "/" + subPath : ""}] nodes=${cy.nodes().length} edges=${cy.edges().length} | elsBuild=${(_tStart - _tFnStart).toFixed(0)}ms preAdd(stop+set)=${(_tBeforeAdd - _tStart).toFixed(0)}ms rebuild(cy.add)=${(_tAfterAdd - _tBeforeAdd).toFixed(0)}ms font(applyCyFont)=${(_tAfterFont - _tAfterAdd).toFixed(0)}ms filters=${(_tPos0 - _tAfterFont).toFixed(0)}ms posApply=${(_tPos1 - _tPos0).toFixed(0)}ms postLayout=${(_tEnd - _tPos1).toFixed(0)}ms clickToEnd=${(_tEnd - _tFnStart).toFixed(0)}ms`);
       return;
     }
     const _snapshotL1Positions = () => {
