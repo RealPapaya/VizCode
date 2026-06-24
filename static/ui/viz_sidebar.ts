@@ -149,7 +149,6 @@ function _startPanelResizeLoop(durationMs) {
     }
     _panelRafId = requestAnimationFrame(tick);
 }
-const _PANEL_TRANSITION_MS = 200; // must match CSS transition: width .2s
 
 const FT_GROUPS = [
     // ── BIOS / C ──────────────────────────────────────────────────────────────

@@ -293,7 +293,6 @@ function initResizer() {
     if (sankeyHost) sankeyHost.style.pointerEvents = "";
     document.removeEventListener("mousemove", onDrag);
     document.removeEventListener("mouseup", stopDrag);
-    if (cy) cy.resize();
   }
 }
 function initSidebarResizer() {
@@ -335,8 +334,13 @@ function initSidebarResizer() {
 }
 function openCodePanel() {
   const panel = document.getElementById("code-panel");
+  const resizer = document.getElementById("resizer");
   panel.style.width = "";
   panel.classList.add("open");
+  if (resizer) {
+    resizer.style.display = "flex";
+    resizer.classList.add("open");
+  }
   const codeBtn = document.getElementById("code-toggle-btn");
   if (codeBtn) {
     codeBtn.disabled = false;
@@ -347,7 +351,9 @@ function openCodePanel() {
 }
 function closeCodePanel() {
   const panel = document.getElementById("code-panel");
+  const resizer = document.getElementById("resizer");
   panel.classList.remove("open");
+  if (resizer) resizer.classList.remove("open");
   panel.style.width = "";
   document.getElementById("code-toggle-btn").classList.remove("active");
   codeState.isOpen = false;

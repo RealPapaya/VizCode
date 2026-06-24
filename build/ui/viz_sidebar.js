@@ -136,7 +136,6 @@ function _startPanelResizeLoop(durationMs) {
   }
   _panelRafId = requestAnimationFrame(tick);
 }
-const _PANEL_TRANSITION_MS = 200;
 const FT_GROUPS = [
   // ── BIOS / C ──────────────────────────────────────────────────────────────
   { key: "c_source", label: ".c/.cpp", exts: [".c", ".cpp", ".cc"], group: "bios" },

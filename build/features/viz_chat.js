@@ -97,7 +97,7 @@
       _chatResizerHideTimer = setTimeout(() => {
         if (!_isOpen && _chatResizer) _chatResizer.style.display = "none";
         _chatResizerHideTimer = null;
-      }, _CHAT_PANEL_TRANSITION_MS);
+      }, _CHAT_PANEL_TRANSITION_MS + 32);
     } else if (_chatResizer) {
       _chatResizer.style.display = "none";
     }
@@ -2020,7 +2020,6 @@
       if (gw) gw.style.pointerEvents = "";
       document.removeEventListener("mousemove", onDrag);
       document.removeEventListener("mouseup", stopDrag);
-      if (window.cy) window.cy.resize();
     }
   }
   const _ICON_SIDE = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="2" y="3" width="16" height="14" rx="2"/><line x1="13" y1="3" x2="13" y2="17"/></svg>`;
