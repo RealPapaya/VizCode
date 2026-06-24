@@ -13,7 +13,7 @@ try:
         sys.exit(0)
 
     mem_dir = os.path.join(
-        os.path.expanduser('~'), '.claude', 'projects', 'd--CodeViz', 'memory'
+        os.path.expanduser('~'), '.claude', 'projects', 'D--Google-AI-VizCode', 'memory'
     )
     os.makedirs(mem_dir, exist_ok=True)
 
