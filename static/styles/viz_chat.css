@@ -110,10 +110,19 @@
 #chat-resizer {
     position: absolute;
     top: 0;
-    right: var(--chat-side-w, 360px);
+    right: calc(var(--chat-side-w, 360px) - 6px);
     bottom: 0;
     height: 100%;
     z-index: 45;
+    opacity: 1;
+    pointer-events: none;
+    transform: translateX(var(--chat-side-w, 360px));
+    transition: transform 0.2s ease;
+}
+
+#chat-resizer.open {
+    transform: translateX(0);
+    pointer-events: auto;
 }
 
 /* In side-mode, cursor on header is default (no dragging) */

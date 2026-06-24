@@ -141,17 +141,28 @@
     }
 
         // ── Panel open / close ───────────────────────────────────────────────────
-    const _CHAT_PANEL_TRANSITION_MS = 200;
-    let _chatResizerHideTimer = null;
+    const _SIDE_PANEL_TRANSITION_MS = 200;
+    let _chatOpenTimer = null;
 
     function _open() {
-        _isOpen = true;
-        if (_chatResizerHideTimer) {
-            clearTimeout(_chatResizerHideTimer);
-            _chatResizerHideTimer = null;
+        if (_chatOpenTimer) {
+            clearTimeout(_chatOpenTimer);
+            _chatOpenTimer = null;
         }
+        if (_panelMode === 'side' && typeof closeCodePanel === 'function' && typeof codeState !== 'undefined' && codeState.isOpen) {
+            closeCodePanel();
+            _chatOpenTimer = setTimeout(() => {
+                _chatOpenTimer = null;
+                _open();
+            }, _SIDE_PANEL_TRANSITION_MS);
+            return;
+        }
+        _isOpen = true;
         _panel.classList.add('open');
-        if (_panelMode === 'side' && _chatResizer) _chatResizer.style.display = 'block';
+        if (_panelMode === 'side' && _chatResizer) {
+            _chatResizer.style.display = 'block';
+            _chatResizer.classList.add('open');
+        }
         _btn.classList.add('active');
         _updateButtonIcon();
         _checkConfig();
@@ -162,17 +173,15 @@
     }
 
     function _close() {
+        if (_chatOpenTimer) {
+            clearTimeout(_chatOpenTimer);
+            _chatOpenTimer = null;
+        }
         _isOpen = false;
         _panel.classList.remove('open');
-        if (_panelMode === 'side' && _chatResizer) {
-            _chatResizer.style.display = 'block';
-            if (_chatResizerHideTimer) clearTimeout(_chatResizerHideTimer);
-            _chatResizerHideTimer = setTimeout(() => {
-                if (!_isOpen && _chatResizer) _chatResizer.style.display = 'none';
-                _chatResizerHideTimer = null;
-            }, _CHAT_PANEL_TRANSITION_MS + 32);
-        } else if (_chatResizer) {
-            _chatResizer.style.display = 'none';
+        if (_chatResizer) {
+            _chatResizer.classList.remove('open');
+            _chatResizer.style.display = _panelMode === 'side' ? 'block' : 'none';
         }
         _btn.classList.remove('active');
         _updateButtonIcon();
@@ -2334,6 +2343,13 @@
                 layout.appendChild(_panel);
             }
             _panel.classList.add('side-mode');
+            if (_chatResizer) {
+                _chatResizer.style.display = 'block';
+                _chatResizer.classList.toggle('open', _isOpen);
+            }
+            if (_isOpen && typeof closeCodePanel === 'function' && typeof codeState !== 'undefined' && codeState.isOpen) {
+                closeCodePanel();
+            }
             _panel.classList.remove('open');
             if (_isOpen) _panel.classList.add('open');
             document.body.classList.remove('chat-side-open');
@@ -2354,6 +2370,7 @@
                     _chatResizer.parentElement.removeChild(_chatResizer);
                 }
             }
+            _chatResizer.classList.remove('open');
             _chatResizer.style.display = 'none';
             _panel.classList.remove('side-mode');
             _panel.classList.remove('open');

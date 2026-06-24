@@ -301,6 +301,7 @@ function initResizer() {
     const resizer = document.getElementById('resizer');
     const panel = document.getElementById('code-panel');
     if (!resizer || !panel) return;
+    resizer.style.display = 'flex';
     let startX, startW;
     resizer.addEventListener('mousedown', e => {
         startX = e.clientX;
@@ -377,15 +378,28 @@ function initSidebarResizer() {
     }
 }
 
+let _codePanelOpenTimer = null;
+const _CODE_PANEL_TRANSITION_MS = 200;
+
 function openCodePanel() {
+    if (_codePanelOpenTimer) {
+        clearTimeout(_codePanelOpenTimer);
+        _codePanelOpenTimer = null;
+    }
+    const chatPanel = document.getElementById('chat-panel');
+    if (chatPanel?.classList.contains('side-mode') && chatPanel.classList.contains('open')) {
+        document.getElementById('chat-btn')?.click();
+        _codePanelOpenTimer = setTimeout(() => {
+            _codePanelOpenTimer = null;
+            openCodePanel();
+        }, _CODE_PANEL_TRANSITION_MS);
+        return;
+    }
     const panel = document.getElementById('code-panel');
     const resizer = document.getElementById('resizer');
     panel.style.width = '';
     panel.classList.add('open');
-    if (resizer) {
-        resizer.style.display = 'flex';
-        resizer.classList.add('open');
-    }
+    if (resizer) resizer.classList.add('open');
     const codeBtn = document.getElementById('code-toggle-btn');
     if (codeBtn) { codeBtn.disabled = false; codeBtn.classList.add('active'); }
     codeState.isOpen = true;
@@ -393,6 +407,10 @@ function openCodePanel() {
 }
 
 function closeCodePanel() {
+    if (_codePanelOpenTimer) {
+        clearTimeout(_codePanelOpenTimer);
+        _codePanelOpenTimer = null;
+    }
     const panel = document.getElementById('code-panel');
     const resizer = document.getElementById('resizer');
     panel.classList.remove('open');

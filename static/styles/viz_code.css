@@ -31,15 +31,15 @@
     bottom: 0;
     width: 6px;
     height: 100%;
-    opacity: 0;
+    opacity: 1;
     pointer-events: none;
     z-index: 45;
-    transition: opacity .12s ease;
+    transform: translateX(var(--code-panel));
+    transition: transform .2s ease;
 }
 
 #resizer.open {
-    display: flex;
-    opacity: 1;
+    transform: translateX(0);
     pointer-events: auto;
 }
 
