@@ -465,7 +465,8 @@ function cpExitMultiSnip() {
     // Force re-fetch by resetting the currentFile sentinel
     const file = codeState.currentFile === '__sym_snippet__' ? null : codeState.currentFile;
     if (file && file !== '__sym_snippet__') {
-        codeState.currentFile = null;  // force reload
+        codeState.currentFile = null;     // force reload
+        codeState.renderedFile = null;    // invalidate render guard so full file re-fetches
         loadFileInPanel(file, null);
     }
 }
@@ -492,7 +493,7 @@ async function loadFileInPanel(filePath, funcName?) {
         return;
     }
 
-    if (filePath === codeState.currentFile) {
+    if (filePath === codeState.renderedFile) {
         syncCodePanelViewToggle();
         showCpLoading(false);
         if (funcName) jumpToFunc(funcName);
@@ -519,6 +520,7 @@ async function loadFileInPanel(filePath, funcName?) {
         codeState.currentName = fname;
         codeState.currentLangHint = data.lang_hint || '';
         renderFileContent(data, ext, fname);
+        codeState.renderedFile = filePath;
         showCpLoading(false);
         if (funcName) setTimeout(() => jumpToFunc(funcName), 80);
         if (state.level >= 1 && window.svUpdateStructureBtn) svUpdateStructureBtn(filePath, ext);

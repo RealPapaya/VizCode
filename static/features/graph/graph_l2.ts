@@ -714,7 +714,7 @@ async function _syncCodePanel(fileRel, funcName, targetCallText = null, importSe
         return;
     }
 
-    if (fileRel === codeState.currentFile) {
+    if (fileRel === codeState.renderedFile) {
         // File already rendered — just jump to target
         if (funcName) requestAnimationFrame(() => jumpToFunc(funcName, targetCallText));
         else if (importSearch) requestAnimationFrame(() => jumpToImport(importSearch));
@@ -731,6 +731,7 @@ async function _syncCodePanel(fileRel, funcName, targetCallText = null, importSe
         if (data.error) { showCpError(T('fileLoadError', { error: data.error })); return; }
         codeState.currentFile = fileRel;
         renderFileContent(data, ext, fname);
+        codeState.renderedFile = fileRel;
         showCpLoading(false);
         if (funcName) requestAnimationFrame(() => jumpToFunc(funcName, targetCallText));
         else if (importSearch) requestAnimationFrame(() => jumpToImport(importSearch));

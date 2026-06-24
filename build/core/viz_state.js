@@ -114,6 +114,8 @@ function buildFileIdLookup() {
 const codeState = {
   jobId: window.JOB_ID || null,
   currentFile: null,
+  renderedFile: null,
+  // file whose content is actually rendered in the panel (drives skip-fetch guards)
   currentFunc: null,
   currentData: null,
   currentExt: "",

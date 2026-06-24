@@ -191,6 +191,7 @@ function buildFileIdLookup() {
 interface CodeState {
     jobId: string | null;
     currentFile: string | null;
+    renderedFile: string | null;
     currentFunc: any;
     currentData: any;
     currentExt: string;
@@ -209,6 +210,7 @@ interface CodeState {
 const codeState: CodeState = {
     jobId: window.JOB_ID || null,
     currentFile: null,
+    renderedFile: null,   // file whose content is actually rendered in the panel (drives skip-fetch guards)
     currentFunc: null,
     currentData: null,
     currentExt: '',

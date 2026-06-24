@@ -409,6 +409,7 @@ function cpExitMultiSnip() {
   const file = codeState.currentFile === "__sym_snippet__" ? null : codeState.currentFile;
   if (file && file !== "__sym_snippet__") {
     codeState.currentFile = null;
+    codeState.renderedFile = null;
     loadFileInPanel(file, null);
   }
 }
@@ -429,7 +430,7 @@ async function loadFileInPanel(filePath, funcName) {
     showCpError("No job ID \u2014 code preview only available via the local server (launch.bat).");
     return;
   }
-  if (filePath === codeState.currentFile) {
+  if (filePath === codeState.renderedFile) {
     syncCodePanelViewToggle();
     showCpLoading(false);
     if (funcName) jumpToFunc(funcName);
@@ -457,6 +458,7 @@ async function loadFileInPanel(filePath, funcName) {
     codeState.currentName = fname;
     codeState.currentLangHint = data.lang_hint || "";
     renderFileContent(data, ext, fname);
+    codeState.renderedFile = filePath;
     showCpLoading(false);
     if (funcName) setTimeout(() => jumpToFunc(funcName), 80);
     if (state.level >= 1 && window.svUpdateStructureBtn) svUpdateStructureBtn(filePath, ext);

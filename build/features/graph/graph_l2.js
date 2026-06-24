@@ -720,7 +720,7 @@ async function _syncCodePanel(fileRel, funcName, targetCallText = null, importSe
     showCpError("No job ID \u2014 code preview only available via the local server (launch.bat).");
     return;
   }
-  if (fileRel === codeState.currentFile) {
+  if (fileRel === codeState.renderedFile) {
     if (funcName) requestAnimationFrame(() => jumpToFunc(funcName, targetCallText));
     else if (importSearch) requestAnimationFrame(() => jumpToImport(importSearch));
     if (state.level >= 2 && window.svUpdateStructureBtn) svUpdateStructureBtn(fileRel, ext);
@@ -737,6 +737,7 @@ async function _syncCodePanel(fileRel, funcName, targetCallText = null, importSe
     }
     codeState.currentFile = fileRel;
     renderFileContent(data, ext, fname);
+    codeState.renderedFile = fileRel;
     showCpLoading(false);
     if (funcName) requestAnimationFrame(() => jumpToFunc(funcName, targetCallText));
     else if (importSearch) requestAnimationFrame(() => jumpToImport(importSearch));
