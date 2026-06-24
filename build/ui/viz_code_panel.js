@@ -344,9 +344,6 @@ function openCodePanel() {
   }
   codeState.isOpen = true;
   codeState.userClosed = false;
-  const resizer = document.getElementById("resizer");
-  if (resizer) resizer.style.display = "flex";
-  _startPanelResizeLoop(_PANEL_TRANSITION_MS);
 }
 function closeCodePanel() {
   const panel = document.getElementById("code-panel");
@@ -355,9 +352,6 @@ function closeCodePanel() {
   document.getElementById("code-toggle-btn").classList.remove("active");
   codeState.isOpen = false;
   codeState.userClosed = true;
-  const resizer = document.getElementById("resizer");
-  if (resizer) resizer.style.display = "none";
-  _startPanelResizeLoop(_PANEL_TRANSITION_MS);
 }
 function cpToggleMultiSnip() {
   codeState.multiSnip = !codeState.multiSnip;

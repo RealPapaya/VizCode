@@ -72,8 +72,14 @@
     }
     return html;
   }
+  const _CHAT_PANEL_TRANSITION_MS = 200;
+  let _chatResizerHideTimer = null;
   function _open() {
     _isOpen = true;
+    if (_chatResizerHideTimer) {
+      clearTimeout(_chatResizerHideTimer);
+      _chatResizerHideTimer = null;
+    }
     _panel.classList.add("open");
     if (_panelMode === "side" && _chatResizer) _chatResizer.style.display = "block";
     _btn.classList.add("active");
@@ -85,7 +91,16 @@
   function _close() {
     _isOpen = false;
     _panel.classList.remove("open");
-    if (_chatResizer) _chatResizer.style.display = "none";
+    if (_panelMode === "side" && _chatResizer) {
+      _chatResizer.style.display = "block";
+      if (_chatResizerHideTimer) clearTimeout(_chatResizerHideTimer);
+      _chatResizerHideTimer = setTimeout(() => {
+        if (!_isOpen && _chatResizer) _chatResizer.style.display = "none";
+        _chatResizerHideTimer = null;
+      }, _CHAT_PANEL_TRANSITION_MS);
+    } else if (_chatResizer) {
+      _chatResizer.style.display = "none";
+    }
     _btn.classList.remove("active");
     _updateButtonIcon();
   }

@@ -386,9 +386,6 @@ function openCodePanel() {
     if (codeBtn) { codeBtn.disabled = false; codeBtn.classList.add('active'); }
     codeState.isOpen = true;
     codeState.userClosed = false;
-    const resizer = document.getElementById('resizer');
-    if (resizer) resizer.style.display = 'flex';
-    _startPanelResizeLoop(_PANEL_TRANSITION_MS);
 }
 
 function closeCodePanel() {
@@ -398,9 +395,6 @@ function closeCodePanel() {
     document.getElementById('code-toggle-btn').classList.remove('active');
     codeState.isOpen = false;
     codeState.userClosed = true;
-    const resizer = document.getElementById('resizer');
-    if (resizer) resizer.style.display = 'none';
-    _startPanelResizeLoop(_PANEL_TRANSITION_MS);
 }
 
 // ─── Multi-snippet mode toggle (Structure View only) ─────────────────────────

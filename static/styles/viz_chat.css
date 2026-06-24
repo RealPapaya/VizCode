@@ -81,8 +81,8 @@
     bottom: auto;
     left: auto;
     flex-shrink: 0;
-    width: var(--chat-side-w, 360px);
-    min-width: 260px;
+    width: 0;
+    min-width: 0;
     height: auto;
     max-height: none;
     min-height: 0;
@@ -97,14 +97,14 @@
     transform: none;
     opacity: 1;
     pointer-events: none;
-    transition: none;
+    transition: width 0.2s ease;
     z-index: auto;
-    /* Hidden by default — shown via .open class below */
-    display: none;
+    display: flex;
+    overflow: hidden;
 }
 
 #chat-panel.side-mode.open {
-    display: flex;
+    width: var(--chat-side-w, 360px);
     opacity: 1;
     pointer-events: auto;
     transform: none;

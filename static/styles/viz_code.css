@@ -14,8 +14,18 @@
     width: var(--code-panel)
 }
 
+#resizer {
+    width: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: width .2s ease, opacity .12s ease
+}
+
 #code-panel.open+#resizer {
-    display: flex
+    display: flex;
+    width: 6px;
+    opacity: 1;
+    pointer-events: auto
 }
 
 /* Sankey overview: the code panel floats over the diagram rather than taking
