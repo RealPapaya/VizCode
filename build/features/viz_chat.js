@@ -2047,6 +2047,11 @@
         layout.appendChild(_chatResizer);
         layout.appendChild(_panel);
       }
+      _panel.style.left = "";
+      _panel.style.top = "";
+      _panel.style.right = "";
+      _panel.style.width = "";
+      _panel.style.height = "";
       _panel.classList.add("side-mode");
       if (_chatResizer) {
         _chatResizer.style.display = "block";

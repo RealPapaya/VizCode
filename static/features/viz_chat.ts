@@ -2342,6 +2342,15 @@
                 layout.appendChild(_chatResizer);
                 layout.appendChild(_panel);
             }
+            // Clear float-only inline geometry left behind by drag/resize.
+            // Side-mode position/size come from the .side-mode CSS rule
+            // (width via --chat-side-w), so these inline styles would otherwise
+            // override it and the panel would render in the wrong place/size.
+            _panel.style.left   = '';
+            _panel.style.top    = '';
+            _panel.style.right  = '';
+            _panel.style.width  = '';
+            _panel.style.height = '';
             _panel.classList.add('side-mode');
             if (_chatResizer) {
                 _chatResizer.style.display = 'block';
