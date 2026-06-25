@@ -124,17 +124,35 @@ function _applySidebarCollapsed() {
   _syncRailPanelButtons();
   if (cy) cy.resize();
 }
-let _panelRafId = null;
+let _panelResizePending = null;
 function _startPanelResizeLoop(durationMs) {
-  if (_panelRafId) cancelAnimationFrame(_panelRafId);
-  const end = performance.now() + durationMs + 32;
-  function tick() {
+  const rail = document.getElementById("app-rail");
+  if (_panelResizePending) {
+    const p = _panelResizePending;
+    if (p.rail) p.rail.removeEventListener("transitionend", p.onEnd);
+    if (p.timer) clearTimeout(p.timer);
+    _panelResizePending = null;
+  }
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    if (rail) rail.removeEventListener("transitionend", onEnd);
+    if (timer) clearTimeout(timer);
+    _panelResizePending = null;
     if (typeof cy !== "undefined" && cy) cy.resize();
     if (window._galaxySigma && typeof window._galaxySigma.refresh === "function") window._galaxySigma.refresh();
-    if (performance.now() < end) _panelRafId = requestAnimationFrame(tick);
-    else _panelRafId = null;
+  };
+  const onEnd = (e) => {
+    if (e.propertyName === "width") finish();
+  };
+  const timer = setTimeout(finish, durationMs + 32);
+  if (rail) rail.addEventListener("transitionend", onEnd);
+  else {
+    _panelResizePending = { rail: null, onEnd, timer };
+    return;
   }
-  _panelRafId = requestAnimationFrame(tick);
+  _panelResizePending = { rail, onEnd, timer };
 }
 const FT_GROUPS = [
   // ── BIOS / C ──────────────────────────────────────────────────────────────

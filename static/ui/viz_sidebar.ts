@@ -135,19 +135,42 @@ function _applySidebarCollapsed() {
 }
 
 
-// Continuously call cy.resize() during the code-panel CSS transition so the
-// cytoscape canvas tracks the panel width frame-by-frame (no black artifacts).
-let _panelRafId = null;
+// Resize the cytoscape/galaxy canvas ONCE, after the rail's CSS width transition
+// settles — not every frame. During the transition the canvas keeps its old size
+// and #graph-wrap{overflow:clip} simply clips (expand) or briefly shows the panel
+// background on the growing edge (collapse, ≈invisible — same colour as empty graph).
+// This avoids ~15 full-graph repaints (jank) and the mid-animation clear/redraw
+// flicker, while leaving zoom/pan — and therefore label fonts — untouched.
+let _panelResizePending = null; // { rail, onEnd, timer }
 function _startPanelResizeLoop(durationMs) {
-    if (_panelRafId) cancelAnimationFrame(_panelRafId);
-    const end = performance.now() + durationMs + 32; // +32ms safety margin
-    function tick() {
+    const rail = document.getElementById('app-rail');
+
+    // Cancel any in-flight finisher from a previous (rapid) toggle.
+    if (_panelResizePending) {
+        const p = _panelResizePending;
+        if (p.rail) p.rail.removeEventListener('transitionend', p.onEnd);
+        if (p.timer) clearTimeout(p.timer);
+        _panelResizePending = null;
+    }
+
+    let done = false;
+    const finish = () => {
+        if (done) return;
+        done = true;
+        if (rail) rail.removeEventListener('transitionend', onEnd);
+        if (timer) clearTimeout(timer);
+        _panelResizePending = null;
         if (typeof cy !== 'undefined' && cy) cy.resize();
         if (window._galaxySigma && typeof window._galaxySigma.refresh === 'function') window._galaxySigma.refresh();
-        if (performance.now() < end) _panelRafId = requestAnimationFrame(tick);
-        else _panelRafId = null;
-    }
-    _panelRafId = requestAnimationFrame(tick);
+    };
+    const onEnd = (e) => { if (e.propertyName === 'width') finish(); };
+
+    // Fallback fuse: fires if transitionend never does (reduced-motion, hidden tab,
+    // display changes). +32ms safety margin past the transition duration.
+    const timer = setTimeout(finish, durationMs + 32);
+    if (rail) rail.addEventListener('transitionend', onEnd);
+    else { _panelResizePending = { rail: null, onEnd, timer }; return; }
+    _panelResizePending = { rail, onEnd, timer };
 }
 
 const FT_GROUPS = [
