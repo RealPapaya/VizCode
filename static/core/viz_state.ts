@@ -1,10 +1,10 @@
-// @module viz_state â€” Mutable runtime state objects
+// @module viz_state ??Mutable runtime state objects
 // Owns: state, l2State, depMapState, codeState, _fileIdToModule,
 //       _fileIdToFile, buildFileIdLookup, _renderToken, cy,
 //       tooltipPinned, tooltipHideTimer, GRAPH_ZOOM_SETTINGS,
 //       _shapeMode, SIMPLE_NODE_SIZE_*, _registeredLayouts
 
-// â”€â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ?€?€?€ State ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
 interface AppState {
     level: number;          // 0=modules 1=files(subdirs) 1.5=files(subdir expanded) 2=functions
     tab: 'files' | 'calls';
@@ -77,7 +77,7 @@ const l2State: L2State = {
     fileHistorySnapshots: [],
 };
 
-// â”€â”€â”€ Dependency Map (L1) external-files state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ?€?€?€ Dependency Map (L1) external-files state ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
 interface DepMapState {
     showExternalFiles: boolean;
     showEdgeTypeLabels: boolean;
@@ -110,8 +110,8 @@ const depMapState: DepMapState = {
     _animGen: 0,
 };
 
-// â”€â”€â”€ Layout result cache (LRU) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// viewKey â†’ { positions: Map<nodeId, {x,y}>, ts }
+// ?€?€?€ Layout result cache (LRU) ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+// viewKey ??{ positions: Map<nodeId, {x,y}>, ts }
 // Hit: skip force-directed compute, paint via name:'preset'.
 // Invalidated when node set for a view changes (toggle ext, expand, etc).
 const _layoutCache = new Map();
@@ -157,7 +157,7 @@ window._layoutCacheGet = _layoutCacheGet;
 window._layoutCacheSet = _layoutCacheSet;
 window._layoutCacheInvalidate = _layoutCacheInvalidate;
 
-// â”€â”€â”€ History caps (prevent unbounded growth) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ?€?€?€ History caps (prevent unbounded growth) ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
 const _HISTORY_CAP = 50;
 function pushFileHistorySnapshot(snap) {
     l2State.fileHistorySnapshots.push(snap);
@@ -174,7 +174,7 @@ function pushNavHistory(entry) {
 window.pushFileHistorySnapshot = pushFileHistorySnapshot;
 window.pushNavHistory = pushNavHistory;
 
-// File-ID â†’ module/file lookup, built once after DATA is parsed
+// File-ID ??module/file lookup, built once after DATA is parsed
 let _fileIdToModule: Record<number, string> = {};
 let _fileIdToFile: Record<number, FileNode> = {};
 
@@ -220,13 +220,13 @@ const codeState: CodeState = {
     funcList: [],      // list of {name, line} for current file
     funcIdx: 0,        // current func index in funcList
     isOpen: false,
-    userClosed: false, // true when user explicitly closed panel â€” prevents auto-reopen
+    userClosed: false, // true when user explicitly closed panel ??prevents auto-reopen
     rawLines: [],      // cache raw contents for exact callsite matching
     multiSnip: false,  // true = multi-snippet mode (Structure View only)
     viewMode: 'code',
 };
 
-// â”€â”€â”€ Layout extension availability â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ?€?€?€ Layout extension availability ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
 // All CDN UMD bundles (fcose, elk, cola) self-register by calling
 // cytoscape.use() internally when their <script> tag executes.
 // No manual cytoscape.use() or window.cytoscapeXxx lookup needed.
@@ -262,6 +262,7 @@ const GRAPH_ZOOM_SETTINGS = Object.freeze({
     minZoom: 0.04,
     maxZoom: 5,
     buttonFactor: 1.12,
+    wheelStepPx: 100,
     animationMs: 140,
 });
 window.GRAPH_ZOOM_SETTINGS = GRAPH_ZOOM_SETTINGS;
@@ -269,7 +270,7 @@ const EXT_DOUBLE_CLICK_MS = 260;
 let extClickLastId = null;
 let extClickLastTime = 0;
 
-// â”€â”€â”€ Render cancel token â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ?€?€?€ Render cancel token ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
 // Incremented every time a render starts; async callbacks check staleness.
 let _renderToken = 0;
 

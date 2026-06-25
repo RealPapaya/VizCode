@@ -129,7 +129,7 @@ const codeState = {
   // current func index in funcList
   isOpen: false,
   userClosed: false,
-  // true when user explicitly closed panel — prevents auto-reopen
+  // true when user explicitly closed panel ??prevents auto-reopen
   rawLines: [],
   // cache raw contents for exact callsite matching
   multiSnip: false,
@@ -171,6 +171,7 @@ const GRAPH_ZOOM_SETTINGS = Object.freeze({
   minZoom: 0.04,
   maxZoom: 5,
   buttonFactor: 1.12,
+  wheelStepPx: 100,
   animationMs: 140
 });
 window.GRAPH_ZOOM_SETTINGS = GRAPH_ZOOM_SETTINGS;

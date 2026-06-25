@@ -18,7 +18,17 @@
     /* creates its own stacking context so children (e.g. l1-empty-overlay)
        can't bleed above dashboard/galaxy overlays that sit at z-index 5–90 */
     z-index: 1;
+    /* Promote the graph canvas to a permanent GPU layer. The rasterization cost is
+       then paid once at load instead of every time #main-area is recomposited during
+       a rail expand/collapse — that one-time per-toggle raster of the (large) canvas
+       was the ~200ms start-of-animation freeze. As a standing texture it just gets
+       re-composited (cheap) when the rail pushes the content around. */
+    transform: translateZ(0);
 }
+
+/* The rail expand/collapse smoothing is done entirely in viz_sidebar.ts: while the
+   rail's width animates, #main-area is pinned with position:fixed so the graph neither
+   resizes nor moves (no repaint, no layer rasterization). No CSS hook needed here. */
 
 /* ── Galaxy View ───────────────────────────────────────────────────────────── */
 #galaxy-container {
