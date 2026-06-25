@@ -7,6 +7,7 @@ function initCy() {
     elements: [],
     minZoom: GRAPH_ZOOM_SETTINGS.minZoom,
     maxZoom: GRAPH_ZOOM_SETTINGS.maxZoom,
+    userZoomingEnabled: false,
     boxSelectionEnabled: false,
     // ── Performance ───────────────────────────────────────────────────────────
     // Skip the expensive bits — bezier edges + arrows, and label text — ONLY while
@@ -31,6 +32,7 @@ function initCy() {
   window.pinHighlightNode = pinHighlightNode;
   window.clearHighlight = clearHighlight;
   window.highlightNodes = highlightNodes;
+  _installCyWheelZoom(cy);
   cy.on("zoom", () => {
     if (_bgPointerDown) _bgPointerMoved = true;
     refreshGraphZoomControls();
@@ -147,6 +149,61 @@ function initCy() {
     "border-color": "#dfa745",
     "border-opacity": 0.85
   }).update();
+}
+function _installCyWheelZoom(targetCy) {
+  const container = targetCy?.container?.();
+  if (!container || container.dataset.graphWheelZoomBound === "1") return;
+  container.dataset.graphWheelZoomBound = "1";
+  let wheelRemainder = 0;
+  container.addEventListener("wheel", (e) => {
+    if (!targetCy || e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const px = _normalizeWheelDeltaPx(e, container);
+    if (!px) return;
+    wheelRemainder += px;
+    const stepPx = GRAPH_ZOOM_SETTINGS.wheelStepPx || 100;
+    const steps = Math.floor(Math.abs(wheelRemainder) / stepPx);
+    if (!steps) return;
+    const direction = wheelRemainder < 0 ? 1 : -1;
+    wheelRemainder -= Math.sign(wheelRemainder) * steps * stepPx;
+    const rect = container.getBoundingClientRect();
+    _zoomCyAtRenderedPosition(targetCy, direction, {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    }, Math.min(steps, 4));
+  }, { passive: false });
+}
+function _normalizeWheelDeltaPx(e, container) {
+  if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) return e.deltaY * 16;
+  if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) return e.deltaY * (container?.clientHeight || window.innerHeight || 800);
+  return e.deltaY;
+}
+function _zoomCyAtRenderedPosition(targetCy, direction, renderedPosition, steps = 1) {
+  const oldZoom = targetCy.zoom();
+  const stepFactor = direction > 0 ? GRAPH_ZOOM_SETTINGS.buttonFactor : 1 / GRAPH_ZOOM_SETTINGS.buttonFactor;
+  const factor = Math.pow(stepFactor, Math.max(1, steps));
+  const minZoom = typeof targetCy.minZoom === "function" ? targetCy.minZoom() : GRAPH_ZOOM_SETTINGS.minZoom;
+  const maxZoom = typeof targetCy.maxZoom === "function" ? targetCy.maxZoom() : GRAPH_ZOOM_SETTINGS.maxZoom;
+  const nextZoom = Math.max(minZoom, Math.min(maxZoom, oldZoom * factor));
+  if (Math.abs(nextZoom - oldZoom) < 1e-4) {
+    refreshGraphZoomControls();
+    return;
+  }
+  const pan = targetCy.pan();
+  const modelPos = {
+    x: (renderedPosition.x - pan.x) / oldZoom,
+    y: (renderedPosition.y - pan.y) / oldZoom
+  };
+  targetCy.stop(true);
+  targetCy.viewport({
+    zoom: nextZoom,
+    pan: {
+      x: renderedPosition.x - modelPos.x * nextZoom,
+      y: renderedPosition.y - modelPos.y * nextZoom
+    }
+  });
+  refreshGraphZoomControls();
 }
 function clearSelection() {
   _graphHideIsolateBtn();
