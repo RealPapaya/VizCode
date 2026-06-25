@@ -449,7 +449,7 @@ async function loadFileInPanel(filePath, funcName) {
     const res = await fetch(url);
     const data = await res.json();
     if (data.error) {
-      showCpError(T("fileLoadError", { error: data.error }));
+      showCpError(data.code === "file_missing" ? T("fileMissingSinceScan") : T("fileLoadError", { error: data.error }));
       return;
     }
     codeState.currentFile = filePath;

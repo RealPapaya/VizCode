@@ -17,6 +17,23 @@ from urllib.error import URLError, HTTPError
 from typing import Dict, Optional
 
 
+def _fs_longpath(p: str) -> str:
+    """Return a filesystem path safe for opening on Windows.
+
+    Deep firmware trees easily exceed the legacy MAX_PATH (260 chars); without
+    the extended-length ``\\\\?\\`` prefix the OS raises FileNotFoundError even
+    though the file is really there. No-op on non-Windows platforms.
+    """
+    if sys.platform.startswith('win'):
+        ap = os.path.abspath(p)
+        if not ap.startswith('\\\\?\\'):
+            if ap.startswith('\\\\'):          # UNC share → \\?\UNC\server\share
+                return '\\\\?\\UNC\\' + ap[2:]
+            return '\\\\?\\' + ap
+        return ap
+    return p
+
+
 def _fatal_startup_error(message: str, *, details: Optional[str] = None, exit_code: int = 1) -> "None":
     sys.stderr.write(f"{message}\n")
     if details:
@@ -297,6 +314,10 @@ class Handler(BaseHTTPRequestHandler):
                 if not (abs_path.startswith(root_norm + os.sep) or abs_path == root_norm):
                     self.json_resp({'error': 'Path traversal not allowed'}, 403)
                     return
+
+                # Windows long-path (>260 char) support — only used for filesystem
+                # reads below; `rel` stays untouched for display/lookups.
+                abs_path = _fs_longpath(abs_path)
 
                 # ── Raw binary download (raw=1) ───────────────────────────────
                 if raw_dl:
@@ -819,7 +840,10 @@ class Handler(BaseHTTPRequestHandler):
 
 
             except FileNotFoundError:
-                self.json_resp({'error': f'File not found: {rel}'}, 404)
+                # File existed at scan time but is gone now (e.g. a build artifact
+                # cleaned/regenerated, or the source tree moved). `code` lets the
+                # frontend show a locale-aware "rescan" hint instead of raw text.
+                self.json_resp({'error': f'File not found: {rel}', 'code': 'file_missing'}, 404)
             except Exception as e:
                 self.json_resp({'error': str(e)}, 500)
 

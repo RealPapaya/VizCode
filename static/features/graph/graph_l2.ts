@@ -728,7 +728,10 @@ async function _syncCodePanel(fileRel, funcName, targetCallText = null, importSe
         const url = `/file?job=${encodeURIComponent(codeState.jobId)}&path=${encodeURIComponent(fileRel)}`;
         const res = await fetch(url);
         const data = await res.json();
-        if (data.error) { showCpError(T('fileLoadError', { error: data.error })); return; }
+        if (data.error) {
+            showCpError(data.code === 'file_missing' ? T('fileMissingSinceScan') : T('fileLoadError', { error: data.error }));
+            return;
+        }
         codeState.currentFile = fileRel;
         renderFileContent(data, ext, fname);
         codeState.renderedFile = fileRel;

@@ -513,7 +513,10 @@ async function loadFileInPanel(filePath, funcName?) {
         const url = `/file?job=${encodeURIComponent(codeState.jobId)}&path=${encodeURIComponent(filePath)}`;
         const res = await fetch(url);
         const data = await res.json();
-        if (data.error) { showCpError(T('fileLoadError', { error: data.error })); return; }
+        if (data.error) {
+            showCpError(data.code === 'file_missing' ? T('fileMissingSinceScan') : T('fileLoadError', { error: data.error }));
+            return;
+        }
         codeState.currentFile = filePath;
         codeState.currentData = data;
         codeState.currentExt = ext;
