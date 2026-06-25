@@ -17,7 +17,6 @@ function initSidebarTabs() {
     });
   }
 }
-const _RAIL_TRANSITION_MS = 220;
 function initIconRail() {
   const toggleBtn = document.getElementById("rail-toggle-btn");
   if (!toggleBtn) return;
@@ -34,14 +33,14 @@ function initIconRail() {
   toggleBtn.addEventListener("click", () => {
     const expanded = !document.body.classList.contains("rail-expanded");
     applyRailState(expanded);
-    _startPanelResizeLoop(_RAIL_TRANSITION_MS);
+    _runRailResize();
   });
   const logoToggle = document.getElementById("rail-logo-toggle");
   if (logoToggle) {
     const expandViaLogo = () => {
       if (document.body.classList.contains("rail-expanded")) return;
       applyRailState(true);
-      _startPanelResizeLoop(_RAIL_TRANSITION_MS);
+      _runRailResize();
     };
     logoToggle.addEventListener("click", expandViaLogo);
     logoToggle.addEventListener("keydown", (e) => {
@@ -51,6 +50,53 @@ function initIconRail() {
       }
     });
   }
+}
+const _RAIL_TRANSITION_MS = 220;
+let _railRafId = null;
+let _railEndTimer = null;
+function _runRailResize() {
+  if (typeof cy === "undefined" || !cy) return;
+  const rail = document.getElementById("app-rail");
+  if (_railRafId) {
+    cancelAnimationFrame(_railRafId);
+    _railRafId = null;
+  }
+  if (_railEndTimer) {
+    clearTimeout(_railEndTimer);
+    _railEndTimer = null;
+  }
+  cy.edges().style("display", "none");
+  cy.nodes().style("text-opacity", 0);
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    if (rail) rail.removeEventListener("transitionend", onEnd);
+    if (_railRafId) {
+      cancelAnimationFrame(_railRafId);
+      _railRafId = null;
+    }
+    if (_railEndTimer) {
+      clearTimeout(_railEndTimer);
+      _railEndTimer = null;
+    }
+    cy.edges().removeStyle("display");
+    cy.nodes().removeStyle("text-opacity");
+    cy.resize();
+    if (window._galaxySigma && typeof window._galaxySigma.refresh === "function") window._galaxySigma.refresh();
+  };
+  const onEnd = (e) => {
+    if (e.propertyName === "width") finish();
+  };
+  const end = performance.now() + _RAIL_TRANSITION_MS + 32;
+  const tick = () => {
+    cy.resize();
+    if (performance.now() < end) _railRafId = requestAnimationFrame(tick);
+    else _railRafId = null;
+  };
+  _railRafId = requestAnimationFrame(tick);
+  if (rail) rail.addEventListener("transitionend", onEnd);
+  _railEndTimer = setTimeout(finish, _RAIL_TRANSITION_MS + 64);
 }
 function _applySidebarTab() {
   if (_sbActiveTab === "filters" && typeof window.isOverviewTreemapActive === "function" && window.isOverviewTreemapActive()) {
@@ -123,102 +169,6 @@ function _applySidebarCollapsed() {
   }
   _syncRailPanelButtons();
   if (cy) cy.resize();
-}
-let _loafInstalled = false;
-function _installLoafObserver() {
-  if (_loafInstalled || typeof PerformanceObserver !== "function") return;
-  _loafInstalled = true;
-  try {
-    const obs = new PerformanceObserver((list) => {
-      for (const e of list.getEntries()) {
-        if (e.duration < 60) continue;
-        const scripts = (e.scripts || []).map((s) => `${s.name || s.invoker || s.sourceURL || "?"}=${Math.round(s.duration)}`).join(", ");
-        const styleLayout = Math.round(e.styleAndLayoutDuration || 0);
-        const renderDelay = Math.round(e.renderStart || 0 ? e.renderStart - e.startTime : 0);
-        console.log(`[LoAF] frame=${Math.round(e.duration)}ms blocking=${Math.round(e.blockingDuration)}ms style+layout=${styleLayout}ms render@${renderDelay}ms scripts=[${scripts}]`);
-      }
-    });
-    obs.observe({ type: "long-animation-frame", buffered: true });
-    console.log("[LoAF] observer installed");
-  } catch (_) {
-    console.log("[LoAF] not supported in this browser");
-  }
-}
-function _profileRailAnimation(durationMs) {
-  if (window.__railProfile === false) return;
-  _installLoafObserver();
-  const frames = [];
-  let last = performance.now();
-  const end = last + durationMs + 80;
-  function tick(now) {
-    frames.push(now - last);
-    last = now;
-    if (now < end) requestAnimationFrame(tick);
-    else {
-      const n = frames.length;
-      const avg = frames.reduce((a, b) => a + b, 0) / n;
-      const longest = Math.max.apply(null, frames);
-      const dropped = frames.filter((f) => f > 18).length;
-      const nodes = typeof cy !== "undefined" && cy ? cy.nodes().length : "-";
-      const edges = typeof cy !== "undefined" && cy ? cy.edges().length : "-";
-      const lvl = typeof state !== "undefined" && state ? state.level : "-";
-      const gx = typeof state !== "undefined" && state ? !!state.galaxyActive : false;
-      console.log(`[rail-perf] frames=${n} avg=${avg.toFixed(1)}ms longest=${longest.toFixed(1)}ms dropped(>18ms)=${dropped} | nodes=${nodes} edges=${edges} level=${lvl} galaxy=${gx}`);
-      console.log("[rail-perf] frame ms:", frames.map((f) => Math.round(f)).join(" "));
-    }
-  }
-  requestAnimationFrame(tick);
-}
-const _MAIN_PIN_PROPS = ["position", "left", "top", "width", "height", "zIndex"];
-function _unpinMain(main) {
-  if (main) for (const prop of _MAIN_PIN_PROPS) main.style[prop] = "";
-}
-let _panelResizePending = null;
-function _startPanelResizeLoop(durationMs) {
-  const rail = document.getElementById("app-rail");
-  const main = document.getElementById("main-area");
-  if (_panelResizePending) {
-    const p = _panelResizePending;
-    if (p.rail) p.rail.removeEventListener("transitionend", p.onEnd);
-    if (p.timer) clearTimeout(p.timer);
-    _unpinMain(p.main);
-    _panelResizePending = null;
-  }
-  if (main) {
-    const r = main.getBoundingClientRect();
-    main.style.position = "fixed";
-    main.style.left = r.left + "px";
-    main.style.top = r.top + "px";
-    main.style.width = r.width + "px";
-    main.style.height = r.height + "px";
-    main.style.zIndex = "1";
-  }
-  document.body.classList.add("rail-animating");
-  _profileRailAnimation(durationMs);
-  let done = false;
-  const finish = () => {
-    if (done) return;
-    done = true;
-    if (rail) rail.removeEventListener("transitionend", onEnd);
-    if (timer) clearTimeout(timer);
-    _panelResizePending = null;
-    _unpinMain(main);
-    document.body.classList.remove("rail-animating");
-    const _t0 = performance.now();
-    if (typeof cy !== "undefined" && cy) cy.resize();
-    if (window._galaxySigma && typeof window._galaxySigma.refresh === "function") window._galaxySigma.refresh();
-    if (window.__railProfile !== false) console.log(`[rail-perf] settle cy.resize() = ${(performance.now() - _t0).toFixed(1)}ms`);
-  };
-  const onEnd = (e) => {
-    if (e.propertyName === "width") finish();
-  };
-  const timer = setTimeout(finish, durationMs + 32);
-  if (rail) rail.addEventListener("transitionend", onEnd);
-  else {
-    _panelResizePending = { rail: null, main, onEnd, timer };
-    return;
-  }
-  _panelResizePending = { rail, main, onEnd, timer };
 }
 const FT_GROUPS = [
   // ── BIOS / C ──────────────────────────────────────────────────────────────

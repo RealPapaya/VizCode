@@ -21,8 +21,6 @@ function initSidebarTabs() {
     }
 }
 
-const _RAIL_TRANSITION_MS = 220;
-
 function initIconRail() {
     const toggleBtn = document.getElementById('rail-toggle-btn');
     if (!toggleBtn) return;
@@ -43,7 +41,7 @@ function initIconRail() {
     toggleBtn.addEventListener('click', () => {
         const expanded = !document.body.classList.contains('rail-expanded');
         applyRailState(expanded);
-        _startPanelResizeLoop(_RAIL_TRANSITION_MS);
+        _runRailResize();
     });
 
     // While collapsed, the logo itself acts as the expand control (hover → chevron).
@@ -52,13 +50,63 @@ function initIconRail() {
         const expandViaLogo = () => {
             if (document.body.classList.contains('rail-expanded')) return;
             applyRailState(true);
-            _startPanelResizeLoop(_RAIL_TRANSITION_MS);
+            _runRailResize();
         };
         logoToggle.addEventListener('click', expandViaLogo);
         logoToggle.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); expandViaLogo(); }
         });
     }
+}
+
+// The rail PUSHES the content, so the graph container resizes as the rail's width
+// animates. A full cytoscape repaint of a large graph (its edges especially) costs
+// ~200ms, which is why the slide janks on big codebases — even though pan/zoom stay
+// smooth, because those hide edges mid-move (hideEdgesOnViewport) and a resize does not.
+//
+// So we replicate that optimization for the rail slide: hide edges + labels for the
+// duration of the transition (each resize frame then only draws the cheap nodes), then
+// restore them and do a final crisp resize once the rail settles.
+const _RAIL_TRANSITION_MS = 220;
+let _railRafId = null;
+let _railEndTimer = null;
+function _runRailResize() {
+    if (typeof cy === 'undefined' || !cy) return;
+    const rail = document.getElementById('app-rail');
+
+    // Clean up any in-flight run from a rapid re-toggle.
+    if (_railRafId) { cancelAnimationFrame(_railRafId); _railRafId = null; }
+    if (_railEndTimer) { clearTimeout(_railEndTimer); _railEndTimer = null; }
+
+    // Hide the expensive elements for the slide (same set hideEdgesOnViewport uses).
+    cy.edges().style('display', 'none');
+    cy.nodes().style('text-opacity', 0);
+
+    let done = false;
+    const finish = () => {
+        if (done) return;
+        done = true;
+        if (rail) rail.removeEventListener('transitionend', onEnd);
+        if (_railRafId) { cancelAnimationFrame(_railRafId); _railRafId = null; }
+        if (_railEndTimer) { clearTimeout(_railEndTimer); _railEndTimer = null; }
+        cy.edges().removeStyle('display');
+        cy.nodes().removeStyle('text-opacity');
+        cy.resize(); // one crisp settle at the final size
+        if (window._galaxySigma && typeof window._galaxySigma.refresh === 'function') window._galaxySigma.refresh();
+    };
+    const onEnd = (e) => { if (e.propertyName === 'width') finish(); };
+
+    // Track the resizing container each frame (cheap now — nodes only).
+    const end = performance.now() + _RAIL_TRANSITION_MS + 32;
+    const tick = () => {
+        cy.resize();
+        if (performance.now() < end) _railRafId = requestAnimationFrame(tick);
+        else _railRafId = null;
+    };
+    _railRafId = requestAnimationFrame(tick);
+
+    if (rail) rail.addEventListener('transitionend', onEnd);
+    _railEndTimer = setTimeout(finish, _RAIL_TRANSITION_MS + 64); // fallback fuse
 }
 
 function _applySidebarTab() {
@@ -134,141 +182,6 @@ function _applySidebarCollapsed() {
     if (cy) cy.resize();
 }
 
-
-// Resize the cytoscape/galaxy canvas ONCE, after the rail's CSS width transition
-// settles — not every frame. During the transition the canvas keeps its old size
-// and #graph-wrap{overflow:clip} simply clips (expand) or briefly shows the panel
-// background on the growing edge (collapse, ≈invisible — same colour as empty graph).
-// This avoids ~15 full-graph repaints (flicker) while leaving zoom/pan — and
-// therefore label fonts — untouched.
-//
-// While the rail width animates, the `rail-animating` body class promotes the heavy
-// graph subtree to its own GPU layer (see viz_base.css). That turns the per-frame
-// rounded-rect clip of #graph-wrap (which holds a large canvas) into a cheap
-// layer-bounds clip instead of a per-frame re-rasterization — killing the slide jank.
-// ── DIAGNOSTIC (temporary) ─────────────────────────────────────────────────
-// TEMP: logs real frame intervals during a rail toggle so we can confirm the slide is
-// smooth (cheap frames) with a single big "settle" frame at the end. Set
-// window.__railProfile = false to silence. Remove once verified.
-// TEMP: install once — auto-attributes any long animation frame (style/layout vs
-// scripts vs the rest = paint/commit) straight to the console. Decisive for finding
-// what the ~240ms freeze actually is.
-let _loafInstalled = false;
-function _installLoafObserver() {
-    if (_loafInstalled || typeof PerformanceObserver !== 'function') return;
-    _loafInstalled = true;
-    try {
-        const obs = new PerformanceObserver((list) => {
-            for (const e of list.getEntries()) {
-                if (e.duration < 60) continue;
-                const scripts = (e.scripts || []).map(s =>
-                    `${(s.name || s.invoker || s.sourceURL || '?')}=${Math.round(s.duration)}`).join(', ');
-                const styleLayout = Math.round(e.styleAndLayoutDuration || 0);
-                const renderDelay = Math.round((e.renderStart || 0) ? (e.renderStart - e.startTime) : 0);
-                console.log(`[LoAF] frame=${Math.round(e.duration)}ms blocking=${Math.round(e.blockingDuration)}ms style+layout=${styleLayout}ms render@${renderDelay}ms scripts=[${scripts}]`);
-            }
-        });
-        obs.observe({ type: 'long-animation-frame', buffered: true });
-        console.log('[LoAF] observer installed');
-    } catch (_) { console.log('[LoAF] not supported in this browser'); }
-}
-
-function _profileRailAnimation(durationMs) {
-    if (window.__railProfile === false) return;
-    _installLoafObserver();
-    const frames = [];
-    let last = performance.now();
-    const end = last + durationMs + 80;
-    function tick(now) {
-        frames.push(now - last);
-        last = now;
-        if (now < end) requestAnimationFrame(tick);
-        else {
-            const n = frames.length;
-            const avg = frames.reduce((a, b) => a + b, 0) / n;
-            const longest = Math.max.apply(null, frames);
-            const dropped = frames.filter(f => f > 18).length;
-            const nodes = (typeof cy !== 'undefined' && cy) ? cy.nodes().length : '-';
-            const edges = (typeof cy !== 'undefined' && cy) ? cy.edges().length : '-';
-            const lvl = (typeof state !== 'undefined' && state) ? state.level : '-';
-            const gx = (typeof state !== 'undefined' && state) ? !!state.galaxyActive : false;
-            console.log(`[rail-perf] frames=${n} avg=${avg.toFixed(1)}ms longest=${longest.toFixed(1)}ms dropped(>18ms)=${dropped} | nodes=${nodes} edges=${edges} level=${lvl} galaxy=${gx}`);
-            console.log('[rail-perf] frame ms:', frames.map(f => Math.round(f)).join(' '));
-        }
-    }
-    requestAnimationFrame(tick);
-}
-
-// Smooth the rail expand/collapse on large graphs.
-//
-// The cost we are avoiding: while #app-rail's width animates, the flex row reflows
-// #main-area (the content/graph side) every frame, forcing the browser to re-paint
-// the whole graph each frame. On a big graph that paint is ~200ms+, so the "slide"
-// drops to 1–2 FPS. (cy.resize() is NOT the trigger — the paint happens purely from
-// the container changing geometry; a fixed-width pin still moved → still repainted,
-// and layer-promoting it just front-loaded one ~230ms rasterization instead.)
-//
-// The fix: FREEZE #main-area completely — pin it to its current screen rect with
-// position:fixed so it neither resizes NOR moves while the rail animates. Nothing
-// about it changes, so the graph never re-paints and no layer rasterization is
-// needed. The rail (z-index:100) simply slides over/away from it. When the transition
-// settles we release the pin and do ONE cy.resize() to snap to the final size — the
-// single unavoidable repaint, isolated to the end.
-const _MAIN_PIN_PROPS = ['position', 'left', 'top', 'width', 'height', 'zIndex'];
-function _unpinMain(main) {
-    if (main) for (const prop of _MAIN_PIN_PROPS) main.style[prop] = '';
-}
-let _panelResizePending = null; // { rail, main, onEnd, timer }
-function _startPanelResizeLoop(durationMs) {
-    const rail = document.getElementById('app-rail');
-    const main = document.getElementById('main-area');
-
-    // Cancel any in-flight finisher from a previous (rapid) toggle, restoring its pin.
-    if (_panelResizePending) {
-        const p = _panelResizePending;
-        if (p.rail) p.rail.removeEventListener('transitionend', p.onEnd);
-        if (p.timer) clearTimeout(p.timer);
-        _unpinMain(p.main);
-        _panelResizePending = null;
-    }
-
-    // Freeze the content side in place (no resize + no move) → graph never repaints.
-    if (main) {
-        const r = main.getBoundingClientRect();
-        main.style.position = 'fixed';
-        main.style.left = r.left + 'px';
-        main.style.top = r.top + 'px';
-        main.style.width = r.width + 'px';
-        main.style.height = r.height + 'px';
-        main.style.zIndex = '1'; // below the rail (z-index:100) so the rail slides over it
-    }
-    document.body.classList.add('rail-animating');
-    _profileRailAnimation(durationMs); // TEMP: verify the slide is now smooth
-
-    let done = false;
-    const finish = () => {
-        if (done) return;
-        done = true;
-        if (rail) rail.removeEventListener('transitionend', onEnd);
-        if (timer) clearTimeout(timer);
-        _panelResizePending = null;
-        // Release the freeze, then settle the canvas to the final size exactly once.
-        _unpinMain(main);
-        document.body.classList.remove('rail-animating');
-        const _t0 = performance.now();
-        if (typeof cy !== 'undefined' && cy) cy.resize();
-        if (window._galaxySigma && typeof window._galaxySigma.refresh === 'function') window._galaxySigma.refresh();
-        if (window.__railProfile !== false) console.log(`[rail-perf] settle cy.resize() = ${(performance.now() - _t0).toFixed(1)}ms`);
-    };
-    const onEnd = (e) => { if (e.propertyName === 'width') finish(); };
-
-    // Fallback fuse: fires if transitionend never does (reduced-motion, hidden tab,
-    // display changes). +32ms safety margin past the transition duration.
-    const timer = setTimeout(finish, durationMs + 32);
-    if (rail) rail.addEventListener('transitionend', onEnd);
-    else { _panelResizePending = { rail: null, main, onEnd, timer }; return; }
-    _panelResizePending = { rail, main, onEnd, timer };
-}
 
 const FT_GROUPS = [
     // ── BIOS / C ──────────────────────────────────────────────────────────────

@@ -43,27 +43,16 @@ body {
 }
 
 /* ── App Shell + Left Rail ─────────────────────────────────────────────── */
-/* The rail OVERLAYS the content instead of pushing it: #app-shell reserves only the
-   collapsed rail width as padding, and #app-rail is absolutely positioned on top. So
-   expanding/collapsing the rail never changes the content area's geometry — the graph
-   never resizes or repaints, which is what keeps the animation smooth on big graphs
-   (resizing a large canvas costs a ~200ms repaint). Only the lightweight rail itself
-   animates. */
 #app-shell {
     display: flex;
     flex: 1;
     min-height: 0;
     overflow: hidden;
-    position: relative;
-    padding-left: var(--rail-collapsed);
 }
 
 #app-rail {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
     width: var(--rail);
+    flex-shrink: 0;
     background: transparent;
     display: flex;
     flex-direction: column;
@@ -79,13 +68,9 @@ body.rail-expanded {
     --rail: var(--rail-expanded);
 }
 
-/* When expanded the rail floats over the content's left edge, so it needs an opaque
-   background (it is transparent while collapsed, sitting in its reserved gutter). */
 body.rail-expanded #app-rail {
     align-items: stretch;
     padding-inline: 8px;
-    background: var(--bg);
-    box-shadow: 3px 0 16px rgba(0, 0, 0, 0.22);
 }
 
 .rail-brand-row {
