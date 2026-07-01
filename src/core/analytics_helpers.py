@@ -935,6 +935,18 @@ def generate_report_tree(data: dict, output_dir: str,
                   class hierarchy, and call detail in L2 files.
     """
     os.makedirs(output_dir, exist_ok=True)
+    # Report artifacts land under the project's .vizcode/; drop a self-ignoring
+    # .gitignore there so they never surface in the user's own git changes.
+    try:
+        try:
+            from local_dir import ensure_local_dir
+        except ImportError:
+            from .local_dir import ensure_local_dir
+        parts = os.path.abspath(output_dir).replace('\\', '/').split('/')
+        if '.vizcode' in parts:
+            ensure_local_dir('/'.join(parts[:parts.index('.vizcode')]) or '/')
+    except Exception:
+        pass
     _write_index(data, output_dir)
     _write_l1_tree(data, output_dir)
     _write_l2_tree(data, output_dir, scan_entries)

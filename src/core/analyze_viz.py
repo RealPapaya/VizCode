@@ -2948,8 +2948,8 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
 
 def _append_health_snapshot(root: str, stats: dict) -> None:
     """Append a health score snapshot to .vizcode/health_history.json."""
-    vizcode_dir = os.path.join(root, '.vizcode')
-    os.makedirs(vizcode_dir, exist_ok=True)
+    from .local_dir import ensure_local_dir
+    vizcode_dir = str(ensure_local_dir(root))
     path = os.path.join(vizcode_dir, 'health_history.json')
 
     commit_sha = ''

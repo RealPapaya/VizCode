@@ -59,8 +59,8 @@ def save_result(root, data: dict):
     Returns the result.json Path on success, None on any failure (non-fatal).
     """
     try:
-        d = _vizcode_dir(root)
-        d.mkdir(parents=True, exist_ok=True)
+        from .local_dir import ensure_local_dir
+        d = ensure_local_dir(root)
         now = datetime.now(timezone.utc)
         meta = {
             "schema_rev":     RESULT_SCHEMA_REV,
