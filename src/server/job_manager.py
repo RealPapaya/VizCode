@@ -79,6 +79,7 @@ def _make_job_dict(root: str, temp_dir=None) -> dict:
     return {
         'pct': 0, 'msg': 'Queued...', 'done': False,
         'error': None, 'stats': None, 'data': None,
+        'html': None, 'html_ready': False, 'size_kb': None,
         'root': root, 'started': time.time(),
         'temp_dir': temp_dir,
         'viewers': {}, 'viewer_tracking_started': False,
@@ -92,6 +93,7 @@ def _make_job_dict(root: str, temp_dir=None) -> dict:
         'node_count': 0, 'file_edge_count': 0,
         'func_edge_count': 0, 'edge_count': 0,
         'project_type': None,
+        'report_pct': 0, 'report_status': None, 'report_done': None,
     }
 
 
@@ -326,8 +328,8 @@ def list_restored_jobs() -> list:
 def _run_analysis_thread(jid: str, root: str, pre_fn=None, generate_report: bool = False):
     """Background thread: optionally run pre_fn(tmp_dir) then build_graph(root).
 
-    If generate_report is True, analytics_helpers.generate_report() is called
-    after build_graph completes, driving the 90→100 % progress window.
+    The browser HTML is assembled during finalization. If generate_report is
+    True, analytics_helpers.generate_report() runs afterward on report_pct.
     """
     import importlib
 
@@ -346,35 +348,52 @@ def _run_analysis_thread(jid: str, root: str, pre_fn=None, generate_report: bool
             else:
                 root_to_use = root
 
-            # Progress callback: maps 0-99 from build_graph into 0-89 overall
-            # (the final 90-100 window is reserved for report generation).
-            if generate_report:
-                def cb(pct, msg, **kwargs):
-                    scaled = int(pct * 0.90)   # remap 0-100 → 0-90
-                    with JOBS_LOCK:
-                        JOBS[jid].update({'pct': scaled, 'msg': msg})
-                        if kwargs:
-                            JOBS[jid].update(kwargs)
-            else:
-                def cb(pct, msg, **kwargs):
-                    with JOBS_LOCK:
-                        JOBS[jid].update({'pct': pct, 'msg': msg})
-                        if kwargs:
-                            JOBS[jid].update(kwargs)
+            def cb(pct, msg, **kwargs):
+                with JOBS_LOCK:
+                    JOBS[jid].update({'pct': pct, 'msg': msg})
+                    if kwargs:
+                        JOBS[jid].update(kwargs)
 
             importlib.reload(analyze_bios)
             graph_data = analyze_bios.build_graph(root_to_use, progress_cb=cb)
 
             s = graph_data['stats']
 
-            # ── Optional report generation (90 → 100 %) ──────────────────────
+            # Assemble the final HTML before any optional AI report work. This
+            # keeps the graph result immutable once finalization is complete.
+            with JOBS_LOCK:
+                JOBS[jid].update({
+                    'pct': 99,
+                    'msg': 'Finalizing HTML output...',
+                    'stage': 'finalize',
+                    'stage_label': 'Finalize output',
+                })
+            try:
+                import html_builder as _html_builder
+                importlib.reload(_html_builder)
+                html = _html_builder.build_html(graph_data, job_id=jid)
+                size_kb = max(1, len(html.encode('utf-8')) // 1024)
+            except Exception as _he:
+                raise RuntimeError(f'Failed to finalize HTML output: {_he}') from _he
+            with JOBS_LOCK:
+                JOBS[jid].update({
+                    'pct': 100,
+                    'msg': 'HTML output ready',
+                    'html': html,
+                    'html_ready': True,
+                    'size_kb': size_kb,
+                })
+
+            # Optional report generation (independent report_pct track)
             if generate_report:
                 with JOBS_LOCK:
                     JOBS[jid].update({
-                        'pct': 90,
-                        'msg': 'Generating AI report…',
+                        'msg': 'Generating AI report...',
                         'stage': 'report',
                         'stage_label': 'Generate AI report',
+                        'report_pct': 0,
+                        'report_status': 'running',
+                        'report_done': False,
                     })
                 try:
                     from analytics_helpers import generate_report as _gen_report
@@ -382,11 +401,21 @@ def _run_analysis_thread(jid: str, root: str, pre_fn=None, generate_report: bool
                     _gen_report(graph_data, report_path)
                     print(f'[REPORT] Job {jid}: report tree written to {os.path.dirname(report_path)}')
                     with JOBS_LOCK:
-                        JOBS[jid].update({'pct': 99, 'msg': 'AI report ready', 'report_done': True})
+                        JOBS[jid].update({
+                            'report_pct': 100,
+                            'msg': 'AI report ready',
+                            'report_status': 'ready',
+                            'report_done': True,
+                        })
                 except Exception as _re:
                     print(f'[REPORT] Job {jid}: report failed: {_re}')
                     with JOBS_LOCK:
-                        JOBS[jid].update({'pct': 99, 'msg': f'Report skipped: {_re}', 'report_done': False})
+                        JOBS[jid].update({
+                            'report_pct': 100,
+                            'msg': f'Report skipped: {_re}',
+                            'report_status': 'failed',
+                            'report_done': False,
+                        })
 
             with JOBS_LOCK:
                 JOBS[jid].update({

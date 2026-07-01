@@ -242,27 +242,30 @@ class Handler(BaseHTTPRequestHandler):
             if not job:
                 self.json_resp({'error': 'Unknown job'}, 404)
             else:
-                # Strip 'data' (graph payload) — not needed by frontend, and may contain non-serialisable types
-                safe = {k: v for k, v in job.items() if k != 'data'}
+                # Strip large payloads not needed by progress polling.
+                safe = {k: v for k, v in job.items()
+                        if k not in ('data', 'html', 'search_index')}
                 self.json_resp(safe)
 
         elif p == '/result':
             jid = qs.get('job', [''])[0]
             with JOBS_LOCK:
                 job = JOBS.get(jid, {})
+            html = job.get('html')
             data = job.get('data')
-            if not data:
+            if not html and not data:
                 if job.get('error'):
                     self.html_error(job['error'])
                 else:
-                    self.html_error('Result not ready — analysis may still be running')
+                    self.html_error('Result not ready - analysis may still be running')
                 return
             try:
-                import importlib
-                import html_builder as _hb
-                importlib.reload(_hb)
-                importlib.reload(analyze_bios)
-                html = analyze_bios.build_html(data, job_id=jid)
+                if not html:
+                    import importlib
+                    import html_builder as _hb
+                    importlib.reload(_hb)
+                    importlib.reload(analyze_bios)
+                    html = analyze_bios.build_html(data, job_id=jid)
                 body = html.encode('utf-8')
                 self.send_response(200)
                 self.send_header('Content-Type', 'text/html; charset=utf-8')
