@@ -967,6 +967,7 @@ body.rail-expanded #app-rail #rail-toggle-btn .rail-toggle-collapse-icon {
 #layout {
     display: flex;
     flex: 1;
+    position: relative;
     overflow: hidden;
     min-height: 0;
     border-radius: 12px;

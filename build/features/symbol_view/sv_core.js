@@ -285,7 +285,8 @@ function _svInitPanZoom() {
   svg.addEventListener("wheel", (e) => {
     e.preventDefault();
     const delta = -e.deltaY;
-    const factor = delta > 0 ? 1.1 : 0.9;
+    const buttonFactor = window.GRAPH_ZOOM_SETTINGS?.buttonFactor || 1.12;
+    const factor = delta > 0 ? buttonFactor : 1 / buttonFactor;
     const rect = svg.getBoundingClientRect();
     const cx = e.clientX - rect.left;
     const cy = e.clientY - rect.top;

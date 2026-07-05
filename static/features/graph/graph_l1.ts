@@ -86,8 +86,8 @@
         });
     });
 
-    cy.json({ elements: [] });
-    cy.add(els);
+    // batch() suppresses per-element style/reflow during the bulk rebuild
+    cy.batch(() => { cy.json({ elements: [] }); cy.add(els); });
     applyCyFont(getSavedFont());
 
     const l0LayoutId = _PREFS.get('layoutL0');
@@ -121,6 +121,28 @@ function _fitGraphAfterNavigation(padding = 40) {
 function _clearL1EmptyOverlay() {
     const ov = document.getElementById('l1-empty-overlay');
     if (ov) ov.remove();
+}
+
+// Heavy force-directed layouts (physics sims) choke on large node sets. Above this
+// node count we transparently fall back to dagre (fast, deterministic) so opening a
+// big folder doesn't spin for seconds. The result is still position-cached for revisits.
+const _L1_FORCE_LAYOUTS = new Set(['cose', 'fcose', 'cola']);
+const _L1_FORCE_DOWNGRADE_NODES = 200;
+const _L1_DAGRE_LR = { name: 'dagre', rankDir: 'LR', animate: false, nodeSep: 30, rankSep: 90, padding: 40 };
+
+// Resolve the L1 layout: honour the user's preference, but fall back to dagre when the
+// preferred preset's CDN extension is missing OR when a force-directed layout would be
+// too slow for the current node count.
+function _resolveL1Layout(nodeCount) {
+    const id = _PREFS.get('layoutL1');
+    const preset = LAYOUT_PRESETS.find(p => p.id === id);
+    const available = preset && (!preset.requires || _isLayoutAvailable(preset.requires));
+    if (available) {
+        const cfg = { ...preset.config(), animate: false };
+        const tooBig = _L1_FORCE_LAYOUTS.has(cfg.name) && nodeCount > _L1_FORCE_DOWNGRADE_NODES;
+        if (!tooBig) return { effectiveId: id, config: cfg };
+    }
+    return { effectiveId: 'dagre-lr', config: { ..._L1_DAGRE_LR } };
 }
 
 // ─── L1: Module → show ALL files flat (no folder nodes ever) ─────────────────
@@ -427,9 +449,23 @@ function renderFilesFlat(modId, files, subPath?) {
     // Invalidate any in-flight expand animations from previous render
     depMapState._animGen++;
 
-    // ── Yield to browser so the loading spinner can paint before heavy work ──
+    // ── Cheap-revisit detection ───────────────────────────────────────────────
+    // The layout cache key depends only on modId / subPath / ext-state — all known
+    // now, synchronously, before we yield. If it's a hit, this is a fast revisit:
+    // suppress the loading overlay *in this same sync task* so it never paints (no
+    // flash). Cache miss (first visit) keeps the overlay → spinner shows during the
+    // slow layout. Net effect: only the first visit to a folder spins.
+    const _l1Key = `L1:${modId || ''}:${subPath || ''}|ext=${depMapState.showExternalFiles ? 1 : 0}|exp=${Array.from(depMapState.expandedExtModules || []).sort().join(',')}`;
+    const _l1Cached = _layoutCacheGet(_l1Key);
+    const _l1IsRevisit = !!(_l1Cached && _l1Cached.positions && _l1Cached.positions.size);
+    if (_l1IsRevisit) showLoading(false);
+
+    // ── Render body ───────────────────────────────────────────────────────────
+    // First visit: defer via setTimeout so the spinner can paint before the heavy layout.
+    // Revisit (cache hit): run SYNCHRONOUSLY — there is no spinner to paint, so the yield
+    // only added latency and made the graph feel disconnected from the click.
     const _l1Token = ++_renderToken;
-    setTimeout(() => {
+    const _runL1Render = () => {
         if (_renderToken !== _l1Token) return; // cancelled
 
         // Stop any running animations to avoid corrupting cytoscape state
@@ -439,8 +475,8 @@ function renderFilesFlat(modId, files, subPath?) {
         const prevNodeIds = new Set(cy.nodes().map(n => n.id()));
         depMapState._prevNodeIds = prevNodeIds;
 
-                cy.json({ elements: [] });
-        cy.add(els);
+                // batch() suppresses per-element style/reflow during the bulk rebuild.
+        cy.batch(() => { cy.json({ elements: [] }); cy.add(els); });
         applyCyFont(getSavedFont());
 
         // ── Empty-state overlay (always freshly created; _clearL1EmptyOverlay removed any prior) ──
@@ -472,25 +508,20 @@ function renderFilesFlat(modId, files, subPath?) {
         const mainEls = cy.elements().filter(el => !el.data('isExtra'));
         const extraEls = cy.nodes().filter(n => n.data('isExtra'));
 
-        // L1 cache key — subdir + ext-files toggle + expanded ext-modules all change the node set
-        const _l1Key = `L1:${modId || ''}:${subPath || ''}|ext=${depMapState.showExternalFiles ? 1 : 0}|exp=${Array.from(depMapState.expandedExtModules || []).sort().join(',')}`;
-        const _l1Cached = _layoutCacheGet(_l1Key);
-        if (_l1Cached && _l1Cached.positions && _l1Cached.positions.size) {
-            console.log(`[layout] cache hit: ${_l1Key}`);
+        // L1 cache key + cached lookup were computed synchronously above (_l1Key / _l1Cached)
+        if (_l1IsRevisit) {
+            // Apply cached positions directly + synchronously — no preset-layout round-trip
+            // (which fires layoutstop a frame later). The graph snaps into place at once.
             extraEls.style('display', 'element');
-            const lay = cy.layout({
-                name: 'preset',
-                positions: (n) => _l1Cached.positions.get(n.id()) || { x: 0, y: 0 },
-                animate: false,
-                fit: false,
+            cy.batch(() => {
+                cy.nodes().forEach(n => {
+                    const p = _l1Cached.positions.get(n.id());
+                    if (p) n.position(p);
+                });
             });
-            lay.one('layoutstop', () => {
-                if (_renderToken !== _l1Token) return;
-                updateBreadcrumb();
-                showLoading(false);
-                _postLayoutL1();
-            });
-            lay.run();
+            updateBreadcrumb();
+            showLoading(false);
+            _postLayoutL1();
             return;
         }
 
@@ -505,13 +536,7 @@ function renderFilesFlat(modId, files, subPath?) {
 
         if (extraEls.length === 0) {
             // Simple path: no extras, just run the user's preferred layout
-            const l1LayoutId = _PREFS.get('layoutL1');
-            const l1Preset = LAYOUT_PRESETS.find(p => p.id === l1LayoutId);
-            const canUse = l1Preset && (!l1Preset.requires || _isLayoutAvailable(l1Preset.requires));
-            const effectiveId = canUse ? l1LayoutId : 'dagre-lr';
-            const l1Config = canUse
-                ? { ...l1Preset.config(), animate: false }
-                : { name: 'dagre', rankDir: 'LR', animate: false, nodeSep: 30, rankSep: 90, padding: 40 };
+            const { effectiveId, config: l1Config } = _resolveL1Layout(cy.nodes().length);
             _syncLayoutIndicator(effectiveId);
             refreshLayoutSwitcher();
             const lay = cy.layout(l1Config);
@@ -529,14 +554,10 @@ function renderFilesFlat(modId, files, subPath?) {
         // Hide extra nodes while main layout runs so they don't affect positions
         extraEls.style('display', 'none');
 
-        // Use user's preferred layout for the main nodes (extras get grid-placed below)
-        const l1LayoutId2 = _PREFS.get('layoutL1');
-        const l1Preset2 = LAYOUT_PRESETS.find(p => p.id === l1LayoutId2);
-        const canUse2 = l1Preset2 && (!l1Preset2.requires || _isLayoutAvailable(l1Preset2.requires));
-        const l1Config2 = canUse2
-            ? { ...l1Preset2.config(), animate: false }
-            : { name: 'dagre', rankDir: 'LR', animate: false, nodeSep: 30, rankSep: 90, padding: 40 };
-        _syncLayoutIndicator(canUse2 ? l1LayoutId2 : 'dagre-lr');
+        // Use user's preferred layout for the main nodes (extras get grid-placed below).
+        // Force layout runs on main nodes only — extras are hidden and grid-placed.
+        const { effectiveId: _l1eid2, config: l1Config2 } = _resolveL1Layout(mainEls.length);
+        _syncLayoutIndicator(_l1eid2);
 
         const layMain = cy.layout(l1Config2);
 
@@ -576,7 +597,9 @@ function renderFilesFlat(modId, files, subPath?) {
         });
 
         layMain.run();
-    }, 0);
+    };
+    if (_l1IsRevisit) _runL1Render();      // revisit: synchronous, snaps in on click
+    else setTimeout(_runL1Render, 0);      // first visit: yield so the spinner paints first
 }
 
 // ── Post-layout handler: handles expand animation OR focus fly-in ──────────────

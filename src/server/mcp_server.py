@@ -118,11 +118,40 @@ def _imp_name(imp) -> str:
 
 # ─── Index building ───────────────────────────────────────────────────────────
 
+def _confidence_label(kind, confidence) -> str:
+    """Map an edge's (kind/origin, confidence) to a four-tier trust label.
+
+    EXTRACTED — parsed straight from source (static import, AST-exact).
+    DERIVED   — local deterministic heuristic + model-confirmed (two signals).
+    INFERRED  — pure model-inferred relationship with usable confidence (>= 0.5).
+    AMBIGUOUS — low confidence (< 0.5), conflicting, or unknown.
+
+    Stdlib-only mirror of analytics_helpers.confidence_label; kept local because
+    this server runs as a standalone process and does not import core. Lets an
+    LLM trust EXTRACTED/DERIVED/INFERRED edges and only re-open source for
+    AMBIGUOUS ones.
+    """
+    k = (kind or "").lower()
+    try:
+        conf = float(confidence)
+    except (TypeError, ValueError):
+        conf = None
+    if "deriv" in k:
+        return "DERIVED" if (conf is None or conf >= 0.5) else "AMBIGUOUS"
+    if "infer" in k or k == "semantic":
+        return "INFERRED" if (conf is not None and conf >= 0.5) else "AMBIGUOUS"
+    if conf is None or conf >= 1.0:
+        return "EXTRACTED"
+    if conf >= 0.5:
+        return "INFERRED"
+    return "AMBIGUOUS"
+
+
 def _build_index(scan: dict, sem: dict):
     """
     Returns:
         modules  — dict[name -> payload dict]  (from scan_cache entries)
-        edges    — list[{source, target, kind, confidence, reason}]
+        edges    — list[{source, target, kind, confidence, reason, label, origin?}]
         adj      — dict[name -> list[name]]  (adjacency for BFS, both directions)
     """
     modules = {}
@@ -145,7 +174,8 @@ def _build_index(scan: dict, sem: dict):
             tgt = _imp_name(imp)
             if tgt and tgt in modules:
                 edges.append({"source": src_name, "target": tgt,
-                               "kind": "import", "confidence": 1.0, "reason": ""})
+                               "kind": "import", "confidence": 1.0, "reason": "",
+                               "label": _confidence_label("import", 1.0)})
 
     # Inferred edges from semantic_cache. If the cache carries a scan hash and
     # it is stale, omit inferred edges so old relationships do not enter prompts.
@@ -156,6 +186,7 @@ def _build_index(scan: dict, sem: dict):
             "kind": "notice",
             "confidence": 0.0,
             "reason": "Semantic cache ignored because it does not match the current scan.",
+            "label": "AMBIGUOUS",
         })
     else:
         for e in sem.get("edges", []):
@@ -163,12 +194,20 @@ def _build_index(scan: dict, sem: dict):
             tgt = e.get("target", "")
             if not src or not tgt:
                 continue
+            conf = e.get("confidence", 0.0)
+            # Provenance splits the broad "inferred" bucket: a "derived" edge is
+            # a local deterministic candidate (subprocess/shared-file/interface)
+            # that the model confirmed. `kind` stays "inferred" so existing
+            # kind-based filters keep working; `origin` drives the trust label.
+            origin = "derived" if str(e.get("origin", "")).lower() == "derived" else "inferred"
             edges.append({
                 "source":     src,
                 "target":     tgt,
                 "kind":       "inferred",
-                "confidence": e.get("confidence", 0.0),
+                "confidence": conf,
                 "reason":     e.get("reason", ""),
+                "origin":     origin,
+                "label":      _confidence_label(origin, conf),
             })
 
     # Adjacency list (undirected for BFS path finding)
@@ -869,7 +908,8 @@ def _tool_query(question: str, modules: dict, edges: list, symidx: Optional[dict
         lines.append("\nSemantic relationships:")
         for _, e in sem_hits[:10]:
             conf = f"({e['confidence']:.2f})" if e["confidence"] else ""
-            lines.append(f"  {e['source']} → {e['target']} {conf}")
+            tag = f"[{e['label']}] " if e.get("label") else ""
+            lines.append(f"  {tag}{e['source']} → {e['target']} {conf}")
             if e["reason"]:
                 lines.append(f"    reason: {e['reason']}")
 
@@ -937,7 +977,8 @@ def _tool_explain(symbol: str, modules: dict, edges: list) -> str:
         for e in sem_roles[:4]:
             key = (e["source"], e["target"])
             if key not in shown and e["reason"]:
-                lines.append(f"  {e['reason']}")
+                tag = f"[{e['label']}] " if e.get("label") else ""
+                lines.append(f"  {tag}{e['reason']}")
                 shown.add(key)
 
     # Function definitions (up to 10)

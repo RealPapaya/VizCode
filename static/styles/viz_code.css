@@ -1,21 +1,46 @@
 /* ── Code Panel ── */
 #code-panel {
-    width: 0;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--code-panel);
     min-width: 0;
+    height: 100%;
     background: var(--panel);
     display: flex;
     flex-direction: column;
     overflow: hidden;
     flex-shrink: 0;
-    transition: width .2s ease
+    z-index: 40;
+    transform: translateX(100%);
+    pointer-events: none;
+    transition: transform .2s ease;
+    box-shadow: -8px 0 24px rgba(0, 0, 0, .35);
 }
 
 #code-panel.open {
-    width: var(--code-panel)
+    transform: translateX(0);
+    pointer-events: auto;
 }
 
-#code-panel.open+#resizer {
-    display: flex
+#resizer {
+    position: absolute;
+    top: 0;
+    right: calc(var(--code-panel) - 6px);
+    bottom: 0;
+    width: 6px;
+    height: 100%;
+    opacity: 1;
+    pointer-events: none;
+    z-index: 45;
+    transform: translateX(var(--code-panel));
+    transition: transform .2s ease;
+}
+
+#resizer.open {
+    transform: translateX(0);
+    pointer-events: auto;
 }
 
 /* Sankey overview: the code panel floats over the diagram rather than taking
@@ -24,25 +49,10 @@ body.overview-sankey-mode #layout {
     position: relative;
 }
 
-body.overview-sankey-mode #code-panel.open {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    height: 100%;
-    z-index: 40;
-    box-shadow: -8px 0 24px rgba(0, 0, 0, .35);
-}
-
 /* Resizer in Sankey mode: overlaps the left edge of the floating code panel (acts as its own handle),
    so the visual boundary matches exactly where the panel starts despite the box-shadow overhang. */
 body.overview-sankey-mode #resizer {
-    position: absolute;
     right: calc(var(--code-panel) - 6px);
-    top: 0;
-    bottom: 0;
-    height: 100%;
-    z-index: 42;
 }
 
 /* Code Panel Header */

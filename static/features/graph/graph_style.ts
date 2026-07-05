@@ -77,6 +77,10 @@
             'target-arrow-color': 'data(ec)',
             'curve-style': 'bezier',
             'opacity': 0.75,
+        }
+    },
+    {
+        selector: 'edge[edgeLabel]', style: {
             'label': 'data(edgeLabel)',
             'font-size': 9,
             'text-rotation': 'autorotate',
@@ -164,7 +168,6 @@
             'compound-sizing-wrt-labels': 'include',
             'min-width': 60,
             'min-height': 40,
-            'cursor': 'pointer',
         }
     },
 ];

@@ -9,6 +9,26 @@ function _syncLayoutIndicator(id) {
     });
 }
 
+function _layoutSvg(body) {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${body}</svg>`;
+}
+function _layoutGlyphSvg(body, viewBox = '0 0 24 24') {
+    return `<svg viewBox="${viewBox}" fill="currentColor" stroke="none" aria-hidden="true" focusable="false">${body}</svg>`;
+}
+
+const _LAYOUT_SVGS = {
+    panel: _layoutSvg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9 9v11"/><path d="M15 9v11"/>'),
+    chevron: _layoutSvg('<polyline points="6 9 12 15 18 9"/>'),
+    dagreLR: _layoutSvg('<rect x="3" y="5" width="5.5" height="5" rx="1.2"/><rect x="15.5" y="9.5" width="5.5" height="5" rx="1.2"/><rect x="3" y="14" width="5.5" height="5" rx="1.2"/><path d="M8.5 7.5h2.2a4.8 4.8 0 0 1 4.8 4.8"/><path d="M8.5 16.5h2.2a4.8 4.8 0 0 0 4.8-4.8"/><path d="m18.5 9.2 2.5 2.8-2.5 2.8"/>'),
+    dagreTB: _layoutSvg('<rect x="9.25" y="3" width="5.5" height="5" rx="1.2"/><rect x="4" y="16" width="5.5" height="5" rx="1.2"/><rect x="14.5" y="16" width="5.5" height="5" rx="1.2"/><path d="M12 8v3.2a3.8 3.8 0 0 1-3.8 3.8"/><path d="M12 8v3.2a3.8 3.8 0 0 0 3.8 3.8"/><path d="m9.8 18.5-2.8 2.5-2.8-2.5"/>'),
+    cose: _layoutSvg('<circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M7 7.2 10 10"/><path d="m17 7.2-3 2.8"/><path d="M7.8 16.7 10 14"/><path d="m16.2 16.7-2.2-2.7"/>'),
+    fcose: _layoutGlyphSvg('<g transform="rotate(90 16 16)"><path d="M16,7a3,3,0,1,1,3-3A3.0033,3.0033,0,0,1,16,7Zm0-4a1,1,0,1,0,1,1A1.001,1.001,0,0,0,16,3Z"/><path d="M11,30a3,3,0,1,1,3-3A3.0033,3.0033,0,0,1,11,30Zm0-4a1,1,0,1,0,1,1A1.001,1.001,0,0,0,11,26Z"/><path d="M7,11a3,3,0,1,1,3-3A3.0033,3.0033,0,0,1,7,11ZM7,7A1,1,0,1,0,8,8,1.001,1.001,0,0,0,7,7Z"/><path d="M21,30a3,3,0,1,1,3-3A3.0033,3.0033,0,0,1,21,30Zm0-4a1,1,0,1,0,1,1A1.001,1.001,0,0,0,21,26Z"/><path d="M25,11a3,3,0,1,1,3-3A3.0033,3.0033,0,0,1,25,11Zm0-4a1,1,0,1,0,1,1A1.001,1.001,0,0,0,25,7Z"/><path d="M4,21a3,3,0,1,1,3-3A3.0033,3.0033,0,0,1,4,21Zm0-4a1,1,0,1,0,1,1A1.001,1.001,0,0,0,4,17Z"/><path d="M28,21a3,3,0,1,1,3-3A3.0033,3.0033,0,0,1,28,21Zm0-4a1,1,0,1,0,1,1A1.001,1.001,0,0,0,28,17Z"/><path d="M16,22a6,6,0,1,1,6-6A6.0069,6.0069,0,0,1,16,22Zm0-10a4,4,0,1,0,4,4A4.0045,4.0045,0,0,0,16,12Z"/></g>', '0 0 32 32'),
+    cola: _layoutGlyphSvg('<path d="M16.5,14a4.06,4.06,0,0,1-2.92-1.25,2,2,0,0,0-3.17,0,4,4,0,0,1-5.83,0A2.1,2.1,0,0,0,3,12a1,1,0,0,1,0-2,4,4,0,0,1,2.91,1.25,2,2,0,0,0,3.17,0,4,4,0,0,1,5.83,0,2,2,0,0,0,3.17,0A4.06,4.06,0,0,1,21,10a1,1,0,0,1,0,2,2.12,2.12,0,0,0-1.59.75A4,4,0,0,1,16.5,14Z"/><path d="M16.5,20a4.06,4.06,0,0,1-2.92-1.25,2,2,0,0,0-3.17,0,4,4,0,0,1-5.83,0A2.1,2.1,0,0,0,3,18a1,1,0,0,1,0-2,4,4,0,0,1,2.91,1.25,2,2,0,0,0,3.17,0,4,4,0,0,1,5.83,0,2,2,0,0,0,3.17,0A4.06,4.06,0,0,1,21,16a1,1,0,0,1,0,2,2.12,2.12,0,0,0-1.59.75A4,4,0,0,1,16.5,20Zm0-12a4.06,4.06,0,0,1-2.92-1.25,2,2,0,0,0-3.17,0,4,4,0,0,1-5.83,0A2.1,2.1,0,0,0,3,6,1,1,0,0,1,3,4,4,4,0,0,1,5.91,5.25a2,2,0,0,0,3.17,0,4,4,0,0,1,5.83,0,2,2,0,0,0,3.17,0A4.06,4.06,0,0,1,21,4a1,1,0,0,1,0,2,2.12,2.12,0,0,0-1.59.75A4,4,0,0,1,16.5,8Z"/>'),
+    elkLayered: _layoutSvg('<rect x="3" y="5" width="5" height="5" rx="1.2"/><rect x="16" y="5" width="5" height="5" rx="1.2"/><rect x="16" y="15" width="5" height="5" rx="1.2"/><path d="M8 7.5h4v0h4"/><path d="M12 7.5v10h4"/><path d="m18.5 15 2.5 2.5-2.5 2.5"/>'),
+    elkStress: _layoutSvg('<circle cx="12" cy="12" r="8"/><path d="M4 12h16"/><path d="M12 4a13 13 0 0 1 0 16"/><path d="M12 4a13 13 0 0 0 0 16"/><circle cx="8" cy="9" r="1" fill="currentColor" stroke="none"/><circle cx="15.5" cy="13.5" r="1" fill="currentColor" stroke="none"/>'),
+    applying: _layoutSvg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9 9v11"/><path d="M15 9v11"/><path d="M19 2v4"/><path d="M17 4h4"/>'),
+};
+
 
 
 
@@ -16,7 +36,7 @@ const LAYOUT_PRESETS = [
     // ── Original presets (unchanged) ──────────────────────────────────────────
     {
         id: 'dagre-lr',
-        icon: '→',
+        icon: _LAYOUT_SVGS.dagreLR,
         label: 'Hierarchy LR',
         tip: 'Hierarchical Left → Right (DAG)',
         levels: [0, 1, 2],
@@ -28,7 +48,7 @@ const LAYOUT_PRESETS = [
     },
     {
         id: 'dagre-tb',
-        icon: '↓',
+        icon: _LAYOUT_SVGS.dagreTB,
         label: 'Hierarchy TB',
         tip: 'Hierarchical Top → Bottom (DAG)',
         levels: [0, 1, 2],
@@ -40,7 +60,7 @@ const LAYOUT_PRESETS = [
     },
     {
         id: 'cose',
-        icon: '⚡',
+        icon: _LAYOUT_SVGS.cose,
         label: 'Force',
         tip: 'Force-Directed (CoSE) — physics simulation',
         levels: [0, 1, 2],
@@ -65,7 +85,7 @@ const LAYOUT_PRESETS = [
     // Requires: cytoscape-fcose
     {
         id: 'fcose',
-        icon: '🧩',
+        icon: _LAYOUT_SVGS.fcose,
         label: 'Smart Cluster',
         tip: 'fCoSE — fastest force-directed, compound-aware, best for modules & hairball graphs (requires fcose CDN)',
         levels: [0, 1, 2],
@@ -113,7 +133,7 @@ const LAYOUT_PRESETS = [
     // Requires: webcola + cytoscape-cola
     {
         id: 'cola',
-        icon: '🧲',
+        icon: _LAYOUT_SVGS.cola,
         label: 'Smooth Physics',
         tip: 'Cola — constraint physics, smoothest animation, directed-flow aware, best for L1/L2 < 200 nodes (requires cola CDN)',
         levels: [1, 2],
@@ -147,7 +167,7 @@ const LAYOUT_PRESETS = [
     // Requires: cytoscape-elk (loaded via CDN in <head>)
     {
         id: 'elk-layered',
-        icon: '⛓',
+        icon: _LAYOUT_SVGS.elkLayered,
         label: 'ELK Flow',
         tip: 'ELK Layered — precise directed DAG with orthogonal edges, better than Dagre (requires elk CDN)',
         levels: [1, 2],   // Call-flow graphs only; L0 module graph has no fixed direction
@@ -201,7 +221,7 @@ const LAYOUT_PRESETS = [
     // Requires: cytoscape-elk
     {
         id: 'elk-stress',
-        icon: '🌐',
+        icon: _LAYOUT_SVGS.elkStress,
         label: 'ELK Stress',
         tip: 'ELK Stress — best for 300+ node graphs, distance-proportional placement, no hairball (requires elk CDN)',
         levels: [0, 1, 2],
@@ -507,9 +527,9 @@ function _buildLayoutSwitcherHTML() {
 
     return `
         <div class="ls-header">
-            <span class="ls-header-icon">⊞</span>
+            <span class="ls-header-icon">${_LAYOUT_SVGS.panel}</span>
             <span class="ls-header-text">${T('layoutLabel')}</span>
-            <span class="ls-chevron">▾</span>
+            <span class="ls-chevron">${_LAYOUT_SVGS.chevron}</span>
         </div>
         <div class="ls-btns">
             ${visiblePresets.map(p => {
@@ -521,7 +541,7 @@ function _buildLayoutSwitcherHTML() {
         return `
                 <button class="ls-btn${p.id === layoutSwitcherState.currentId ? ' active' : ''}${unavailable ? ' ls-unavailable' : ''}"
                         data-layout-id="${p.id}"
-                        data-tip="${lTip}${unavailable ? '\n⚠ CDN 未載入' : ''}">
+                        data-tip="${lTip}${unavailable ? '\nCDN 未載入' : ''}">
                     <span class="ls-icon">${p.icon}</span>
                     <span class="ls-name">${lName}</span>
                     ${unavailable ? '<span class="ls-warn">!</span>' : ''}
@@ -541,10 +561,88 @@ function _setLayoutBadge(label) {
         if (wrap) wrap.appendChild(badge);
     }
     if (!badge) return;
-    badge.textContent = label ? `⚙ ${label}…` : '';
+    badge.innerHTML = label ? `<span class="layout-badge-icon">${_LAYOUT_SVGS.applying}</span><span>${escapeHtml(label)}...</span>` : '';
     badge.style.display = label ? '' : 'none';
 }
 
+
+// ── Adaptive animation ───────────────────────────────────────────────────────
+// Force-directed layouts (cose/fcose/cola) with `animate:true` render EVERY
+// physics iteration to the canvas — on a big graph that's thousands of full
+// redraws (edge styling + labels), which is the jank/"teleport" source. Instead:
+//   • mid-size  → 'end'  : compute final positions off-screen, tween ONCE
+//   • huge      → false  : snap; the closing fit animation supplies the motion
+// Discrete layouts (dagre/elk) only tween old→new once, so they only need
+// trimming on very large graphs.
+const _FORCE_LAYOUTS = new Set(['cose', 'fcose', 'cola']);
+function _adaptiveAnimate(config) {
+    const n = (typeof cy !== 'undefined' && cy) ? cy.nodes().length : 0;
+    const e = (typeof cy !== 'undefined' && cy) ? cy.edges().length : 0;
+    // Edge count is the real cost axis: dense graphs (few nodes, many edges) are
+    // what make a layout slow, and a slow compute is what breaks inline animation.
+    const dense = (n > 250 || e > 150);
+    const huge  = (n > 1200 || e > 2500);
+
+    if (_FORCE_LAYOUTS.has(config.name)) {
+        // cola: constraint solver, animates incrementally — already smooth, leave.
+        // cose: O(n²) main-thread physics; 'end' concentrates the whole simulation
+        //       into one freeze (measured 1166ms), animate:true spreads it across
+        //       frames. Neither is great on dense graphs — leave native, steer
+        //       users to fcose (strictly better) instead.
+        if (config.name === 'cola' || config.name === 'cose') return config;
+        // fcose: cheap compute (~130ms), per-iteration render is the cost — 'end'
+        // computes off-screen then tweens once.
+        if (huge) config.animate = false;
+        else if (dense) config.animate = 'end';
+    } else {
+        // Discrete (dagre/elk): with animate:true cytoscape records the tween's
+        // start time at run() BEGIN, then dagre's dense-graph compute blocks long
+        // enough (~450ms on L0) that by the time it paints, the tween is already
+        // "over" → it snaps to final positions ("teleport"). 'end' starts the
+        // single tween AFTER compute, so the motion is real. Only flips on dense
+        // graphs — L1/L2 compute is fast and animate:true is fine there.
+        if (huge) config.animate = false;
+        else if (dense) config.animate = 'end';
+    }
+    return config;
+}
+
+// Two-phase transition for layouts whose compute blocks the main thread (dagre):
+// compute headless, capture start+end positions, then tween old→new ourselves.
+// This sidesteps cytoscape's inline animation entirely, so the motion is reliable
+// regardless of how the layout plugin treats `animate`. The heavy compute is
+// deferred one painted frame so the "Applying…" badge shows before the freeze.
+function _runLayoutManualTween(config, onSettled) {
+    const dur = config.animationDuration || 500;
+    const easing = config.animationEasing || 'ease-in-out-cubic';
+    const start = new Map();
+    cy.nodes().forEach(n => {
+        const p = n.position();
+        start.set(n.id(), { x: p.x, y: p.y });
+    });
+
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        const headless = cy.layout(Object.assign({}, config, { animate: false, fit: false }));
+        headless.one('layoutstop', () => {
+            const end = new Map();
+            cy.nodes().forEach(n => {
+                const p = n.position();
+                end.set(n.id(), { x: p.x, y: p.y });
+            });
+            // Snap back to start (batched — no intermediate paint), then tween to end.
+            cy.batch(() => cy.nodes().forEach(n => {
+                const s = start.get(n.id());
+                if (s) n.position(s);
+            }));
+            cy.nodes().forEach(n => {
+                const t = end.get(n.id());
+                if (t) n.animate({ position: t }, { duration: dur, easing, queue: false });
+            });
+            setTimeout(onSettled, dur + 20);
+        });
+        headless.run();
+    }));
+}
 
 function applyLayoutPreset(id) {
     const preset = LAYOUT_PRESETS.find(p => p.id === id);
@@ -552,7 +650,7 @@ function applyLayoutPreset(id) {
 
     // Guard: if this preset requires an extension that wasn't loaded, warn and bail
     if (preset.requires && !_isLayoutAvailable(preset.requires)) {
-        showToast(`⚠ Layout "${preset.label}" requires cytoscape-${preset.requires} — CDN script may not have loaded`, 'error');
+        showToast(`Layout "${preset.label}" requires cytoscape-${preset.requires} — CDN script may not have loaded`, 'error');
         console.warn(`[layout] "${preset.requires}" extension not registered. Add the CDN script to analyze_viz.py <head>.`);
         return;
     }
@@ -573,12 +671,19 @@ function applyLayoutPreset(id) {
         b.classList.toggle('active', b.dataset.layoutId === id);
     });
 
-    const config = preset.config();
-    const lay = cy.layout(config);
+    // Cheapen edge draw on heavy graphs (manual switch must apply it too), and
+    // kill any in-flight fit/zoom/element tween so the new layout doesn't snap
+    // from a mid-animation position ("teleport").
+    _applyAdaptivePerfMode();
+    cy.stop(true);
+    cy.elements().stop(true);
+
+    const config = _adaptiveAnimate(preset.config());
     _setLayoutBadge(preset.label);
-    lay.one('layoutstop', () => {
+
+    // Shared "layout settled" handler: clear badge, cache final positions, fit.
+    const _onSettled = () => {
         _setLayoutBadge(null);
-        // Snapshot positions into cache for instant re-entry
         if (curKey) {
             const positions = new Map();
             cy.nodes().forEach(n => {
@@ -588,8 +693,20 @@ function applyLayoutPreset(id) {
             _layoutCacheSet(curKey, positions);
         }
         cy.animate({ fit: { eles: cy.elements(), padding: 40 }, duration: 400, easing: 'ease-in-out-cubic' });
-    });
-    lay.run();
+    };
+
+    // dagre is the only main-thread discrete layout: its dense-graph compute blocks
+    // long enough that cytoscape's inline animation can't tween from it (animate:true
+    // measures across the freeze and lands at the end; animate:'end' isn't honoured by
+    // discrete layouts at all) — either way it "teleports". Drive the transition
+    // manually so the motion is guaranteed.
+    if (config.name === 'dagre') {
+        _runLayoutManualTween(config, _onSettled);
+    } else {
+        const lay = cy.layout(config);
+        lay.one('layoutstop', _onSettled);
+        lay.run();
+    }
 
     showToast(T('layoutApplied', { label: _layoutLabel(preset) }), 'info');
 }
@@ -629,7 +746,6 @@ function applyLayoutWithCache(viewKey, config, onStop) {
     _applyAdaptivePerfMode();
     const cached = viewKey ? _layoutCacheGet(viewKey) : null;
     if (cached && cached.positions && cached.positions.size) {
-        console.log(`[layout] cache hit: ${viewKey}`);
         const lay = cy.layout({
             name: 'preset',
             positions: (n) => cached.positions.get(n.id()) || { x: 0, y: 0 },
@@ -645,7 +761,7 @@ function applyLayoutWithCache(viewKey, config, onStop) {
         return;
     }
 
-    const lay = cy.layout(config);
+    const lay = cy.layout(_adaptiveAnimate(config));
     lay.one('layoutstop', () => {
         if (viewKey) {
             const positions = new Map();

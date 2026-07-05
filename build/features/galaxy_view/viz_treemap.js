@@ -320,7 +320,8 @@ function _overviewTreemapInstallInteractions(grid) {
   grid.addEventListener("wheel", (event) => {
     if (_overviewMode !== "treemap") return;
     event.preventDefault();
-    const factor = event.deltaY < 0 ? 1.14 : 1 / 1.14;
+    const buttonFactor = window.GRAPH_ZOOM_SETTINGS?.buttonFactor || 1.12;
+    const factor = event.deltaY < 0 ? buttonFactor : 1 / buttonFactor;
     _overviewTreemapZoomAt(event.clientX, event.clientY, _overviewTreemapViewport.k * factor);
     if (typeof refreshGraphZoomControls === "function") refreshGraphZoomControls();
   }, { passive: false });

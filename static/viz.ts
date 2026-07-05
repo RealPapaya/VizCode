@@ -223,9 +223,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 if (!el) { showMsg(T('errorNoDataElement')); return; }
 
                 document.getElementById('loading-msg').textContent = '🔍 Parsing graph data...';
-                const t0 = performance.now();
                 window.DATA = JSON.parse(el.textContent);
-                console.log(`JSON.parse: ${(performance.now() - t0).toFixed(0)}ms`);
 
                 if (!window.DATA?.stats) { showMsg(T('errorInvalidDataFormat')); return; }
 

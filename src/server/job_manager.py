@@ -3,7 +3,7 @@ job_manager.py — VIZCODE Job Lifecycle & Viewer Tracking
 Extracted from server.py: JOBS state, viewer heartbeat, analysis thread, search index.
 """
 
-import os, sys, json, threading, time, uuid, shutil
+import os, sys, json, threading, time, uuid, shutil, hashlib
 from pathlib import Path
 from typing import Dict
 
@@ -79,6 +79,7 @@ def _make_job_dict(root: str, temp_dir=None) -> dict:
     return {
         'pct': 0, 'msg': 'Queued...', 'done': False,
         'error': None, 'stats': None, 'data': None,
+        'html': None, 'html_ready': False, 'size_kb': None,
         'root': root, 'started': time.time(),
         'temp_dir': temp_dir,
         'viewers': {}, 'viewer_tracking_started': False,
@@ -92,6 +93,7 @@ def _make_job_dict(root: str, temp_dir=None) -> dict:
         'node_count': 0, 'file_edge_count': 0,
         'func_edge_count': 0, 'edge_count': 0,
         'project_type': None,
+        'report_pct': 0, 'report_status': None, 'report_done': None,
     }
 
 
@@ -240,11 +242,94 @@ def _close_job_viewer(jid: str, viewer_id: str):
     return True, remaining
 
 
+# ─── Reopen: restore persisted scans on startup ───────────────────────────────
+# The global history file (written by vizcode.py) lists recently scanned roots.
+_HISTORY_FILE = os.path.join(_ROOT_DIR, '.vizcode', 'vizcode_history.json')
+
+
+def _restore_jid(root: str) -> str:
+    """Deterministic job id for a restored scan so its /result link is stable."""
+    h = hashlib.sha1(str(Path(root).resolve()).encode('utf-8')).hexdigest()[:12]
+    return f'r_{h}'
+
+
+def restore_recent_jobs(max_jobs: int = 8) -> int:
+    """Load persisted result.json files (most-recent scans) back into JOBS.
+
+    Lets /result?job=<id> work immediately after a server restart without
+    re-analyzing. Returns the number of scans restored. Never raises.
+    """
+    try:
+        import result_store
+    except Exception:
+        return 0
+    try:
+        roots = json.loads(Path(_HISTORY_FILE).read_text(encoding='utf-8'))
+    except Exception:
+        roots = []
+    if not isinstance(roots, list):
+        return 0
+
+    restored = 0
+    for root in roots[:max_jobs]:
+        if not isinstance(root, str) or not os.path.isdir(root):
+            continue
+        meta = result_store.load_meta(root)
+        if not meta:
+            continue
+        data = result_store.load_result(root)
+        if not isinstance(data, dict):
+            continue
+        jid = _restore_jid(root)
+        job = _make_job_dict(root)
+        # Restored scans sort *older* than any live scan (started=now) so a fresh
+        # analysis always wins the "most recent job" fallbacks used across the API.
+        job.update({
+            'pct': 100, 'done': True, 'data': data,
+            'started': float(meta.get('built_at_epoch') or 0.0),
+            'restored': True,
+            'restored_meta': {
+                'name':     meta.get('name', Path(root).name),
+                'built_at': meta.get('built_at', ''),
+                'summary':  meta.get('summary', {}),
+            },
+            'msg': 'Restored from previous scan',
+        })
+        with JOBS_LOCK:
+            # Don't clobber a live job that happens to share this deterministic id.
+            existing = JOBS.get(jid)
+            if not existing or existing.get('restored'):
+                JOBS[jid] = job
+                restored += 1
+    if restored:
+        print(f'[RESTORE] Reopened {restored} previous scan(s) into memory')
+    return restored
+
+
+def list_restored_jobs() -> list:
+    """Return restored scans for the homepage 'reopen' entry, newest first."""
+    with JOBS_LOCK:
+        items = [
+            {
+                'job':      jid,
+                'root':     job.get('root', ''),
+                'name':     (job.get('restored_meta') or {}).get('name', ''),
+                'built_at': (job.get('restored_meta') or {}).get('built_at', ''),
+                'summary':  (job.get('restored_meta') or {}).get('summary', {}),
+                'started':  job.get('started', 0),
+            }
+            for jid, job in JOBS.items()
+            if job.get('restored') and job.get('data')
+        ]
+    items.sort(key=lambda x: x.get('started', 0), reverse=True)
+    return items
+
+
 def _run_analysis_thread(jid: str, root: str, pre_fn=None, generate_report: bool = False):
     """Background thread: optionally run pre_fn(tmp_dir) then build_graph(root).
 
-    If generate_report is True, analytics_helpers.generate_report() is called
-    after build_graph completes, driving the 90→100 % progress window.
+    The browser HTML is assembled during finalization. If generate_report is
+    True, analytics_helpers.generate_report() runs afterward on report_pct.
     """
     import importlib
 
@@ -263,35 +348,52 @@ def _run_analysis_thread(jid: str, root: str, pre_fn=None, generate_report: bool
             else:
                 root_to_use = root
 
-            # Progress callback: maps 0-99 from build_graph into 0-89 overall
-            # (the final 90-100 window is reserved for report generation).
-            if generate_report:
-                def cb(pct, msg, **kwargs):
-                    scaled = int(pct * 0.90)   # remap 0-100 → 0-90
-                    with JOBS_LOCK:
-                        JOBS[jid].update({'pct': scaled, 'msg': msg})
-                        if kwargs:
-                            JOBS[jid].update(kwargs)
-            else:
-                def cb(pct, msg, **kwargs):
-                    with JOBS_LOCK:
-                        JOBS[jid].update({'pct': pct, 'msg': msg})
-                        if kwargs:
-                            JOBS[jid].update(kwargs)
+            def cb(pct, msg, **kwargs):
+                with JOBS_LOCK:
+                    JOBS[jid].update({'pct': pct, 'msg': msg})
+                    if kwargs:
+                        JOBS[jid].update(kwargs)
 
             importlib.reload(analyze_bios)
             graph_data = analyze_bios.build_graph(root_to_use, progress_cb=cb)
 
             s = graph_data['stats']
 
-            # ── Optional report generation (90 → 100 %) ──────────────────────
+            # Assemble the final HTML before any optional AI report work. This
+            # keeps the graph result immutable once finalization is complete.
+            with JOBS_LOCK:
+                JOBS[jid].update({
+                    'pct': 99,
+                    'msg': 'Finalizing HTML output...',
+                    'stage': 'finalize',
+                    'stage_label': 'Finalize output',
+                })
+            try:
+                import html_builder as _html_builder
+                importlib.reload(_html_builder)
+                html = _html_builder.build_html(graph_data, job_id=jid)
+                size_kb = max(1, len(html.encode('utf-8')) // 1024)
+            except Exception as _he:
+                raise RuntimeError(f'Failed to finalize HTML output: {_he}') from _he
+            with JOBS_LOCK:
+                JOBS[jid].update({
+                    'pct': 100,
+                    'msg': 'HTML output ready',
+                    'html': html,
+                    'html_ready': True,
+                    'size_kb': size_kb,
+                })
+
+            # Optional report generation (independent report_pct track)
             if generate_report:
                 with JOBS_LOCK:
                     JOBS[jid].update({
-                        'pct': 90,
-                        'msg': 'Generating AI report…',
+                        'msg': 'Generating AI report...',
                         'stage': 'report',
                         'stage_label': 'Generate AI report',
+                        'report_pct': 0,
+                        'report_status': 'running',
+                        'report_done': False,
                     })
                 try:
                     from analytics_helpers import generate_report as _gen_report
@@ -299,11 +401,21 @@ def _run_analysis_thread(jid: str, root: str, pre_fn=None, generate_report: bool
                     _gen_report(graph_data, report_path)
                     print(f'[REPORT] Job {jid}: report tree written to {os.path.dirname(report_path)}')
                     with JOBS_LOCK:
-                        JOBS[jid].update({'pct': 99, 'msg': 'AI report ready', 'report_done': True})
+                        JOBS[jid].update({
+                            'report_pct': 100,
+                            'msg': 'AI report ready',
+                            'report_status': 'ready',
+                            'report_done': True,
+                        })
                 except Exception as _re:
                     print(f'[REPORT] Job {jid}: report failed: {_re}')
                     with JOBS_LOCK:
-                        JOBS[jid].update({'pct': 99, 'msg': f'Report skipped: {_re}', 'report_done': False})
+                        JOBS[jid].update({
+                            'report_pct': 100,
+                            'msg': f'Report skipped: {_re}',
+                            'report_status': 'failed',
+                            'report_done': False,
+                        })
 
             with JOBS_LOCK:
                 JOBS[jid].update({
@@ -322,6 +434,16 @@ def _run_analysis_thread(jid: str, root: str, pre_fn=None, generate_report: bool
             print(f'\n[DONE] Job {jid}: {s.get("total_all_files", s["files"])} files, {s["functions"]} funcs')
             threading.Thread(target=_build_search_index, args=(jid, root_to_use),
                              daemon=True, name=f'search-idx-{jid}').start()
+
+            # ── Persist the assembled result so the scan can be reopened later ──
+            # result.json restores full functionality on the next server start.
+            try:
+                import result_store
+                if result_store.save_result(root_to_use, graph_data):
+                    print(f'[PERSIST] Job {jid}: result.json written to '
+                          f'{os.path.join(root_to_use, ".vizcode")}')
+            except Exception as _pe:
+                print(f'[PERSIST] Job {jid}: persist skipped: {_pe}')
 
         except Exception as e:
             import traceback

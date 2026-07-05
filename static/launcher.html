@@ -616,6 +616,10 @@
                 <div class="recents-label" data-i18n="launcherRecentPaths">Recent paths</div>
                 <div class="recent-list" id="recent-list"></div>
             </div>
+            <div class="recents" id="reopen-wrap" style="display:none">
+                <div class="recents-label" data-i18n="launcherReopenScans">Reopen previous scan</div>
+                <div class="recent-list" id="reopen-list"></div>
+            </div>
         </div>
 
         <!-- Panel: Git URL -->
@@ -762,6 +766,7 @@
             renderRecentsFor('local');
             renderRecentsFor('git');
             renderRecentsFor('npm');
+            renderReopenScans();
             initPreferences();
             applyLauncherLang(getSavedLang());
             // Prevent right-click context menu on the launcher page
@@ -952,6 +957,33 @@
                 rm.onclick = e => { e.stopPropagation(); removeRecentFor(type, p); };
                 span.appendChild(rm);
                 list.appendChild(span);
+            });
+        }
+
+        // ── Reopen: previously-scanned projects restored by the server ──────────────────
+        // These link straight to /result?job=<id> — instant, no re-analysis needed.
+        async function renderReopenScans() {
+            const wrap = document.getElementById('reopen-wrap');
+            const list = document.getElementById('reopen-list');
+            if (!wrap || !list) return;
+            let scans = [];
+            try {
+                const res = await fetch('/api/recent-scans');
+                scans = (await res.json()).scans || [];
+            } catch { scans = []; }
+            wrap.style.display = scans.length ? '' : 'none';
+            list.innerHTML = '';
+            scans.forEach(s => {
+                const sum = s.summary || {};
+                const meta = [sum.files && `${sum.files} files`, sum.functions && `${sum.functions} fn`]
+                    .filter(Boolean).join(' · ');
+                const a = document.createElement('a');
+                a.className = 'recent-chip';
+                a.href = `/result?job=${encodeURIComponent(s.job)}`;
+                a.target = '_blank';
+                a.title = s.root + (meta ? `  (${meta})` : '');
+                a.textContent = (s.name || s.root) + (meta ? `  ·  ${meta}` : '') + ' ';
+                list.appendChild(a);
             });
         }
 

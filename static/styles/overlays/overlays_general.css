@@ -76,6 +76,24 @@
 
 
 
+#loading-hint {
+
+    max-width: 280px;
+
+    font-size: 12px;
+
+    line-height: 1.6;
+
+    color: var(--muted);
+
+    text-align: center;
+
+    opacity: .85;
+
+}
+
+
+
 #loading-cancel-btn {
 
     display: none;

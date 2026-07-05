@@ -394,7 +394,8 @@ function _sankeyInstallInteractions(grid) {
     grid.addEventListener('wheel', event => {
         if (_overviewMode !== 'sankey') return;
         event.preventDefault();
-        const factor = event.deltaY < 0 ? 1.14 : 1 / 1.14;
+        const buttonFactor = window.GRAPH_ZOOM_SETTINGS?.buttonFactor || 1.12;
+        const factor = event.deltaY < 0 ? buttonFactor : 1 / buttonFactor;
         _sankeyZoomAt(event.clientX, event.clientY, _overviewSankeyViewport.k * factor);
         if (typeof refreshGraphZoomControls === 'function') refreshGraphZoomControls();
     }, { passive: false });

@@ -358,8 +358,8 @@ function renderL2Flowchart(fileRel, focusFuncName = null) {
 
         // Reset element collection — json({elements:[]}) releases internal batch buffers
         // more cleanly than .elements().remove(), which leaves dirty lists around.
-        cy.json({ elements: [] });
-        cy.add(els);
+        // batch() suppresses per-element style/reflow during the bulk rebuild.
+        cy.batch(() => { cy.json({ elements: [] }); cy.add(els); });
         applyCyFont(getSavedFont());
         applyExternalEdgeVisibility();
 
@@ -714,7 +714,7 @@ async function _syncCodePanel(fileRel, funcName, targetCallText = null, importSe
         return;
     }
 
-    if (fileRel === codeState.currentFile) {
+    if (fileRel === codeState.renderedFile) {
         // File already rendered — just jump to target
         if (funcName) requestAnimationFrame(() => jumpToFunc(funcName, targetCallText));
         else if (importSearch) requestAnimationFrame(() => jumpToImport(importSearch));
@@ -728,9 +728,13 @@ async function _syncCodePanel(fileRel, funcName, targetCallText = null, importSe
         const url = `/file?job=${encodeURIComponent(codeState.jobId)}&path=${encodeURIComponent(fileRel)}`;
         const res = await fetch(url);
         const data = await res.json();
-        if (data.error) { showCpError(T('fileLoadError', { error: data.error })); return; }
+        if (data.error) {
+            showCpError(data.code === 'file_missing' ? T('fileMissingSinceScan') : T('fileLoadError', { error: data.error }));
+            return;
+        }
         codeState.currentFile = fileRel;
         renderFileContent(data, ext, fname);
+        codeState.renderedFile = fileRel;
         showCpLoading(false);
         if (funcName) requestAnimationFrame(() => jumpToFunc(funcName, targetCallText));
         else if (importSearch) requestAnimationFrame(() => jumpToImport(importSearch));

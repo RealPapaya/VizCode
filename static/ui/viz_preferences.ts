@@ -206,12 +206,18 @@ function _refreshDashboardLocale() {
     }
 }
 
+function _cyFontFamily(font) {
+    const first = String(font || '').split(',')[0].trim().replace(/^['"]|['"]$/g, '');
+    return first || 'JetBrains Mono';
+}
+
 function withFont(styleList, font) {
+    const cyFont = _cyFontFamily(font);
     return styleList.map(s => {
         if (!s || !s.selector || !s.style) return s;
         const sel = s.selector;
         if (sel === 'node' || sel.startsWith('node') || sel === 'edge' || sel.startsWith('edge')) {
-            return { ...s, style: { ...s.style, 'font-family': font } };
+            return { ...s, style: { ...s.style, 'font-family': cyFont } };
         }
         return s;
     });
@@ -226,11 +232,21 @@ function _uiFontForLang(font, lang) {
         : `${font}, ${DEFAULT_UI_FONT}`;
 }
 
+// Tracks the (theme|font) the cy stylesheet was last built for. Re-parsing + re-applying
+// the whole stylesheet costs ~200ms on big graphs and is only needed when font/theme
+// actually change — the stylesheet persists on the cy instance across cy.add(), so new
+// elements pick it up automatically. Render paths call this every time; the guard makes
+// the steady-state calls (same font/theme) a no-op. Theme switches change data-theme, so
+// the key differs and the stylesheet is correctly rebuilt.
+let _lastCyStyleKey = null;
 function applyCyFont(font) {
     if (!cy || typeof cy.style !== 'function') return;
     try {
-        const cyFont = (font || '').replace(/["']/g, '');
+        const cyFont = _cyFontFamily(font);
         const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+        const key = theme + '|' + cyFont;
+        if (key === _lastCyStyleKey) return;   // stylesheet already current — skip the costly re-parse
+        _lastCyStyleKey = key;
         const overrides = CY_THEME_OVERRIDES[theme] || [];
         cy.style([...withFont(CY_STYLE, cyFont), ...overrides]);
         // Ensure existing elements are updated immediately
@@ -394,7 +410,7 @@ function applyCyTheme(theme) {
     try {
         const savedFont = (_PREFS && typeof _PREFS.get === 'function') ? _PREFS.get('font') : "'JetBrains Mono', monospace";
         const uiFont = getComputedStyle(document.body).fontFamily || _uiFontForLang(savedFont, (_PREFS && typeof _PREFS.get === 'function') ? _PREFS.get('lang') : 'en');
-        const base = withFont(CY_STYLE, uiFont.replace(/["']/g, ''));
+        const base = withFont(CY_STYLE, uiFont);
         const overrides = CY_THEME_OVERRIDES[theme] || [];
         cy.style([...base, ...overrides]);
         cy.resize();

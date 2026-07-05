@@ -72,18 +72,17 @@
 }
 
 /* ── Side panel mode ──────────────────────────────────────────────────────── */
-/* In side mode, #chat-panel is moved into #layout as a flex sibling of       */
-/* #code-panel. No position: fixed needed — it participates in flex layout.   */
+/* In side mode, #chat-panel overlays #layout and never changes graph layout. */
 #chat-panel.side-mode {
-    position: relative;  /* override fixed */
-    top: auto;
-    right: auto;
-    bottom: auto;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
     left: auto;
     flex-shrink: 0;
     width: var(--chat-side-w, 360px);
     min-width: 260px;
-    height: auto;
+    height: 100%;
     max-height: none;
     min-height: 0;
     border-radius: 0;
@@ -93,21 +92,37 @@
     border-left: none;
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
-    box-shadow: none;
-    transform: none;
+    box-shadow: -8px 0 24px rgba(0, 0, 0, .35);
+    transform: translateX(100%);
     opacity: 1;
     pointer-events: none;
-    transition: none;
-    z-index: auto;
-    /* Hidden by default — shown via .open class below */
-    display: none;
+    transition: transform 0.2s ease;
+    z-index: 39;
+    display: flex;
+    overflow: hidden;
 }
 
 #chat-panel.side-mode.open {
-    display: flex;
+    transform: translateX(0);
     opacity: 1;
     pointer-events: auto;
-    transform: none;
+}
+#chat-resizer {
+    position: absolute;
+    top: 0;
+    right: calc(var(--chat-side-w, 360px) - 6px);
+    bottom: 0;
+    height: 100%;
+    z-index: 45;
+    opacity: 1;
+    pointer-events: none;
+    transform: translateX(var(--chat-side-w, 360px));
+    transition: transform 0.2s ease;
+}
+
+#chat-resizer.open {
+    transform: translateX(0);
+    pointer-events: auto;
 }
 
 /* In side-mode, cursor on header is default (no dragging) */

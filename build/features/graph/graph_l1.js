@@ -109,8 +109,10 @@ Analysed: ${m.file_count} | Funcs: ${m.func_count}${ttExtra}`,
       }
     });
   });
-  cy.json({ elements: [] });
-  cy.add(els);
+  cy.batch(() => {
+    cy.json({ elements: [] });
+    cy.add(els);
+  });
   applyCyFont(getSavedFont());
   const l0LayoutId = _PREFS.get("layoutL0");
   const l0Preset = LAYOUT_PRESETS.find((p) => p.id === l0LayoutId);
@@ -138,6 +140,20 @@ function _fitGraphAfterNavigation(padding = 40) {
 function _clearL1EmptyOverlay() {
   const ov = document.getElementById("l1-empty-overlay");
   if (ov) ov.remove();
+}
+const _L1_FORCE_LAYOUTS = /* @__PURE__ */ new Set(["cose", "fcose", "cola"]);
+const _L1_FORCE_DOWNGRADE_NODES = 200;
+const _L1_DAGRE_LR = { name: "dagre", rankDir: "LR", animate: false, nodeSep: 30, rankSep: 90, padding: 40 };
+function _resolveL1Layout(nodeCount) {
+  const id = _PREFS.get("layoutL1");
+  const preset = LAYOUT_PRESETS.find((p) => p.id === id);
+  const available = preset && (!preset.requires || _isLayoutAvailable(preset.requires));
+  if (available) {
+    const cfg = { ...preset.config(), animate: false };
+    const tooBig = _L1_FORCE_LAYOUTS.has(cfg.name) && nodeCount > _L1_FORCE_DOWNGRADE_NODES;
+    if (!tooBig) return { effectiveId: id, config: cfg };
+  }
+  return { effectiveId: "dagre-lr", config: { ..._L1_DAGRE_LR } };
 }
 function drillToModule(modId, opts) {
   if (typeof pushGlobalNavSnapshot === "function" && !isGlobalNavRestoring()) {
@@ -421,14 +437,20 @@ Type: ${ft}
     if (statsEl) statsEl.textContent = `${capped.length} files`;
   }
   depMapState._animGen++;
+  const _l1Key = `L1:${modId || ""}:${subPath || ""}|ext=${depMapState.showExternalFiles ? 1 : 0}|exp=${Array.from(depMapState.expandedExtModules || []).sort().join(",")}`;
+  const _l1Cached = _layoutCacheGet(_l1Key);
+  const _l1IsRevisit = !!(_l1Cached && _l1Cached.positions && _l1Cached.positions.size);
+  if (_l1IsRevisit) showLoading(false);
   const _l1Token = ++_renderToken;
-  setTimeout(() => {
+  const _runL1Render = () => {
     if (_renderToken !== _l1Token) return;
     cy.elements().stop(true, false);
     const prevNodeIds = new Set(cy.nodes().map((n) => n.id()));
     depMapState._prevNodeIds = prevNodeIds;
-    cy.json({ elements: [] });
-    cy.add(els);
+    cy.batch(() => {
+      cy.json({ elements: [] });
+      cy.add(els);
+    });
     applyCyFont(getSavedFont());
     if (cy.nodes().length === 0) {
       const emptyOverlay = document.createElement("div");
@@ -452,24 +474,17 @@ Type: ${ft}
     }
     const mainEls = cy.elements().filter((el) => !el.data("isExtra"));
     const extraEls = cy.nodes().filter((n) => n.data("isExtra"));
-    const _l1Key = `L1:${modId || ""}:${subPath || ""}|ext=${depMapState.showExternalFiles ? 1 : 0}|exp=${Array.from(depMapState.expandedExtModules || []).sort().join(",")}`;
-    const _l1Cached = _layoutCacheGet(_l1Key);
-    if (_l1Cached && _l1Cached.positions && _l1Cached.positions.size) {
-      console.log(`[layout] cache hit: ${_l1Key}`);
+    if (_l1IsRevisit) {
       extraEls.style("display", "element");
-      const lay = cy.layout({
-        name: "preset",
-        positions: (n) => _l1Cached.positions.get(n.id()) || { x: 0, y: 0 },
-        animate: false,
-        fit: false
+      cy.batch(() => {
+        cy.nodes().forEach((n) => {
+          const p = _l1Cached.positions.get(n.id());
+          if (p) n.position(p);
+        });
       });
-      lay.one("layoutstop", () => {
-        if (_renderToken !== _l1Token) return;
-        updateBreadcrumb();
-        showLoading(false);
-        _postLayoutL1();
-      });
-      lay.run();
+      updateBreadcrumb();
+      showLoading(false);
+      _postLayoutL1();
       return;
     }
     const _snapshotL1Positions = () => {
@@ -481,11 +496,7 @@ Type: ${ft}
       _layoutCacheSet(_l1Key, positions);
     };
     if (extraEls.length === 0) {
-      const l1LayoutId = _PREFS.get("layoutL1");
-      const l1Preset = LAYOUT_PRESETS.find((p) => p.id === l1LayoutId);
-      const canUse = l1Preset && (!l1Preset.requires || _isLayoutAvailable(l1Preset.requires));
-      const effectiveId = canUse ? l1LayoutId : "dagre-lr";
-      const l1Config = canUse ? { ...l1Preset.config(), animate: false } : { name: "dagre", rankDir: "LR", animate: false, nodeSep: 30, rankSep: 90, padding: 40 };
+      const { effectiveId, config: l1Config } = _resolveL1Layout(cy.nodes().length);
       _syncLayoutIndicator(effectiveId);
       refreshLayoutSwitcher();
       const lay = cy.layout(l1Config);
@@ -500,11 +511,8 @@ Type: ${ft}
       return;
     }
     extraEls.style("display", "none");
-    const l1LayoutId2 = _PREFS.get("layoutL1");
-    const l1Preset2 = LAYOUT_PRESETS.find((p) => p.id === l1LayoutId2);
-    const canUse2 = l1Preset2 && (!l1Preset2.requires || _isLayoutAvailable(l1Preset2.requires));
-    const l1Config2 = canUse2 ? { ...l1Preset2.config(), animate: false } : { name: "dagre", rankDir: "LR", animate: false, nodeSep: 30, rankSep: 90, padding: 40 };
-    _syncLayoutIndicator(canUse2 ? l1LayoutId2 : "dagre-lr");
+    const { effectiveId: _l1eid2, config: l1Config2 } = _resolveL1Layout(mainEls.length);
+    _syncLayoutIndicator(_l1eid2);
     const layMain = cy.layout(l1Config2);
     layMain.one("layoutstop", () => {
       if (_renderToken !== _l1Token) return;
@@ -532,7 +540,9 @@ Type: ${ft}
       _postLayoutL1();
     });
     layMain.run();
-  }, 0);
+  };
+  if (_l1IsRevisit) _runL1Render();
+  else setTimeout(_runL1Render, 0);
 }
 function _postLayoutL1() {
   applyEdgeFilter();

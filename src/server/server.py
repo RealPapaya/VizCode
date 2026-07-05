@@ -17,6 +17,23 @@ from urllib.error import URLError, HTTPError
 from typing import Dict, Optional
 
 
+def _fs_longpath(p: str) -> str:
+    """Return a filesystem path safe for opening on Windows.
+
+    Deep firmware trees easily exceed the legacy MAX_PATH (260 chars); without
+    the extended-length ``\\\\?\\`` prefix the OS raises FileNotFoundError even
+    though the file is really there. No-op on non-Windows platforms.
+    """
+    if sys.platform.startswith('win'):
+        ap = os.path.abspath(p)
+        if not ap.startswith('\\\\?\\'):
+            if ap.startswith('\\\\'):          # UNC share → \\?\UNC\server\share
+                return '\\\\?\\UNC\\' + ap[2:]
+            return '\\\\?\\' + ap
+        return ap
+    return p
+
+
 def _fatal_startup_error(message: str, *, details: Optional[str] = None, exit_code: int = 1) -> "None":
     sys.stderr.write(f"{message}\n")
     if details:
@@ -73,6 +90,7 @@ from job_manager import (
     _make_job_dict, _read_json_body,
     _open_job_viewer, _ping_job_viewer, _close_job_viewer,
     _run_analysis_thread, _cleanup_all_job_temps, _reap_loop,
+    restore_recent_jobs, list_restored_jobs,
 )
 from fetcher import _extract_zip, _clone_git_repo, _fetch_npm_package, ZIP_MAX_BYTES
 
@@ -209,6 +227,14 @@ class Handler(BaseHTTPRequestHandler):
                     'html':'text/html','json':'application/json'}.get(ext, 'text/plain')
             self.serve_disk(os.path.join('build', filename), mime)
 
+        elif p == '/api/recent-scans':
+            # Previously-scanned projects restored into memory on startup.
+            # Each item links directly to /result?job=<id> — instant, no rescan.
+            try:
+                self.json_resp({'scans': list_restored_jobs()})
+            except Exception as _e:
+                self.json_resp({'scans': [], 'error': str(_e)}, 500)
+
         elif p == '/progress':
             jid = qs.get('job', [''])[0]
             with JOBS_LOCK:
@@ -216,27 +242,30 @@ class Handler(BaseHTTPRequestHandler):
             if not job:
                 self.json_resp({'error': 'Unknown job'}, 404)
             else:
-                # Strip 'data' (graph payload) — not needed by frontend, and may contain non-serialisable types
-                safe = {k: v for k, v in job.items() if k != 'data'}
+                # Strip large payloads not needed by progress polling.
+                safe = {k: v for k, v in job.items()
+                        if k not in ('data', 'html', 'search_index')}
                 self.json_resp(safe)
 
         elif p == '/result':
             jid = qs.get('job', [''])[0]
             with JOBS_LOCK:
                 job = JOBS.get(jid, {})
+            html = job.get('html')
             data = job.get('data')
-            if not data:
+            if not html and not data:
                 if job.get('error'):
                     self.html_error(job['error'])
                 else:
-                    self.html_error('Result not ready — analysis may still be running')
+                    self.html_error('Result not ready - analysis may still be running')
                 return
             try:
-                import importlib
-                import html_builder as _hb
-                importlib.reload(_hb)
-                importlib.reload(analyze_bios)
-                html = analyze_bios.build_html(data, job_id=jid)
+                if not html:
+                    import importlib
+                    import html_builder as _hb
+                    importlib.reload(_hb)
+                    importlib.reload(analyze_bios)
+                    html = analyze_bios.build_html(data, job_id=jid)
                 body = html.encode('utf-8')
                 self.send_response(200)
                 self.send_header('Content-Type', 'text/html; charset=utf-8')
@@ -288,6 +317,10 @@ class Handler(BaseHTTPRequestHandler):
                 if not (abs_path.startswith(root_norm + os.sep) or abs_path == root_norm):
                     self.json_resp({'error': 'Path traversal not allowed'}, 403)
                     return
+
+                # Windows long-path (>260 char) support — only used for filesystem
+                # reads below; `rel` stays untouched for display/lookups.
+                abs_path = _fs_longpath(abs_path)
 
                 # ── Raw binary download (raw=1) ───────────────────────────────
                 if raw_dl:
@@ -810,7 +843,10 @@ class Handler(BaseHTTPRequestHandler):
 
 
             except FileNotFoundError:
-                self.json_resp({'error': f'File not found: {rel}'}, 404)
+                # File existed at scan time but is gone now (e.g. a build artifact
+                # cleaned/regenerated, or the source tree moved). `code` lets the
+                # frontend show a locale-aware "rescan" hint instead of raw text.
+                self.json_resp({'error': f'File not found: {rel}', 'code': 'file_missing'}, 404)
             except Exception as e:
                 self.json_resp({'error': str(e)}, 500)
 
@@ -2503,7 +2539,7 @@ class Handler(BaseHTTPRequestHandler):
             self.json_resp({'error': f'File not found: {filepath}'}, 404)
 
     def html_error(self, msg):
-        body = f'<!DOCTYPE html><html><body style="background:#050a0f;color:#f87171;font-family:monospace;padding:40px"><h2>BIOSVIZ Error</h2><pre>{msg}</pre><a href="/" style="color:#00d4ff">← Back</a></body></html>'.encode()
+        body = f'<!DOCTYPE html><html><body style="background:#050a0f;color:#f87171;font-family:monospace;padding:40px"><h2>Error</h2><pre>{msg}</pre><a href="/" style="color:#00d4ff">← Back</a></body></html>'.encode()
         self.send_response(500)
         self.send_header('Content-Type', 'text/html; charset=utf-8')
         self.send_header('Content-Length', len(body))
@@ -2532,6 +2568,13 @@ def main():
         )
 
     threading.Thread(target=_reap_loop, daemon=True, name='temp-reaper').start()
+
+    # Reopen previously-scanned projects so /result works right after a restart.
+    try:
+        restore_recent_jobs()
+    except Exception as _re:
+        print(f'[RESTORE] skipped: {_re}')
+
     try:
         port = int(sys.argv[1]) if len(sys.argv) > 1 else PORT
     except ValueError:

@@ -119,6 +119,11 @@
             "type": "command",
             "command": "python \"d:/Google AI/VizCode/.claude/hooks/log-session.py\"",
             "async": true
+          },
+          {
+            "type": "command",
+            "command": "python \"d:/Google AI/VizCode/.claude/hooks/learn-nudge.py\"",
+            "timeout": 10
           }
         ]
       }

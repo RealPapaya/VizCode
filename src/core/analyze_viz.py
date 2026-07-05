@@ -94,6 +94,7 @@ try:
     from parsers.elm_parser      import scan_elm, ELM_EXTENSIONS as _ELM_EXTENSIONS
     from parsers.html_parser     import scan_html, HTML_EXTENSIONS as _HTML_EXTENSIONS
     from parsers.yaml_parser     import scan_yaml, YAML_EXTENSIONS as _YAML_EXTENSIONS
+    from parsers.md_parser       import scan_markdown, MARKDOWN_EXTENSIONS as _MARKDOWN_EXTENSIONS
     from parsers.powershell_parser import scan_powershell, POWERSHELL_EXTENSIONS as _POWERSHELL_EXTENSIONS
     from parsers.toml_parser     import scan_toml, TOML_EXTENSIONS as _TOML_EXTENSIONS
     from parsers.json_parser   import scan_json
@@ -140,6 +141,7 @@ except ImportError as _pe:
     _ELM_EXTENSIONS = set()
     _HTML_EXTENSIONS = set()
     _YAML_EXTENSIONS = set()
+    _MARKDOWN_EXTENSIONS = set()
     _POWERSHELL_EXTENSIONS = set()
     _TOML_EXTENSIONS = set()
     _console_print(f'[WARN] Could not load language parsers: {_pe}', file=sys.stderr)
@@ -256,6 +258,8 @@ def _get_parser_fn(ext: str):
         return scan_html
     if ext in _YAML_EXTENSIONS:
         return scan_yaml
+    if ext in _MARKDOWN_EXTENSIONS:
+        return scan_markdown
     if ext in _POWERSHELL_EXTENSIONS:
         return scan_powershell
     if ext in _TOML_EXTENSIONS:
@@ -268,6 +272,9 @@ def _get_parser_fn(ext: str):
 SKIP_DIRS  = {
     # BIOS / build
     'Build', 'build', '.git', '__pycache__', 'Conf', 'DEBUG', 'RELEASE', '.claude',
+    # VizCode's own output dirs — never scan generated caches/reports (esp. the
+    # report-tree .md files, now that markdown is a scanned ext)
+    '.vizcode', '.local',
     # JavaScript / Node
     'node_modules', '.next', '.nuxt', 'dist', 'out', '.output', '.cache',
     'coverage', '.nyc_output', 'storybook-static',
@@ -320,6 +327,8 @@ SCAN_EXT   = {
     '.html', '.htm', '.xhtml',
     # ── Config / Data ──────────────────────────────────────────────────────
     '.json', '.yaml', '.yml', '.toml',
+    # ── Docs (link/structure extraction only — see md_parser) ──────────────
+    '.md', '.markdown', '.mdown', '.mkd', '.rst', '.txt',
     # ── Scripting (Windows) ────────────────────────────────────────────────
     '.ps1', '.psm1', '.psd1',
 }
@@ -386,6 +395,9 @@ FILE_TYPE_MAP = {
     '.json': 'json_config',
     '.yaml': 'yaml_source', '.yml': 'yaml_source',
     '.toml': 'toml_source',
+    # Docs
+    '.md': 'markdown_doc', '.markdown': 'markdown_doc', '.mdown': 'markdown_doc',
+    '.mkd': 'markdown_doc', '.rst': 'rst_doc', '.txt': 'text_doc',
     # Scripting (Windows)
     '.ps1': 'powershell_source', '.psm1': 'powershell_source',
     '.psd1': 'powershell_source',
@@ -892,6 +904,8 @@ def _compute_parse_result(file_bytes: bytes, ext: str) -> tuple:
         raw = scan_html(src, ext)
     elif ext in _YAML_EXTENSIONS and _PARSERS_LOADED:
         raw = scan_yaml(src, ext)
+    elif ext in _MARKDOWN_EXTENSIONS and _PARSERS_LOADED:
+        raw = scan_markdown(src, ext)
     elif ext in _POWERSHELL_EXTENSIONS and _PARSERS_LOADED:
         raw = scan_powershell(src, ext)
     elif ext in _TOML_EXTENSIONS and _PARSERS_LOADED:
@@ -1346,12 +1360,102 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                 source_paths.append(fp)
         return visible_paths, source_paths, ignored_file_count, dirs_scanned, skipped_dir_roots
 
+    def _collect_project_files_git():
+        """Fast path: enumerate non-ignored files with a SINGLE `git ls-files`.
+
+        The os.walk path above spawns one `git check-ignore` subprocess PER
+        directory — thousands of process launches on a big repo (≈40 ms each on
+        Windows), which dominated wall-clock. `git ls-files` lets git's C core
+        walk the tree and apply .gitignore once, in one subprocess. We still
+        apply skip_dirs (node_modules/build/…) on top, since those are VizCode's
+        own skips that may not be in .gitignore. Raises _GitIgnoreFilterError on
+        any git failure so the caller falls back to the os.walk path.
+        """
+        try:
+            proc = subprocess.run(
+                ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+                cwd=root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=120,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+            raise _GitIgnoreFilterError(str(exc)) from exc
+        if proc.returncode != 0:
+            raise _GitIgnoreFilterError(
+                proc.stderr.decode('utf-8', errors='replace') if proc.stderr else 'git ls-files failed'
+            )
+        rels = proc.stdout.decode('utf-8', errors='surrogateescape').split('\0')
+
+        visible_paths = []
+        skipped_by_dir = 0
+        dir_set = set()
+        total_seen = 0
+        next_emit = 2000
+        for rel in rels:
+            if not rel:
+                continue
+            total_seen += 1
+            parts = rel.split('/')
+            # Drop anything whose directory chain hits a skip_dirs name.
+            if any(seg in skip_dirs for seg in parts[:-1]):
+                skipped_by_dir += 1
+                continue
+            visible_paths.append(os.path.join(root, *parts))
+            if len(parts) > 1:
+                dir_set.add('/'.join(parts[:-1]))
+            if len(visible_paths) >= next_emit:
+                next_emit += 2000
+                frac = len(visible_paths) / (len(visible_paths) + 8000)
+                _cb(
+                    _stage_pct('scan', frac),
+                    f'Scanning files… {len(visible_paths):,} found',
+                    stage='scan',
+                )
+
+        source_paths = []
+        for fp in visible_paths:
+            ext = Path(fp).suffix.lower()
+            if ext in SCAN_EXT and ext not in SKIP_EXT:
+                source_paths.append(fp)
+
+        # ignored_files stat = count of .gitignore'd files (matches the old
+        # per-file check-ignore semantics). One cheap extra subprocess; cosmetic,
+        # so any failure just yields 0.
+        ignored_file_count = 0
+        try:
+            iproc = subprocess.run(
+                ['git', 'ls-files', '--others', '--ignored', '--exclude-standard', '-z'],
+                cwd=root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=60,
+            )
+            if iproc.returncode == 0:
+                ignored_file_count = sum(
+                    1 for x in iproc.stdout.decode('utf-8', errors='surrogateescape').split('\0') if x
+                )
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            pass
+
+        # skipped_dir_roots unknown in the git path → 0 (cosmetic).
+        return visible_paths, source_paths, ignored_file_count, len(dir_set), 0
+
     ignore_filter = _build_git_ignore_filter(root)
-    try:
-        visible_file_paths, all_files, ignored_files, total_dirs_scanned, skipped_dir_roots = _collect_project_files(ignore_filter)
-    except _GitIgnoreFilterError:
-        ignore_filter = _GitIgnoreFilter(root, enabled=False)
-        visible_file_paths, all_files, ignored_files, total_dirs_scanned, skipped_dir_roots = _collect_project_files(ignore_filter)
+    collected = None
+    if ignore_filter.enabled:
+        # Git repo, root not itself ignored → try the single-subprocess fast path.
+        try:
+            collected = _collect_project_files_git()
+        except _GitIgnoreFilterError:
+            collected = None
+    if collected is None:
+        try:
+            collected = _collect_project_files(ignore_filter)
+        except _GitIgnoreFilterError:
+            ignore_filter = _GitIgnoreFilter(root, enabled=False)
+            collected = _collect_project_files(ignore_filter)
+    visible_file_paths, all_files, ignored_files, total_dirs_scanned, skipped_dir_roots = collected
 
     # "Project files" = everything we actually walked (skip/ignored dir contents
     # are intentionally excluded — we no longer descend them). total_dirs_skipped
@@ -2844,8 +2948,8 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
 
 def _append_health_snapshot(root: str, stats: dict) -> None:
     """Append a health score snapshot to .vizcode/health_history.json."""
-    vizcode_dir = os.path.join(root, '.vizcode')
-    os.makedirs(vizcode_dir, exist_ok=True)
+    from .local_dir import ensure_local_dir
+    vizcode_dir = str(ensure_local_dir(root))
     path = os.path.join(vizcode_dir, 'health_history.json')
 
     commit_sha = ''
@@ -2986,6 +3090,13 @@ def main():
     size = Path(out).stat().st_size
     _console_print(f'\nOutput: {out} ({size/1024:.0f} KB)')
     _console_print(f'Open in Chrome: file:///{Path(out).absolute().as_posix()}')
+
+    # Persist under .vizcode/ so the scan can be reopened later (result.json).
+    try:
+        import result_store
+        result_store.save_result(args.root, data)
+    except Exception as _pe:
+        _console_print(f'Warning: could not persist result: {_pe}')
 
 
 if __name__ == '__main__':

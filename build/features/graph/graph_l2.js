@@ -407,8 +407,10 @@ Known system API \u2014 no source in this codebase.`
     if (_renderToken !== _l2Token) return;
     cy.elements().stop(true, false);
     l2State._prevNodeIds = new Set(cy.nodes().map((n) => n.id()));
-    cy.json({ elements: [] });
-    cy.add(els);
+    cy.batch(() => {
+      cy.json({ elements: [] });
+      cy.add(els);
+    });
     applyCyFont(getSavedFont());
     applyExternalEdgeVisibility();
     const l2LayoutId = _PREFS.get("layoutL2");
@@ -718,7 +720,7 @@ async function _syncCodePanel(fileRel, funcName, targetCallText = null, importSe
     showCpError("No job ID \u2014 code preview only available via the local server (launch.bat).");
     return;
   }
-  if (fileRel === codeState.currentFile) {
+  if (fileRel === codeState.renderedFile) {
     if (funcName) requestAnimationFrame(() => jumpToFunc(funcName, targetCallText));
     else if (importSearch) requestAnimationFrame(() => jumpToImport(importSearch));
     if (state.level >= 2 && window.svUpdateStructureBtn) svUpdateStructureBtn(fileRel, ext);
@@ -730,11 +732,12 @@ async function _syncCodePanel(fileRel, funcName, targetCallText = null, importSe
     const res = await fetch(url);
     const data = await res.json();
     if (data.error) {
-      showCpError(T("fileLoadError", { error: data.error }));
+      showCpError(data.code === "file_missing" ? T("fileMissingSinceScan") : T("fileLoadError", { error: data.error }));
       return;
     }
     codeState.currentFile = fileRel;
     renderFileContent(data, ext, fname);
+    codeState.renderedFile = fileRel;
     showCpLoading(false);
     if (funcName) requestAnimationFrame(() => jumpToFunc(funcName, targetCallText));
     else if (importSearch) requestAnimationFrame(() => jumpToImport(importSearch));

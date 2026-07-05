@@ -83,7 +83,12 @@ const CY_STYLE = [
       "target-arrow-shape": "triangle",
       "target-arrow-color": "data(ec)",
       "curve-style": "bezier",
-      "opacity": 0.75,
+      "opacity": 0.75
+    }
+  },
+  {
+    selector: "edge[edgeLabel]",
+    style: {
       "label": "data(edgeLabel)",
       "font-size": 9,
       "text-rotation": "autorotate",
@@ -181,8 +186,7 @@ const CY_STYLE = [
       "shape": "roundrectangle",
       "compound-sizing-wrt-labels": "include",
       "min-width": 60,
-      "min-height": 40,
-      "cursor": "pointer"
+      "min-height": 40
     }
   }
 ];

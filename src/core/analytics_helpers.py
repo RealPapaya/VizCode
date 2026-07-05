@@ -9,6 +9,73 @@ import json
 import os
 from collections import defaultdict, Counter
 
+# ─── C0: Edge trust labels (EXTRACTED / INFERRED / AMBIGUOUS) ─────────────────
+
+#: Four-tier trust label vocabulary, ordered most→least trustworthy. Canonical
+#: mapping lives here; mcp_server keeps a stdlib-only mirror (_confidence_label)
+#: because it runs as a standalone process and does not import core.
+TRUST_LABELS = ('EXTRACTED', 'DERIVED', 'INFERRED', 'AMBIGUOUS')
+
+
+def confidence_label(kind, confidence) -> str:
+    """Map an edge's (kind/origin, confidence) to a four-tier trust label.
+
+    - EXTRACTED — parsed straight from source (static import/include, AST-exact).
+    - DERIVED   — local deterministic heuristic (subprocess/shared-file/interface)
+                  that was also model-confirmed: two independent signals, so it is
+                  trusted just below a clean AST extraction.
+    - INFERRED  — pure model-inferred relationship with usable confidence (>= 0.5).
+    - AMBIGUOUS — low confidence (< 0.5), conflicting, or unknown.
+
+    The point is token economy: an LLM can trust EXTRACTED/DERIVED/INFERRED edges
+    as-is and only re-open source for AMBIGUOUS ones. Splitting DERIVED out of the
+    broad INFERRED bucket stops the model re-verifying locally grounded edges.
+    """
+    k = (kind or '').lower()
+    try:
+        conf = float(confidence)
+    except (TypeError, ValueError):
+        conf = None
+
+    # Locally derived + model-confirmed edges: trust unless confidence is low.
+    if 'deriv' in k:
+        return 'DERIVED' if (conf is None or conf >= 0.5) else 'AMBIGUOUS'
+
+    # Pure model-inferred edges are graded purely by confidence.
+    if 'infer' in k or k == 'semantic':
+        return 'INFERRED' if (conf is not None and conf >= 0.5) else 'AMBIGUOUS'
+
+    # Everything else is a statically extracted relationship. A missing or
+    # full-certainty confidence means a clean AST extraction; a parser hint with
+    # reduced confidence degrades the trust accordingly.
+    if conf is None or conf >= 1.0:
+        return 'EXTRACTED'
+    if conf >= 0.5:
+        return 'INFERRED'
+    return 'AMBIGUOUS'
+
+
+def _edge_trust_kind(e: dict) -> str:
+    """Trust-kind for a file edge: explicit `origin` wins, else inferred from `type`."""
+    origin = (e.get('origin') or '').lower()
+    if origin:
+        return origin
+    return 'inferred' if 'infer' in (e.get('type') or '') else 'import'
+
+
+def edge_trust_summary(data: dict) -> dict:
+    """Count file-to-file edges by trust label.
+
+    Returns a dict keyed by TRUST_LABELS, e.g. {'EXTRACTED': 120, ...}.
+    """
+    counts = {lbl: 0 for lbl in TRUST_LABELS}
+    for edge_list in data.get('file_edges_by_module', {}).values():
+        for e in edge_list:
+            label = confidence_label(_edge_trust_kind(e), e.get('confidence'))
+            counts[label] += 1
+    return counts
+
+
 # ─── C1: Hotspot Nodes ───────────────────────────────────────────────────────
 
 def hotspot_nodes(data: dict, top_n: int = 10) -> list:
@@ -145,6 +212,8 @@ def surprising_connections(data: dict, top_n: int = 5) -> list:
                     'target': tgt.get('path', ''),
                     'score':  score,
                     'reason': reason,
+                    'label':  confidence_label(
+                        _edge_trust_kind(edge), edge.get('confidence')),
                 })
 
     scored.sort(key=lambda x: x['score'], reverse=True)
@@ -195,8 +264,9 @@ def _report_connections(connections: list) -> list:
         lines.append('No surprising connections detected.')
         return lines
     for c in connections:
+        trust = f" [{c['label']}]" if c.get('label') else ''
         lines.append(
-            f"- `{c['source']}` → `{c['target']}`"
+            f"- `{c['source']}` → `{c['target']}`{trust}"
             f"  (score: {c['score']}) — {c['reason']}"
         )
     return lines
@@ -474,6 +544,15 @@ def _write_index(data: dict, output_dir: str) -> None:
     )
     lines.append(f'- God files: {god_str}')
 
+    trust = edge_trust_summary(data)
+    lines += ['', '## Edge Trust\n']
+    lines.append(
+        f"- EXTRACTED (parsed from source): {trust['EXTRACTED']}"
+        f" | DERIVED (local heuristic, confirmed): {trust['DERIVED']}"
+        f" | INFERRED (model ≥0.5): {trust['INFERRED']}"
+        f" | AMBIGUOUS (verify before trusting): {trust['AMBIGUOUS']}"
+    )
+
     top_cycles = stats.get('top_circular_deps', [])
     if top_cycles:
         lines.append('\n**Circular Dependency Chains:**')
@@ -491,8 +570,9 @@ def _write_index(data: dict, output_dir: str) -> None:
     if connections:
         lines += ['', '## Surprising Connections\n']
         for c in connections:
+            trust_tag = f" [{c['label']}]" if c.get('label') else ''
             lines.append(
-                f"- `{c['source']}` \u2192 `{c['target']}`"
+                f"- `{c['source']}` \u2192 `{c['target']}`{trust_tag}"
                 f" (score {c['score']}) \u2014 {c['reason']}"
             )
 
@@ -855,6 +935,18 @@ def generate_report_tree(data: dict, output_dir: str,
                   class hierarchy, and call detail in L2 files.
     """
     os.makedirs(output_dir, exist_ok=True)
+    # Report artifacts land under the project's .vizcode/; drop a self-ignoring
+    # .gitignore there so they never surface in the user's own git changes.
+    try:
+        try:
+            from local_dir import ensure_local_dir
+        except ImportError:
+            from .local_dir import ensure_local_dir
+        parts = os.path.abspath(output_dir).replace('\\', '/').split('/')
+        if '.vizcode' in parts:
+            ensure_local_dir('/'.join(parts[:parts.index('.vizcode')]) or '/')
+    except Exception:
+        pass
     _write_index(data, output_dir)
     _write_l1_tree(data, output_dir)
     _write_l2_tree(data, output_dir, scan_entries)

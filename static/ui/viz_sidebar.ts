@@ -21,8 +21,6 @@ function initSidebarTabs() {
     }
 }
 
-const _RAIL_TRANSITION_MS = 220;
-
 function initIconRail() {
     const toggleBtn = document.getElementById('rail-toggle-btn');
     if (!toggleBtn) return;
@@ -43,7 +41,7 @@ function initIconRail() {
     toggleBtn.addEventListener('click', () => {
         const expanded = !document.body.classList.contains('rail-expanded');
         applyRailState(expanded);
-        _startPanelResizeLoop(_RAIL_TRANSITION_MS);
+        _runRailResize();
     });
 
     // While collapsed, the logo itself acts as the expand control (hover → chevron).
@@ -52,13 +50,63 @@ function initIconRail() {
         const expandViaLogo = () => {
             if (document.body.classList.contains('rail-expanded')) return;
             applyRailState(true);
-            _startPanelResizeLoop(_RAIL_TRANSITION_MS);
+            _runRailResize();
         };
         logoToggle.addEventListener('click', expandViaLogo);
         logoToggle.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); expandViaLogo(); }
         });
     }
+}
+
+// The rail PUSHES the content, so the graph container resizes as the rail's width
+// animates. A full cytoscape repaint of a large graph (its edges especially) costs
+// ~200ms, which is why the slide janks on big codebases — even though pan/zoom stay
+// smooth, because those hide edges mid-move (hideEdgesOnViewport) and a resize does not.
+//
+// So we replicate that optimization for the rail slide: hide edges + labels for the
+// duration of the transition (each resize frame then only draws the cheap nodes), then
+// restore them and do a final crisp resize once the rail settles.
+const _RAIL_TRANSITION_MS = 220;
+let _railRafId = null;
+let _railEndTimer = null;
+function _runRailResize() {
+    if (typeof cy === 'undefined' || !cy) return;
+    const rail = document.getElementById('app-rail');
+
+    // Clean up any in-flight run from a rapid re-toggle.
+    if (_railRafId) { cancelAnimationFrame(_railRafId); _railRafId = null; }
+    if (_railEndTimer) { clearTimeout(_railEndTimer); _railEndTimer = null; }
+
+    // Hide the expensive elements for the slide (same set hideEdgesOnViewport uses).
+    cy.edges().style('display', 'none');
+    cy.nodes().style('text-opacity', 0);
+
+    let done = false;
+    const finish = () => {
+        if (done) return;
+        done = true;
+        if (rail) rail.removeEventListener('transitionend', onEnd);
+        if (_railRafId) { cancelAnimationFrame(_railRafId); _railRafId = null; }
+        if (_railEndTimer) { clearTimeout(_railEndTimer); _railEndTimer = null; }
+        cy.edges().removeStyle('display');
+        cy.nodes().removeStyle('text-opacity');
+        cy.resize(); // one crisp settle at the final size
+        if (window._galaxySigma && typeof window._galaxySigma.refresh === 'function') window._galaxySigma.refresh();
+    };
+    const onEnd = (e) => { if (e.propertyName === 'width') finish(); };
+
+    // Track the resizing container each frame (cheap now — nodes only).
+    const end = performance.now() + _RAIL_TRANSITION_MS + 32;
+    const tick = () => {
+        cy.resize();
+        if (performance.now() < end) _railRafId = requestAnimationFrame(tick);
+        else _railRafId = null;
+    };
+    _railRafId = requestAnimationFrame(tick);
+
+    if (rail) rail.addEventListener('transitionend', onEnd);
+    _railEndTimer = setTimeout(finish, _RAIL_TRANSITION_MS + 64); // fallback fuse
 }
 
 function _applySidebarTab() {
@@ -134,22 +182,6 @@ function _applySidebarCollapsed() {
     if (cy) cy.resize();
 }
 
-
-// Continuously call cy.resize() during the code-panel CSS transition so the
-// cytoscape canvas tracks the panel width frame-by-frame (no black artifacts).
-let _panelRafId = null;
-function _startPanelResizeLoop(durationMs) {
-    if (_panelRafId) cancelAnimationFrame(_panelRafId);
-    const end = performance.now() + durationMs + 32; // +32ms safety margin
-    function tick() {
-        if (typeof cy !== 'undefined' && cy) cy.resize();
-        if (window._galaxySigma && typeof window._galaxySigma.refresh === 'function') window._galaxySigma.refresh();
-        if (performance.now() < end) _panelRafId = requestAnimationFrame(tick);
-        else _panelRafId = null;
-    }
-    _panelRafId = requestAnimationFrame(tick);
-}
-const _PANEL_TRANSITION_MS = 200; // must match CSS transition: width .2s
 
 const FT_GROUPS = [
     // ── BIOS / C ──────────────────────────────────────────────────────────────
@@ -550,7 +582,7 @@ function buildEdgeFilter() {
             if (edgeActiveFilter.has(t)) edgeActiveFilter.delete(t);
             else edgeActiveFilter.add(t);
             row.classList.toggle('active', edgeActiveFilter.has(t));
-            applyEdgeFilter();
+            applyEdgeFilter(true);   // user toggled — force re-apply
             updateSidebarStats();
         });
     });
@@ -567,19 +599,26 @@ function buildEdgeFilter() {
                 edgeActiveFilter.clear();
                 wrap.querySelectorAll('.ef-row').forEach(row => row.classList.remove('active'));
             }
-            applyEdgeFilter();
+            applyEdgeFilter(true);   // user toggled — force re-apply
             updateSidebarStats();
         });
     });
 }
 
-function applyEdgeFilter() {
+function applyEdgeFilter(force = false) {
     if (!cy) return;
+    // Fast path: when every edge type is active, freshly-added edges are already visible
+    // (no display override), so a render-time call has nothing to do. Touching display on
+    // hundreds of edges costs ~30-50ms, so skip it unless the user actually toggled the
+    // filter (force). When some types are hidden, group + bulk-apply in 2 style calls.
+    const allActive = edgeActiveFilter.size >= Object.keys(EDGE_TYPE_STYLE).length;
+    if (allActive && !force) return;
     cy.batch(() => {
-        cy.edges().forEach(edge => {
-            const etype = edge.data('etype') || 'include';
-            edge.style('display', edgeActiveFilter.has(etype) ? 'element' : 'none');
-        });
+        const all = cy.edges();
+        if (allActive) { all.style('display', 'element'); return; }
+        const toShow = all.filter(e => edgeActiveFilter.has(e.data('etype') || 'include'));
+        toShow.style('display', 'element');
+        all.not(toShow).style('display', 'none');
     });
 }
 
@@ -840,8 +879,13 @@ function updateSidebarStats() {
     const edgesEl = document.getElementById('sb-stat-edges');
     if (!nodesEl || !edgesEl) return;
     if (!cy) { nodesEl.textContent = '\u2013'; edgesEl.textContent = '\u2013'; return; }
-    nodesEl.textContent = cy.nodes(':visible').length + ' nodes';
-    edgesEl.textContent = cy.edges(':visible').length + ' edges';
+    // `:visible` forces a full style recompute (~50ms on dense graphs). Hidden nodes/edges
+    // are filtered out of `els` before they're ever added (file-type filter), so the only
+    // in-graph hiding is the edge-type filter. When every edge type is active, total counts
+    // equal visible counts \u2014 use the O(1) lengths and skip the costly `:visible` pass.
+    const allEdges = edgeActiveFilter.size >= Object.keys(EDGE_TYPE_STYLE).length;
+    nodesEl.textContent = cy.nodes().length + ' nodes';
+    edgesEl.textContent = (allEdges ? cy.edges().length : cy.edges(':visible').length) + ' edges';
 }
 
 // ─── Sidebar tree ─────────────────────────────────────────────────────────────

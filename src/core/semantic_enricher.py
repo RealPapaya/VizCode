@@ -70,10 +70,18 @@ def write_cache(project_root, inferred_edges: list, scan_cache: dict = None) -> 
         "source": "analyze_viz.py",
         "target": "python_parser.py",
         "confidence": 0.88,
-        "reason": "analyze_viz calls python_parser for AST extraction"
+        "reason": "analyze_viz calls python_parser for AST extraction",
+        "origin": "derived"   # optional: "derived" (local candidate, confirmed)
+                              #           or "inferred" (LLM-discovered, default)
       },
       ...
     ]
+
+    `origin` records provenance so downstream consumers can split the broad
+    "inferred" bucket into DERIVED (locally grounded + model-confirmed) vs
+    INFERRED (pure model). Optional and additive: a missing/blank value, or
+    anything other than "derived", is treated as "inferred" — old caches stay
+    valid with no schema bump.
 
     If scan_cache is provided, stores its SHA-256 hash so is_cache_valid()
     can detect when the underlying scan results have changed.
@@ -86,6 +94,8 @@ def write_cache(project_root, inferred_edges: list, scan_cache: dict = None) -> 
             "target":     str(e.get("target", "")),
             "confidence": round(float(e.get("confidence", 0.0)), 3),
             "reason":     str(e.get("reason", ""))[:160],
+            "origin":     "derived" if str(e.get("origin", "")).lower() == "derived"
+                          else "inferred",
         }
         for e in inferred_edges
         if e.get("source") and e.get("target")

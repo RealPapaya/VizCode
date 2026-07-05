@@ -2239,6 +2239,9 @@
     left: 14px;
     background: rgba(0, 0, 0, 0.42);
     color: #ccc;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     font-size: 11px;
     padding: 3px 9px;
     border-radius: 10px;
@@ -2246,6 +2249,21 @@
     z-index: 10;
     opacity: 0.75;
     letter-spacing: 0.02em;
+}
+
+.layout-badge-icon,
+.ls-header-icon,
+.ls-icon,
+.ls-chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.layout-badge-icon svg {
+    width: 13px;
+    height: 13px;
 }
 
 /* ── Layout Switcher ─────────────────────────────────────────────────────────── */
@@ -2285,9 +2303,15 @@
 }
 
 .ls-header-icon {
-    font-size: 12px;
+    width: 15px;
+    height: 15px;
     color: var(--accent);
     opacity: 0.8;
+}
+
+.ls-header-icon svg {
+    width: 15px;
+    height: 15px;
 }
 
 .ls-header-text {
@@ -2300,9 +2324,15 @@
 }
 
 .ls-chevron {
-    font-size: 11px;
+    width: 13px;
+    height: 13px;
     color: var(--muted);
     transition: transform 0.2s;
+}
+
+.ls-chevron svg {
+    width: 13px;
+    height: 13px;
 }
 
 #layout-switcher.ls-collapsed .ls-chevron {
@@ -2358,11 +2388,14 @@
 }
 
 .ls-icon {
-    font-size: 13px;
     width: 18px;
-    text-align: center;
-    flex-shrink: 0;
-    line-height: 1;
+    height: 18px;
+    color: currentColor;
+}
+
+.ls-icon svg {
+    width: 18px;
+    height: 18px;
 }
 
 .ls-name {

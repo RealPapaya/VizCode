@@ -304,6 +304,10 @@ class TUI:
         self._at(r, f"  {dim(short)}");           r += 1   # static path
         self._at(r, "");                           r += 1
         self._reg('progress',     r, f"  {_progress_bar(0)}  {dim('Waiting…')}"); r += 1
+        if skip_report:
+            self._named['report_progress'] = None
+        else:
+            self._reg('report_progress', r, f"  {_progress_bar(0)}  {dim('AI report waiting')}"); r += 1
         self._reg('msg',          r, f"  {dim('Queued…')}"); r += 1
         self._reg('project_type', r, f"  Project Type: {dim('Detecting…')}"); r += 1
         self._at(r, "");                           r += 1
@@ -325,6 +329,19 @@ class TUI:
 
     def upd_progress(self, pct: int, stage_label: str):
         self._set('progress', f"  {_progress_bar(pct)}  {bold(stage_label)}")
+
+    def upd_report_progress(self, pct: int, label: str, skip_report: bool = True, status: str = None):
+        if skip_report:
+            return
+        if status == 'failed':
+            label_text = red(label)
+        elif pct >= 100:
+            label_text = green(label)
+        elif pct > 0:
+            label_text = bold(label)
+        else:
+            label_text = dim(label)
+        self._set('report_progress', f"  {_progress_bar(pct)}  {label_text}")
 
     def upd_phase_info(self, vphase: str, virt_scan: int, project_total: int,
                        virt_analyzed: int, source_total: int,
@@ -348,6 +365,16 @@ class TUI:
                      f"  {dim('source files indexed')}")
             else:
                 t = f"  {dim('Indexing…')}  {cyan(_fmt(virt_analyzed))} {dim('files')}"
+        elif vphase == 'report':
+            parts = []
+            if virt_nodes:
+                parts.append(f"{cyan(_fmt(virt_nodes))} {dim('nodes')}")
+            if virt_edges:
+                parts.append(f"{cyan(_fmt(virt_edges))} {dim('edges')}")
+            if parts:
+                t = f"  {green('HTML ready')}  " + f"  {dim('|')}  ".join(parts)
+            else:
+                t = f"  {green('HTML ready')}"
         else:  # build
             parts = []
             if virt_nodes:
@@ -355,9 +382,9 @@ class TUI:
             if virt_edges:
                 parts.append(f"{cyan(_fmt(virt_edges))} {dim('edges')}")
             if parts:
-                t = f"  {dim('Building graph…')}  " + f"  {dim('|')}  ".join(parts)
+                t = f"  {dim('Building graph...')}  " + f"  {dim('|')}  ".join(parts)
             else:
-                t = f"  {dim('Finalizing…')}"
+                t = f"  {dim('Finalizing...')}"
         self._set('msg', t)
 
     def upd_project_type(self, project: dict):
@@ -672,6 +699,8 @@ def _run_progress_loop(job_id: str, skip_report_stage=True):
         'module_count': 0, 'function_count': 0, 'node_count': 0,
         'file_edge_count': 0, 'func_edge_count': 0, 'edge_count': 0,
         'other_files': 0,
+        'html_ready': False, 'report_pct': 0,
+        'report_status': None, 'report_done': None,
     }
 
     frame_idx   = 0
@@ -703,16 +732,21 @@ def _run_progress_loop(job_id: str, skip_report_stage=True):
     analysis_start_t: float = time.monotonic()
     done_signal_t:    float = 0.0   # set once when done=True first seen
     virt_pct:         float = 0.0
+    report_virt_pct:  float = 0.0
+    report_started_t: float = 0.0
 
     # ── Visual phase constants ─────────────────────────────────────────────────
     # Progress bar allocation (both modes):
-    #   SCAN  0 →  5 %  (time-based, fast)
-    #   INDEX 5 → 89 %  (counter-driven: virt_analyzed / source_total)
-    #   BUILD 89 → 99 % (time-based)  [→ 90-100% reserved for report if enabled]
-    # When report is disabled the backend reaches 100% directly so the ease-out
-    # animation fills the last percent smoothly either way.
+    #   SCAN  0 → 70 %  (driven by backend scan progress — see bar logic below)
+    #   INDEX 70 → 89 % (counter-driven: virt_analyzed / source_total)
+    #   BUILD 89 → 99 % (time-based), then HTML finalization reaches 100 %
+    # SCAN owns a wide window because the directory walk dominates wall-clock on
+    # large repos; the bar follows the backend's real files-found ramp so it
+    # climbs during the walk instead of freezing. When report is disabled the
+    # backend reaches 100% directly so the ease-out animation fills the last
+    # percent smoothly either way.
     REPORT_END_PCT = 0.0
-    SCAN_END_PCT  = 5.0
+    SCAN_END_PCT  = 70.0
     INDEX_END_PCT = 89.0
     BUILD_END_PCT = 99.0
 
@@ -720,9 +754,13 @@ def _run_progress_loop(job_id: str, skip_report_stage=True):
     INDEX_MIN_S = 2.0     # minimum visual time for INDEX phase
     BUILD_MIN_S = 2.0     # minimum visual time for BUILD phase
     SCAN_FLOOR_PCT = SCAN_END_PCT  # bar must reach SCAN_END_PCT before phase exits
+    SCAN_RAMP_TAU_S = 15.0  # time constant for the scan bar's asymptotic climb;
+                           # bar ≈ t/(t+tau) of the window → 50% of window at t=tau
 
     # Dynamic phase durations.
-    # scan_phase_s: fixed at SCAN_MIN_S (backend scan is near-instant).
+    # scan_phase_s: only paces the SCAN file-count display + acts as a time floor
+    #   for the bar; the bar itself follows the backend's real scan progress so a
+    #   slow walk on big repos keeps moving instead of freezing.
     # index_phase_s: estimated from first-batch timing — updated once we see
     #   real_analyzed > 0 and know source_total, so velocity stays realistic.
     scan_phase_s:    float = SCAN_MIN_S
@@ -762,10 +800,10 @@ def _run_progress_loop(job_id: str, skip_report_stage=True):
         vphase_elapsed     = now - vphase_entered   # needed by progress bar + phase gate
 
         # ── Progress bar ────────────────────────────────────────────────────────
-        # SCAN  :  0 →  5 %  (time-based, fast)
-        # INDEX :  5 → 89 %  (counter-driven: virt_analyzed / source_total)
+        # SCAN  :  0 → 70 %  (backend-driven: real files-found ramp)
+        # INDEX : 70 → 89 %  (counter-driven: virt_analyzed / source_total)
         # BUILD : 89 → 99 %  (time-based)
-        # REPORT: 90 → 99 %  (backend-driven, when generate_report=True)
+        # REPORT uses report_pct on an independent bar when generate_report=True.
         # Done  :    → 100 % (cubic ease-out)
         if error:
             virt_pct = float(max(0, min(100, int(job.get('pct', 0) or 0))))
@@ -780,13 +818,30 @@ def _run_progress_loop(job_id: str, skip_report_stage=True):
             if virt_pct >= 99.8:
                 virt_pct = 100.0
         elif cur_backend_stage == 'report':
-            # Report phase: follow backend pct directly (already scaled to 90-99)
-            backend_pct = float(max(0, min(99, int(job.get('pct', 90) or 90))))
-            if backend_pct > virt_pct:
-                virt_pct = backend_pct
+            virt_pct = 100.0 if job.get('html_ready') else max(virt_pct, float(job.get('pct') or 99))
         else:
             if vphase == 'scan':
-                scan_frac  = min(vphase_elapsed / scan_phase_s, 1.0)
+                # Drive by the backend's REAL scan progress so a long directory
+                # walk keeps the bar climbing instead of freezing at SCAN_END_PCT
+                # after scan_phase_s seconds. Within the walk we follow the
+                # backend's asymptotic files-found ramp (its scan window is 0-6%);
+                # once the backend leaves the scan stage we fill the whole window.
+                # Gate on the stage INDEX (not the pct value) so report mode —
+                # where backend pct is scaled by 0.9 and never quite hits 6 —
+                # still reaches SCAN_END_PCT and lets the phase advance.
+                if backend_stage_idx > ANALYSIS_STAGE_INDEX.get('scan', 0):
+                    scan_frac = 1.0
+                else:
+                    # Asymptotic climb toward (never reaching) the top of the scan
+                    # window: t/(t+tau) decelerates as the walk drags on, so the
+                    # bar keeps moving the whole time instead of plateauing at a
+                    # fixed floor. The coarse backend pct (0-6, integer) can push
+                    # it further when real discovery outpaces the time curve. The
+                    # window is filled to 1.0 only once the backend leaves scan.
+                    backend_scan_pct = float(max(0, int(job.get('pct', 0) or 0)))
+                    walk_frac = min(backend_scan_pct / 6.0, 1.0)
+                    time_frac = vphase_elapsed / (vphase_elapsed + SCAN_RAMP_TAU_S)
+                    scan_frac = max(walk_frac, time_frac)
                 target_pct = REPORT_END_PCT + scan_frac * (SCAN_END_PCT - REPORT_END_PCT)
             elif vphase == 'index':
                 denom = real_source_total or real_project_total
@@ -903,24 +958,51 @@ def _run_progress_loop(job_id: str, skip_report_stage=True):
         )
 
         build_phase_frames = max(1.0, BUILD_MIN_S * FPS)
+        counts_final = done or bool(job.get('html_ready')) or cur_backend_stage == 'report'
 
         if r_nodes > 0:
-            step_n = max(r_nodes / build_phase_frames, 1.0)
-            if virt_nodes < r_nodes:
-                virt_nodes = min(virt_nodes + step_n, float(r_nodes))
-            elif vphase == 'build' and not done:
-                virt_nodes += step_n * 0.08               # fake momentum
-        elif done:
+            if counts_final:
+                virt_nodes = float(r_nodes)
+            else:
+                step_n = max(r_nodes / build_phase_frames, 1.0)
+                if virt_nodes < r_nodes:
+                    virt_nodes = min(virt_nodes + step_n, float(r_nodes))
+                elif vphase == 'build':
+                    virt_nodes += step_n * 0.08               # fake momentum
+        elif counts_final:
             virt_nodes = float(r_nodes)
 
         if r_edges > 0:
-            step_e = max(r_edges / build_phase_frames, 1.0)
-            if virt_edges < r_edges:
-                virt_edges = min(virt_edges + step_e, float(r_edges))
-            elif vphase == 'build' and not done:
-                virt_edges += step_e * 0.08               # fake momentum
-        elif done:
+            if counts_final:
+                virt_edges = float(r_edges)
+            else:
+                step_e = max(r_edges / build_phase_frames, 1.0)
+                if virt_edges < r_edges:
+                    virt_edges = min(virt_edges + step_e, float(r_edges))
+                elif vphase == 'build':
+                    virt_edges += step_e * 0.08               # fake momentum
+        elif counts_final:
             virt_edges = float(r_edges)
+
+        report_status = job.get('report_status')
+        report_label = 'AI report waiting'
+        if not skip_report_stage:
+            if cur_backend_stage == 'report' and not report_started_t:
+                report_started_t = now
+            if report_status in ('ready', 'failed'):
+                report_virt_pct = 100.0
+            elif cur_backend_stage == 'report':
+                backend_report_pct = float(max(0, min(100, int(job.get('report_pct') or 0))))
+                elapsed = max(now - (report_started_t or now), 0.0)
+                time_target = min(95.0, (elapsed / (elapsed + 8.0)) * 95.0) if elapsed else 0.0
+                target = max(backend_report_pct, time_target)
+                report_virt_pct += min(max(target - report_virt_pct, 0.0), 1.25)
+            if report_status == 'ready':
+                report_label = 'AI Report ready'
+            elif report_status == 'failed':
+                report_label = 'AI Report skipped'
+            elif cur_backend_stage == 'report':
+                report_label = 'Generating AI Report'
 
         # ── Resolve stage label for progress bar ──────────────────────────────
         stage_floor = max(stage_floor, backend_stage_idx)
@@ -932,6 +1014,8 @@ def _run_progress_loop(job_id: str, skip_report_stage=True):
             if raw_idx == current_idx and job.get('stage_label')
             else default_label
         )
+        if cur_backend_stage == 'report' and job.get('html_ready'):
+            stage_label = 'HTML output ready'
 
         # ── Batch render ──────────────────────────────────────────────────────
         if cur_backend_stage == 'report':
@@ -940,8 +1024,10 @@ def _run_progress_loop(job_id: str, skip_report_stage=True):
             title_label = "Analyzing Project"
         tui.upd_title(frame_idx, title_label, done=done, error=bool(error))
         tui.upd_progress(int(round(virt_pct)), stage_label)
+        tui.upd_report_progress(int(round(report_virt_pct)), report_label,
+                                skip_report=skip_report_stage, status=report_status)
         tui.upd_phase_info(
-            vphase        = vphase,
+            vphase        = ('report' if cur_backend_stage == 'report' and job.get('html_ready') else vphase),
             virt_scan     = min(int(virt_scan), real_project_total) if real_project_total else int(virt_scan),
             project_total = real_project_total,
             virt_analyzed = int(virt_analyzed),
@@ -1054,7 +1140,7 @@ def ask_generate_report() -> Optional[bool]:
     _tui._at(r, ""); r += 1
     
     # Menu items
-    sel = 0
+    sel = 1
     item_rows = {}
     for i, label in enumerate(items):
         item_rows[i] = r

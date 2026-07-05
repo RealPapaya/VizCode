@@ -301,6 +301,7 @@ function initResizer() {
     const resizer = document.getElementById('resizer');
     const panel = document.getElementById('code-panel');
     if (!resizer || !panel) return;
+    resizer.style.display = 'flex';
     let startX, startW;
     resizer.addEventListener('mousedown', e => {
         startX = e.clientX;
@@ -335,7 +336,6 @@ function initResizer() {
         if (sankeyHost) sankeyHost.style.pointerEvents = '';
         document.removeEventListener('mousemove', onDrag);
         document.removeEventListener('mouseup', stopDrag);
-        if (cy) cy.resize();
     }
 }
 
@@ -378,29 +378,47 @@ function initSidebarResizer() {
     }
 }
 
+let _codePanelOpenTimer = null;
+const _CODE_PANEL_TRANSITION_MS = 200;
+
 function openCodePanel() {
+    if (_codePanelOpenTimer) {
+        clearTimeout(_codePanelOpenTimer);
+        _codePanelOpenTimer = null;
+    }
+    const chatPanel = document.getElementById('chat-panel');
+    if (chatPanel?.classList.contains('side-mode') && chatPanel.classList.contains('open')) {
+        document.getElementById('chat-btn')?.click();
+        _codePanelOpenTimer = setTimeout(() => {
+            _codePanelOpenTimer = null;
+            openCodePanel();
+        }, _CODE_PANEL_TRANSITION_MS);
+        return;
+    }
     const panel = document.getElementById('code-panel');
+    const resizer = document.getElementById('resizer');
     panel.style.width = '';
     panel.classList.add('open');
+    if (resizer) resizer.classList.add('open');
     const codeBtn = document.getElementById('code-toggle-btn');
     if (codeBtn) { codeBtn.disabled = false; codeBtn.classList.add('active'); }
     codeState.isOpen = true;
     codeState.userClosed = false;
-    const resizer = document.getElementById('resizer');
-    if (resizer) resizer.style.display = 'flex';
-    _startPanelResizeLoop(_PANEL_TRANSITION_MS);
 }
 
 function closeCodePanel() {
+    if (_codePanelOpenTimer) {
+        clearTimeout(_codePanelOpenTimer);
+        _codePanelOpenTimer = null;
+    }
     const panel = document.getElementById('code-panel');
+    const resizer = document.getElementById('resizer');
     panel.classList.remove('open');
+    if (resizer) resizer.classList.remove('open');
     panel.style.width = '';
     document.getElementById('code-toggle-btn').classList.remove('active');
     codeState.isOpen = false;
     codeState.userClosed = true;
-    const resizer = document.getElementById('resizer');
-    if (resizer) resizer.style.display = 'none';
-    _startPanelResizeLoop(_PANEL_TRANSITION_MS);
 }
 
 // ─── Multi-snippet mode toggle (Structure View only) ─────────────────────────
@@ -447,7 +465,8 @@ function cpExitMultiSnip() {
     // Force re-fetch by resetting the currentFile sentinel
     const file = codeState.currentFile === '__sym_snippet__' ? null : codeState.currentFile;
     if (file && file !== '__sym_snippet__') {
-        codeState.currentFile = null;  // force reload
+        codeState.currentFile = null;     // force reload
+        codeState.renderedFile = null;    // invalidate render guard so full file re-fetches
         loadFileInPanel(file, null);
     }
 }
@@ -474,7 +493,7 @@ async function loadFileInPanel(filePath, funcName?) {
         return;
     }
 
-    if (filePath === codeState.currentFile) {
+    if (filePath === codeState.renderedFile) {
         syncCodePanelViewToggle();
         showCpLoading(false);
         if (funcName) jumpToFunc(funcName);
@@ -494,13 +513,17 @@ async function loadFileInPanel(filePath, funcName?) {
         const url = `/file?job=${encodeURIComponent(codeState.jobId)}&path=${encodeURIComponent(filePath)}`;
         const res = await fetch(url);
         const data = await res.json();
-        if (data.error) { showCpError(T('fileLoadError', { error: data.error })); return; }
+        if (data.error) {
+            showCpError(data.code === 'file_missing' ? T('fileMissingSinceScan') : T('fileLoadError', { error: data.error }));
+            return;
+        }
         codeState.currentFile = filePath;
         codeState.currentData = data;
         codeState.currentExt = ext;
         codeState.currentName = fname;
         codeState.currentLangHint = data.lang_hint || '';
         renderFileContent(data, ext, fname);
+        codeState.renderedFile = filePath;
         showCpLoading(false);
         if (funcName) setTimeout(() => jumpToFunc(funcName), 80);
         if (state.level >= 1 && window.svUpdateStructureBtn) svUpdateStructureBtn(filePath, ext);

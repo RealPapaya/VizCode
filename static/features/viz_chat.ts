@@ -141,10 +141,28 @@
     }
 
         // ── Panel open / close ───────────────────────────────────────────────────
+    const _SIDE_PANEL_TRANSITION_MS = 200;
+    let _chatOpenTimer = null;
+
     function _open() {
+        if (_chatOpenTimer) {
+            clearTimeout(_chatOpenTimer);
+            _chatOpenTimer = null;
+        }
+        if (_panelMode === 'side' && typeof closeCodePanel === 'function' && typeof codeState !== 'undefined' && codeState.isOpen) {
+            closeCodePanel();
+            _chatOpenTimer = setTimeout(() => {
+                _chatOpenTimer = null;
+                _open();
+            }, _SIDE_PANEL_TRANSITION_MS);
+            return;
+        }
         _isOpen = true;
         _panel.classList.add('open');
-        if (_panelMode === 'side' && _chatResizer) _chatResizer.style.display = 'block';
+        if (_panelMode === 'side' && _chatResizer) {
+            _chatResizer.style.display = 'block';
+            _chatResizer.classList.add('open');
+        }
         _btn.classList.add('active');
         _updateButtonIcon();
         _checkConfig();
@@ -155,9 +173,16 @@
     }
 
     function _close() {
+        if (_chatOpenTimer) {
+            clearTimeout(_chatOpenTimer);
+            _chatOpenTimer = null;
+        }
         _isOpen = false;
         _panel.classList.remove('open');
-        if (_chatResizer) _chatResizer.style.display = 'none';
+        if (_chatResizer) {
+            _chatResizer.classList.remove('open');
+            _chatResizer.style.display = _panelMode === 'side' ? 'block' : 'none';
+        }
         _btn.classList.remove('active');
         _updateButtonIcon();
     }
@@ -2289,12 +2314,11 @@
             if (gw) gw.style.pointerEvents = '';
             document.removeEventListener('mousemove', onDrag);
             document.removeEventListener('mouseup', stopDrag);
-            if (window.cy) window.cy.resize();
         }
     }
 
     // ── Panel mode toggle (side ↔ float) ─────────────────────────────────────
-    // side : panel moved into #layout as a flex sibling of #code-panel
+    // side : panel overlays #layout without changing graph layout
     // float: panel lives on document.body (position:fixed, draggable)
     const _ICON_SIDE  = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="2" y="3" width="16" height="14" rx="2"/><line x1="13" y1="3" x2="13" y2="17"/></svg>`;
     const _ICON_FLOAT = `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="4" y="4" width="12" height="12" rx="2"/><path d="M8 1h8a2 2 0 0 1 2 2v8"/></svg>`;
@@ -2318,7 +2342,23 @@
                 layout.appendChild(_chatResizer);
                 layout.appendChild(_panel);
             }
+            // Clear float-only inline geometry left behind by drag/resize.
+            // Side-mode position/size come from the .side-mode CSS rule
+            // (width via --chat-side-w), so these inline styles would otherwise
+            // override it and the panel would render in the wrong place/size.
+            _panel.style.left   = '';
+            _panel.style.top    = '';
+            _panel.style.right  = '';
+            _panel.style.width  = '';
+            _panel.style.height = '';
             _panel.classList.add('side-mode');
+            if (_chatResizer) {
+                _chatResizer.style.display = 'block';
+                _chatResizer.classList.toggle('open', _isOpen);
+            }
+            if (_isOpen && typeof closeCodePanel === 'function' && typeof codeState !== 'undefined' && codeState.isOpen) {
+                closeCodePanel();
+            }
             _panel.classList.remove('open');
             if (_isOpen) _panel.classList.add('open');
             document.body.classList.remove('chat-side-open');
@@ -2339,6 +2379,7 @@
                     _chatResizer.parentElement.removeChild(_chatResizer);
                 }
             }
+            _chatResizer.classList.remove('open');
             _chatResizer.style.display = 'none';
             _panel.classList.remove('side-mode');
             _panel.classList.remove('open');
