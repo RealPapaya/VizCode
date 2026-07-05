@@ -19,6 +19,16 @@ pointer line here.
 
 ---
 
+## gitignored-fixture-dirs-prune-analyzer-samples (2026-07-05)
+- Trap: `build_graph()` prunes gitignored directories before extension filtering.
+  A test fixture under an ignored directory name (for example `testproject/proto/`)
+  is invisible unless the test project explicitly unignores that directory.
+- Cost: analyzer content tests can run against an incomplete sample project and
+  fail at edge resolution even though the parser and fixture files are correct.
+- Rule: when adding source fixtures under a directory that may be ignored,
+  verify `git check-ignore` for the directory path and add a local fixture
+  `.gitignore` exception such as `!proto/` and `!proto/**`.
+
 ## pytest-green-hides-skipped-analyzer-suite (2026-07-05)
 - Trap: `python -m pytest tests/` reports "162 passed, 20 skipped" and looks
   green, but the 20 skips are the ENTIRE analyzer content suite — the

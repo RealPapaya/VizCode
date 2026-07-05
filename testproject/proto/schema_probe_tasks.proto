@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+message ProbeActor {}
+
+message ProbeTaskDetail {
+  ProbeActor actor = 1;
+}
+
+message ProbeTaskRequest {
+  ProbeTaskDetail detail = 1;
+  ProbeActor requested_by = 2;
+}
+
+message ProbeTaskResponse {}
+
+service ProbeTaskService {
+  rpc ResolveProbeTask (ProbeTaskRequest) returns (ProbeTaskResponse);
+}
