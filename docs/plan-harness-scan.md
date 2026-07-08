@@ -269,3 +269,29 @@ P6 (UI parity verify step), and anti-patterns.
 
 Minor known gap: `_dashHarnessEmptyCard` empty-state text predates this fix and
 is still hardcoded English (not in the reworked detail scope).
+
+## P8.2 Follow-up: hero parity round 2 + unrelated L2/L3 regression (2026-07-08)
+
+User feedback after P8.1: hero still visibly differs from siblings, large blank
+space mid-panel. Recon (DOM-tree diff vs widget_code_health and
+widget_complexity details) found three causes: (1) weakest-card had
+max-width:260px inside the flexible ~580px LEFT hero column (anchor puts that
+card in the RIGHT visual column); (2) copy column skipped the anchor's
+eyebrow → h2 title → 64px primary → summary-paragraph stack, so no visual
+weight; (3) `.dash-harness-ev-row` path column capped at 180px so rows never
+filled their width. Fix (sonnet, 3 owned files): hero restructured to mirror
+code_health exactly (title + `{level}` summary paragraph in copy; radar +
+status badge + full-width weakest card stacked in visual), ev-row grid now
+fr-based, `_dashHarnessEmptyCard` i18n'd (+3 en/zh keys). Verified in built JS.
+
+Same session, user reported Galaxy showing only folder/file nodes (~321) — L2/
+L3 gone. Diagnosed as UNRELATED pre-existing regression: upstream commit
+`0d91b28` (merged via a612441) added `from parsers.md_parser import …` to the
+single all-or-nothing parser-import try/except in analyze_viz.py:55-105 but
+never committed `src/parsers/md_parser.py` — one missing file silently killed
+ALL language parsers while the scan still reported success. Fixed by writing
+`src/parsers/md_parser.py` against the 11 tests that DID land in that commit.
+Independently verified: testproject L2 funcdefs 0 → 177, L3 symdefs 0 → 275;
+full suite 232 passed / 0 skipped (the previously always-skipped analyzer suite
+now runs — upstream also fixed the conftest fixture). Lesson recorded:
+LESSONS.md `parser-import-block-all-or-nothing-failure`.

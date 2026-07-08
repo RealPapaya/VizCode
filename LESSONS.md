@@ -19,6 +19,25 @@ pointer line here.
 
 ---
 
+## parser-import-block-all-or-nothing-failure (2026-07-08)
+- Trap: `src/core/analyze_viz.py` wraps ALL parser imports in a single
+  `try/except ImportError` block (lines 55–105). Adding an import for a
+  parser file that doesn't exist yet (`md_parser.py` in commit `0d91b28`)
+  causes `_PARSERS_LOADED = False` for ALL languages — every file gets an
+  empty parse result. The scan still completes (files and modules are
+  counted), but L2/L3 (functions/symbols) are entirely absent. The WARN
+  message `[WARN] Could not load language parsers: No module named '...'`
+  is the only visible signal.
+- Cost: complete loss of L2/L3 (function + symbol) nodes in the Galaxy /
+  graph view; ~321 total nodes on a project that should show far more.
+  Silently, because the scan reports success.
+- Rule: when adding a new `from parsers.X import` line in analyze_viz.py,
+  the corresponding `src/parsers/X.py` file MUST be committed in the same
+  change. Before merging, run `python -c "from core.analyze_viz import
+  _PARSERS_LOADED; print(_PARSERS_LOADED)"` (from `src/`) and verify it
+  prints `True`. Any parser import referencing a non-existent file kills
+  ALL parsing silently.
+
 ## widget-detail-must-anchor-sibling-interaction-idioms (2026-07-08)
 - Trap: a new widget whose detail view is wired correctly (data, i18n, assets)
   but built from its own inline styles reads as alien and unusable next to
@@ -63,6 +82,6 @@ pointer line here.
   `testproject/testproject`, a nested dir that no longer exists after the
   src/ reorganization (commit 1f92c85). Real path is just `testproject/`.
 - Cost: analyzer content regressions would pass CI silently.
-- Rule: treat any skipped test in this repo as a failure to investigate; the
-  fix (pending user approval) is changing conftest.py:135 to
-  `PROJECT_ROOT / 'testproject'`.
+- Rule: treat any skipped test in this repo as a failure to investigate.
+- RESOLVED 2026-07-08: the conftest fixture was fixed upstream; full suite now
+  runs 232 passed / 0 skipped. The general rule above still stands.

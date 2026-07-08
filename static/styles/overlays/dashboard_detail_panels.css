@@ -4527,7 +4527,7 @@
 
 .dash-harness-ev-row {
     display: grid;
-    grid-template-columns: 14px 1fr minmax(0, 180px) auto;
+    grid-template-columns: 14px minmax(0, 1fr) minmax(0, 0.9fr) auto;
     align-items: baseline;
     gap: 6px;
     font-size: 11px;
@@ -4588,7 +4588,7 @@
     text-align: right;
 }
 
-/* Weakest dimension card inside the hero copy column */
+/* Weakest dimension card inside the hero visual column */
 .dash-harness-weakest-card {
     margin-top: 12px;
     padding: 10px 12px;
@@ -4599,7 +4599,16 @@
     flex-direction: column;
     gap: 4px;
     min-width: 0;
-    max-width: 260px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Stack radar, status badge, and weakest card vertically in the visual column */
+.dash-harness-detail-panel .dash-code-health-detail-panel__visual {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 8px;
 }
 
 .dash-harness-weakest-card__title {
@@ -4661,10 +4670,6 @@
 
     .dash-harness-ev-path {
         display: none;
-    }
-
-    .dash-harness-weakest-card {
-        max-width: 100%;
     }
 }
 

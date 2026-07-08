@@ -194,8 +194,8 @@ function _dashHarnessEmptyCard(container) {
   container.innerHTML = `
 <div class="dash-card" style="display:flex;align-items:center;justify-content:center;height:100%;opacity:0.5">
   <div style="text-align:center;font-size:0.85rem">
-    ${_dashEscape(_dashT("dashHarnessTitle"))}<br>
-    <span style="font-size:0.72rem;opacity:0.6">No scan data \u2014 re-run analysis to generate harness score.</span>
+    ${_dashEscape(_dashT("dashHarnessEmptyTitle"))}<br>
+    <span style="font-size:0.72rem;opacity:0.6">${_dashEscape(_dashT("dashHarnessEmptyBody"))}</span>
   </div>
 </div>`;
 }
@@ -304,15 +304,21 @@ _dashRegisterWidget({
   <span class="dash-code-health-detail-row__meta">w ${Math.round(Number(wt[dim] || 0) * 100)}%</span>
 </div>`;
     }).join("");
+    const summaryText = _dashT("dashHarnessDetailSummary").replace("{level}", _dashT(_DASH_HARNESS_LEVEL_KEYS[level] || level));
     container.innerHTML = `
 <div class="dash-harness-detail-panel">
   <section class="dash-code-health-detail-panel__hero">
     <div class="dash-code-health-detail-panel__copy">
       <div class="dash-code-health-detail-panel__eyebrow">${_dashEscape(_dashT("dashHarnessTitle"))}</div>
+      <h2 class="dash-code-health-detail-panel__title">${_dashEscape(_dashT("dashHarnessTitle"))}</h2>
       <div class="dash-code-health-detail-panel__primary">
         <span class="dash-code-health-detail-panel__primary-value" style="color:${color}">${score.toFixed(1)}</span>
         <span class="dash-code-health-detail-panel__primary-suffix">/ 10</span>
       </div>
+      <p class="dash-code-health-detail-panel__summary">${_dashEscape(summaryText)}</p>
+    </div>
+    <div class="dash-code-health-detail-panel__visual">
+      ${_dashHarnessRadarSvg(hs.breakdown, { detail: true })}
       <div class="dash-code-health-diagnostic__status" style="color:${color}">${lvlLbl}</div>
       <div class="dash-harness-weakest-card">
         <div class="dash-harness-weakest-card__title">${_dashEscape(_dashT("dashHarnessWeakestDim"))}</div>
@@ -323,9 +329,6 @@ _dashRegisterWidget({
         <div class="dash-harness-weakest-card__caption">${_dashEscape(_dashT("dashHarnessWeakestCaption"))}</div>
         <div class="dash-harness-weakest-card__gaps">${weakestGapHtml}</div>
       </div>
-    </div>
-    <div class="dash-code-health-detail-panel__visual">
-      ${_dashHarnessRadarSvg(hs.breakdown, { detail: true })}
     </div>
   </section>
 
