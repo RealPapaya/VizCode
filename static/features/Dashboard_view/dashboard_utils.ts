@@ -432,6 +432,7 @@ const _DASH_WIDGET_LABEL_KEYS = {
     commit_heatmap:     'dashTemporalHeatmap',
     churn_timeline:     'dashTemporalChurn',
     temporal:           'dashTemporalTitle',
+    harness_scan:       'dashHarnessTitle',
 };
 
 // Generate the HTML for one draggable widget row in a settings / tab-editor list.

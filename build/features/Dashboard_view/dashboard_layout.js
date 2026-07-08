@@ -11,7 +11,7 @@ const _DASH_DEFAULT_LAYOUT = [
   { id: "tech_debt", col: 4, row: 2, w: 1, h: 1 },
   { id: "issues", col: 5, row: 2, w: 1, h: 1 }
 ];
-const _DASH_OPTIONAL_IDS = ["kpi_files", "kpi_functions", "kpi_lines", "complexity", "duplication", "dead_code", "circular_deps", "entry_points", "structure", "graph_intelligence", "health_trend", "bus_factor", "branch_overview", "security"];
+const _DASH_OPTIONAL_IDS = ["kpi_files", "kpi_functions", "kpi_lines", "complexity", "duplication", "dead_code", "circular_deps", "entry_points", "structure", "graph_intelligence", "health_trend", "bus_factor", "branch_overview", "security", "harness_scan"];
 const _DASH_SIZE_TIERS = {
   S: { w: 1, h: 1 },
   M: { w: 2, h: 1 },

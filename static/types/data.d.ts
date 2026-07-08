@@ -114,6 +114,27 @@ interface EdgeTypeDef {
   kind: string;
 }
 
+// ─── AI Harness Scan ──────────────────────────────────────────────────────────
+
+type HarnessDim = 'instructions' | 'harness_config' | 'loop_engineering' | 'memory_learning' | 'delegation' | 'safety_governance';
+type HarnessLevel = 'none_adhoc' | 'basic' | 'structured' | 'engineered' | 'self_improving';
+
+interface HarnessEvidenceItem {
+  path: string;
+  signal: string;
+  points: number;
+}
+
+interface HarnessScan {
+  score: number;
+  level: HarnessLevel;
+  breakdown: Record<string, number>;
+  weights: Record<string, number>;
+  evidence: Record<string, HarnessEvidenceItem[]>;
+  missing: Record<string, string[]>;
+  scanned: string[];
+}
+
 // ─── Stats (Dashboard / header) ───────────────────────────────────────────────
 // High-traffic fields typed; the long health/git/analytics tail is left open via
 // the index signature and can be tightened as those widgets are converted.
@@ -143,6 +164,7 @@ interface Stats {
   code_health_score?: number;
 
   has_git_history?: boolean;
+  harness_scan?: HarnessScan;
 
   // Long tail of health/git/analytics fields is `any` during migration so the
   // many dashboard widgets reading stats.<field> don't each need a cast.

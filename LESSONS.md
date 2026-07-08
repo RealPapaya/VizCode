@@ -19,6 +19,16 @@ pointer line here.
 
 ---
 
+## dashboard-widget-needs-html-builder-asset-entry (2026-07-07)
+- Trap: a new Dashboard widget registered via `_dashRegisterWidget` and compiled
+  into `build/` still never loads — `src/core/html_builder.py:609-645` hardcodes
+  the dashboard `js_assets` script list, and the widget's .js must be added there.
+- Cost: none yet — caught pre-implementation by Codex T5 cross-review of the
+  harness-scan plan; would have been a silent widget-never-renders bug.
+- Rule: when adding any `static/features/Dashboard_view/widgets/*.ts`, also add
+  its built `.js` to the `js_assets` list in `html_builder.py` and verify the
+  script tag appears in the served page.
+
 ## gitignored-fixture-dirs-prune-analyzer-samples (2026-07-05)
 - Trap: `build_graph()` prunes gitignored directories before extension filtering.
   A test fixture under an ignored directory name (for example `testproject/proto/`)

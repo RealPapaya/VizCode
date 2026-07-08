@@ -359,7 +359,8 @@ const _DASH_WIDGET_LABEL_KEYS = {
   graph_intelligence: "dashSettingsWidgetGraph",
   commit_heatmap: "dashTemporalHeatmap",
   churn_timeline: "dashTemporalChurn",
-  temporal: "dashTemporalTitle"
+  temporal: "dashTemporalTitle",
+  harness_scan: "dashHarnessTitle"
 };
 function _dashSettingsWidgetRow(key, visible) {
   const labelKey = _DASH_WIDGET_LABEL_KEYS[key] || key;
