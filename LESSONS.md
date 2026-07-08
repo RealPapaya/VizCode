@@ -19,6 +19,23 @@ pointer line here.
 
 ---
 
+## widget-detail-must-anchor-sibling-interaction-idioms (2026-07-08)
+- Trap: a new widget whose detail view is wired correctly (data, i18n, assets)
+  but built from its own inline styles reads as alien and unusable next to
+  siblings: tiny fixed-size chart, labels ellipsis-truncated to 2 chars,
+  monotonous identical rows, zero click-through — while every sibling detail
+  offers `_dashGoToGraphFile` navigation, `data-clickable` hover,
+  `.dash-report-section-title` headers, and detail-sized charts.
+- Cost: full user-reported rework of widget_harness_scan.ts detail mode one
+  day after shipping.
+- Rule: before writing any widget's renderDetail, read the best sibling's
+  renderDetail (widget_code_health.ts is the current anchor) and reuse its
+  vocabulary: detail-size chart option, full i18n labels + title attr,
+  `.dash-report-section-title` sections, `data-clickable` + `data-tip` on rows,
+  file paths clickable via `_dashGoToGraphFile` when the path is in the graph.
+  Verify step must include "detail view side-by-side with a sibling: same
+  component vocabulary, no truncated labels, affordances match".
+
 ## dashboard-widget-needs-html-builder-asset-entry (2026-07-07)
 - Trap: a new Dashboard widget registered via `_dashRegisterWidget` and compiled
   into `build/` still never loads — `src/core/html_builder.py:609-645` hardcodes

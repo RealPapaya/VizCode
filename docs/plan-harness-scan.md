@@ -239,3 +239,33 @@ Observed calibration vs P4 targets:
 Open note: VizCode's `delegation` dimension scored 1.0 — plausible (repo has no
 `.claude/agents/` structural artifacts, and R6 capped keyword prose), but worth
 a look if the dimension stays near-zero on other genuinely delegating repos.
+
+## P8.1 Follow-up: detail-view UX rework (2026-07-08, user-reported)
+
+Defect (user screenshot of DETAIL mode): radar tiny with 7.5px hand-abbreviated
+labels; dimension names ellipsis-truncated to 2 chars; evidence a wall of
+identical inline-styled rows capped at top-3; nothing clickable — while every
+sibling widget's detail navigates on click.
+
+Root cause: P2 anchor failure — the original plan anchored the DATA wiring
+(registration, i18n, js_assets) but not the INTERACTION idioms of sibling
+detail views (`widget_code_health.ts` renderDetail, `data-clickable`,
+`_dashGoToGraphFile`, `.dash-report-section-title`, detail-size chart options).
+
+Fix (dispatch: haiku recon → sonnet implementer → haiku fresh verifier, 8/8
+acceptance PASS): radar gets `opts.detail` (240 viewBox, full i18n two-line
+labels; grid abbreviations now derived from i18n so zh works); hero row with
+weakest-dimension diagnostic card (code_health idiom); dimension rows clickable
+→ smooth-scroll + highlight of that dimension's evidence group; detail lists
+ALL evidence, rows clickable via `_dashGoToGraphFile` when the path is in the
+graph (guarded, tooltip otherwise); gaps visually distinct (warn dot +
+`.dash-sev-pill`); +3 i18n keys en/zh; +185-line additive `.dash-harness-*`
+CSS block. Files: widget_harness_scan.ts, i18n.ts, dashboard_detail_panels.css
+(+ committed build outputs). 20 backend tests still pass — backend untouched.
+
+Recorded: VizCode LESSONS.md `widget-detail-must-anchor-sibling-interaction-idioms`;
+universal rule added to planning-playbook.md P2 (interaction-layer anchoring),
+P6 (UI parity verify step), and anti-patterns.
+
+Minor known gap: `_dashHarnessEmptyCard` empty-state text predates this fix and
+is still hardcoded English (not in the reworked detail scope).
