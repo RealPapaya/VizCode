@@ -157,14 +157,18 @@ _dashRegisterWidget({
     if (deadFuncs > 0) summaryParts.push(`${deadFuncs} dead function${deadFuncs !== 1 ? "s" : ""}`);
     if (unimp > 0) summaryParts.push(`${unimp} unimported file${unimp !== 1 ? "s" : ""}`);
     const summaryText = summaryParts.length ? summaryParts.join(", ") + " detected." : "No architecture issues detected.";
+    const cyclePaths = stats.top_circular_cycles || [];
     const cycleRows = cycles.slice(0, 10).map((cycle, i) => {
-      const files = (cycle || []).map((f) => String(f).replace(/\\/g, "/"));
-      const label = files.map((f) => f.split("/").pop()).join(" \u2192 ");
+      const members = (cycle || []).map((f) => String(f).replace(/\\/g, "/"));
+      const proofSrc = cyclePaths[i] && cyclePaths[i].length ? cyclePaths[i] : members;
+      const proof = proofSrc.map((f) => String(f).replace(/\\/g, "/"));
+      const names = proof.map((f) => f.split("/").pop());
+      const label = names.length > 1 ? names.join(" \u2192 ") + " \u2192 " + names[0] : names[0];
       return `<div class="dash-kpi-detail-row" data-clickable="true"
-                onclick="_dashOpenFileGroupDrilldown(${_dashJson("Cycle " + (i + 1))}, ${_dashJson(files.map((f) => ({ file: f })))})">
+                onclick="_dashOpenFileGroupDrilldown(${_dashJson("Cycle " + (i + 1))}, ${_dashJson(members.map((f) => ({ file: f })))})">
                 <span class="dash-kpi-detail-row__rank">${i + 1}</span>
                 <span class="dash-kpi-detail-row__name">${_dashEscape(label)}</span>
-                <span class="dash-kpi-detail-row__value">${files.length} files</span>
+                <span class="dash-kpi-detail-row__value">${members.length} files</span>
             </div>`;
     }).join("") || `<div class="dash-empty">No circular dependencies</div>`;
     const deadByFile = /* @__PURE__ */ new Map();

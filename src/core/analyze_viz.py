@@ -403,6 +403,17 @@ FILE_TYPE_MAP = {
     '.psd1': 'powershell_source',
 }
 
+# Pure data / documentation / config file types. These legitimately have no
+# import relationships, so counting them as "isolated" or "unimported" pollutes
+# the architecture-health widgets with non-actionable noise (a README.md or
+# package.json being "unimported" is not a problem). They are excluded from the
+# isolated / unimported / entry-point metrics — same principle as excluding test
+# files from dead-code detection: don't flag things that are working as intended.
+_NON_CODE_FILE_TYPES = frozenset({
+    'json_config', 'yaml_source', 'toml_source',
+    'markdown_doc', 'rst_doc', 'text_doc',
+})
+
 # ─── Edge type definitions ───────────────────────────────────────────────────
 # 每種 edge type 決定前端的線條樣式
 EDGE_TYPES = {
@@ -2573,16 +2584,48 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     )[:50]
     
     # Dead Code Detection
+    #
+    # Two correctness guards so the metric is trustworthy rather than noise:
+    #   1. Skip test files and dunder methods — their functions are invoked by
+    #      the test runner / language runtime, never called by literal name, so
+    #      a naive "defined but never called" check flags every one as dead.
+    #   2. Resolve a call to EVERY file that defines that name (func_name_to_files),
+    #      not just the first (func_name_to_file == files[0]). Otherwise a name
+    #      shared across files — extremely common, e.g. the ~40 parsers each
+    #      defining similarly-named helpers — marks all but one file's copy dead
+    #      even when it is genuinely used via dispatch.
+    def _is_test_file(rel_path):
+        p = rel_path.replace('\\', '/').lower()
+        parts = p.split('/')
+        if any(seg in ('test', 'tests', '__tests__', 'spec', 'specs')
+               for seg in parts[:-1]):
+            return True
+        base = parts[-1]
+        name = base.rsplit('.', 1)[0]
+        if name == 'test' or name.startswith(('test_', 'test-')):
+            return True
+        if name.endswith(('_test', '_spec', '.test', '.spec')):
+            return True
+        return '.test.' in base or '.spec.' in base or base == 'conftest.py'
+
+    def _is_implicit_entry(name):
+        # Dunder methods (__init__, __repr__, …) are called by the runtime,
+        # never by literal name.
+        return len(name) > 4 and name.startswith('__') and name.endswith('__')
+
     all_defined_funcs = set()
     for rel, defs in file_defs.items():
+        if _is_test_file(rel):
+            continue
         for d in defs:
+            if _is_implicit_entry(d['label']):
+                continue
             all_defined_funcs.add((rel, d['label']))
-    
+
     all_called_funcs = set()
     for rel, calls in file_calls.items():
         for call in calls:
-            if call in func_name_to_file:
-                target_file = func_name_to_file[call]
+            for target_file in func_name_to_files.get(call, ()):
                 all_called_funcs.add((target_file, call))
 
     uncalled_funcs = all_defined_funcs - all_called_funcs
@@ -2592,16 +2635,22 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         for f, n in sorted(uncalled_funcs, key=lambda item: (item[0], item[1]))
     ]
     
-    # Files never imported
+    # Files never imported.
+    # `code_file_paths` drops pure data/doc/config files (see _NON_CODE_FILE_TYPES)
+    # so the reachability metrics below describe *code* connectivity only.
     all_file_paths = set(file_meta.keys())
+    code_file_paths = {
+        f for f in all_file_paths
+        if file_meta[f].get('file_type') not in _NON_CODE_FILE_TYPES
+    }
     imported_files = set()
     for edges_list in file_edges_by_module.values():
         for edge in edges_list:
             tgt_path = id_to_rel.get(edge['t'])
             if tgt_path:
                 imported_files.add(tgt_path)
-    
-    unimported_files = all_file_paths - imported_files
+
+    unimported_files = {f for f in code_file_paths if f not in imported_files}
     unimported_file_count = len(unimported_files)
     
     # Circular Dependencies Detection (简化版 - Tarjan's algorithm)
@@ -2659,9 +2708,53 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     
     # Get top circular dependency groups by size
     top_circular_deps = sorted(circular_deps, key=len, reverse=True)[:10]
-    
-    # Entry Points (root files - not imported by anyone)
-    entry_points = [f for f in all_file_paths if f not in imported_files]
+
+    # For each reported SCC, extract ONE concrete simple cycle — a real import
+    # path that loops back on itself — as evidence. An SCC just means every file
+    # is mutually reachable; rendering its members as a linear A→B→C chain (the
+    # old behaviour) implies an import order that doesn't exist. This gives the
+    # dashboard a truthful A→B→…→A cycle to show, while the SCC size still
+    # conveys how many files are entangled.
+    def _representative_cycle(scc_nodes):
+        node_set = set(scc_nodes)
+        adj = {n: [m for m in file_dep_graph.get(n, []) if m in node_set]
+               for n in scc_nodes}
+        start = scc_nodes[0]
+        path = [start]
+        on_path = {start}
+        pos = {start: 0}
+        dfs = [(start, iter(adj.get(start, ())))]
+        while dfs:
+            _node, it = dfs[-1]
+            stepped = False
+            for nxt in it:
+                if nxt in on_path:
+                    return path[pos[nxt]:]      # back edge → real simple cycle
+                path.append(nxt)
+                on_path.add(nxt)
+                pos[nxt] = len(path) - 1
+                dfs.append((nxt, iter(adj.get(nxt, ()))))
+                stepped = True
+                break
+            if not stepped:
+                dfs.pop()
+                on_path.discard(path.pop())
+                pos.pop(_node, None)
+        return list(scc_nodes)                  # fallback (unreachable for a true SCC)
+
+    top_circular_cycles = [_representative_cycle(scc) for scc in top_circular_deps]
+
+    # Entry Points: genuine roots of the import DAG — not imported by anyone,
+    # but they DO import other files (so they actively pull code in). This is a
+    # strict subset of `unimported_files`; the remainder (no inbound AND no
+    # outbound) are the `isolated_files` reported separately, so
+    #   unimported_files = entry_points + isolated_files.
+    # Previously entry points used the identical formula to unimported files, so
+    # the two KPIs always displayed the same number.
+    entry_points = [
+        f for f in code_file_paths
+        if f not in imported_files and f in file_dep_graph
+    ]
     entry_point_count = len(entry_points)
     
     # Isolated files (neither import nor are imported)
@@ -2675,7 +2768,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             if tgt_path:
                 files_with_edges.add(tgt_path)
     
-    isolated_files = all_file_paths - files_with_edges
+    isolated_files = {f for f in code_file_paths if f not in files_with_edges}
     isolated_file_count = len(isolated_files)
     
     # Complexity metrics
@@ -2772,6 +2865,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             'unimported_file_paths': sorted(unimported_files),
             'circular_dependencies': circular_dep_count,
             'top_circular_deps': [[f for f in cycle] for cycle in top_circular_deps],
+            'top_circular_cycles': [list(cycle) for cycle in top_circular_cycles],
             'entry_points': entry_point_count,
             'entry_point_files': sorted(entry_points),
             'isolated_files': isolated_file_count,
