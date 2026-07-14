@@ -2957,6 +2957,14 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         except Exception as _se:
             _console_print(f'[WARN] Security aggregation failed: {_se}', file=sys.stderr)
 
+        # ── AI Harness Scan ───────────────────────────────────────────────────
+        try:
+            from harness_scan import compute_harness_scan
+            _hs = compute_harness_scan(root)
+            _result['stats']['harness_scan'] = _hs
+        except Exception as _hse:
+            _console_print(f'[WARN] Harness scan failed: {_hse}', file=sys.stderr)
+
         _result['stats']['has_git_history'] = bool(
             root and os.path.isdir(os.path.join(root, '.git'))
         )

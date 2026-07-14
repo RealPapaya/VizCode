@@ -132,7 +132,7 @@ int main(void) {
 @pytest.fixture(scope='module')
 def testproject_path():
     """Return the path to the testproject directory."""
-    p = PROJECT_ROOT / 'testproject' / 'testproject'
+    p = PROJECT_ROOT / 'testproject'
     if not p.exists():
         pytest.skip(f'testproject not found at {p}')
     return str(p)

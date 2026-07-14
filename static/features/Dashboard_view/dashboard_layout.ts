@@ -22,7 +22,7 @@ const _DASH_DEFAULT_LAYOUT = [
 ];
 
 // Optional widgets (not in default layout; available via + Add Widget)
-const _DASH_OPTIONAL_IDS = ['kpi_files', 'kpi_functions', 'kpi_lines', 'complexity', 'duplication', 'dead_code', 'circular_deps', 'entry_points', 'structure', 'graph_intelligence', 'health_trend', 'bus_factor', 'branch_overview', 'security'];
+const _DASH_OPTIONAL_IDS = ['kpi_files', 'kpi_functions', 'kpi_lines', 'complexity', 'duplication', 'dead_code', 'circular_deps', 'entry_points', 'structure', 'graph_intelligence', 'health_trend', 'bus_factor', 'branch_overview', 'security', 'harness_scan'];
 
 // Size tier definitions: S = small, M = medium, L = large
 const _DASH_SIZE_TIERS = {

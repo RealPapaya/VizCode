@@ -1,0 +1,14 @@
+#import "schema_probe_fragments.graphql"
+
+interface SchemaProbeNode {
+  owner: SchemaProbeUser
+}
+
+input SchemaProbeJobFilter {
+  owner: SchemaProbeUser
+}
+
+type SchemaProbeJob implements SchemaProbeNode {
+  owner: SchemaProbeUser
+  result(filter: SchemaProbeJobFilter): SchemaProbeJobResult
+}

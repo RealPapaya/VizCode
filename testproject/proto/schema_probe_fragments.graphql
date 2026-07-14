@@ -1,0 +1,7 @@
+type SchemaProbeUser {
+  id: ID!
+}
+
+type SchemaProbeJobResult {
+  ok: Boolean!
+}
