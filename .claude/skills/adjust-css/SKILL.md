@@ -19,9 +19,9 @@ The frontend stylesheet was split. There is no longer a single `viz.css` — sta
 | Galaxy / Dashboard / feature-specific styles | `static/styles/viz_features.css` |
 | Toolbar, legend, tooltip, layout switcher (overlays) | `static/styles/viz_overlays.css` |
 | Symbol View SVG node appearance (background/border/effects) | `static/features/symbol_view/symbol_view.css` |
-| Symbol View layout spacing/size constants | `static/features/symbol_view/sv_graph.js` (top-level `_SV_*` constants) |
-| Symbol View color mapping definitions | `static/features/symbol_view/sv_core.js` (`_SV_KIND_COLOR`, `_SV_EDGE_COLOR`) |
-| Main view (L0/L1/L2) graph node colors and shapes | `static/core/viz_constants.js` (`extColor()`, `FILE_TYPE_SHAPE`) |
+| Symbol View layout spacing/size constants | `static/features/symbol_view/sv_graph.ts` (top-level `_SV_*` constants) |
+| Symbol View color mapping definitions | `static/features/symbol_view/sv_core.ts` (`_SV_KIND_COLOR`, `_SV_EDGE_COLOR`) |
+| Main view (L0/L1/L2) graph node colors and shapes | `static/core/viz_constants.ts` (`extColor()`, `FILE_TYPE_SHAPE`) |
 
 ## CSS Variable Reference (`static/styles/viz_base.css` `:root`)
 
@@ -48,9 +48,9 @@ Symbol View now uses pure SVG rendering (no Cytoscape dependency). All appearanc
 - **Edges**: `.sv-edge`, `.sv-edge-hit`, `.sv-edge:hover`
 - **Focus detail card (HTML in SVG)**: `.sv-fd-card`, `.sv-fd-header`, `.sv-fd-section`, etc.
 
-## Symbol View Layout Constants (top of `sv_graph.js`)
+## Symbol View Layout Constants (top of `sv_graph.ts`)
 
-To adjust node size, spacing, and layout distances, modify the constants at the top of `static/features/symbol_view/sv_graph.js`:
+To adjust node size, spacing, and layout distances, modify the constants at the top of `static/features/symbol_view/sv_graph.ts`:
 
 ```js
 const _SV_CLASS_PAD_X   = 16;   // Class card horizontal padding
@@ -63,7 +63,7 @@ const _SV_FUNC_H        = 42;   // Top-level function height
 
 ## Workflow
 
-1. **Read the target file** — Use the File Map above to locate the relevant `.css` or `.js` file.
+1. **Read the target file** — Use the File Map above to locate the relevant `.css` or `.ts` file.
 2. **Locate and modify** — Find the corresponding class name or `_SV_` constant.
 3. **Finish and verify** — After editing, ask the user to press **Ctrl+Shift+R** or do a hard refresh in the browser to see the changes.
 
@@ -71,4 +71,4 @@ const _SV_FUNC_H        = 42;   // Top-level function height
 
 - **No Cytoscape Style**: Symbol View has fully moved away from Cytoscape. There is no longer a `_symBuildCyStyle()`. All styles should be edited directly in CSS or SVG attributes.
 - **No layout_editor.html**: This preview tool no longer exists. All changes must be verified by refreshing the project page directly.
-- When adjusting SVG dimensions, make sure the `_SV_*` constants in `sv_graph.js` stay consistent with the font/margin settings in `symbol_view.css` (e.g., increasing font size without increasing `_SV_METHOD_H` will cause text clipping).
+- When adjusting SVG dimensions, make sure the `_SV_*` constants in `sv_graph.ts` stay consistent with the font/margin settings in `symbol_view.css` (e.g., increasing font size without increasing `_SV_METHOD_H` will cause text clipping).

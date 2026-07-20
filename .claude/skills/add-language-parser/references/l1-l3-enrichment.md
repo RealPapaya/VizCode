@@ -154,7 +154,7 @@ than accepting fallback rendering.
 
 L1 file graph:
 
-- `static/core/viz_constants.js`
+- `static/core/viz_constants.ts`
 - `extColor()` for extension color
 - `FILE_TYPE_SHAPE` for file node shape
 - `FILE_TYPE_FULL_NAME` for readable labels
@@ -163,8 +163,8 @@ L1 file graph:
 
 L3 Symbol View:
 
-- `static/features/symbol_view/sv_core.js` for `_SV_EDGE_COLOR`
-- `static/features/symbol_view/sv_graph.js` for edge verbs/card metadata
+- `static/features/symbol_view/sv_core.ts` for `_SV_EDGE_COLOR`
+- `static/features/symbol_view/sv_graph.ts` for edge verbs/card metadata
 - `static/features/symbol_view/symbol_view.css` for any new class styling
 
 Do not ship a parser/analyzer change where new nodes all appear as generic white

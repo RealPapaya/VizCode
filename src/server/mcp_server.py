@@ -30,19 +30,37 @@ from typing import Optional, Tuple
 
 # ─── Wire protocol ───────────────────────────────────────────────────────────
 
+_WIRE_NDJSON = False  # True once the client is seen speaking newline-delimited JSON
+
+
 def _read_message(stream) -> Optional[dict]:
-    """Read one Content-Length-framed JSON-RPC message from stream."""
+    """Read one JSON-RPC message. Auto-detects the framing per message:
+    newline-delimited JSON (MCP spec stdio) or Content-Length (LSP style)."""
+    global _WIRE_NDJSON
+    while True:
+        raw = stream.readline()
+        if not raw:
+            return None
+        line = raw.rstrip(b"\r\n")
+        if line.strip():
+            break
+    if line.lstrip().startswith(b"{"):
+        _WIRE_NDJSON = True
+        try:
+            return json.loads(line.decode("utf-8"))
+        except ValueError:
+            return None
     headers = {}
     while True:
-        line = stream.readline()
-        if not line:
-            return None
-        line = line.rstrip(b"\r\n")
-        if not line:
-            break
         if b":" in line:
             k, _, v = line.partition(b":")
             headers[k.strip().lower().decode()] = v.strip().decode()
+        raw = stream.readline()
+        if not raw:
+            return None
+        line = raw.rstrip(b"\r\n")
+        if not line:
+            break
 
     length = int(headers.get("content-length", 0))
     if length == 0:
@@ -52,10 +70,13 @@ def _read_message(stream) -> Optional[dict]:
 
 
 def _send_message(stream, obj: dict) -> None:
-    """Write one Content-Length-framed JSON-RPC message to stream."""
+    """Write one JSON-RPC message, mirroring the client's framing."""
     body = json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    header = f"Content-Length: {len(body)}\r\n\r\n".encode()
-    stream.write(header + body)
+    if _WIRE_NDJSON:
+        stream.write(body + b"\n")
+    else:
+        header = f"Content-Length: {len(body)}\r\n\r\n".encode()
+        stream.write(header + body)
     stream.flush()
 
 

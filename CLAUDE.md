@@ -1,4 +1,4 @@
-Global rules: read C:\Users\Morris\.agents\institution\core-rules.md first.
+Global rules: read C:\Users\morris_hsueh\.agents\institution\core-rules.md first.
 Session protocol + project commands: read AGENTS.md in this directory.
 
 # CLAUDE.md

@@ -376,7 +376,7 @@ and semantic edge types need distinct colors and shapes where practical.
 
 Primary L1/L2 file graph file:
 
-- `static/core/viz_constants.js`
+- `static/core/viz_constants.ts`
 
 ### 5a. File extension color - `extColor()`
 
@@ -416,8 +416,8 @@ the frontend mapping before shipping.
 If a new L3 symbol edge type or symbol kind is introduced, update the Symbol View
 styling instead of relying on fallback colors:
 
-- `static/features/symbol_view/sv_core.js` for `_SV_EDGE_COLOR`
-- `static/features/symbol_view/sv_graph.js` for edge verbs / card metadata when needed
+- `static/features/symbol_view/sv_core.ts` for `_SV_EDGE_COLOR`
+- `static/features/symbol_view/sv_graph.ts` for edge verbs / card metadata when needed
 - `static/features/symbol_view/symbol_view.css` if a new class needs distinct rendering
 
 Existing canonical L3 edge types should remain visually distinct:
@@ -450,7 +450,7 @@ Some codebases have source files but **no `import` / `require` / `export from`**
 
 Files share a single global namespace, are loaded as ordered `<script>` tags, and communicate through global function names and a global object (`window.X` / `globalThis.X`).
 
-VIZCODE's own `static/*.js` is exactly this shape, which is why scanning it can produce zero edges if the analyzer only relies on imports.
+VIZCODE's own `static/**/*.ts` is exactly this shape, which is why scanning it can produce zero edges if the analyzer only relies on imports.
 
 ### How to detect it
 

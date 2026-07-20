@@ -1,9 +1,9 @@
 ---
 name: coding-style
-description: Code style guidelines for the CodeViz project. These rules must be followed whenever adding or modifying any Python or JavaScript code. Use this skill whenever writing or reviewing code in this project.
+description: Code style guidelines for the VizCode project. These rules must be followed whenever adding or modifying any Python or TypeScript code. Use this skill whenever writing or reviewing code in this project.
 ---
 
-# CodeViz Code Style Guidelines
+# VizCode Code Style Guidelines
 
 ## General Principles
 
@@ -86,7 +86,7 @@ EDGE_TYPES = {
 
 ---
 
-## JavaScript Guidelines (`static/viz.js`, `static/core/i18n.js`, all files under `static/core|ui|features|file_viewers/`)
+## JavaScript Guidelines (`static/viz.ts`, `static/core/i18n.ts`, all files under `static/core|ui|features|file_viewers/`)
 
 ### Naming
 ```javascript

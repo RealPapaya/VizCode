@@ -172,7 +172,7 @@ semantic_cache.json exists AND cache is valid (check command outputs "valid")
 ## Notes
 
 - Do NOT read `scan_cache.json` or `semantic_cache.json` raw files in future conversations — use the MCP tools instead (`vizcode_query`, `vizcode_path`, `vizcode_explain`)
-- The MCP server is registered in `.claude/settings.json`; it starts automatically when Claude Code connects to it
+- The MCP server is declared in the project's `.mcp.json` (with `enableAllProjectMcpServers: true` set in `.claude/settings.json`); it starts automatically when Claude Code connects to it
 - If `src/server/mcp_server.py` is not yet registered, run `python ai/install.py` (which copies `ai/mcp_template.json` into the user's Claude config) and then restart Claude Code
 
 ## Context Shortcut (save tokens)

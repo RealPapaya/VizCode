@@ -13,6 +13,7 @@ Usage:
 """
 
 import argparse
+import json
 import os
 import shutil
 import sys
@@ -128,11 +129,13 @@ def install_platform(name: str, force: bool) -> None:
     if written:
         print(f"  + {cfg['skill_dest']}")
 
-    # 2. MCP config (copy mcp_template.json)
+    # 2. MCP config (render mcp_template.json with this checkout's root path)
     if cfg['mcp_dest']:
-        src = os.path.join(ai, 'mcp_template.json')
+        mcp_content = _read('mcp_template.json').replace(
+            '{VIZCODE_ROOT}', root.replace('\\', '/'))
+        json.loads(mcp_content)  # self-check: never write unparseable MCP config
         dst = os.path.join(root, cfg['mcp_dest'])
-        copied = _copy(src, dst, force)
+        copied = _write(dst, mcp_content, force)
         if copied:
             print(f"  + {cfg['mcp_dest']}")
 

@@ -35,6 +35,9 @@ docs/videos/*.webm
 !docs/videos/.gitkeep
 !docs/videos/README.md
 
+# ── Claude Code personal/local settings (never commit) ──────────────────────
+.claude/settings.local.json
+
 # ── OS / IDE ────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db

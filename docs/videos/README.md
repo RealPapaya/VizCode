@@ -34,7 +34,7 @@ https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo.mp4
 https://github.com/RealPapaya/VizCode/releases/latest/download/VizcodeDemo2.mp4
 ```
 
-For a GitNexus-style inline video player, upload the MP4 as a GitHub user attachment, then put the generated URL on its own line in `README.md`:
+For an inline video player in the README, upload the MP4 as a GitHub user attachment, then put the generated URL on its own line in `README.md`:
 
 ```text
 https://github.com/user-attachments/assets/<asset-id>

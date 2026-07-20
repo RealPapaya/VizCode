@@ -2,7 +2,7 @@
 <!-- 中文摘要：本專案的單一指令正本（Claude/Codex/Hermes 三邊都會讀到這份或被路由到這份）。
      上半部是固定協議（別改），下半部是本專案填空區。 -->
 
-Global rules: read `C:\Users\Morris\.agents\institution\core-rules.md` first.
+Global rules: read `C:\Users\morris_hsueh\.agents\institution\core-rules.md` first.
 Everything below is project-specific and adds to (never overrides) those rules.
 
 ## Session protocol (fixed — do not edit)
@@ -20,7 +20,7 @@ Everything below is project-specific and adds to (never overrides) those rules.
    by someone other than the writer (dispatch.md §5).
 5. **After any mistake or surprise**: append it to `LESSONS.md` NOW (format
    inside), in the same session. Machine-global lessons also go to
-   `C:\Users\Morris\.agents\institution\lessons.md`.
+   `C:\Users\morris_hsueh\.agents\institution\lessons.md`.
 
 ## Project specifics (fill in; keep each line true or delete it)
 - What this project is: local-first code-visualization tool — Python stdlib

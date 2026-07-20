@@ -47,7 +47,7 @@ Register the `<option>` element in:
 
 > Note: The theme selector is no longer duplicated inside `src/core/analyze_viz.py`. There is only **one** `pref-theme-select` and it lives in `static/launcher.html`. Grep for `pref-theme-select` if you suspect this changed again.
 
-Also add i18n keys in **`static/core/i18n.js`** for both `en` and `zh-tw` sections:
+Also add i18n keys in **`static/core/i18n.ts`** for both `en` and `zh-tw` sections:
 ```js
 themeOptMyTheme: 'My Theme',   // en section
 themeOptMyTheme: '我的主題',   // zh-tw section
@@ -77,10 +77,10 @@ Also fix code panel micro-items:
 - `.code-line.fn-highlight` — change `rgba(0,212,255,.08)` → accent-tinted
 - `#cp-code-wrap .line-content span:hover` — change `outline: 1px solid white` → `var(--text)`
 
-#### 4c. Cytoscape graph nodes (`static/ui/viz_preferences.js`)
+#### 4c. Cytoscape graph nodes (`static/ui/viz_preferences.ts`)
 
 Node backgrounds and label colors are set via JS data (`data(bg)` / `'color': '#e2e8f0'`) and are all hardcoded dark.
-Add a `CY_THEME_OVERRIDES['my-new-theme']` entry in `static/ui/viz_preferences.js` — grep for `CY_THEME_OVERRIDES` to find the exact location:
+Add a `CY_THEME_OVERRIDES['my-new-theme']` entry in `static/ui/viz_preferences.ts` — grep for `CY_THEME_OVERRIDES` to find the exact location:
 
 ```js
 CY_THEME_OVERRIDES['my-new-theme'] = [
@@ -95,7 +95,7 @@ CY_THEME_OVERRIDES['my-new-theme'] = [
 #### 4d. Node modal inline styles
 
 The node details modal uses many `rgba(255,255,255,…)` inline styles that are invisible on light backgrounds.
-Use the `_tC(dark, light)` helper to switch colors. The helper is defined alongside `applyTheme` — grep for `_tC(` and `applyTheme` to locate them; they currently live in `static/core/viz_utils.js` and `static/ui/viz_preferences.js`, with consumers in `static/ui/viz_sidebar.js`, `static/ui/viz_toolbar.js`, `static/features/graph/graph_l1.js`, `static/features/graph/graph_l2.js`, and `static/features/galaxy_view/viz_galaxy.js`.
+Use the `_tC(dark, light)` helper to switch colors. The helper is defined alongside `applyTheme` — grep for `_tC(` and `applyTheme` to locate them; they currently live in `static/core/viz_utils.ts` and `static/ui/viz_preferences.ts`, with consumers in `static/ui/viz_sidebar.ts`, `static/ui/viz_toolbar.ts`, `static/features/graph/graph_l1.ts`, `static/features/graph/graph_l2.ts`, and `static/features/galaxy_view/viz_galaxy.ts`.
 
 ```js
 // Instead of hardcoded rgba(255,255,255,…):
@@ -115,5 +115,5 @@ el.style.background = _tC('rgba(255,255,255,0.08)', 'rgba(2,8,38,0.08)')
 | Missing scrollbar colors | Add `::-webkit-scrollbar-thumb` override for the theme. |
 | Forgetting to use `.sr-fuzzy-mark` logic | Verify search result highlights are readable on the new `--bg`. |
 | Light theme: floating panels still dark | Add overrides for `.l2-toolbar`, `#graph-legend`, `#l2-legend`, `#layout-switcher`. |
-| Light theme: graph nodes still dark | Add entry to `CY_THEME_OVERRIDES` in `viz.js`. |
+| Light theme: graph nodes still dark | Add entry to `CY_THEME_OVERRIDES` in `viz.ts`. |
 | Light theme: modal dep items invisible | Use `_tC()` helper for inline `rgba(255,255,255,…)` colors in the modal builder. |

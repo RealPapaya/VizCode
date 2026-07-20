@@ -3,9 +3,9 @@
     "vizcode": {
       "command": "python",
       "args": [
-        "d:/GOOGLE/VizCode/src/server/mcp_server.py",
-        "--scan", "d:/GOOGLE/VizCode/.vizcode/scan_cache.json",
-        "--sem",  "d:/GOOGLE/VizCode/.vizcode/semantic_cache.json"
+        "d:/Google AI/VizCode/src/server/mcp_server.py",
+        "--scan", "d:/Google AI/VizCode/.vizcode/scan_cache.json",
+        "--sem",  "d:/Google AI/VizCode/.vizcode/semantic_cache.json"
       ]
     }
   }

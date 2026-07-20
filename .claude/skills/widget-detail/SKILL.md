@@ -1,3 +1,8 @@
+---
+name: widget-detail
+description: Build or modify a Dashboard widget detail panel in VizCode. Use when adding/editing widgets under static/features/Dashboard_view/widgets/.
+---
+
 # Widget Detail Panel - Build Workflow
 
 ## Trigger
@@ -151,7 +156,7 @@ Avoid styling the new detail through generic `.dash-report-*` selectors. Those s
 
 Use these files as the current pattern:
 
-- `static/features/Dashboard_view/widgets/widget_overview.js`
-- `static/features/Dashboard_view/widgets/widget_kpi_files.js`
-- `static/features/Dashboard_view/widgets/widget_kpi_functions.js`
+- `static/features/Dashboard_view/widgets/widget_overview.ts`
+- `static/features/Dashboard_view/widgets/widget_kpi_files.ts`
+- `static/features/Dashboard_view/widgets/widget_kpi_functions.ts`
 - `static/styles/viz_overlays.css` block: `KPI/Overview detail panels`

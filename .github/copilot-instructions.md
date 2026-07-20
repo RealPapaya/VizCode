@@ -15,6 +15,7 @@ Then read in order:
 1. `.vizcode/INDEX.md` — L0 module overview (always start here, ~100-200 lines)
 2. `.vizcode/L1/<module>.md` — file map for a specific module (~30-70 lines)
 3. `.vizcode/L2/<module>/<file>.md` — function call graph for a specific file (~50-100 lines)
+4. `.vizcode/L3/<module>/<file>.md` — symbol browser for detailed class/member/signature inspection
 
 **Do not read** `.vizcode/scan_cache.json` or `.vizcode/semantic_cache.json` directly.
 
