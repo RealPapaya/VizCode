@@ -49,6 +49,20 @@ def _safe_session_id(session_id: str) -> str:
     return session_id if _SESSION_ID_RE.match(session_id or '') else ''
 
 
+_LOCAL_HOSTNAMES = {'127.0.0.1', 'localhost', '::1', '[::1]', '0.0.0.0'}
+
+
+def _hostname_of(value: str) -> str:
+    """Bare hostname from a Host header or an Origin URL — scheme and port dropped."""
+    host = value.strip()
+    if '://' in host:
+        host = host.split('://', 1)[1]
+    host = host.split('/', 1)[0]
+    if host.startswith('['):                                  # IPv6 literal
+        return host[:host.index(']') + 1].lower() if ']' in host else host.lower()
+    return (host.rsplit(':', 1)[0] if ':' in host else host).lower()
+
+
 def _fatal_startup_error(message: str, *, details: Optional[str] = None, exit_code: int = 1) -> "None":
     sys.stderr.write(f"{message}\n")
     if details:
@@ -218,8 +232,39 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass  # suppress default access log
 
+    def _is_local_request(self) -> bool:
+        """False when the browser says this request came from somewhere else.
+
+        Binding to 127.0.0.1 keeps other machines out but not other *sites*: a
+        page on the public web can still aim a simple cross-site request here
+        (it executes even though CORS now stops it reading the reply), and a
+        DNS-rebinding host that resolves to 127.0.0.1 would even be treated as
+        same-origin. Host and the Sec-Fetch/Origin hints settle both.
+
+        Non-browser callers — the CLI, curl, MCP — send none of these headers,
+        so they are unaffected.
+        """
+        host = self.headers.get('Host', '')
+        if host and _hostname_of(host) not in _LOCAL_HOSTNAMES:
+            return False
+        site = (self.headers.get('Sec-Fetch-Site') or '').strip().lower()
+        if site and site not in ('same-origin', 'same-site', 'none'):
+            return False
+        origin = self.headers.get('Origin', '')
+        if origin and _hostname_of(origin) not in _LOCAL_HOSTNAMES:
+            return False
+        return True
+
+    def _refuse_foreign(self) -> bool:
+        if self._is_local_request():
+            return False
+        self.json_resp({'error': 'Cross-origin request refused'}, 403)
+        return True
+
     # ── GET ───────────────────────────────────────────────────────────────────
     def do_GET(self):
+        if self._refuse_foreign():
+            return
         parsed = urlparse(self.path)
         p = parsed.path
         qs = parse_qs(parsed.query)
@@ -1952,6 +1997,8 @@ class Handler(BaseHTTPRequestHandler):
 
     # ── POST ──────────────────────────────────────────────────────────────────
     def do_POST(self):
+        if self._refuse_foreign():
+            return
         parsed = urlparse(self.path)
         p = parsed.path
 

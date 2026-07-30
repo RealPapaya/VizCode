@@ -11,6 +11,7 @@ import io
 import sys
 import tarfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -52,6 +53,47 @@ def test_safe_session_id_accepts_frontend_ids(session_id):
 ])
 def test_safe_session_id_rejects_traversal(session_id):
     assert server._safe_session_id(session_id) == ''
+
+
+# ─── local-only request guard (CSRF + DNS rebinding) ──────────────────────────
+
+def _asks(**headers):
+    """Run _is_local_request against a request carrying exactly these headers."""
+    return server.Handler._is_local_request(SimpleNamespace(headers=headers))
+
+
+@pytest.mark.parametrize('value,expected', [
+    ('127.0.0.1:7777', '127.0.0.1'),
+    ('localhost', 'localhost'),
+    ('http://127.0.0.1:7777', '127.0.0.1'),
+    ('https://EVIL.com', 'evil.com'),
+    ('https://evil.com/path', 'evil.com'),
+    ('[::1]:7777', '[::1]'),
+])
+def test_hostname_of(value, expected):
+    assert server._hostname_of(value) == expected
+
+
+@pytest.mark.parametrize('headers', [
+    {},                                                    # CLI / curl / MCP
+    {'Sec-Fetch-Site': 'same-origin'},                     # the app's own fetch
+    {'Sec-Fetch-Site': 'none'},                            # typed in the URL bar
+    {'Host': 'localhost:7777'},
+    {'Host': '127.0.0.1:7777', 'Origin': 'http://127.0.0.1:7777'},
+])
+def test_local_requests_are_allowed(headers):
+    assert _asks(**headers) is True
+
+
+@pytest.mark.parametrize('headers', [
+    {'Sec-Fetch-Site': 'cross-site'},                      # a page on the web
+    {'Origin': 'https://evil.com'},                        # cross-origin POST
+    {'Host': 'evil.com'},                                  # DNS rebinding
+    {'Origin': 'null'},                                    # sandboxed iframe
+    {'Host': '127.0.0.1:7777', 'Origin': 'http://attacker.test'},
+])
+def test_foreign_requests_are_refused(headers):
+    assert _asks(**headers) is False
 
 
 # ─── npm tarball extraction ───────────────────────────────────────────────────
