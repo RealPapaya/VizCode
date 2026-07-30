@@ -77,7 +77,10 @@ def flush_memo(memo: dict, project_root: Path) -> None:
     """
     memo["built_at"] = datetime.now(timezone.utc).isoformat()
     path = _memo_path(project_root)
-    from .local_dir import ensure_local_dir
+    try:
+        from local_dir import ensure_local_dir
+    except ImportError:
+        from .local_dir import ensure_local_dir
     ensure_local_dir(project_root)
     path.write_text(
         json.dumps(memo, ensure_ascii=False, separators=(',', ':')),

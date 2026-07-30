@@ -59,7 +59,10 @@ def save_result(root, data: dict):
     Returns the result.json Path on success, None on any failure (non-fatal).
     """
     try:
-        from .local_dir import ensure_local_dir
+        try:
+            from local_dir import ensure_local_dir
+        except ImportError:
+            from .local_dir import ensure_local_dir
         d = ensure_local_dir(root)
         now = datetime.now(timezone.utc)
         meta = {
