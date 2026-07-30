@@ -71,10 +71,25 @@ pointer line here.
   reuse the `root_norm` prefix check (server.py:317) or pass the value through
   `_safe_session_id`-style whitelisting — a bare `os.path.join` with request data
   is a bug, always. Never add `Access-Control-Allow-Origin` back: the UI is served
-  from the same origin (`BASE_URL`) and needs no CORS. Residual, not yet fixed:
-  cross-origin POSTs still *execute* (CSRF) even though the reply is unreadable.
+  from the same origin (`BASE_URL`) and needs no CORS. `do_GET`/`do_POST` also
+  open with `_is_local_request()` (Host + Sec-Fetch-Site + Origin) to refuse
+  cross-site CSRF and DNS rebinding — keep that first line in any new verb handler.
 - Also: `tarfile.extractall` needs the same member check the ZIP path already had
   (fetcher.py:22) — Python 3.11 extracts `../` and symlinks happily.
+
+## best-effort-writes-must-still-say-when-they-fail (2026-07-30)
+- Trap: every `.vizcode/` writer swallows its exception with a bare `pass` because
+  persistence must never abort a scan. Correct — but silent. When
+  `from .local_dir import ...` started raising, `result.json` stopped being
+  written and `scan_cache.json` / `health_history.json` froze, and NOTHING said
+  so for six weeks: no error, no log, and the scan still reported success.
+- Cost: dead "reopen previous scan" feature, dead parse memo (full re-parse every
+  scan), stale Health Trend widget, and Web AI answering from a six-week-old
+  index. Found only because one sibling call site happened to print a WARN.
+- Rule: `except: pass` is allowed around a cache/artifact READ that falls back to
+  a default. Around a WRITE it must be `except Exception as e:` +
+  `print(f'[WARN] ... : {e}', file=sys.stderr)`. If a user could later ask "why is
+  this data stale?", the failure has to be visible somewhere.
 
 ## import-server-is-ambiguous-in-tests (2026-07-30)
 - Trap: conftest.py puts both `src/` and `src/core/` on sys.path. Because
@@ -147,13 +162,8 @@ pointer line here.
   verify `git check-ignore` for the directory path and add a local fixture
   `.gitignore` exception such as `!proto/` and `!proto/**`.
 
-## pytest-green-hides-skipped-analyzer-suite (2026-07-05)
-- Trap: `python -m pytest tests/` reports "162 passed, 20 skipped" and looks
-  green, but the 20 skips are the ENTIRE analyzer content suite — the
-  `testproject_path` fixture (tests/conftest.py:135) points to
-  `testproject/testproject`, a nested dir that no longer exists after the
-  src/ reorganization (commit 1f92c85). Real path is just `testproject/`.
-- Cost: analyzer content regressions would pass CI silently.
-- Rule: treat any skipped test in this repo as a failure to investigate.
-- RESOLVED 2026-07-08: the conftest fixture was fixed upstream; full suite now
-  runs 232 passed / 0 skipped. The general rule above still stands.
+## pytest-green-hides-skipped-tests (2026-07-05, compressed 2026-07-30)
+- Trap: a green "N passed, 20 skipped" once hid the ENTIRE analyzer content
+  suite being skipped by a stale conftest fixture path. Fixed 2026-07-08.
+- Rule: treat any skipped test in this repo as a failure to investigate. The
+  suite runs 0 skipped today (325 passed) — keep it that way.
