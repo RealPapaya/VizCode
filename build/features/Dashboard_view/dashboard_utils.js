@@ -348,7 +348,6 @@ function _dashCloseGroupDrilldown() {
   }
 }
 const _DASH_WIDGET_LABEL_KEYS = {
-  kpi_strip: "dashSettingsWidgetKpi",
   code_health: "dashCodeHealthTitle",
   tech_debt: "dashTechDebtTitle",
   complexity: "dashComplexityTitle",

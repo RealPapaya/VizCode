@@ -2251,16 +2251,6 @@ class Handler(BaseHTTPRequestHandler):
             length = int(self.headers.get('Content-Length', 0))
             try:
                 body = json.loads(self.rfile.read(length).decode('utf-8'))
-                # ── DEBUG LOG ────────────────────────────────────────────────
-                _SECRET = ('anthropic_api_key', 'openai_api_key', 'grok_api_key', 'gemini_api_key')
-                for k in _SECRET:
-                    v = body.get(k, '')
-                    if v and '****' not in v:
-                        print(f'[chat-config] {k} received ({len(v)} chars)')
-                    elif v:
-                        print(f'[chat-config] {k} skipped (masked placeholder)')
-                print(f'[chat-config] provider={body.get("provider","?")} model={body.get("anthropic_model") or body.get("openai_model") or body.get("gemini_model") or body.get("grok_model") or body.get("ollama_model","?")}')
-                # ─────────────────────────────────────────────────────────────
                 from ai.vizbridge import save_config
                 save_config(body)
                 self.json_resp({'ok': True})

@@ -420,7 +420,6 @@ function _dashCloseGroupDrilldown() {
 // ── Widget label keys (shared by settings and tab editor) ─────────────────
 
 const _DASH_WIDGET_LABEL_KEYS = {
-    kpi_strip:          'dashSettingsWidgetKpi',
     code_health:        'dashCodeHealthTitle',
     tech_debt:          'dashTechDebtTitle',
     complexity:         'dashComplexityTitle',
