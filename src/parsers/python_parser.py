@@ -221,6 +221,10 @@ class _PyAnalyzer(ast.NodeVisitor):
 
     def visit_Import(self, node):
         for alias in node.names:
+            # Emit BOTH the full dotted module (so the analyzer can resolve a
+            # submodule to its actual file, e.g. `import ai.chat_cli`) and the
+            # top-level package (preserves module-grouping behaviour).
+            self._add_import(alias.name)
             self._add_import(alias.name.split('.')[0])
         self.generic_visit(node)
 
@@ -483,12 +487,20 @@ class _PyAnalyzer(ast.NodeVisitor):
 
 
 def _importfrom_dependencies(module: str | None, aliases, level: int = 0) -> list:
-    """Return dependency roots for a Python ``from ... import ...`` node."""
+    """Return dependency roots for a Python ``from ... import ...`` node.
+
+    We return BOTH the full dotted module (so the analyzer can resolve
+    ``from ai.chat_cli import x`` to the file ``ai/chat_cli.py`` — the top-level
+    ``ai`` alone resolves to nothing, which made every submodule look
+    unimported) and the top-level package (kept for module-grouping). Dotted
+    names that aren't files simply fail to resolve, so they never create
+    spurious edges.
+    """
     if module == '__future__':
         return []
     if level:
         if module:
-            return [module.split('.')[0]]
+            return [module, module.split('.')[0]]
         deps = []
         for alias in aliases:
             name = getattr(alias, 'name', '')
@@ -496,7 +508,7 @@ def _importfrom_dependencies(module: str | None, aliases, level: int = 0) -> lis
                 deps.append(name.split('.')[0])
         return deps
     if module:
-        return [module.split('.')[0]]
+        return [module, module.split('.')[0]]
     return []
 
 

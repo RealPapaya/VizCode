@@ -403,6 +403,17 @@ FILE_TYPE_MAP = {
     '.psd1': 'powershell_source',
 }
 
+# Pure data / documentation / config file types. These legitimately have no
+# import relationships, so counting them as "isolated" or "unimported" pollutes
+# the architecture-health widgets with non-actionable noise (a README.md or
+# package.json being "unimported" is not a problem). They are excluded from the
+# isolated / unimported / entry-point metrics — same principle as excluding test
+# files from dead-code detection: don't flag things that are working as intended.
+_NON_CODE_FILE_TYPES = frozenset({
+    'json_config', 'yaml_source', 'toml_source',
+    'markdown_doc', 'rst_doc', 'text_doc',
+})
+
 # ─── Edge type definitions ───────────────────────────────────────────────────
 # 每種 edge type 決定前端的線條樣式
 EDGE_TYPES = {
@@ -813,7 +824,12 @@ def _compute_parse_result(file_bytes: bytes, ext: str) -> tuple:
     the multiprocessing worker — keeping the dispatch in one place avoids
     drift between paths."""
     try:
-        src = file_bytes.decode('utf-8', errors='replace')
+        # utf-8-sig strips a leading UTF-8 BOM if present (harmless otherwise).
+        # A raw BOM (U+FEFF) at char 0 makes Python's ast.parse — and other
+        # language parsers — choke, silently dropping the whole file to a weaker
+        # regex fallback (observed on Windows-authored files), which produced
+        # dead-code false positives and missing edges.
+        src = file_bytes.decode('utf-8-sig', errors='replace')
     except Exception:
         src = ''
 
@@ -1786,10 +1802,15 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     )
     label_to_paths  = defaultdict(list)  # basename → [rel_path]
     stem_to_paths   = defaultdict(list)  # stem (no ext) → [rel_path]
+    relnoext_index  = defaultdict(list)  # 'a/b/c' (ext-stripped, lower) → [rel_path]
     for rel in file_meta:
         label_to_paths[os.path.basename(rel)].append(rel)
         stem = Path(rel).stem.lower()
         stem_to_paths[stem].append(rel)
+        # Ext-stripped path for dotted-module resolution (Python `a.b.c`,
+        # Java `com.foo.Bar`): 'ai/chat_cli.py' → 'ai/chat_cli'.
+        noext = rel.rsplit('.', 1)[0].replace('\\', '/').lower() if '.' in os.path.basename(rel) else rel.replace('\\', '/').lower()
+        relnoext_index[noext].append(rel)
 
     rel_to_id = {rel: i for i, rel in enumerate(file_meta)}
 
@@ -1843,6 +1864,22 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             snake = _re_camel.sub('_', stem).lower()
             if snake != stem and snake in stem_to_paths:
                 return stem_to_paths[snake]
+        # 5. Dotted module → path (Python `from ai.chat_cli import …`,
+        #    Java `com.foo.Bar`). Previously these resolved to nothing because
+        #    the basename/stem of `ai.chat_cli` is `ai`, so every submodule
+        #    file was wrongly reported as unimported/isolated. Convert dots to a
+        #    path and match against the ext-stripped path index (exact, then by
+        #    tail suffix for src-rooted packages). A real filename like `foo.h`
+        #    can't false-match here: its ext-stripped path is `foo`, not `foo/h`.
+        if '.' in ref and '/' not in ref and '\\' not in ref:
+            as_path = ref.replace('.', '/').lower()
+            if as_path in relnoext_index:
+                return relnoext_index[as_path]
+            suffix = '/' + as_path
+            hits = [r for key, rels in relnoext_index.items()
+                    if key.endswith(suffix) for r in rels]
+            if hits:
+                return hits
         return []
 
     # ── Phase B: Build GUID name → .dec file index ───────────────────────────
@@ -2020,7 +2057,12 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
                         continue
                     tgt = next(iter(definers))
                     if tgt != src_rel:
-                        add_edge(src_rel, tgt, 'import', via=name)
+                        # origin='inferred': this is a global-symbol usage edge,
+                        # NOT a real ESM import. It counts for reachability (the
+                        # files do depend on each other) but is excluded from
+                        # circular-dependency detection, so a global/bundled
+                        # frontend isn't reported as one giant import cycle.
+                        add_edge(src_rel, tgt, 'import', via=name, origin='inferred')
 
         elif ext == '.inf' and extra:
             # [Sources] → .c files
@@ -2573,16 +2615,54 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
     )[:50]
     
     # Dead Code Detection
+    #
+    # Two correctness guards so the metric is trustworthy rather than noise:
+    #   1. Skip test files and dunder methods — their functions are invoked by
+    #      the test runner / language runtime, never called by literal name, so
+    #      a naive "defined but never called" check flags every one as dead.
+    #   2. Resolve a call to EVERY file that defines that name (func_name_to_files),
+    #      not just the first (func_name_to_file == files[0]). Otherwise a name
+    #      shared across files — extremely common, e.g. the ~40 parsers each
+    #      defining similarly-named helpers — marks all but one file's copy dead
+    #      even when it is genuinely used via dispatch.
+    def _is_test_file(rel_path):
+        p = rel_path.replace('\\', '/').lower()
+        parts = p.split('/')
+        if any(seg in ('test', 'tests', '__tests__', 'spec', 'specs')
+               for seg in parts[:-1]):
+            return True
+        base = parts[-1]
+        name = base.rsplit('.', 1)[0]
+        if name == 'test' or name.startswith(('test_', 'test-')):
+            return True
+        if name.endswith(('_test', '_spec', '.test', '.spec')):
+            return True
+        return '.test.' in base or '.spec.' in base or base == 'conftest.py'
+
+    _ENTRY_POINT_NAMES = frozenset({'main', 'Main', 'wmain', 'WinMain', 'DllMain'})
+
+    def _is_implicit_entry(name):
+        # Dunder methods (__init__, __repr__, …) are runtime-invoked, and program
+        # entry points (main / WinMain / …) are invoked by the OS/runtime — never
+        # called by literal name, so a naive "defined but never called" check
+        # flags them as dead. Same class as the test-file exclusion above.
+        if name in _ENTRY_POINT_NAMES:
+            return True
+        return len(name) > 4 and name.startswith('__') and name.endswith('__')
+
     all_defined_funcs = set()
     for rel, defs in file_defs.items():
+        if _is_test_file(rel):
+            continue
         for d in defs:
+            if _is_implicit_entry(d['label']):
+                continue
             all_defined_funcs.add((rel, d['label']))
-    
+
     all_called_funcs = set()
     for rel, calls in file_calls.items():
         for call in calls:
-            if call in func_name_to_file:
-                target_file = func_name_to_file[call]
+            for target_file in func_name_to_files.get(call, ()):
                 all_called_funcs.add((target_file, call))
 
     uncalled_funcs = all_defined_funcs - all_called_funcs
@@ -2592,16 +2672,59 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         for f, n in sorted(uncalled_funcs, key=lambda item: (item[0], item[1]))
     ]
     
-    # Files never imported
+    # Files never imported.
+    # `code_file_paths` drops pure data/doc/config files (see _NON_CODE_FILE_TYPES)
+    # so the reachability metrics below describe *code* connectivity only.
     all_file_paths = set(file_meta.keys())
+    code_file_paths = {
+        f for f in all_file_paths
+        if file_meta[f].get('file_type') not in _NON_CODE_FILE_TYPES
+    }
     imported_files = set()
     for edges_list in file_edges_by_module.values():
         for edge in edges_list:
             tgt_path = id_to_rel.get(edge['t'])
             if tgt_path:
                 imported_files.add(tgt_path)
-    
-    unimported_files = all_file_paths - imported_files
+
+    # ── Language-aware reachability ──────────────────────────────────────────
+    # The plain "is this file an import target?" test fits Python / ESM JS-TS but
+    # misreports other conventions (verified against real Go / Java / C++ repos).
+    # Correct the two biggest cases so the metric measures real orphan-hood:
+    #   D — C/C++ implementation files are compiled+linked, never #included; only
+    #       headers are. Treat a .cc as reached if its sibling header is included.
+    #   E — Go / JVM package files collaborate via package scope WITHOUT importing
+    #       each other; a file in a multi-file package (directory) is reachable.
+    _PKG_SCOPED_TYPES = {
+        'go_source', 'java_source', 'kotlin_source', 'scala_source', 'groovy_source',
+    }
+    _CPP_IMPL_EXT = ('.c', '.cc', '.cpp', '.cxx')
+    _CPP_HDR_EXT  = ('.h', '.hpp', '.hh', '.hxx')
+
+    def _dir_of(f):
+        return f.rsplit('/', 1)[0] if '/' in f else ''
+
+    _imported_hdr_keys = {
+        (_dir_of(f), Path(f).stem.lower())
+        for f in imported_files if f.lower().endswith(_CPP_HDR_EXT)
+    }
+    _pkg_counts = defaultdict(int)
+    for f in code_file_paths:
+        if file_meta[f].get('file_type') in _PKG_SCOPED_TYPES:
+            _pkg_counts[_dir_of(f)] += 1
+
+    def _lang_reached(f):
+        ft = file_meta[f].get('file_type')
+        if ft in _PKG_SCOPED_TYPES and _pkg_counts.get(_dir_of(f), 0) > 1:
+            return True
+        if f.lower().endswith(_CPP_IMPL_EXT) and \
+                (_dir_of(f), Path(f).stem.lower()) in _imported_hdr_keys:
+            return True
+        return False
+
+    reached_files = imported_files | {f for f in code_file_paths if _lang_reached(f)}
+
+    unimported_files = {f for f in code_file_paths if f not in reached_files}
     unimported_file_count = len(unimported_files)
     
     # Circular Dependencies Detection (简化版 - Tarjan's algorithm)
@@ -2645,37 +2768,84 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
 
         return sccs
     
-    # Build file dependency graph (using paths, not IDs)
+    # Build file dependency graphs (using paths, not IDs).
+    #   file_dep_graph   — ALL edges; drives reachability / outbound detection.
+    #   import_dep_graph — real import/include edges only (excludes inferred
+    #                      global-symbol usage). Circular detection runs on this
+    #                      so a non-module / bundled frontend, where files are
+    #                      linked only by inferred global-symbol edges, is not
+    #                      reported as one giant import cycle.
     file_dep_graph = defaultdict(list)
+    import_dep_graph = defaultdict(list)
     for edges_list in file_edges_by_module.values():
         for edge in edges_list:
             src_path = id_to_rel.get(edge['s'])
             tgt_path = id_to_rel.get(edge['t'])
             if src_path and tgt_path:
                 file_dep_graph[src_path].append(tgt_path)
-    
-    circular_deps = detect_cycles(file_dep_graph)
+                if edge.get('origin') != 'inferred':
+                    import_dep_graph[src_path].append(tgt_path)
+
+    circular_deps = detect_cycles(import_dep_graph)
     circular_dep_count = len(circular_deps)
     
     # Get top circular dependency groups by size
     top_circular_deps = sorted(circular_deps, key=len, reverse=True)[:10]
-    
-    # Entry Points (root files - not imported by anyone)
-    entry_points = [f for f in all_file_paths if f not in imported_files]
+
+    # For each reported SCC, extract ONE concrete simple cycle — a real import
+    # path that loops back on itself — as evidence. An SCC just means every file
+    # is mutually reachable; rendering its members as a linear A→B→C chain (the
+    # old behaviour) implies an import order that doesn't exist. This gives the
+    # dashboard a truthful A→B→…→A cycle to show, while the SCC size still
+    # conveys how many files are entangled.
+    def _representative_cycle(scc_nodes):
+        node_set = set(scc_nodes)
+        # Use the same (real-import) graph the SCC was detected on, so the proof
+        # cycle only traverses genuine import edges.
+        adj = {n: [m for m in import_dep_graph.get(n, []) if m in node_set]
+               for n in scc_nodes}
+        start = scc_nodes[0]
+        path = [start]
+        on_path = {start}
+        pos = {start: 0}
+        dfs = [(start, iter(adj.get(start, ())))]
+        while dfs:
+            _node, it = dfs[-1]
+            stepped = False
+            for nxt in it:
+                if nxt in on_path:
+                    return path[pos[nxt]:]      # back edge → real simple cycle
+                path.append(nxt)
+                on_path.add(nxt)
+                pos[nxt] = len(path) - 1
+                dfs.append((nxt, iter(adj.get(nxt, ()))))
+                stepped = True
+                break
+            if not stepped:
+                dfs.pop()
+                on_path.discard(path.pop())
+                pos.pop(_node, None)
+        return list(scc_nodes)                  # fallback (unreachable for a true SCC)
+
+    top_circular_cycles = [_representative_cycle(scc) for scc in top_circular_deps]
+
+    # Entry Points and Isolated files partition `unimported_files` by whether the
+    # file has any outbound edge (is in file_dep_graph):
+    #   entry point  — not reached by anyone, but imports/uses others (a root);
+    #   isolated     — not reached AND no outbound edge (truly disconnected).
+    # So  unimported_files = entry_points ⊎ isolated_files  holds by construction.
+    # All three share the same language-aware `reached_files`, so C/C++ impl files
+    # and package-collaborating Go/JVM files are no longer misreported.
+    entry_points = [
+        f for f in code_file_paths
+        if f not in reached_files and f in file_dep_graph
+    ]
     entry_point_count = len(entry_points)
-    
-    # Isolated files (neither import nor are imported)
-    files_with_edges = set()
-    for edges_list in file_edges_by_module.values():
-        for edge in edges_list:
-            src_path = id_to_rel.get(edge['s'])
-            tgt_path = id_to_rel.get(edge['t'])
-            if src_path:
-                files_with_edges.add(src_path)
-            if tgt_path:
-                files_with_edges.add(tgt_path)
-    
-    isolated_files = all_file_paths - files_with_edges
+
+    isolated_files = {
+        f for f in code_file_paths
+        if f not in reached_files and f not in file_dep_graph
+    }
     isolated_file_count = len(isolated_files)
     
     # Complexity metrics
@@ -2772,6 +2942,7 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             'unimported_file_paths': sorted(unimported_files),
             'circular_dependencies': circular_dep_count,
             'top_circular_deps': [[f for f in cycle] for cycle in top_circular_deps],
+            'top_circular_cycles': [list(cycle) for cycle in top_circular_cycles],
             'entry_points': entry_point_count,
             'entry_point_files': sorted(entry_points),
             'isolated_files': isolated_file_count,

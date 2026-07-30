@@ -12,6 +12,17 @@ function _dashCircSummary(cycle) {
   return cycle.map(f => String(f).split('/').pop()).join(' ↔ ');
 }
 
+// The rendered chain must be a REAL cycle (a→b→…→a), not an arbitrary ordering
+// of the whole strongly-connected cluster. The backend supplies one concrete
+// cycle per cluster in top_circular_cycles; fall back to the raw members only
+// if it is unavailable (older scans).
+function _dashCircProof(idx, members) {
+  const stats: any = (window.DATA && window.DATA.stats) || {};
+  const paths = stats.top_circular_cycles || [];
+  const p = paths[idx];
+  return (Array.isArray(p) && p.length) ? p : members;
+}
+
 function _dashCircChainHTML(cycle, expanded) {
   const total = cycle.length;
   const visible = expanded ? cycle : cycle.slice(0, 3);
@@ -44,7 +55,7 @@ function _dashCircCard(cycle, idx) {
     </span>
   </div>
   <div class="dash-cycle-chain" data-circ-idx="${idx}" data-expanded="0">
-    ${_dashCircChainHTML(cycle, false)}
+    ${_dashCircChainHTML(_dashCircProof(idx, cycle), false)}
   </div>
   <div class="dash-cycle-actions">
     <span class="dash-cycle-action" data-circ-toggle="${idx}"
@@ -66,7 +77,7 @@ function _dashCircToggle(idx) {
   const expanded = chain.getAttribute('data-expanded') === '1';
   const next = !expanded;
   chain.setAttribute('data-expanded', next ? '1' : '0');
-  chain.innerHTML = _dashCircChainHTML(cycle, next);
+  chain.innerHTML = _dashCircChainHTML(_dashCircProof(idx, cycle), next);
   toggle.textContent = _dashT(next ? 'dashIssuesCollapseChain' : 'dashIssuesExpandChain');
 }
 window._dashCircToggle = _dashCircToggle;
@@ -123,7 +134,7 @@ function _dashCircCardDetail(cycle, idx) {
           onclick="event.stopPropagation();_dashOpenFileGroupDrilldown(${titleJson},${cycleJson})">&#x2197;</button>
   </div>
   <div class="dash-circ-chain-wrap" data-circ-d-idx="${idx}" data-expanded="0">
-    <div class="dash-circ-flow">${_dashCircChainFlowHTML(cycle, false, idx)}</div>
+    <div class="dash-circ-flow">${_dashCircChainFlowHTML(_dashCircProof(idx, cycle), false, idx)}</div>
   </div>
   ${expandBtn}
 </div>`;
@@ -141,7 +152,7 @@ function _dashCircDetailToggle(idx) {
   const next     = !expanded;
   wrap.setAttribute('data-expanded', next ? '1' : '0');
   const flow = wrap.querySelector('.dash-circ-flow');
-  if (flow) flow.innerHTML = _dashCircChainFlowHTML(cycle, next, idx);
+  if (flow) flow.innerHTML = _dashCircChainFlowHTML(_dashCircProof(idx, cycle), next, idx);
   if (toggle) toggle.textContent = next ? '\u2212' : '+';
 }
 window._dashCircDetailToggle = _dashCircDetailToggle;

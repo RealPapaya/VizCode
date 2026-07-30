@@ -128,7 +128,17 @@ from . import sibling
 from .subpackage import other
 '''
         imports, *_ = scan_python(src)
-        assert imports == ['os', 'pkg', 'xml', 'package', 'sibling', 'subpackage']
+        # Both the full dotted module (needed to resolve a `from a.b import x`
+        # edge to the file a/b.py) and the top-level package (module grouping)
+        # are emitted; __future__ is dropped.
+        assert imports == [
+            'os',
+            'pkg.mod', 'pkg',
+            'xml.etree.ElementTree', 'xml',
+            'package.sub', 'package',
+            'sibling',
+            'subpackage',
+        ]
 
     def test_python_ast_symbols_docstrings_decorators_and_signatures(self):
         src = '''\

@@ -12,7 +12,7 @@ Use `testproject/` as a smoke-test target — it's small, multilingual, and exer
 
 3. In the path input box, enter the full path to testproject:
 ```
-d:\Google AI\CodeViz\testproject
+d:\Google AI\VizCode\testproject
 ```
 Then click **Analyze**.
 
@@ -53,5 +53,5 @@ echo $result | python -c "import json,sys; d=json.load(sys.stdin); print(list(d.
 | `src/core/analyze_viz.py` | Correct node/edge count, no Python exceptions in terminal |
 | `src/parsers/*.py` | Nodes from that language appear, edges are resolved |
 | `src/server/server.py` | All endpoints return valid HTTP 200 |
-| `static/viz.js`, `static/features/graph/*.js` | Graph renders, interaction works (click, zoom, filter) |
+| `static/viz.ts`, `static/features/graph/*.ts` | Graph renders, interaction works (click, zoom, filter) |
 | `src/core/detector.py` | Project type badge is correct |

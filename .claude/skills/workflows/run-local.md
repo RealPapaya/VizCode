@@ -4,7 +4,7 @@ description: Start the VIZCODE local server and verify it's running correctly
 
 # Run Local Server
 
-1. Open a terminal in the project root (`d:\Google AI\CodeViz`)
+1. Open a terminal in the project root (`d:\Google AI\VizCode`)
 
 2. Start the server:
 ```powershell

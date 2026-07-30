@@ -1,33 +1,33 @@
 ---
 name: galaxy-workflow
-description: Work on the Galaxy view in CodeViz. Use this skill whenever the user mentions Galaxy view, Galaxy button effects, background precompute, ForceAtlas2 layout, noverlap, Sigma/graphology rendering, Galaxy performance, Galaxy UX timing, or files under static/features/galaxy_view/. Also use it for Galaxy-specific bug fixes, architecture questions, or tuning when the normal graph view is not the topic.
+description: Work on the Galaxy view in VizCode. Use this skill whenever the user mentions Galaxy view, Galaxy button effects, background precompute, ForceAtlas2 layout, noverlap, Sigma/graphology rendering, Galaxy performance, Galaxy UX timing, or files under static/features/galaxy_view/. Also use it for Galaxy-specific bug fixes, architecture questions, or tuning when the normal graph view is not the topic.
 ---
 
 # SKILL: Galaxy Workflow
 
-Maintain and debug the Galaxy view in CodeViz. The Galaxy feature is a separate graph pipeline with its own lifecycle, caching, background precompute flow, and performance rules.
+Maintain and debug the Galaxy view in VizCode. The Galaxy feature is a separate graph pipeline with its own lifecycle, caching, background precompute flow, and performance rules.
 
 ## File Map
 
 | Area | File |
 |------|------|
-| Galaxy state, lifecycle, button effect, Sigma setup | `static/features/galaxy_view/viz_galaxy.js` |
-| Galaxy graph build and initial positions | `static/features/galaxy_view/viz_galaxy_graph.js` |
-| Galaxy physics, FA2, yield strategy, noverlap | `static/features/galaxy_view/viz_galaxy_physics.js` |
+| Galaxy state, lifecycle, button effect, Sigma setup | `static/features/galaxy_view/viz_galaxy.ts` |
+| Galaxy graph build and initial positions | `static/features/galaxy_view/viz_galaxy_graph.ts` |
+| Galaxy physics, FA2, yield strategy, noverlap | `static/features/galaxy_view/viz_galaxy_physics.ts` |
 | Galaxy button animation and topbar styles | `static/styles/viz_features.css` (and `viz_overlays.css`) |
-| App bootstrap that schedules background Galaxy work | `static/viz.js` |
+| App bootstrap that schedules background Galaxy work | `static/viz.ts` |
 
 ## Current Background Stages
 
 Treat the current Galaxy pipeline as 5 stages.
 
 ### Stage 1: Queue and visible button effect
-When analysis finishes and the page is ready, `static/viz.js` calls `scheduleGalaxyPrecompute()`.
+When analysis finishes and the page is ready, `static/viz.ts` calls `scheduleGalaxyPrecompute()`.
 
 Current behavior:
 - The Galaxy button effect should start almost immediately so the user sees Galaxy is being prepared.
 - This stage should not do heavy graph work yet.
-- Relevant flags live in `viz_galaxy.js`: `_gPrecomputeQueued`, `_gPrecomputePending`, `_galaxySyncButtonComputing()`.
+- Relevant flags live in `viz_galaxy.ts`: `_gPrecomputeQueued`, `_gPrecomputePending`, `_galaxySyncButtonComputing()`.
 
 ### Stage 2: Idle gate before heavy background work
 Background compute waits for a quiet period before starting heavy work.
@@ -76,7 +76,7 @@ Check these first:
 - Whether background mode is still active after Galaxy view opens.
 - Whether `_gLayoutNeedsNoverlap` keeps extra work pending longer than necessary.
 
-> Note: state flags now live under `static/features/galaxy_view/viz_galaxy.js` (formerly `static/galaxy/viz_galaxy.js`). Update any tooling that greps the old path.
+> Note: state flags now live under `static/features/galaxy_view/viz_galaxy.ts` (formerly `static/features/galaxy_view/viz_galaxy.ts`). Update any tooling that greps the old path.
 
 ### If the user reports button effect is wrong
 Check these first:
@@ -108,7 +108,7 @@ Do not guess. Inspect which phase is responsible before changing thresholds.
 ## Recommended Debug Flow
 
 1. Confirm whether the issue is in queued state, background compute, or foreground Galaxy entry.
-2. Check the state flags in `static/galaxy/viz_galaxy.js`.
+2. Check the state flags in `static/features/galaxy_view/viz_galaxy.ts`.
 3. Check whether the problem belongs to graph build, physics, or CSS.
 4. Make the smallest fix that preserves these design goals:
    - immediate visual feedback
@@ -152,13 +152,13 @@ Sigma.js renders edges and nodes in separate WebGL draw passes within the same c
 
 Do **NOT** shrink unrelated nodes during hover/selection modes. The user expects nodes to remain their original size. Use only `_colorDim` or `_colorFog` for visual dimming, not `size` changes.
 
-## FA2 Physics Tuning Reference (vs CodeViz)
+## FA2 Physics Tuning Reference (vs VizCode)
 
-The Galaxy FA2 parameters have been tuned to produce a layout similar to CodeViz. Key design decisions:
+The Galaxy FA2 parameters have been tuned to produce a layout similar to VizCode. Key design decisions:
 
 | Parameter | Rationale |
 |-----------|-----------|
-| `scalingRatio: 200-1200` | Very high repulsion to spread nodes wide. CodeViz uses 15-100 but runs FA2 for 20-45 seconds in a Web Worker; we need stronger repulsion to compensate for fewer effective iterations. |
+| `scalingRatio: 200-1200` | Very high repulsion to spread nodes wide. VizCode uses 15-100 but runs FA2 for 20-45 seconds in a Web Worker; we need stronger repulsion to compensate for fewer effective iterations. |
 | `gravity: 0.001-0.02` | Near-zero gravity lets clusters float freely. Higher gravity pulls everything to center → single blob. |
 | `contain edge weight: 0.08` | Structural tree edges (folder→file) must have near-zero attraction to prevent the containment tree from collapsing everything into a ball. This was the single biggest fix. |
 | `define edge weight: 0.06` | Same reasoning as contain. |
@@ -178,9 +178,9 @@ The FA2 runner syncs positions to the graph (`flushNodePositions()` + `_gSig.ref
 
 All edge types (contain, define, import, call, extend, implements, override) use `type: 'curved'` with `curvature: 0.08 + Math.random() * 0.06`. No straight lines — they cause pixel aliasing artifacts at high density.
 
-## CodeViz Reference
+## Layout Implementation Reference
 
-The layout algorithm was modeled after [CodeViz](../Reference/CodeViz-main/). Key reference files:
-- `CodeViz-web/src/lib/graph-adapter.ts` — cluster-based initial positioning, golden angle spiral
-- `CodeViz-web/src/hooks/useSigma.ts` — FA2 settings, adaptive gravity/scaling, noverlap
-- `CodeViz-web/src/lib/constants.ts` — node size hierarchy
+The old external reference tree this was once modeled after no longer exists in this environment — do not chase a `../Reference/` path. The layout algorithm now lives entirely in this repo:
+- `static/features/galaxy_view/viz_galaxy_graph.ts` — cluster-based initial positioning, golden angle spiral
+- `static/features/galaxy_view/viz_galaxy_physics.ts` — FA2 settings, adaptive gravity/scaling, noverlap
+- `static/features/galaxy_view/viz_galaxy_worker.ts` — node size hierarchy / Web Worker offload

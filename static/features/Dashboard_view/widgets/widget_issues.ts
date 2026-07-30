@@ -191,14 +191,24 @@ _dashRegisterWidget({
             : 'No architecture issues detected.';
 
         // ── circular dep cycle rows ───────────────────────────────────────────
+        // The row shows a REAL cycle (a→b→…→a, from top_circular_cycles) as
+        // evidence, and the file count reflects the full strongly-connected
+        // cluster. The whole cluster is not a single linear import path, so we
+        // never render its members as one — the drill-down opens them all.
+        const cyclePaths = stats.top_circular_cycles || [];
         const cycleRows = cycles.slice(0, 10).map((cycle, i) => {
-            const files = (cycle || []).map(f => String(f).replace(/\\/g, '/'));
-            const label = files.map(f => f.split('/').pop()).join(' → ');
+            const members = (cycle || []).map(f => String(f).replace(/\\/g, '/'));
+            const proofSrc = (cyclePaths[i] && cyclePaths[i].length) ? cyclePaths[i] : members;
+            const proof = proofSrc.map(f => String(f).replace(/\\/g, '/'));
+            const names = proof.map(f => f.split('/').pop());
+            const label = names.length > 1
+                ? names.join(' → ') + ' → ' + names[0]   // close the loop truthfully
+                : names[0];
             return `<div class="dash-kpi-detail-row" data-clickable="true"
-                onclick="_dashOpenFileGroupDrilldown(${_dashJson('Cycle ' + (i + 1))}, ${_dashJson(files.map(f => ({ file: f })))})">
+                onclick="_dashOpenFileGroupDrilldown(${_dashJson('Cycle ' + (i + 1))}, ${_dashJson(members.map(f => ({ file: f })))})">
                 <span class="dash-kpi-detail-row__rank">${i + 1}</span>
                 <span class="dash-kpi-detail-row__name">${_dashEscape(label)}</span>
-                <span class="dash-kpi-detail-row__value">${files.length} files</span>
+                <span class="dash-kpi-detail-row__value">${members.length} files</span>
             </div>`;
         }).join('') || `<div class="dash-empty">No circular dependencies</div>`;
 

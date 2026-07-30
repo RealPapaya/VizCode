@@ -1,236 +1,46 @@
-﻿# VizCode Codebase Guide
+﻿# VizCode — Codebase Explorer
 
-## 回覆語言
-
-- 預設使用繁體中文。
-
-## 專案主軸
-
-VizCode 目前可以用三塊來理解：
-
-1. `parsing (py)`
-2. `AI (WebAI / AI report / CLI AI support)`
-3. `Graph (galaxy / main graph[L0 L1 L2 L3] / dashboard)`
-
-## 目前主入口
+## 第一步：先跑掃描
 
 ```bash
-python src/vizcode.py
-python src/vizcode.py <path> --scan-only
-python src/vizcode.py <path> --chat
-python src/vizcode.py <path> --ai "question"
-launch.bat
+python "<VIZCODE_ROOT>/vizcode.py" "<PROJECT_PATH>" --scan-only
 ```
 
-不要再假設舊版根目錄 `vizcode.py`、`server.py`、`analyze_viz.py` 是主要工作位置；現在核心程式已經拆進 `src/`。
+等完成後 `.vizcode/scan_cache.json` 會更新，MCP 工具才能用最新資料。
 
-## Repo 結構
+> `<VIZCODE_ROOT>` = VizCode 安裝目錄（含 `vizcode.py` 的資料夾）  
+> `<PROJECT_PATH>` = 目標 codebase 的根目錄
 
-```text
-src/
-  vizcode.py
-  core/
-    analyze_viz.py
-    detector.py
-    parse_memo.py
-    semantic_enricher.py
-  parsers/
-    python_parser.py
-    js_parser.py
-    go_parser.py
-    c_cpp_parser.py
-    csharp_parser.py
-    bios_parser.py
-    common_parser.py
-    json_parser.py
-  server/
-    server.py
-    mcp_server.py
+## 探索策略：L0 → L1 → L2 → L3
 
-ai/
-  vizbridge.py
-  chat_cli.py
-  chat_modes.py
-  ui_tools.py
-  providers/
-  install.py
+**絕對禁止**一開始就讀原始碼。遵循由上而下策略：
 
-static/
-  viz.js
-  viz_graph.js
-  viz_dashboard.js
-  viz_chat.js
-  galaxy/
-  symbol_view/
-  file_viewers/
-```
+| 工具 | 用途 | ~Token |
+|------|------|--------|
+| `vizcode_l0()` | **第一步**：全局模組分群 + 跨模組依賴 | ~200 |
+| `vizcode_l1(module)` | 鎖定模組後展開檔案依賴圖 | ~150/模組 |
+| `vizcode_l2(file)` | 鎖定檔案後取得函式呼叫圖 | ~300–1200 |
+| `vizcode_l3(file)` | 需要更細節時瀏覽 symbol、class/member、signature、symbol edge | ~500–1500 |
+| `vizcode_query(q)` | 關鍵字搜尋模組與語意邊 | ~200 |
+| `vizcode_path(a, b)` | A→B 最短依賴路徑 | ~100 |
+| `vizcode_explain(sym)` | 模組角色快速摘要 | ~150 |
+| `vizcode_health()` | Dead code / god files 健康報告 | ~200 |
+| `vizcode_report()` | 取得 INDEX.md 總覽（L0 統計）| ~200 |
 
-## 1. Parsing
+### 典型工作流程
 
-主要看：
+1. `vizcode_l0()` — 看懂整體模組邊界
+2. `vizcode_l1("parsers")` — 深入某個模組
+3. `vizcode_l2("parsers/c_cpp_parser.py")` — 看特定檔案的函式圖
+4. `vizcode_l3("parsers/c_cpp_parser.py")` — 需要 class/member/signature/edge type 細節時再進 L3
+5. `vizcode_query("cache")` — 找所有跟 cache 相關的模組/邊
 
-- `src/core/analyze_viz.py`
-- `src/core/detector.py`
-- `src/core/parse_memo.py`
-- `src/parsers/*.py`
+**禁止**直接讀取 `.vizcode/scan_cache.json` 或 `.vizcode/semantic_cache.json` 原始檔案。
 
-### Parser contract
+### Parser Enrichment 驗證規則
 
-目前 parser 主要回傳 6-tuple：
+修改 parser enrichment 時，除了 unit tests，也要在 `testproject/testproject/` 新增可保留的最小範例檔，讓實際 demo 專案能看見新增的解析能力。
 
-```python
-(
-    imports_or_refs,
-    funcdefs,
-    funccalls,
-    extra_dict,
-    func_calls_by_func,
-    symbol_defs,
-)
-```
-
-重點：
-
-- `func_calls_by_func` 要和 `funcdefs` 對齊
-- `symbol_defs` 給 symbol / structure / deeper graph view 使用
-
-如果新增語言，通常還要同步修改：
-
-- `src/core/analyze_viz.py`
-- `src/core/detector.py`
-- `static/viz_constants.js`
-- `static/viz_sidebar.js`
-
-## 2. AI
-
-AI 分成三條線：
-
-### Web AI
-
-- `ai/vizbridge.py`
-- `ai/ui_tools.py`
-- `ai/chat_modes.py`
-- `static/viz_chat.js`
-
-透過 `src/server/server.py` 的 `/chat-stream` SSE endpoint 跑。
-
-### AI report / MCP
-
-- `src/server/mcp_server.py`
-- `ai/install.py`
-- `ai/skill_body.md`
-- `.mcp.json`
-
-主要依賴：
-
-- `.vizcode/scan_cache.json`
-- `.vizcode/semantic_cache.json`
-- `.vizcode/INDEX.md`
-- `.vizcode/L1/...`
-- `.vizcode/L2/...`
-- `.vizcode/L3/...`
-
-### CLI AI support
-
-```bash
-python src/vizcode.py <path> --chat
-python src/vizcode.py <path> --ai "question"
-```
-
-主要實作：
-
-- `ai/chat_cli.py`
-- `ai/vizbridge.py`
-
-## 3. Graph
-
-### Main graph
-
-主要檔案：
-
-- `static/viz.js`
-- `static/viz_graph.js`
-- `static/viz_layout.js`
-- `static/viz_sidebar.js`
-- `static/viz_toolbar.js`
-- `static/viz_state.js`
-- `static/viz_constants.js`
-
-可用 `L0 / L1 / L2 / L3` 來理解：
-
-- `L0`: module overview
-- `L1`: file dependency graph
-- `L2`: function / symbol drill-down
-- `L3`: 更細的 symbol / structure / function interaction
-
-### Galaxy
-
-- `static/galaxy/viz_galaxy.js`
-- `static/galaxy/viz_galaxy_graph.js`
-- `static/galaxy/viz_galaxy_physics.js`
-
-### Dashboard
-
-- `static/viz_dashboard.js`
-
-### Related surfaces
-
-- `static/symbol_view/`
-- `static/viz_code_panel.js`
-- `static/file_viewers/`
-
-## 工作指引
-
-### 如果需求偏 parsing
-
-先看：
-
-- `src/core/analyze_viz.py`
-- `src/parsers/*`
-
-### 如果需求偏 AI
-
-先看：
-
-- `ai/vizbridge.py`
-- `ai/chat_cli.py`
-- `ai/chat_modes.py`
-- `ai/ui_tools.py`
-- `src/server/mcp_server.py`
-- `src/server/server.py`
-
-### 如果需求偏 graph / UI
-
-先看：
-
-- `static/viz.js`
-- `static/viz_graph.js`
-- `static/viz_dashboard.js`
-- `static/galaxy/*`
-- `static/symbol_view/*`
-- `static/viz_chat.js`
-
-## 探索策略
-
-理解專案時，優先從高層往下：
-
-1. 先確認需求屬於 `parsing`、`AI`、還是 `Graph`
-2. 再進到對應主資料夾
-3. 不要一開始就盲讀整包 `static/` 或所有 parser
-
-## 驗證
-
-常用 smoke test：
-
-```bash
-python src/vizcode.py
-python src/vizcode.py <path> --scan-only
-python src/vizcode.py <path> --chat
-```
-
-如果有改 Web AI 或 graph，至少確認：
-
-- 首頁能開
-- 分析流程可完成
-- chat panel 可用
-- main graph / galaxy / dashboard 沒有明顯壞掉
+- L1 enrichment：範例檔要能產生預期 file edge，並用分析結果確認 edge type / subtype / via。
+- L3 enrichment：範例檔要能產生預期 symbol edge，並用分析結果確認 `type_usage` / `implements` / `inheritance` 等既有 edge 是否真的長出來。
+- 不要刪除這些 fixture；若 parser 行為改變，更新 fixture 和測試，讓它們持續描述目前想支援的語法。
