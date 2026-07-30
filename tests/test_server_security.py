@@ -6,12 +6,17 @@ Covers two holes found in the 2026-07-30 health check:
 """
 
 import gzip
+import http.client
 import importlib.util
 import io
+import json
 import sys
 import tarfile
+import threading
+from email.message import Message
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import quote
 
 import pytest
 
@@ -57,18 +62,29 @@ def test_safe_session_id_rejects_traversal(session_id):
 
 # ─── local-only request guard (CSRF + DNS rebinding) ──────────────────────────
 
-def _asks(**headers):
-    """Run _is_local_request against a request carrying exactly these headers."""
-    return server.Handler._is_local_request(SimpleNamespace(headers=headers))
+def _asks(method='GET', **headers):
+    """Run _is_local_request against a request carrying exactly these headers.
+
+    Uses a real email.message.Message because the handler calls get_all() to
+    detect duplicate Host headers, which a plain dict cannot express.
+    """
+    msg = Message()
+    for name, value in headers.items():
+        msg[name.replace('_', '-')] = value
+    return server.Handler._is_local_request(SimpleNamespace(headers=msg, command=method))
 
 
 @pytest.mark.parametrize('value,expected', [
     ('127.0.0.1:7777', '127.0.0.1'),
     ('localhost', 'localhost'),
+    ('localhost.', 'localhost'),                  # trailing-dot FQDN is legal
     ('http://127.0.0.1:7777', '127.0.0.1'),
     ('https://EVIL.com', 'evil.com'),
     ('https://evil.com/path', 'evil.com'),
     ('[::1]:7777', '[::1]'),
+    # userinfo: the last colon sits inside it, so naive parsing reads 127.0.0.1
+    ('http://127.0.0.1:80@evil.com', ''),
+    ('[::1', ''),                                 # unterminated IPv6 literal
 ])
 def test_hostname_of(value, expected):
     assert server._hostname_of(value) == expected
@@ -79,6 +95,7 @@ def test_hostname_of(value, expected):
     {'Sec-Fetch-Site': 'same-origin'},                     # the app's own fetch
     {'Sec-Fetch-Site': 'none'},                            # typed in the URL bar
     {'Host': 'localhost:7777'},
+    {'Host': 'localhost.:7777'},
     {'Host': '127.0.0.1:7777', 'Origin': 'http://127.0.0.1:7777'},
 ])
 def test_local_requests_are_allowed(headers):
@@ -91,9 +108,96 @@ def test_local_requests_are_allowed(headers):
     {'Host': 'evil.com'},                                  # DNS rebinding
     {'Origin': 'null'},                                    # sandboxed iframe
     {'Host': '127.0.0.1:7777', 'Origin': 'http://attacker.test'},
+    {'Origin': 'http://127.0.0.1:80@evil.com'},            # userinfo smuggling
 ])
 def test_foreign_requests_are_refused(headers):
     assert _asks(**headers) is False
+
+
+def test_duplicate_host_headers_are_refused():
+    msg = Message()
+    msg['Host'] = 'localhost:7777'
+    msg['Host'] = 'evil.com'
+
+    assert server.Handler._is_local_request(
+        SimpleNamespace(headers=msg, command='GET')) is False
+
+
+def test_cross_site_link_navigation_is_allowed_but_only_for_get_documents():
+    nav = {'Sec_Fetch_Site': 'cross-site', 'Sec_Fetch_Mode': 'navigate',
+           'Sec_Fetch_Dest': 'document'}
+
+    assert _asks('GET', **nav) is True
+    assert _asks('POST', **nav) is False                   # a form CSRF post
+    assert _asks('GET', Sec_Fetch_Site='cross-site', Sec_Fetch_Mode='no-cors',
+                 Sec_Fetch_Dest='image') is False          # a pixel/beacon
+
+
+# ─── end-to-end: the guards must actually be WIRED into the handlers ──────────
+# The unit tests above pass even if `_refuse_foreign()` / `_safe_session_id()` are
+# never called. These boot the real Handler and go over a socket, so deleting a
+# call site fails here.
+
+@pytest.fixture(scope='module')
+def live_server():
+    from http.server import ThreadingHTTPServer
+
+    httpd = ThreadingHTTPServer(('127.0.0.1', 0), server.Handler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield httpd.server_address[1]
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def _raw(port, method, path, headers=None, body=None):
+    conn = http.client.HTTPConnection('127.0.0.1', port, timeout=15)
+    try:
+        conn.request(method, path, body=body, headers=dict(headers or {}))
+        resp = conn.getresponse()
+        resp.read()
+        return resp.status
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize('method,path,headers,expected', [
+    # cross-site fetch — refused by _refuse_foreign in do_GET / do_POST
+    ('GET',  '/jobs',    {'Sec-Fetch-Site': 'cross-site'},        403),
+    ('POST', '/analyze', {'Sec-Fetch-Site': 'cross-site'},        403),
+    ('GET',  '/jobs',    {'Origin': 'https://evil.com'},          403),
+    ('GET',  '/jobs',    {'Host': 'evil.com'},                    403),
+    # legitimate traffic still gets through
+    ('GET',  '/jobs',    {},                                      200),
+    ('GET',  '/jobs',    {'Sec-Fetch-Site': 'same-origin'},       200),
+    ('GET',  '/jobs',    {'Sec-Fetch-Site': 'none'},              200),
+    # arriving by clicking a link from another site is a navigation, not an attack
+    ('GET',  '/',        {'Sec-Fetch-Site': 'cross-site',
+                          'Sec-Fetch-Mode': 'navigate',
+                          'Sec-Fetch-Dest': 'document'},          200),
+])
+def test_guard_is_wired_into_the_handlers(live_server, method, path, headers, expected):
+    body = '{}' if method == 'POST' else None
+    assert _raw(live_server, method, path, headers, body) == expected
+
+
+@pytest.mark.parametrize('query,expected', [
+    ('?job=x&session=' + quote('../../../tsconfig', safe=''), 400),   # traversal
+    ('?job=x&session=' + quote('..\\..\\tsconfig', safe=''),  400),
+    ('?job=x&session=session_20260730',                       200),   # normal id
+])
+def test_chat_history_get_rejects_traversal_over_the_wire(live_server, query, expected):
+    assert _raw(live_server, 'GET', '/chat-history' + query) == expected
+
+
+def test_chat_history_post_rejects_traversal_over_the_wire(live_server):
+    body = json.dumps({'job_id': 'x', 'session_id': '../../../pwned', 'history': []})
+    status = _raw(live_server, 'POST', '/chat-history',
+                  {'Content-Type': 'application/json'}, body)
+
+    assert status == 400
 
 
 # ─── npm tarball extraction ───────────────────────────────────────────────────
@@ -132,12 +236,23 @@ def _serve(monkeypatch, blob: bytes):
 @pytest.mark.parametrize('member', [
     '../../pwned.json',
     'package/../../pwned.json',
+    # Windows resolves these as separators too — a bare split('/') let them past.
+    '..\\..\\pwned.json',
+    'package\\..\\..\\pwned.json',
+    'package/..\\..\\pwned.json',
+    'D:pwned.json',                     # drive-relative, escapes to another drive
+    '/etc/pwned.json',
 ])
 def test_npm_tarball_rejects_escaping_member(monkeypatch, tmp_path, member):
+    dest = tmp_path / 'a' / 'b' / 'c'
+    dest.mkdir(parents=True)
     _serve(monkeypatch, _tar_gz_with(member))
+
     with pytest.raises(RuntimeError, match='Unsafe path in tarball'):
-        fetcher._download_npm_tarball('https://registry.npmjs.org/x', str(tmp_path))
-    assert not (tmp_path.parent.parent / 'pwned.json').exists()
+        fetcher._download_npm_tarball('https://registry.npmjs.org/x', str(dest))
+
+    # nothing may have been written anywhere outside the destination
+    assert list(tmp_path.rglob('pwned.json')) == []
 
 
 def test_npm_tarball_rejects_symlink_member(monkeypatch, tmp_path):

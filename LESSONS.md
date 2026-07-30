@@ -46,23 +46,33 @@ pointer line here.
 
 ## local-server-is-reachable-from-any-web-page (2026-07-30)
 - Trap: binding 127.0.0.1 does NOT make the server private — any page the user has
-  open can aim simple cross-origin requests at `http://127.0.0.1:7777`.
-  `json_resp` used to send `Access-Control-Allow-Origin: *`, letting those pages
-  READ the replies: `GET /jobs` (job ids + absolute paths) → `GET /file` → whole
-  codebase. Separately `/chat-history` did `os.path.join(chat_dir, session_id +
-  '.json')` unsanitised on GET and POST, so `session=../../../x` read/overwrote any
-  `.json` on disk, `.vizcode/key/ai_keys.json` included. Verified live: HTTP 200 +
-  `ACAO: *` returning the repo's `tsconfig.json`. `/file` (server.py:317) and
-  `/open-path` had the `root_norm` guard all along; `/chat-history` was missed.
+  open can aim simple cross-origin requests at it. `json_resp` used to send
+  `Access-Control-Allow-Origin: *`, letting those pages READ the replies:
+  `GET /jobs` (job ids + absolute paths) → `GET /file` → whole codebase.
+  Separately `/chat-history` did `os.path.join(chat_dir, session_id + '.json')`
+  unsanitised on GET and POST, so `session=../../../x` read/overwrote any `.json`
+  on disk, `.vizcode/key/ai_keys.json` included. `/file` and `/open-path` had the
+  `root_norm` guard all along; `/chat-history` was missed.
 - Cost: none realised — found and fixed in the 2026-07-30 health check.
 - Rule: any endpoint turning a request value into a path MUST use the `root_norm`
-  prefix check (server.py:317) or `_safe_session_id`-style whitelisting; a bare
-  `os.path.join` on request data is always a bug. Never add
+  prefix check (server.py) or `_safe_session_id`-style whitelisting. Never add
   `Access-Control-Allow-Origin` back — the UI is same-origin (`BASE_URL`).
-  `do_GET`/`do_POST` open with `_is_local_request()` (Host + Sec-Fetch-Site +
-  Origin) against CSRF and DNS rebinding — keep that first line in new verb
-  handlers. Also: `tarfile.extractall` needs the ZIP path's member check
-  (fetcher.py:22) — Python 3.11 extracts `../` and symlinks happily.
+  `do_GET`/`do_POST` open with `_is_local_request()` — keep that first line in new
+  verb handlers, and test the WIRING, not just the helper (a unit test on the
+  helper passes with the call site deleted).
+
+## evicting-a-payload-needs-a-proven-rebuild-path (2026-07-31)
+- Trap: freeing a cached payload is only safe if EVERY reader can rebuild it.
+  Evicting `job['search_index']` looked fine (`/search` has a disk-walk fallback)
+  but that fallback had been dead since the `src/` refactor — `_SI_BINARY_EXTS`
+  and friends were never imported into `server.py`, so it raised `NameError` and
+  dropped the connection; `/symbol-refs` has no fallback and silently returned
+  zero references; and the reap pass deletes temp sources at the same moment.
+- Cost: caught by adversarial review before push — would have shipped as "search
+  dies and references read 0, five seconds after you close the tab".
+- Rule: before evicting anything from `JOBS`, grep every reader of the key and
+  prove each fallback by RUNNING it. `html` qualifies (/result re-renders from
+  `data`); `search_index` does not, and stays resident.
 
 ## best-effort-writes-must-still-say-when-they-fail (2026-07-30)
 - Trap: every `.vizcode/` writer swallows its exception with a bare `pass`, because

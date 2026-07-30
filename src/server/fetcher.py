@@ -84,11 +84,22 @@ def _download_npm_tarball(tarball_url: str, tmp_dir: str) -> str:
     try:
         with tarfile.open(fileobj=io.BytesIO(data), mode='r:gz') as tf:
             for member in tf.getmembers():
-                if os.path.isabs(member.name) or '..' in member.name.split('/'):
+                # Windows treats '\' as a separator and 'D:x' as drive-relative, so
+                # normalise before testing — a bare split('/') lets '..\..\x' through.
+                name = member.name.replace('\\', '/')
+                if os.path.isabs(name) or ':' in name or '..' in name.split('/'):
                     raise ValueError(f'Unsafe path in tarball: {member.name}')
                 if member.issym() or member.islnk():
                     raise ValueError(f'Link entry not allowed in tarball: {member.name}')
-            tf.extractall(tmp_dir)
+            # The checks above give a clear error message; the extraction filter
+            # is what actually enforces containment (CVE-2007-4559), including
+            # whatever the loop fails to anticipate. It landed in 3.11.4 — on
+            # older interpreters the loop above is the only guard, which is why
+            # it normalises separators.
+            if hasattr(tarfile, 'data_filter'):
+                tf.extractall(tmp_dir, filter='data')
+            else:
+                tf.extractall(tmp_dir)
     except Exception as e:
         raise RuntimeError(f'Failed to extract tarball: {e}')
     pkg_dir = os.path.join(tmp_dir, 'package')

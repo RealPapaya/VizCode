@@ -53,14 +53,23 @@ _LOCAL_HOSTNAMES = {'127.0.0.1', 'localhost', '::1', '[::1]', '0.0.0.0'}
 
 
 def _hostname_of(value: str) -> str:
-    """Bare hostname from a Host header or an Origin URL — scheme and port dropped."""
+    """Bare hostname from a Host header or an Origin URL — scheme and port dropped.
+
+    Returns '' for anything it cannot parse confidently, so callers fail closed.
+    Userinfo (``http://127.0.0.1:80@evil.com``) is rejected outright rather than
+    parsed: no browser emits it, and splitting on the last colon would otherwise
+    read the host as 127.0.0.1.
+    """
     host = value.strip()
     if '://' in host:
         host = host.split('://', 1)[1]
     host = host.split('/', 1)[0]
+    if '@' in host:
+        return ''
     if host.startswith('['):                                  # IPv6 literal
-        return host[:host.index(']') + 1].lower() if ']' in host else host.lower()
-    return (host.rsplit(':', 1)[0] if ':' in host else host).lower()
+        return host[:host.index(']') + 1].lower() if ']' in host else ''
+    host = host.rsplit(':', 1)[0] if ':' in host else host    # drop the port
+    return host.rstrip('.').lower()             # 'localhost.' is a legal FQDN form
 
 
 def _fatal_startup_error(message: str, *, details: Optional[str] = None, exit_code: int = 1) -> "None":
@@ -120,6 +129,10 @@ from job_manager import (
     _open_job_viewer, _ping_job_viewer, _close_job_viewer,
     _run_analysis_thread, _cleanup_all_job_temps, _reap_loop,
     _enter_analysis, _leave_analysis,
+    # Used by the /search and /search-stream disk-walk fallback, which runs
+    # whenever a job has no in-memory search index (restored scans, and jobs
+    # still indexing). Without these the fallback raises NameError.
+    _SI_SKIP_DIRS, _SI_BINARY_EXTS, _SI_MAX_FILE_BYTES,
     restore_recent_jobs, list_restored_jobs,
 )
 from fetcher import _extract_zip, _clone_git_repo, _fetch_npm_package, ZIP_MAX_BYTES
@@ -244,15 +257,23 @@ class Handler(BaseHTTPRequestHandler):
         Non-browser callers — the CLI, curl, MCP — send none of these headers,
         so they are unaffected.
         """
-        host = self.headers.get('Host', '')
-        if host and _hostname_of(host) not in _LOCAL_HOSTNAMES:
+        hosts = self.headers.get_all('Host') or []
+        if len(hosts) > 1:                       # header smuggling — pick neither
             return False
-        site = (self.headers.get('Sec-Fetch-Site') or '').strip().lower()
-        if site and site not in ('same-origin', 'same-site', 'none'):
+        if hosts and _hostname_of(hosts[0]) not in _LOCAL_HOSTNAMES:
             return False
         origin = self.headers.get('Origin', '')
         if origin and _hostname_of(origin) not in _LOCAL_HOSTNAMES:
             return False
+        site = (self.headers.get('Sec-Fetch-Site') or '').strip().lower()
+        if site and site not in ('same-origin', 'same-site', 'none'):
+            # A top-level GET navigation is how someone *arrives* here from a
+            # link (a rendered README, a wiki, a chat client). The attacker
+            # cannot read the response, so refusing it only breaks real users.
+            mode = (self.headers.get('Sec-Fetch-Mode') or '').strip().lower()
+            dest = (self.headers.get('Sec-Fetch-Dest') or '').strip().lower()
+            if not (self.command == 'GET' and mode == 'navigate' and dest == 'document'):
+                return False
         return True
 
     def _refuse_foreign(self) -> bool:
@@ -2107,12 +2128,21 @@ class Handler(BaseHTTPRequestHandler):
                 BACKFILL_JOBS[token] = progress
 
             def _run():
+                # run_backfill calls build_graph once per commit. Register it as
+                # an in-flight analysis so a concurrent /analyze cannot reload
+                # analyze_viz out from under it (job_manager._enter_analysis).
+                entered = False
                 try:
                     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'core'))
                     from health_backfill import run_backfill
+                    _enter_analysis()
+                    entered = True
                     run_backfill(root, mode=mode, days=days, progress=progress)
                 except Exception as ex:
                     progress.update({'error': str(ex), 'finished': True})
+                finally:
+                    if entered:
+                        _leave_analysis()
 
             threading.Thread(target=_run, daemon=True,
                              name=f'backfill-{token}').start()

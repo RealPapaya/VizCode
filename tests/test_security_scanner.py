@@ -88,9 +88,15 @@ def test_a_throwing_rule_does_not_abort_the_scan(rules):
         def finditer(self, _text):
             raise RuntimeError('bad rule')
 
-    broken = [{**rules[0], 'regex': Exploding(), 'id': 'boom'}]
+    src = 'result = eval(request.args.get("q"))\n'
+    expected = _ids(src, rules=rules)
+    assert expected, 'fixture no longer triggers any rule'
 
-    assert ss.scan_file('eval(x)\n', '.py', 'a.py', broken + list(rules)) is not None
+    broken = [{**rules[0], 'regex': Exploding(), 'id': 'boom'}]
+    survived = _ids(src, rules=broken + list(rules))
+
+    # the exploding rule must not swallow the findings of every rule after it
+    assert survived == expected
 
 
 # ─── aggregation ──────────────────────────────────────────────────────────────

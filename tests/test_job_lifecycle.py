@@ -83,14 +83,39 @@ def test_leave_analysis_never_goes_negative(reload_spy):
     job_manager._leave_analysis()
 
 
+def test_a_failed_analysis_still_releases_its_slot(monkeypatch, reload_spy):
+    """Without the `finally: _leave_analysis()` the counter leaks and hot-reload
+    silently stops working for the rest of the process."""
+    monkeypatch.setattr(job_manager, 'JOBS', {'j': job_manager._make_job_dict('/proj')})
+
+    def boom():
+        raise RuntimeError('pre_fn exploded')
+
+    job_manager._run_analysis_thread('j', '/proj', pre_fn=boom)
+    for _ in range(100):                      # the thread is daemonised
+        if job_manager.JOBS['j'].get('done'):
+            break
+        time.sleep(0.02)
+
+    assert job_manager.JOBS['j']['error'] == 'pre_fn exploded'
+    assert job_manager._ANALYSES_IN_FLIGHT == 0
+
+
 # ─── idle payload eviction ────────────────────────────────────────────────────
 
-def test_evicts_html_and_search_index_when_viewers_gone(job):
+def test_evicts_the_built_page_when_viewers_gone(job):
     assert job_manager._evict_idle_job_payloads('j1') is True
     assert job['html'] is None
-    assert job['search_index'] is None
     # `data` is what /result rebuilds the page from — it must survive.
     assert job['data'] == {'stats': {}}
+
+
+def test_search_index_survives_eviction(job):
+    # /symbol-refs has no disk fallback and temp-dir jobs lose their source on
+    # the same reap pass, so dropping this silently breaks search + references.
+    job_manager._evict_idle_job_payloads('j1')
+
+    assert job['search_index'] == {'a.py': 'source'}
 
 
 def test_evict_is_idempotent(job):

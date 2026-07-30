@@ -182,14 +182,19 @@ def _cleanup_job_temp_if_idle(jid: str, now: float = None,
 
 def _evict_idle_job_payloads(jid: str, now: float = None,
                              grace_seconds: float = VIEWER_CLOSE_GRACE_SECONDS):
-    """Release a finished job's regenerable payloads once its viewers are gone.
+    """Release a finished job's rebuildable page once its viewers are gone.
 
-    JOBS is never emptied, and every completed job pins `html` (the whole built
-    page) plus `search_index` (the text of every file in the project), so a
-    session that scans several projects grows without bound. Both are rebuilt on
-    demand — /result re-renders from `data` and /search falls back to walking the
-    disk — so a closed tab should not keep them alive for the life of the
-    process. `data` stays: everything else is derived from it.
+    JOBS is never emptied, so every completed job pins its `html` — the whole
+    built page — for the life of the process. /result re-renders it from `data`
+    on demand (server.py's `if not html:` branch), so a closed tab has no reason
+    to keep it resident.
+
+    `search_index` is deliberately NOT evicted, even though it is the larger
+    payload: /symbol-refs has no disk fallback and would silently report zero
+    references, and for zip/git/npm jobs _cleanup_job_temp_if_idle deletes the
+    source tree on this same reap pass, so /search's disk walk would have nothing
+    left to walk. Freeing it needs a rebuild path first — see LESSONS.md
+    #evicting-a-payload-needs-a-proven-rebuild-path.
 
     Mirrors _cleanup_job_temp_if_idle's idle test, and likewise leaves restored
     scans alone — those exist purely to be reopened from the homepage.
@@ -199,7 +204,7 @@ def _evict_idle_job_payloads(jid: str, now: float = None,
         job = JOBS.get(jid)
         if not job or job.get('restored') or not job.get('done'):
             return False
-        if job.get('html') is None and job.get('search_index') is None:
+        if job.get('html') is None:
             return False
         _prune_job_viewers_locked(job, now)
         last_gone = job.get('last_viewer_gone_at')
@@ -207,8 +212,7 @@ def _evict_idle_job_payloads(jid: str, now: float = None,
                 or last_gone is None or now - last_gone < grace_seconds):
             return False
         job['html'] = None
-        job['search_index'] = None
-    print(f'[EVICT] Job {jid}: released html + search index (no viewers)')
+    print(f'[EVICT] Job {jid}: released built page (no viewers)')
     return True
 
 
@@ -402,7 +406,10 @@ def _run_analysis_thread(jid: str, root: str, pre_fn=None, generate_report: bool
         entered = False
         try:
             import html_builder as _html_builder
-            _enter_analysis(analyze_bios, _html_builder)
+            # html_builder first: analyze_viz re-imports build_html from it at
+            # module level, so reloading analyze_viz last leaves it bound to the
+            # fresh function. server.py's /result rebuild uses the same order.
+            _enter_analysis(_html_builder, analyze_bios)
             entered = True
             if pre_fn:
                 with JOBS_LOCK:

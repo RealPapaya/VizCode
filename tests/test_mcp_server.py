@@ -22,19 +22,24 @@ _spec.loader.exec_module(mcp)
 
 # ─── output budgets ───────────────────────────────────────────────────────────
 
-@pytest.mark.parametrize('n_files,factor', [
-    (0, 1.0), (1, 1.0), (1499, 1.0),      # small/medium repos keep the base caps
-    (1500, 1.5), (5999, 1.5),
-    (6000, 2.0), (100_000, 2.0),
+@pytest.mark.parametrize('n_files,expected_l2', [
+    # pinned against a literal, not a re-implementation of the comprehension
+    (0, 6_000), (1, 6_000), (1499, 6_000),   # small/medium keep the base caps
+    (1500, 9_000), (5999, 9_000),
+    (6000, 12_000), (100_000, 12_000),
 ])
-def test_budget_scales_with_repo_size(n_files, factor):
-    budgets = mcp._budget_for_filecount(n_files)
-
-    assert budgets == {k: int(v * factor) for k, v in mcp._BASE_TOOL_BUDGETS.items()}
+def test_budget_scales_with_repo_size(n_files, expected_l2):
+    assert mcp._budget_for_filecount(n_files)['vizcode_l2'] == expected_l2
 
 
-def test_budget_covers_every_tool():
-    assert set(mcp._budget_for_filecount(10)) == set(mcp._BASE_TOOL_BUDGETS)
+def test_budget_covers_every_tool_the_registry_dispatches():
+    # Names come from the tool list, not from _BASE_TOOL_BUDGETS, so a tool added
+    # without a budget entry is caught instead of passing by construction.
+    budgets = mcp._budget_for_filecount(10)
+    dispatched = {n for n in dir(mcp) if n.startswith('_tool_')}
+
+    missing = {f"vizcode_{n[len('_tool_'):]}" for n in dispatched} - set(budgets)
+    assert not missing, f'tools with no output budget: {sorted(missing)}'
 
 
 @pytest.mark.parametrize('budget', [0, -1])
