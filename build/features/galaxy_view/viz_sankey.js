@@ -8,6 +8,9 @@ let _overviewSankeyDrag = null;
 let _overviewSankeySuppressClick = false;
 let _overviewSankeySelectedId = "";
 let _overviewSankeyLastLayout = null;
+let _sankeyModulePrefixCache = /* @__PURE__ */ new Map();
+let _sankeyCollapseCache = /* @__PURE__ */ new Map();
+let _sankeyAllPathsCache = null;
 const _OVERVIEW_SANKEY_MIN_ZOOM = 0.4;
 const _OVERVIEW_SANKEY_MAX_ZOOM = 6;
 const _OVERVIEW_SANKEY_TOP_MODULES = 15;
@@ -27,6 +30,77 @@ function _sankeyModuleLabel(modId) {
 function _sankeyModuleColor(modId) {
   const mod = (window.DATA?.modules || []).find((m) => m.id === modId);
   return mod?.color || _OVERVIEW_SANKEY_GRAY;
+}
+function _sankeyAllPaths() {
+  if (_sankeyAllPathsCache) return _sankeyAllPathsCache;
+  const out = [];
+  const add = (groups) => Object.values(groups || {}).forEach(
+    (files) => (files || []).forEach((f) => {
+      if (f?.path) out.push(f.path);
+    })
+  );
+  add(window.DATA?.files_by_module);
+  add(window.DATA?.other_files_by_module);
+  _sankeyAllPathsCache = out;
+  return out;
+}
+function _sankeyCollapsePrefix(prefix) {
+  if (_sankeyCollapseCache.has(prefix)) return _sankeyCollapseCache.get(prefix);
+  const paths = _sankeyAllPaths();
+  let cur = prefix;
+  for (let guard = 0; guard < 64; guard++) {
+    const children = /* @__PURE__ */ new Set();
+    let hasFile = false;
+    for (const p of paths) {
+      if (!p.startsWith(cur) || p.length <= cur.length) continue;
+      const rest = p.slice(cur.length);
+      const cut = rest.indexOf("/");
+      if (cut < 0) {
+        hasFile = true;
+        break;
+      }
+      children.add(rest.slice(0, cut));
+      if (children.size > 1) break;
+    }
+    if (hasFile || children.size !== 1) break;
+    cur += `${children.values().next().value}/`;
+  }
+  _sankeyCollapseCache.set(prefix, cur);
+  return cur;
+}
+function _sankeyModulePrefix(modId) {
+  if (_sankeyModulePrefixCache.has(modId)) return _sankeyModulePrefixCache.get(modId);
+  const files = (window.DATA?.files_by_module?.[modId] || []).concat(window.DATA?.other_files_by_module?.[modId] || []);
+  let segs = null;
+  files.forEach((f) => {
+    if (!f?.path) return;
+    const dirs = f.path.split("/").slice(0, -1);
+    if (segs === null) {
+      segs = dirs;
+      return;
+    }
+    let i = 0;
+    while (i < segs.length && i < dirs.length && segs[i] === dirs[i]) i++;
+    segs = segs.slice(0, i);
+  });
+  const prefix = _sankeyCollapsePrefix(segs && segs.length ? `${segs.join("/")}/` : "");
+  _sankeyModulePrefixCache.set(modId, prefix);
+  return prefix;
+}
+function _sankeyFramePrefix(frame) {
+  if (typeof frame?.prefix === "string") return frame.prefix;
+  return _sankeyModulePrefix(frame?.module);
+}
+function _sankeyIsDirFrame(frame) {
+  return frame?.level === "dir" || frame?.level === "file";
+}
+function _sankeyOutsideGroup(path, prefix) {
+  const pSeg = prefix ? prefix.replace(/\/+$/, "").split("/") : [];
+  const fSeg = path.split("/");
+  let i = 0;
+  while (i < pSeg.length && i < fSeg.length - 1 && pSeg[i] === fSeg[i]) i++;
+  if (i + 1 >= fSeg.length) return { path, name: fSeg[fSeg.length - 1] };
+  return { prefix: `${fSeg.slice(0, i + 1).join("/")}/`, name: fSeg[i] };
 }
 function _sankeyAddFlow(counts, s, t) {
   const key = `${s}\0${t}`;
@@ -70,7 +144,7 @@ function _sankeyBuildModuleFlows() {
     label: _sankeyModuleLabel(id),
     color: _sankeyModuleColor(id),
     title: _sankeyModuleLabel(id),
-    drill: { level: "file", module: id }
+    drill: { level: "dir", module: id, prefix: _sankeyModulePrefix(id) }
   }));
   if (folded.length) {
     nodes.set(_OVERVIEW_SANKEY_OTHERS, {
@@ -82,43 +156,60 @@ function _sankeyBuildModuleFlows() {
   }
   return { nodes, links: _sankeyFlowsToLinks(merged), unit: T("sankeyUnitDeps") };
 }
-function _sankeyBuildFileFlows(modId) {
+function _sankeyDirNodeFor(fid, prefix, modId, color, nodes, side) {
+  const file = _fileIdToFile[fid];
+  const path = file?.path;
+  if (!path) return null;
+  if (path.startsWith(prefix) && path.length > prefix.length) {
+    const rest = path.slice(prefix.length);
+    const cut = rest.indexOf("/");
+    if (cut < 0) {
+      const id3 = `f:${path}`;
+      if (!nodes.has(id3)) nodes.set(id3, {
+        label: file.label || rest,
+        color,
+        title: path,
+        drill: { level: "func", module: modId, file: path }
+      });
+      return id3;
+    }
+    const childPrefix = _sankeyCollapsePrefix(`${prefix}${rest.slice(0, cut)}/`);
+    const id2 = `d:${childPrefix}`;
+    if (!nodes.has(id2)) nodes.set(id2, {
+      label: childPrefix.slice(prefix.length),
+      color,
+      title: childPrefix,
+      drill: { level: "dir", module: modId, prefix: childPrefix }
+    });
+    return id2;
+  }
+  const outMod = _fileIdToModule[fid] || modId;
+  const group = _sankeyOutsideGroup(path, prefix);
+  if (group.prefix) group.prefix = _sankeyCollapsePrefix(group.prefix);
+  const arrow = side === "in" ? "\u21E0" : "\u21E2";
+  const id = `${side}:${group.prefix || group.path}`;
+  if (!nodes.has(id)) nodes.set(id, {
+    label: `${arrow} ${group.prefix || group.name}`,
+    color: _OVERVIEW_SANKEY_GRAY,
+    gray: true,
+    title: group.prefix || group.path,
+    drill: group.prefix ? { level: "dir", module: outMod, prefix: group.prefix } : { level: "func", module: outMod, file: group.path }
+  });
+  return id;
+}
+function _sankeyBuildDirFlows(prefix, modId) {
   const counts = /* @__PURE__ */ new Map();
   const nodes = /* @__PURE__ */ new Map();
   const color = _sankeyModuleColor(modId);
-  const fileNode = (fid) => {
-    const file = _fileIdToFile[fid];
-    if (!file?.path) return null;
-    const id = `f:${file.path}`;
-    if (!nodes.has(id)) {
-      nodes.set(id, {
-        label: file.label || file.path.split("/").pop(),
-        color,
-        title: file.path,
-        drill: { level: "func", module: modId, file: file.path }
-      });
-    }
-    return id;
-  };
-  const boundaryNode = (prefix, mod, arrow) => {
-    const id = `${prefix}:${mod}`;
-    if (!nodes.has(id)) {
-      nodes.set(id, {
-        label: `${arrow} ${_sankeyModuleLabel(mod)}`,
-        color: _OVERVIEW_SANKEY_GRAY,
-        gray: true,
-        title: _sankeyModuleLabel(mod)
-      });
-    }
-    return id;
+  const inside = (fid) => {
+    const path = _fileIdToFile[fid]?.path;
+    return !!path && path.startsWith(prefix) && path.length > prefix.length;
   };
   Object.values(window.DATA?.file_edges_by_module || {}).forEach((edges) => {
     (edges || []).forEach((e) => {
-      const sMod = _fileIdToModule[e.s];
-      const tMod = _fileIdToModule[e.t];
-      if (sMod !== modId && tMod !== modId) return;
-      const sId = sMod === modId ? fileNode(e.s) : boundaryNode("in", sMod, "\u21E0");
-      const tId = tMod === modId ? fileNode(e.t) : boundaryNode("out", tMod, "\u21E2");
+      if (!inside(e.s) && !inside(e.t)) return;
+      const sId = _sankeyDirNodeFor(e.s, prefix, modId, color, nodes, "in");
+      const tId = _sankeyDirNodeFor(e.t, prefix, modId, color, nodes, "out");
       if (!sId || !tId || sId === tId) return;
       _sankeyAddFlow(counts, sId, tId);
     });
@@ -221,7 +312,7 @@ function _sankeyFoldSides(counts, nodes) {
 }
 function _sankeyBuildModel(frame) {
   try {
-    if (frame.level === "file") return _sankeyBuildFileFlows(frame.module);
+    if (_sankeyIsDirFrame(frame)) return _sankeyBuildDirFlows(_sankeyFramePrefix(frame), frame.module);
     if (frame.level === "func") return _sankeyBuildFuncFlows(frame.file, frame.module);
     return _sankeyBuildModuleFlows();
   } catch (e) {
@@ -230,8 +321,18 @@ function _sankeyBuildModel(frame) {
   }
 }
 function _sankeyFrameTitle(frame) {
-  if (frame.level === "file") return T("sankeyLevelFiles", { name: _sankeyModuleLabel(frame.module) });
-  if (frame.level === "func") return T("sankeyLevelFuncs", { name: frame.file.split("/").pop() });
+  if (frame.level === "func") return frame.file.split("/").pop();
+  if (_sankeyIsDirFrame(frame)) {
+    const segs = _sankeyFramePrefix(frame).split("/").filter(Boolean);
+    return segs.length ? `${segs[segs.length - 1]}/` : _sankeyModuleLabel(frame.module);
+  }
+  return T("sankeyLevelModules");
+}
+function _sankeyFrameTip(frame) {
+  if (frame.level === "func") return T("sankeyLevelFuncs", { name: frame.file });
+  if (_sankeyIsDirFrame(frame)) {
+    return T("sankeyLevelDir", { name: _sankeyFramePrefix(frame) || _sankeyModuleLabel(frame.module) });
+  }
   return T("sankeyLevelModules");
 }
 function _sankeyLayout(model, w, h) {
@@ -434,9 +535,12 @@ function _sankeySyncExplorer(drill) {
   if (drill.level === "func" && drill.file) {
     if (typeof revealSidebarExplorerPath === "function") revealSidebarExplorerPath(drill.file, "file");
     if (typeof updateCallGraphBtn === "function") updateCallGraphBtn(drill.file);
-  } else if (drill.level === "file" && drill.module) {
-    if (typeof setSidebarActive === "function") setSidebarActive(drill.module);
+    return;
   }
+  if (!_sankeyIsDirFrame(drill)) return;
+  const prefix = _sankeyFramePrefix(drill).replace(/\/+$/, "");
+  const revealed = prefix && typeof revealSidebarExplorerPath === "function" && revealSidebarExplorerPath(prefix, "folder");
+  if (!revealed && drill.module && typeof setSidebarActive === "function") setSidebarActive(drill.module);
 }
 function _sankeyRenderNodes(svg, placed, side, model) {
   placed.forEach((entry) => {
@@ -505,6 +609,14 @@ function _sankeyRenderRibbons(svg, layout, model) {
     svg.appendChild(path);
   });
 }
+function _sankeyGoToDepth(depth) {
+  if (depth < 0 || depth >= _overviewSankeyStack.length - 1) return;
+  _galaxyHideTooltip();
+  _overviewSankeySelectedId = "";
+  _overviewSankeyStack = _overviewSankeyStack.slice(0, depth + 1);
+  _overviewSankeyViewport = { x: 0, y: 0, k: 1 };
+  _overviewRenderSankey();
+}
 function _sankeyRenderHeader(host) {
   const header = document.createElement("div");
   header.className = "overview-sankey-header";
@@ -513,20 +625,32 @@ function _sankeyRenderHeader(host) {
     back.type = "button";
     back.className = "overview-sankey-back";
     back.textContent = `\u2190 ${T("sankeyBack")}`;
-    back.addEventListener("click", () => {
-      _galaxyHideTooltip();
-      _overviewSankeySelectedId = "";
-      _overviewSankeyStack.pop();
-      _overviewSankeyViewport = { x: 0, y: 0, k: 1 };
-      _overviewRenderSankey();
-    });
+    back.addEventListener("click", () => _sankeyGoToDepth(_overviewSankeyStack.length - 2));
     header.appendChild(back);
   }
-  const crumb = document.createElement("span");
+  const crumb = document.createElement("div");
   crumb.className = "overview-sankey-crumb";
-  crumb.textContent = _overviewSankeyStack.map(_sankeyFrameTitle).join("  \u203A  ");
+  _overviewSankeyStack.forEach((frame, i) => {
+    if (i) {
+      const sep = document.createElement("span");
+      sep.className = "overview-sankey-crumb-sep";
+      sep.textContent = "\u203A";
+      crumb.appendChild(sep);
+    }
+    const isLast = i === _overviewSankeyStack.length - 1;
+    const item = document.createElement(isLast ? "span" : "button");
+    item.className = `overview-sankey-crumb-item${isLast ? " current" : ""}`;
+    item.textContent = _sankeyFrameTitle(frame);
+    item.title = _sankeyFrameTip(frame);
+    if (!isLast) {
+      item.type = "button";
+      item.addEventListener("click", () => _sankeyGoToDepth(i));
+    }
+    crumb.appendChild(item);
+  });
   header.appendChild(crumb);
   host.appendChild(header);
+  crumb.scrollLeft = crumb.scrollWidth;
   return header;
 }
 function _overviewRenderSankey() {
@@ -610,6 +734,9 @@ function _overviewSankeyDestroy() {
   _overviewSankeyViewport = { x: 0, y: 0, k: 1 };
   _overviewSankeySelectedId = "";
   _overviewSankeyLastLayout = null;
+  _sankeyModulePrefixCache = /* @__PURE__ */ new Map();
+  _sankeyCollapseCache = /* @__PURE__ */ new Map();
+  _sankeyAllPathsCache = null;
   const host = document.getElementById("overview-sankey-host");
   if (host) host.innerHTML = "";
 }
@@ -639,12 +766,32 @@ window.overviewSankeyZoomState = function() {
     maxZoom: _OVERVIEW_SANKEY_MAX_ZOOM
   };
 };
+function _sankeyStackForFile(path, modId) {
+  const stack = [{ level: "module" }];
+  const parent = path.slice(0, path.lastIndexOf("/") + 1);
+  const root = _sankeyModulePrefix(modId);
+  if (!parent.startsWith(root)) {
+    stack.push({ level: "dir", module: modId, prefix: parent });
+    return stack;
+  }
+  let prefix = root;
+  stack.push({ level: "dir", module: modId, prefix });
+  while (prefix.length < parent.length) {
+    const rest = parent.slice(prefix.length);
+    const cut = rest.indexOf("/");
+    if (cut < 0) break;
+    prefix = _sankeyCollapsePrefix(`${prefix}${rest.slice(0, cut)}/`);
+    stack.push({ level: "dir", module: modId, prefix });
+    if (!parent.startsWith(prefix)) break;
+  }
+  return stack;
+}
 window.overviewSankeySelectFile = function(path) {
   if (_overviewMode !== "sankey" || !state?.galaxyActive) return false;
   if (!path) return false;
   const modId = typeof resolveModuleForFile === "function" ? resolveModuleForFile(path) : null;
   if (!modId || modId === "_root") return false;
-  _overviewSankeyStack = [{ level: "module" }, { level: "file", module: modId }];
+  _overviewSankeyStack = _sankeyStackForFile(path, modId);
   _overviewSankeySelectedId = `f:${path}`;
   _overviewSankeyViewport = { x: 0, y: 0, k: 1 };
   _overviewRenderSankey();

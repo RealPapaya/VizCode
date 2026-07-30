@@ -2,9 +2,12 @@
 
 // Overview Sankey
 // Module→module dependency flow rendered as a two-column Sankey (sources on
-// the left, targets on the right), with drill-down: modules → files within a
-// module → functions within a file. viz_overview_flow.js owns the Overview
-// mode shell; this module owns the flow models, SVG layout, and navigation.
+// the left, targets on the right), with drill-down of unbounded depth:
+// modules → directory → nested directory → … → file → functions. Every
+// directory frame shows one level of the tree (immediate sub-directories and
+// files), so the stack is as deep as the repo is. viz_overview_flow.js owns
+// the Overview mode shell; this module owns the flow models, SVG layout, and
+// navigation.
 
 // ── Sankey state ──────────────────────────────────────────────────────────────
 let _overviewSankeyResizeObserver = null;
@@ -21,6 +24,12 @@ let _overviewSankeySuppressClick = false;
 let _overviewSankeySelectedId = '';
 // Last layout's positioned nodes, kept so selection can look up node geometry.
 let _overviewSankeyLastLayout = null;
+// Path caches, all rebuilt per analysis (cleared in _overviewSankeyDestroy).
+// modId → the directory prefix its drill-down starts at (see _sankeyModulePrefix).
+let _sankeyModulePrefixCache = new Map();
+// directory prefix → the same prefix with single-child levels skipped.
+let _sankeyCollapseCache = new Map();
+let _sankeyAllPathsCache = null;
 
 const _OVERVIEW_SANKEY_MIN_ZOOM = 0.4;
 const _OVERVIEW_SANKEY_MAX_ZOOM = 6;
@@ -45,6 +54,86 @@ function _sankeyModuleLabel(modId) {
 function _sankeyModuleColor(modId) {
     const mod = (window.DATA?.modules || []).find(m => m.id === modId);
     return mod?.color || _OVERVIEW_SANKEY_GRAY;
+}
+
+function _sankeyAllPaths() {
+    if (_sankeyAllPathsCache) return _sankeyAllPathsCache;
+    const out = [];
+    const add = groups => Object.values(groups || {}).forEach(
+        (files: any) => (files || []).forEach(f => { if (f?.path) out.push(f.path); }));
+    add(window.DATA?.files_by_module);
+    add(window.DATA?.other_files_by_module);
+    _sankeyAllPathsCache = out;
+    return out;
+}
+
+// Extend a directory prefix past levels that hold a single sub-directory and no
+// files of their own — `src/main/java/com/foo` is one drill, not five. Without
+// this, unbounded depth turns deep-package layouts into a click marathon.
+function _sankeyCollapsePrefix(prefix) {
+    if (_sankeyCollapseCache.has(prefix)) return _sankeyCollapseCache.get(prefix);
+    const paths = _sankeyAllPaths();
+    let cur = prefix;
+    for (let guard = 0; guard < 64; guard++) {
+        const children = new Set();
+        let hasFile = false;
+        for (const p of paths) {
+            if (!p.startsWith(cur) || p.length <= cur.length) continue;
+            const rest = p.slice(cur.length);
+            const cut = rest.indexOf('/');
+            if (cut < 0) { hasFile = true; break; }
+            children.add(rest.slice(0, cut));
+            if (children.size > 1) break;
+        }
+        if (hasFile || children.size !== 1) break;
+        cur += `${children.values().next().value}/`;
+    }
+    _sankeyCollapseCache.set(prefix, cur);
+    return cur;
+}
+
+// The directory a module's drill-down starts at: the longest directory prefix
+// shared by all of its files. Keeps the first drill from wasting a level on a
+// single wrapper folder (module "src" opens at `src/`, not at a lone `src` node).
+function _sankeyModulePrefix(modId) {
+    if (_sankeyModulePrefixCache.has(modId)) return _sankeyModulePrefixCache.get(modId);
+    const files = (window.DATA?.files_by_module?.[modId] || [])
+        .concat(window.DATA?.other_files_by_module?.[modId] || []);
+    let segs = null;
+    files.forEach(f => {
+        if (!f?.path) return;
+        const dirs = f.path.split('/').slice(0, -1);
+        if (segs === null) { segs = dirs; return; }
+        let i = 0;
+        while (i < segs.length && i < dirs.length && segs[i] === dirs[i]) i++;
+        segs = segs.slice(0, i);
+    });
+    const prefix = _sankeyCollapsePrefix(segs && segs.length ? `${segs.join('/')}/` : '');
+    _sankeyModulePrefixCache.set(modId, prefix);
+    return prefix;
+}
+
+// The prefix a frame renders. Directory frames carry it explicitly; the legacy
+// 'file' level (and any frame missing one) falls back to the module root.
+function _sankeyFramePrefix(frame) {
+    if (typeof frame?.prefix === 'string') return frame.prefix;
+    return _sankeyModulePrefix(frame?.module);
+}
+
+function _sankeyIsDirFrame(frame) {
+    return frame?.level === 'dir' || frame?.level === 'file';
+}
+
+// Where a path outside `prefix` first diverges from it — the grouping used for
+// boundary nodes. Returns a directory one level past the shared ancestor, or
+// the file itself when it sits directly in that ancestor.
+function _sankeyOutsideGroup(path, prefix) {
+    const pSeg = prefix ? prefix.replace(/\/+$/, '').split('/') : [];
+    const fSeg = path.split('/');
+    let i = 0;
+    while (i < pSeg.length && i < fSeg.length - 1 && pSeg[i] === fSeg[i]) i++;
+    if (i + 1 >= fSeg.length) return { path, name: fSeg[fSeg.length - 1] };
+    return { prefix: `${fSeg.slice(0, i + 1).join('/')}/`, name: fSeg[i] };
 }
 
 function _sankeyAddFlow(counts, s, t) {
@@ -97,7 +186,7 @@ function _sankeyBuildModuleFlows() {
         label: _sankeyModuleLabel(id),
         color: _sankeyModuleColor(id),
         title: _sankeyModuleLabel(id),
-        drill: { level: 'file', module: id },
+        drill: { level: 'dir', module: id, prefix: _sankeyModulePrefix(id) },
     }));
     if (folded.length) {
         nodes.set(_OVERVIEW_SANKEY_OTHERS, {
@@ -110,47 +199,75 @@ function _sankeyBuildModuleFlows() {
     return { nodes, links: _sankeyFlowsToLinks(merged), unit: T('sankeyUnitDeps') };
 }
 
-// File level: file→file flow within one module, plus grayed boundary nodes
-// for flow crossing the module boundary (⇠ inbound sources, ⇢ outbound sinks).
-function _sankeyBuildFileFlows(modId) {
+// Directory level: one level of the tree under `prefix`. Files sitting directly
+// in the directory become file nodes (drill → functions); everything deeper is
+// aggregated into its immediate sub-directory node (drill → that directory), so
+// drilling can continue for as many levels as the repo has. Flow crossing the
+// directory boundary folds into grayed nodes (⇠ inbound sources, ⇢ outbound
+// sinks) named after where the path diverges — those stay drillable too, so a
+// dependency can be followed sideways out of the current subtree.
+function _sankeyDirNodeFor(fid, prefix, modId, color, nodes, side) {
+    const file = _fileIdToFile[fid];
+    const path = file?.path;
+    if (!path) return null;
+
+    if (path.startsWith(prefix) && path.length > prefix.length) {
+        const rest = path.slice(prefix.length);
+        const cut = rest.indexOf('/');
+        if (cut < 0) {
+            const id = `f:${path}`;
+            if (!nodes.has(id)) nodes.set(id, {
+                label: file.label || rest,
+                color,
+                title: path,
+                drill: { level: 'func', module: modId, file: path },
+            });
+            return id;
+        }
+        // Label with the collapsed path so a skipped single-child chain is
+        // visible up front rather than a surprise after the click.
+        const childPrefix = _sankeyCollapsePrefix(`${prefix}${rest.slice(0, cut)}/`);
+        const id = `d:${childPrefix}`;
+        if (!nodes.has(id)) nodes.set(id, {
+            label: childPrefix.slice(prefix.length),
+            color,
+            title: childPrefix,
+            drill: { level: 'dir', module: modId, prefix: childPrefix },
+        });
+        return id;
+    }
+
+    const outMod = _fileIdToModule[fid] || modId;
+    const group = _sankeyOutsideGroup(path, prefix);
+    if (group.prefix) group.prefix = _sankeyCollapsePrefix(group.prefix);
+    const arrow = side === 'in' ? '⇠' : '⇢';
+    const id = `${side}:${group.prefix || group.path}`;
+    if (!nodes.has(id)) nodes.set(id, {
+        label: `${arrow} ${group.prefix || group.name}`,
+        color: _OVERVIEW_SANKEY_GRAY,
+        gray: true,
+        title: group.prefix || group.path,
+        drill: group.prefix
+            ? { level: 'dir', module: outMod, prefix: group.prefix }
+            : { level: 'func', module: outMod, file: group.path },
+    });
+    return id;
+}
+
+function _sankeyBuildDirFlows(prefix, modId) {
     const counts = new Map();
     const nodes = new Map();
     const color = _sankeyModuleColor(modId);
-
-    const fileNode = fid => {
-        const file = _fileIdToFile[fid];
-        if (!file?.path) return null;
-        const id = `f:${file.path}`;
-        if (!nodes.has(id)) {
-            nodes.set(id, {
-                label: file.label || file.path.split('/').pop(),
-                color,
-                title: file.path,
-                drill: { level: 'func', module: modId, file: file.path },
-            });
-        }
-        return id;
-    };
-    const boundaryNode = (prefix, mod, arrow) => {
-        const id = `${prefix}:${mod}`;
-        if (!nodes.has(id)) {
-            nodes.set(id, {
-                label: `${arrow} ${_sankeyModuleLabel(mod)}`,
-                color: _OVERVIEW_SANKEY_GRAY,
-                gray: true,
-                title: _sankeyModuleLabel(mod),
-            });
-        }
-        return id;
+    const inside = fid => {
+        const path = _fileIdToFile[fid]?.path;
+        return !!path && path.startsWith(prefix) && path.length > prefix.length;
     };
 
     Object.values(window.DATA?.file_edges_by_module || {}).forEach(edges => {
         (edges || []).forEach(e => {
-            const sMod = _fileIdToModule[e.s];
-            const tMod = _fileIdToModule[e.t];
-            if (sMod !== modId && tMod !== modId) return;
-            const sId = sMod === modId ? fileNode(e.s) : boundaryNode('in', sMod, '⇠');
-            const tId = tMod === modId ? fileNode(e.t) : boundaryNode('out', tMod, '⇢');
+            if (!inside(e.s) && !inside(e.t)) return;
+            const sId = _sankeyDirNodeFor(e.s, prefix, modId, color, nodes, 'in');
+            const tId = _sankeyDirNodeFor(e.t, prefix, modId, color, nodes, 'out');
             if (!sId || !tId || sId === tId) return;
             _sankeyAddFlow(counts, sId, tId);
         });
@@ -257,7 +374,7 @@ function _sankeyFoldSides(counts, nodes) {
 
 function _sankeyBuildModel(frame) {
     try {
-        if (frame.level === 'file') return _sankeyBuildFileFlows(frame.module);
+        if (_sankeyIsDirFrame(frame)) return _sankeyBuildDirFlows(_sankeyFramePrefix(frame), frame.module);
         if (frame.level === 'func') return _sankeyBuildFuncFlows(frame.file, frame.module);
         return _sankeyBuildModuleFlows();
     } catch (e) {
@@ -266,9 +383,22 @@ function _sankeyBuildModel(frame) {
     }
 }
 
+// Short breadcrumb label — the stack can be arbitrarily deep, so each crumb
+// carries only its own segment and the full path goes in the hover title.
 function _sankeyFrameTitle(frame) {
-    if (frame.level === 'file') return T('sankeyLevelFiles', { name: _sankeyModuleLabel(frame.module) });
-    if (frame.level === 'func') return T('sankeyLevelFuncs', { name: frame.file.split('/').pop() });
+    if (frame.level === 'func') return frame.file.split('/').pop();
+    if (_sankeyIsDirFrame(frame)) {
+        const segs = _sankeyFramePrefix(frame).split('/').filter(Boolean);
+        return segs.length ? `${segs[segs.length - 1]}/` : _sankeyModuleLabel(frame.module);
+    }
+    return T('sankeyLevelModules');
+}
+
+function _sankeyFrameTip(frame) {
+    if (frame.level === 'func') return T('sankeyLevelFuncs', { name: frame.file });
+    if (_sankeyIsDirFrame(frame)) {
+        return T('sankeyLevelDir', { name: _sankeyFramePrefix(frame) || _sankeyModuleLabel(frame.module) });
+    }
     return T('sankeyLevelModules');
 }
 
@@ -487,16 +617,21 @@ function _sankeyRibbonTooltip(r, model, event) {
 
 // Sankey → Explorer: reflect a drilled node in the left Explorer. File nodes
 // reveal the file in the tree (but intentionally do NOT pop the code panel —
-// a sankey file click drills the flow, it shouldn't open code); module nodes
-// highlight the module row. All targets are global functions that may be absent.
+// a sankey file click drills the flow, it shouldn't open code); directory nodes
+// reveal the folder, falling back to the module row for a module-root frame.
+// All targets are global functions that may be absent.
 function _sankeySyncExplorer(drill) {
     if (!drill) return;
     if (drill.level === 'func' && drill.file) {
         if (typeof revealSidebarExplorerPath === 'function') revealSidebarExplorerPath(drill.file, 'file');
         if (typeof updateCallGraphBtn === 'function') updateCallGraphBtn(drill.file);
-    } else if (drill.level === 'file' && drill.module) {
-        if (typeof setSidebarActive === 'function') setSidebarActive(drill.module);
+        return;
     }
+    if (!_sankeyIsDirFrame(drill)) return;
+    const prefix = _sankeyFramePrefix(drill).replace(/\/+$/, '');
+    const revealed = prefix && typeof revealSidebarExplorerPath === 'function'
+        && revealSidebarExplorerPath(prefix, 'folder');
+    if (!revealed && drill.module && typeof setSidebarActive === 'function') setSidebarActive(drill.module);
 }
 
 function _sankeyRenderNodes(svg, placed, side, model) {
@@ -564,6 +699,18 @@ function _sankeyRenderRibbons(svg, layout, model) {
     });
 }
 
+// Truncate the drill stack back to `depth` (0 = the module overview). With
+// unbounded depth, stepping back one frame at a time is not enough — every
+// crumb is a jump target.
+function _sankeyGoToDepth(depth) {
+    if (depth < 0 || depth >= _overviewSankeyStack.length - 1) return;
+    _galaxyHideTooltip();
+    _overviewSankeySelectedId = '';
+    _overviewSankeyStack = _overviewSankeyStack.slice(0, depth + 1);
+    _overviewSankeyViewport = { x: 0, y: 0, k: 1 };
+    _overviewRenderSankey();
+}
+
 function _sankeyRenderHeader(host) {
     const header = document.createElement('div');
     header.className = 'overview-sankey-header';
@@ -572,20 +719,33 @@ function _sankeyRenderHeader(host) {
         back.type = 'button';
         back.className = 'overview-sankey-back';
         back.textContent = `← ${T('sankeyBack')}`;
-        back.addEventListener('click', () => {
-            _galaxyHideTooltip();
-            _overviewSankeySelectedId = '';
-            _overviewSankeyStack.pop();
-            _overviewSankeyViewport = { x: 0, y: 0, k: 1 };
-            _overviewRenderSankey();
-        });
+        back.addEventListener('click', () => _sankeyGoToDepth(_overviewSankeyStack.length - 2));
         header.appendChild(back);
     }
-    const crumb = document.createElement('span');
+    const crumb = document.createElement('div');
     crumb.className = 'overview-sankey-crumb';
-    crumb.textContent = _overviewSankeyStack.map(_sankeyFrameTitle).join('  ›  ');
+    _overviewSankeyStack.forEach((frame, i) => {
+        if (i) {
+            const sep = document.createElement('span');
+            sep.className = 'overview-sankey-crumb-sep';
+            sep.textContent = '›';
+            crumb.appendChild(sep);
+        }
+        const isLast = i === _overviewSankeyStack.length - 1;
+        const item = document.createElement(isLast ? 'span' : 'button');
+        item.className = `overview-sankey-crumb-item${isLast ? ' current' : ''}`;
+        item.textContent = _sankeyFrameTitle(frame);
+        item.title = _sankeyFrameTip(frame);
+        if (!isLast) {
+            (item as HTMLButtonElement).type = 'button';
+            item.addEventListener('click', () => _sankeyGoToDepth(i));
+        }
+        crumb.appendChild(item);
+    });
     header.appendChild(crumb);
     host.appendChild(header);
+    // A deep stack overflows the header; keep the current frame in view.
+    crumb.scrollLeft = crumb.scrollWidth;
     return header;
 }
 
@@ -670,6 +830,9 @@ function _overviewSankeyDestroy() {
     _overviewSankeyViewport = { x: 0, y: 0, k: 1 };
     _overviewSankeySelectedId = '';
     _overviewSankeyLastLayout = null;
+    _sankeyModulePrefixCache = new Map();
+    _sankeyCollapseCache = new Map();
+    _sankeyAllPathsCache = null;
     const host = document.getElementById('overview-sankey-host');
     if (host) host.innerHTML = '';
 }
@@ -706,14 +869,38 @@ window.overviewSankeyZoomState = function () {
     };
 };
 
-// Explorer → Sankey: navigate to the file's module (file level) and highlight
-// + centre that file node. Returns true if the node was found.
+// Explorer → Sankey: open the directory that actually contains the file —
+// pushing one frame per directory level so the breadcrumb matches a manual
+// drill — then highlight + centre that file node. Returns true if found.
+function _sankeyStackForFile(path, modId) {
+    const stack: any[] = [{ level: 'module' }];
+    const parent = path.slice(0, path.lastIndexOf('/') + 1);
+    const root = _sankeyModulePrefix(modId);
+    if (!parent.startsWith(root)) {
+        stack.push({ level: 'dir', module: modId, prefix: parent });
+        return stack;
+    }
+    let prefix = root;
+    stack.push({ level: 'dir', module: modId, prefix });
+    // Walk down a level at a time, honouring the same collapse a manual drill
+    // applies, so the breadcrumb matches what clicking through would produce.
+    while (prefix.length < parent.length) {
+        const rest = parent.slice(prefix.length);
+        const cut = rest.indexOf('/');
+        if (cut < 0) break;
+        prefix = _sankeyCollapsePrefix(`${prefix}${rest.slice(0, cut)}/`);
+        stack.push({ level: 'dir', module: modId, prefix });
+        if (!parent.startsWith(prefix)) break;
+    }
+    return stack;
+}
+
 window.overviewSankeySelectFile = function (path) {
     if (_overviewMode !== 'sankey' || !state?.galaxyActive) return false;
     if (!path) return false;
     const modId = typeof resolveModuleForFile === 'function' ? resolveModuleForFile(path) : null;
     if (!modId || modId === '_root') return false;
-    _overviewSankeyStack = [{ level: 'module' }, { level: 'file', module: modId }] as any[];
+    _overviewSankeyStack = _sankeyStackForFile(path, modId);
     _overviewSankeySelectedId = `f:${path}`;
     _overviewSankeyViewport = { x: 0, y: 0, k: 1 };
     _overviewRenderSankey();
