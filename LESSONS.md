@@ -19,6 +19,45 @@ pointer line here.
 
 ---
 
+## local-server-is-reachable-from-any-web-page (2026-07-30)
+- Trap: `server.py` binds 127.0.0.1 (good) but that does NOT make it private —
+  any web page the user has open can issue simple cross-origin requests to
+  `http://127.0.0.1:7777`. `json_resp` used to add
+  `Access-Control-Allow-Origin: *` (server.py:2557 + the two SSE handlers), which
+  let those pages *read* the replies. Chain: `GET /jobs` (job ids + absolute
+  project paths) → `GET /file` → whole codebase. Separately, `/chat-history`
+  built its path as `os.path.join(chat_dir, session_id + '.json')` with no
+  sanitising on GET or POST, so `session=../../../x` read/overwrote any `.json`
+  on disk — including `.vizcode/key/ai_keys.json`. Verified live: HTTP 200 +
+  `ACAO: *` returning the repo's `tsconfig.json` from a job rooted at
+  `testproject/`. `/file` (server.py:317) and `/open-path` (server.py:2299) had
+  the `root_norm` guard all along — `/chat-history` was simply missed.
+- Cost: none realised — found in the 2026-07-30 health check. Fixed same session
+  (`_safe_session_id`, ACAO headers removed, tests/test_server_security.py).
+- Rule: every new endpoint that turns a request value into a path MUST either
+  reuse the `root_norm` prefix check (server.py:317) or pass the value through
+  `_safe_session_id`-style whitelisting — a bare `os.path.join` with request data
+  is a bug, always. Never add `Access-Control-Allow-Origin` back: the UI is served
+  from the same origin (`BASE_URL`) and needs no CORS. Residual, not yet fixed:
+  cross-origin POSTs still *execute* (CSRF) even though the reply is unreadable.
+- Also: `tarfile.extractall` needs the same member check the ZIP path already had
+  (fetcher.py:22) — Python 3.11 extracts `../` and symlinks happily.
+
+## import-server-is-ambiguous-in-tests (2026-07-30)
+- Trap: conftest.py puts both `src/` and `src/core/` on sys.path. Because
+  `src/server/` is a directory with no `__init__.py`, the bare name `server`
+  resolves to EITHER the namespace package `src/server/` or the module
+  `src/server/server.py`, depending on which test imported first. A test file
+  passed standalone and failed in the full suite (and vice versa after
+  "fixing" it) with `AttributeError: module 'server' has no attribute ...`.
+- Cost: ~15 min of chasing a phantom regression during the same health check.
+- Rule: to test anything in `src/server/server.py`, load it by path under a
+  distinct name — `importlib.util.spec_from_file_location('viz_server', ...)`
+  — never `import server` or `from server import server`. See
+  tests/test_server_security.py for the working pattern. (`fetcher`,
+  `job_manager` etc. have no such collision and import normally once
+  `src/server` is on sys.path.)
+
 ## parser-import-block-all-or-nothing-failure (2026-07-08)
 - Trap: `src/core/analyze_viz.py` wraps ALL parser imports in a single
   `try/except ImportError` block (lines 55–105). Adding an import for a

@@ -34,6 +34,21 @@ def _fs_longpath(p: str) -> str:
     return p
 
 
+_SESSION_ID_RE = re.compile(r'^[A-Za-z0-9_\-]{1,120}$')
+
+
+def _safe_session_id(session_id: str) -> str:
+    """Return session_id if it is a bare filename token, else ''.
+
+    Chat sessions are stored as ``<root>/.vizcode/chat/<session_id>.json``. The
+    id comes straight from the browser, so anything containing a separator or
+    ``..`` would let a caller read or overwrite JSON files anywhere on disk.
+    The frontend only ever generates ``session_<YYYYMMDD...>`` (viz_chat.ts),
+    so a strict whitelist costs nothing.
+    """
+    return session_id if _SESSION_ID_RE.match(session_id or '') else ''
+
+
 def _fatal_startup_error(message: str, *, details: Optional[str] = None, exit_code: int = 1) -> "None":
     sys.stderr.write(f"{message}\n")
     if details:
@@ -1038,7 +1053,6 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header('Content-Type', 'text/event-stream; charset=utf-8')
             self.send_header('Cache-Control', 'no-cache')
             self.send_header('Connection', 'keep-alive')
-            self.send_header('Access-Control-Allow-Origin', '*')
             self.send_header('X-Accel-Buffering', 'no')
             self.end_headers()
 
@@ -1719,7 +1733,10 @@ class Handler(BaseHTTPRequestHandler):
         elif p == '/chat-history':
             # ── VizBridge: load a specific session ────────────────────────
             jid        = qs.get('job',     [''])[0]
-            session_id = qs.get('session', [''])[0]
+            session_raw = qs.get('session', [''])[0]
+            session_id  = _safe_session_id(session_raw)
+            if session_raw and not session_id:
+                self.json_resp({'error': 'Invalid session id'}, 400); return
             with JOBS_LOCK:
                 job = JOBS.get(jid, {})
             root = job.get('root', '')
@@ -2152,10 +2169,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.json_resp({'error': str(e)}, 400)
                 return
             job_id     = body.get('job_id', '')
-            session_id = body.get('session_id', '')
+            session_id = _safe_session_id(body.get('session_id', ''))
             history    = body.get('history', [])
             if not session_id:
-                self.json_resp({'error': 'No session_id'}, 400)
+                self.json_resp({'error': 'Missing or invalid session_id'}, 400)
                 return
             with JOBS_LOCK:
                 job = JOBS.get(job_id, {})
@@ -2363,7 +2380,6 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header('Content-Type', 'text/event-stream; charset=utf-8')
             self.send_header('Cache-Control', 'no-cache')
             self.send_header('Connection', 'keep-alive')
-            self.send_header('Access-Control-Allow-Origin', '*')
             self.send_header('X-Accel-Buffering', 'no')
             self.end_headers()
 
@@ -2554,7 +2570,6 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Content-Length', len(body))
-        self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
         self.wfile.write(body)
 

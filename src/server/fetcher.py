@@ -83,6 +83,11 @@ def _download_npm_tarball(tarball_url: str, tmp_dir: str) -> str:
         raise RuntimeError(f'Package exceeds {NPM_TARBALL_MAX_BYTES // 1024 // 1024} MB limit')
     try:
         with tarfile.open(fileobj=io.BytesIO(data), mode='r:gz') as tf:
+            for member in tf.getmembers():
+                if os.path.isabs(member.name) or '..' in member.name.split('/'):
+                    raise ValueError(f'Unsafe path in tarball: {member.name}')
+                if member.issym() or member.islnk():
+                    raise ValueError(f'Link entry not allowed in tarball: {member.name}')
             tf.extractall(tmp_dir)
     except Exception as e:
         raise RuntimeError(f'Failed to extract tarball: {e}')
