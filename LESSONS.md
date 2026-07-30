@@ -20,91 +20,72 @@ pointer line here.
 ---
 
 ## no-relative-imports-in-src-core (2026-07-30)
-- Trap: `src/core/*.py` are imported as TOP-LEVEL modules — the server, the CLI
-  and tests/conftest.py all put `src/core` on `sys.path` and do
-  `import analyze_viz`. There is no parent package, so `from .local_dir import
-  ensure_local_dir` raises `ImportError: attempted relative import with no known
-  parent package`. Three writers had it, and every one of them failed silently
-  because the caller wrapped it in try/except or returned None:
-  `result_store.save_result`, `parse_memo.flush_memo`,
-  `analyze_viz._append_health_snapshot`.
-- Cost: `result.json` was never written, so the homepage "reopen previous scan"
-  list was permanently empty; `scan_cache.json` and `health_history.json` sat
-  frozen for six weeks, meaning the parse memo was dead (full re-parse every
-  scan), the Health Trend widget had stale data, and vizbridge answered Web AI
-  questions from a six-week-old index. Nothing surfaced except one
-  `[WARN] Health-snapshot write failed: ...` line on stderr.
-- Rule: never write `from .x import y` under `src/`. Use a plain
-  `from x import y`, or the two-step form already used at
-  `analytics_helpers.py:940` when the module must also work as a package:
+- Trap: `src/core/*.py` are imported as TOP-LEVEL modules (server, CLI and
+  conftest all put `src/core` on `sys.path`), so `from .local_dir import x`
+  raises `ImportError: attempted relative import with no known parent package`.
+  Three writers had it and all failed silently — the caller either wrapped it in
+  try/except or returned None: `result_store.save_result`,
+  `parse_memo.flush_memo`, `analyze_viz._append_health_snapshot`.
+- Cost: `result.json` never written (homepage "reopen previous scan" permanently
+  empty); `scan_cache.json` + `health_history.json` frozen for six weeks — parse
+  memo dead, Health Trend stale, and vizbridge answering Web AI from a six-week-old
+  index. Only signal was one `[WARN] Health-snapshot write failed` on stderr.
+- Rule: never write `from .x import y` under `src/`. Use `from x import y`, or the
+  two-step form at `analytics_helpers.py:940` if it must also work as a package:
   `try: from x import y` / `except ImportError: from .x import y`.
   Regression test: tests/test_local_dir_imports.py.
 
 ## dasht-returns-the-key-so-or-fallbacks-never-fire (2026-07-30)
-- Trap: `_dashT(key)` (dashboard_utils.ts) returns the KEY ITSELF when the key is
-  undefined, so the common-looking `_dashT('dashFoo') || 'Foo'` never falls back
-  — `'dashFoo'` is truthy and the raw key renders in the UI. `dashOthers` shipped
-  this way in four chart call sites.
-- Cost: chart legends read "dashOthers" instead of "Others" in both languages.
-- Rule: `_dashT` is not optional-chaining — every key it is called with MUST
-  exist in BOTH the `en` and `zh-tw` tables in `static/core/i18n.ts`. The `||`
-  fallback is decoration, not a safety net. When adding a widget string, add the
-  key to both tables in the same change and re-check parity (they should stay
-  equal in count).
+- Trap: `_dashT(key)` (dashboard_utils.ts) returns the KEY ITSELF when undefined,
+  so `_dashT('dashFoo') || 'Foo'` never falls back — `'dashFoo'` is truthy and the
+  raw key renders. `dashOthers` shipped that way in four chart call sites.
+- Cost: chart legends read "dashOthers" instead of "Others", in both languages.
+- Rule: `_dashT` is not optional-chaining. Every key MUST exist in BOTH the `en`
+  and `zh-tw` tables in `static/core/i18n.ts`; the `||` is decoration, not a
+  safety net. Add to both tables in the same change and re-check key-count parity.
 
 ## local-server-is-reachable-from-any-web-page (2026-07-30)
-- Trap: `server.py` binds 127.0.0.1 (good) but that does NOT make it private —
-  any web page the user has open can issue simple cross-origin requests to
-  `http://127.0.0.1:7777`. `json_resp` used to add
-  `Access-Control-Allow-Origin: *` (server.py:2557 + the two SSE handlers), which
-  let those pages *read* the replies. Chain: `GET /jobs` (job ids + absolute
-  project paths) → `GET /file` → whole codebase. Separately, `/chat-history`
-  built its path as `os.path.join(chat_dir, session_id + '.json')` with no
-  sanitising on GET or POST, so `session=../../../x` read/overwrote any `.json`
-  on disk — including `.vizcode/key/ai_keys.json`. Verified live: HTTP 200 +
-  `ACAO: *` returning the repo's `tsconfig.json` from a job rooted at
-  `testproject/`. `/file` (server.py:317) and `/open-path` (server.py:2299) had
-  the `root_norm` guard all along — `/chat-history` was simply missed.
-- Cost: none realised — found in the 2026-07-30 health check. Fixed same session
-  (`_safe_session_id`, ACAO headers removed, tests/test_server_security.py).
-- Rule: every new endpoint that turns a request value into a path MUST either
-  reuse the `root_norm` prefix check (server.py:317) or pass the value through
-  `_safe_session_id`-style whitelisting — a bare `os.path.join` with request data
-  is a bug, always. Never add `Access-Control-Allow-Origin` back: the UI is served
-  from the same origin (`BASE_URL`) and needs no CORS. `do_GET`/`do_POST` also
-  open with `_is_local_request()` (Host + Sec-Fetch-Site + Origin) to refuse
-  cross-site CSRF and DNS rebinding — keep that first line in any new verb handler.
-- Also: `tarfile.extractall` needs the same member check the ZIP path already had
+- Trap: binding 127.0.0.1 does NOT make the server private — any page the user has
+  open can aim simple cross-origin requests at `http://127.0.0.1:7777`.
+  `json_resp` used to send `Access-Control-Allow-Origin: *`, letting those pages
+  READ the replies: `GET /jobs` (job ids + absolute paths) → `GET /file` → whole
+  codebase. Separately `/chat-history` did `os.path.join(chat_dir, session_id +
+  '.json')` unsanitised on GET and POST, so `session=../../../x` read/overwrote any
+  `.json` on disk, `.vizcode/key/ai_keys.json` included. Verified live: HTTP 200 +
+  `ACAO: *` returning the repo's `tsconfig.json`. `/file` (server.py:317) and
+  `/open-path` had the `root_norm` guard all along; `/chat-history` was missed.
+- Cost: none realised — found and fixed in the 2026-07-30 health check.
+- Rule: any endpoint turning a request value into a path MUST use the `root_norm`
+  prefix check (server.py:317) or `_safe_session_id`-style whitelisting; a bare
+  `os.path.join` on request data is always a bug. Never add
+  `Access-Control-Allow-Origin` back — the UI is same-origin (`BASE_URL`).
+  `do_GET`/`do_POST` open with `_is_local_request()` (Host + Sec-Fetch-Site +
+  Origin) against CSRF and DNS rebinding — keep that first line in new verb
+  handlers. Also: `tarfile.extractall` needs the ZIP path's member check
   (fetcher.py:22) — Python 3.11 extracts `../` and symlinks happily.
 
 ## best-effort-writes-must-still-say-when-they-fail (2026-07-30)
-- Trap: every `.vizcode/` writer swallows its exception with a bare `pass` because
-  persistence must never abort a scan. Correct — but silent. When
-  `from .local_dir import ...` started raising, `result.json` stopped being
-  written and `scan_cache.json` / `health_history.json` froze, and NOTHING said
-  so for six weeks: no error, no log, and the scan still reported success.
-- Cost: dead "reopen previous scan" feature, dead parse memo (full re-parse every
-  scan), stale Health Trend widget, and Web AI answering from a six-week-old
-  index. Found only because one sibling call site happened to print a WARN.
-- Rule: `except: pass` is allowed around a cache/artifact READ that falls back to
-  a default. Around a WRITE it must be `except Exception as e:` +
-  `print(f'[WARN] ... : {e}', file=sys.stderr)`. If a user could later ask "why is
+- Trap: every `.vizcode/` writer swallows its exception with a bare `pass`, because
+  persistence must never abort a scan. Correct — but silent. When the relative
+  import above started raising, three caches stopped updating and NOTHING said so
+  for six weeks: no error, no log, and the scan still reported success.
+- Cost: see the entry above — four features quietly degraded.
+- Rule: `except: pass` is fine around a cache READ that falls back to a default.
+  Around a WRITE it must be `except Exception as e:` +
+  `print(f'[WARN] ...: {e}', file=sys.stderr)`. If a user could later ask "why is
   this data stale?", the failure has to be visible somewhere.
 
 ## import-server-is-ambiguous-in-tests (2026-07-30)
-- Trap: conftest.py puts both `src/` and `src/core/` on sys.path. Because
-  `src/server/` is a directory with no `__init__.py`, the bare name `server`
-  resolves to EITHER the namespace package `src/server/` or the module
-  `src/server/server.py`, depending on which test imported first. A test file
-  passed standalone and failed in the full suite (and vice versa after
-  "fixing" it) with `AttributeError: module 'server' has no attribute ...`.
-- Cost: ~15 min of chasing a phantom regression during the same health check.
-- Rule: to test anything in `src/server/server.py`, load it by path under a
-  distinct name — `importlib.util.spec_from_file_location('viz_server', ...)`
-  — never `import server` or `from server import server`. See
-  tests/test_server_security.py for the working pattern. (`fetcher`,
-  `job_manager` etc. have no such collision and import normally once
-  `src/server` is on sys.path.)
+- Trap: conftest puts both `src/` and `src/core/` on sys.path, and `src/server/`
+  has no `__init__.py`, so the bare name `server` resolves to EITHER the namespace
+  package or `src/server/server.py` depending on which test imported first. A test
+  passed standalone and failed in the full suite with
+  `AttributeError: module 'server' has no attribute ...`.
+- Cost: ~15 min chasing a phantom regression during the same health check.
+- Rule: to test `src/server/server.py` (or `mcp_server.py`), load it by path under
+  a distinct name — `importlib.util.spec_from_file_location('viz_server', ...)` —
+  never `import server`. Pattern: tests/test_server_security.py. (`fetcher`,
+  `job_manager` have no collision and import normally.)
 
 ## parser-import-block-all-or-nothing-failure (2026-07-08)
 - Trap: `src/core/analyze_viz.py` wraps ALL parser imports in a single
@@ -128,10 +109,9 @@ pointer line here.
 ## widget-detail-must-anchor-sibling-interaction-idioms (2026-07-08)
 - Trap: a new widget whose detail view is wired correctly (data, i18n, assets)
   but built from its own inline styles reads as alien and unusable next to
-  siblings: tiny fixed-size chart, labels ellipsis-truncated to 2 chars,
-  monotonous identical rows, zero click-through — while every sibling detail
-  offers `_dashGoToGraphFile` navigation, `data-clickable` hover,
-  `.dash-report-section-title` headers, and detail-sized charts.
+  siblings — tiny fixed chart, labels truncated to 2 chars, no click-through —
+  while every sibling detail offers `_dashGoToGraphFile` navigation,
+  `data-clickable` hover, `.dash-report-section-title` headers, detail-sized charts.
 - Cost: full user-reported rework of widget_harness_scan.ts detail mode one
   day after shipping.
 - Rule: before writing any widget's renderDetail, read the best sibling's
