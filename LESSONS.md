@@ -19,6 +19,39 @@ pointer line here.
 
 ---
 
+## no-relative-imports-in-src-core (2026-07-30)
+- Trap: `src/core/*.py` are imported as TOP-LEVEL modules — the server, the CLI
+  and tests/conftest.py all put `src/core` on `sys.path` and do
+  `import analyze_viz`. There is no parent package, so `from .local_dir import
+  ensure_local_dir` raises `ImportError: attempted relative import with no known
+  parent package`. Three writers had it, and every one of them failed silently
+  because the caller wrapped it in try/except or returned None:
+  `result_store.save_result`, `parse_memo.flush_memo`,
+  `analyze_viz._append_health_snapshot`.
+- Cost: `result.json` was never written, so the homepage "reopen previous scan"
+  list was permanently empty; `scan_cache.json` and `health_history.json` sat
+  frozen for six weeks, meaning the parse memo was dead (full re-parse every
+  scan), the Health Trend widget had stale data, and vizbridge answered Web AI
+  questions from a six-week-old index. Nothing surfaced except one
+  `[WARN] Health-snapshot write failed: ...` line on stderr.
+- Rule: never write `from .x import y` under `src/`. Use a plain
+  `from x import y`, or the two-step form already used at
+  `analytics_helpers.py:940` when the module must also work as a package:
+  `try: from x import y` / `except ImportError: from .x import y`.
+  Regression test: tests/test_local_dir_imports.py.
+
+## dasht-returns-the-key-so-or-fallbacks-never-fire (2026-07-30)
+- Trap: `_dashT(key)` (dashboard_utils.ts) returns the KEY ITSELF when the key is
+  undefined, so the common-looking `_dashT('dashFoo') || 'Foo'` never falls back
+  — `'dashFoo'` is truthy and the raw key renders in the UI. `dashOthers` shipped
+  this way in four chart call sites.
+- Cost: chart legends read "dashOthers" instead of "Others" in both languages.
+- Rule: `_dashT` is not optional-chaining — every key it is called with MUST
+  exist in BOTH the `en` and `zh-tw` tables in `static/core/i18n.ts`. The `||`
+  fallback is decoration, not a safety net. When adding a widget string, add the
+  key to both tables in the same change and re-check parity (they should stay
+  equal in count).
+
 ## local-server-is-reachable-from-any-web-page (2026-07-30)
 - Trap: `server.py` binds 127.0.0.1 (good) but that does NOT make it private —
   any web page the user has open can issue simple cross-origin requests to
