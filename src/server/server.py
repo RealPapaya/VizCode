@@ -105,6 +105,7 @@ from job_manager import (
     _make_job_dict, _read_json_body,
     _open_job_viewer, _ping_job_viewer, _close_job_viewer,
     _run_analysis_thread, _cleanup_all_job_temps, _reap_loop,
+    _enter_analysis, _leave_analysis,
     restore_recent_jobs, list_restored_jobs,
 )
 from fetcher import _extract_zip, _clone_git_repo, _fetch_npm_package, ZIP_MAX_BYTES
@@ -276,11 +277,14 @@ class Handler(BaseHTTPRequestHandler):
                 return
             try:
                 if not html:
-                    import importlib
+                    # Rebuilt on demand for jobs whose page was evicted after the
+                    # last viewer left (job_manager._evict_idle_job_payloads).
                     import html_builder as _hb
-                    importlib.reload(_hb)
-                    importlib.reload(analyze_bios)
-                    html = analyze_bios.build_html(data, job_id=jid)
+                    _enter_analysis(_hb, analyze_bios)
+                    try:
+                        html = analyze_bios.build_html(data, job_id=jid)
+                    finally:
+                        _leave_analysis()
                 body = html.encode('utf-8')
                 self.send_response(200)
                 self.send_header('Content-Type', 'text/html; charset=utf-8')
@@ -1678,8 +1682,11 @@ class Handler(BaseHTTPRequestHandler):
             })
 
         elif p == '/jobs':
+            # Same payload strip as /progress — 'html' alone was making this
+            # listing megabytes per job.
             with JOBS_LOCK:
-                snapshot = [(k, {kk: vv for kk, vv in v.items() if kk != 'data'})
+                snapshot = [(k, {kk: vv for kk, vv in v.items()
+                                 if kk not in ('data', 'html', 'search_index')})
                             for k, v in JOBS.items()]
             self.json_resp([{'id': k, **v} for k, v in snapshot])
 

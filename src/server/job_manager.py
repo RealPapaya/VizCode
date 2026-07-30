@@ -3,7 +3,7 @@ job_manager.py — VIZCODE Job Lifecycle & Viewer Tracking
 Extracted from server.py: JOBS state, viewer heartbeat, analysis thread, search index.
 """
 
-import os, sys, json, threading, time, uuid, shutil, hashlib
+import os, sys, json, threading, time, uuid, shutil, hashlib, importlib
 from pathlib import Path
 from typing import Dict
 
@@ -24,6 +24,40 @@ except ImportError:
 # ─── Global job state ────────────────────────────────────────────────────────
 JOBS: dict = {}
 JOBS_LOCK = threading.Lock()
+
+# ─── Analyser hot-reload guard ────────────────────────────────────────────────
+# analyze_viz / html_builder are reload()ed before each analysis so a source
+# edit takes effect without restarting the server. reload() rebinds the module's
+# globals under any thread that is already executing it, so it is only safe
+# while nothing else is analysing — two concurrent /analyze requests were enough
+# to swap the module out from under a running build_graph().
+_RELOAD_LOCK        = threading.Lock()
+_ANALYSES_IN_FLIGHT = 0
+
+
+def _enter_analysis(*modules) -> bool:
+    """Register an analysis, hot-reloading `modules` first if it is alone.
+
+    The reload happens while the lock is held, so no other analysis can start
+    mid-reload; a run that begins while another is in flight simply inherits the
+    modules as they are. Every caller must pair this with _leave_analysis().
+    Returns True if the reload happened.
+    """
+    global _ANALYSES_IN_FLIGHT
+    with _RELOAD_LOCK:
+        alone = _ANALYSES_IN_FLIGHT == 0
+        if alone:
+            for module in modules:
+                importlib.reload(module)
+        _ANALYSES_IN_FLIGHT += 1
+        return alone
+
+
+def _leave_analysis():
+    global _ANALYSES_IN_FLIGHT
+    with _RELOAD_LOCK:
+        _ANALYSES_IN_FLIGHT = max(0, _ANALYSES_IN_FLIGHT - 1)
+
 
 # ─── Viewer lifecycle constants ───────────────────────────────────────────────
 VIEWER_TTL_SECONDS           = 90
@@ -146,6 +180,38 @@ def _cleanup_job_temp_if_idle(jid: str, now: float = None,
     return True
 
 
+def _evict_idle_job_payloads(jid: str, now: float = None,
+                             grace_seconds: float = VIEWER_CLOSE_GRACE_SECONDS):
+    """Release a finished job's regenerable payloads once its viewers are gone.
+
+    JOBS is never emptied, and every completed job pins `html` (the whole built
+    page) plus `search_index` (the text of every file in the project), so a
+    session that scans several projects grows without bound. Both are rebuilt on
+    demand — /result re-renders from `data` and /search falls back to walking the
+    disk — so a closed tab should not keep them alive for the life of the
+    process. `data` stays: everything else is derived from it.
+
+    Mirrors _cleanup_job_temp_if_idle's idle test, and likewise leaves restored
+    scans alone — those exist purely to be reopened from the homepage.
+    """
+    now = time.time() if now is None else now
+    with JOBS_LOCK:
+        job = JOBS.get(jid)
+        if not job or job.get('restored') or not job.get('done'):
+            return False
+        if job.get('html') is None and job.get('search_index') is None:
+            return False
+        _prune_job_viewers_locked(job, now)
+        last_gone = job.get('last_viewer_gone_at')
+        if (job.get('viewers') or not job.get('viewer_tracking_started')
+                or last_gone is None or now - last_gone < grace_seconds):
+            return False
+        job['html'] = None
+        job['search_index'] = None
+    print(f'[EVICT] Job {jid}: released html + search index (no viewers)')
+    return True
+
+
 def _cleanup_job_temp(jid: str):
     """Remove temp dir for a job, if any. Safe to call multiple times."""
     with JOBS_LOCK:
@@ -178,6 +244,7 @@ def _reap_loop():
                     _prune_job_viewers_locked(job, now)
         for jid in job_ids:
             _cleanup_job_temp_if_idle(jid, now=now)
+            _evict_idle_job_payloads(jid, now=now)
 
 
 def _read_json_body(handler) -> dict:
@@ -331,10 +398,12 @@ def _run_analysis_thread(jid: str, root: str, pre_fn=None, generate_report: bool
     The browser HTML is assembled during finalization. If generate_report is
     True, analytics_helpers.generate_report() runs afterward on report_pct.
     """
-    import importlib
-
     def run():
+        entered = False
         try:
+            import html_builder as _html_builder
+            _enter_analysis(analyze_bios, _html_builder)
+            entered = True
             if pre_fn:
                 with JOBS_LOCK:
                     JOBS[jid]['msg'] = 'Preparing source...'
@@ -354,7 +423,6 @@ def _run_analysis_thread(jid: str, root: str, pre_fn=None, generate_report: bool
                     if kwargs:
                         JOBS[jid].update(kwargs)
 
-            importlib.reload(analyze_bios)
             graph_data = analyze_bios.build_graph(root_to_use, progress_cb=cb)
 
             s = graph_data['stats']
@@ -369,8 +437,6 @@ def _run_analysis_thread(jid: str, root: str, pre_fn=None, generate_report: bool
                     'stage_label': 'Finalize output',
                 })
             try:
-                import html_builder as _html_builder
-                importlib.reload(_html_builder)
                 html = _html_builder.build_html(graph_data, job_id=jid)
                 size_kb = max(1, len(html.encode('utf-8')) // 1024)
             except Exception as _he:
@@ -454,5 +520,8 @@ def _run_analysis_thread(jid: str, root: str, pre_fn=None, generate_report: bool
                     'done': True, 'error': str(e), 'pct': 0,
                     'msg': f'Error: {e}',
                 })
+        finally:
+            if entered:
+                _leave_analysis()
 
     threading.Thread(target=run, daemon=True).start()
