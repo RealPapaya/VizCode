@@ -18,6 +18,7 @@ CLI usage (called by SKILL.md):
 
 import hashlib
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -54,8 +55,8 @@ def _flush_raw(data: dict, project_root: Path) -> None:
             json.dumps(data, ensure_ascii=False, separators=(",", ":")),
             encoding="utf-8",
         )
-    except Exception:
-        pass
+    except Exception as e:
+        print(f'[WARN] Semantic cache write failed ({path}): {e}', file=sys.stderr)
 
 
 # ─── Public API ──────────────────────────────────────────────────────────────

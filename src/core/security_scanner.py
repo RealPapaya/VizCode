@@ -16,6 +16,7 @@ so the dashboard widget can render a trend sparkline across runs.
 import json
 import math
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Tuple
@@ -535,8 +536,9 @@ def aggregate(file_security: dict) -> dict:
 def append_history(project_root: Path, snapshot: dict) -> List[dict]:
     """Append a snapshot to ``.vizcode/security_history.json``; return the full history.
 
-    Caps to the most recent _HISTORY_CAP entries. Silent-fail on I/O — the
-    in-memory return is still correct so the widget can render the current run.
+    Caps to the most recent _HISTORY_CAP entries. A failed write warns on stderr
+    but never raises — the in-memory return is still correct so the widget can
+    render the current run.
     """
     path                  = project_root / '.vizcode' / _HISTORY_FILENAME
     history: List[dict]   = []
@@ -568,8 +570,8 @@ def append_history(project_root: Path, snapshot: dict) -> List[dict]:
                        ensure_ascii=False, separators=(',', ':')),
             encoding='utf-8',
         )
-    except Exception:
-        pass
+    except Exception as e:
+        print(f'[WARN] Security history write failed ({path}): {e}', file=sys.stderr)
 
     return history
 

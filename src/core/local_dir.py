@@ -10,6 +10,7 @@ it, which tells git to ignore the whole directory regardless of whether the
 user has added ``.vizcode/`` to their own top-level ignore file.
 """
 
+import sys
 from pathlib import Path
 
 _DIRNAME = ".vizcode"
@@ -29,6 +30,6 @@ def ensure_local_dir(project_root) -> Path:
         gi = d / ".gitignore"
         if not gi.exists():
             gi.write_text(_GITIGNORE_BODY, encoding="utf-8")
-    except Exception:
-        pass
+    except Exception as e:
+        print(f'[WARN] Could not prepare {d}: {e}', file=sys.stderr)
     return d

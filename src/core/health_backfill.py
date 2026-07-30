@@ -119,8 +119,8 @@ def _save_history(root: str, history: list) -> None:
             json.dumps(history, ensure_ascii=False, separators=(',', ':')),
             encoding='utf-8',
         )
-    except Exception:
-        pass
+    except Exception as e:
+        print(f'[WARN] Health history write failed ({p}): {e}', file=sys.stderr)
 
 
 # ─── Per-commit analysis ──────────────────────────────────────────────────────

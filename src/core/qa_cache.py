@@ -10,6 +10,7 @@ qa_cache.py — AI Q&A 快取，存放於 .vizcode/ai_qa_cache.json
 import hashlib
 import json
 import re
+import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,8 +48,8 @@ def _flush(data: dict, project_root: Path) -> None:
             json.dumps(data, ensure_ascii=False, separators=(",", ":")),
             encoding="utf-8",
         )
-    except Exception:
-        pass
+    except Exception as e:
+        print(f'[WARN] QA cache write failed ({path}): {e}', file=sys.stderr)
 
 
 # ─── 問題標準化 & hash ────────────────────────────────────────────────────────

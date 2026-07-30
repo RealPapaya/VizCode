@@ -3014,8 +3014,8 @@ def _append_health_snapshot(root: str, stats: dict) -> None:
     try:
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(history, f, ensure_ascii=False, separators=(',', ':'))
-    except Exception:
-        pass
+    except Exception as e:
+        _console_print(f'[WARN] Health history write failed ({path}): {e}', file=sys.stderr)
 
 
 def _load_health_history(root: str) -> list:
