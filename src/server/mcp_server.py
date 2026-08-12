@@ -22,6 +22,7 @@ Tools exposed:
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 from collections import deque
@@ -98,6 +99,25 @@ def _load_json(path: str) -> dict:
         except Exception:
             pass
     return {}
+
+
+def _cache_stamp(*paths: str) -> tuple:
+    """(mtime_ns, size) per path — cheap change detector for the served caches.
+
+    The server used to read scan_cache.json once at startup and hold the derived
+    indexes for its whole lifetime, so every rescan left the MCP tools answering
+    from the previous scan until the client process was restarted. Two stat()
+    calls per tool invocation are free next to rebuilding, which only happens
+    when the file actually changed.
+    """
+    out = []
+    for p in paths:
+        try:
+            st = os.stat(p)
+            out.append((st.st_mtime_ns, st.st_size))
+        except OSError:
+            out.append(None)
+    return tuple(out)
 
 
 def _scan_cache_hash(scan: dict) -> str:
@@ -1810,12 +1830,25 @@ def _tool_report(report_path: str) -> str:
 # ─── Server loop ──────────────────────────────────────────────────────────────
 
 def _serve(scan_path: str, sem_path: str, report_path: str) -> None:
-    scan = _load_json(scan_path)
-    sem  = _load_json(sem_path)
-    modules, edges, adj = _build_index(scan, sem)
-    mod_to_files, stem_to_key = _build_stem_index(modules)
-    symidx = _build_symbol_index(modules, stem_to_key)
-    budgets = _budget_for_filecount(len(modules))
+    modules = edges = adj = mod_to_files = stem_to_key = symidx = budgets = None
+    loaded_stamp = None
+
+    def _reload_if_stale() -> None:
+        """Rebuild the derived indexes when a rescan has rewritten the caches."""
+        nonlocal modules, edges, adj, mod_to_files, stem_to_key, symidx
+        nonlocal budgets, loaded_stamp
+        stamp = _cache_stamp(scan_path, sem_path)
+        if stamp == loaded_stamp:
+            return
+        scan = _load_json(scan_path)
+        sem  = _load_json(sem_path)
+        modules, edges, adj = _build_index(scan, sem)
+        mod_to_files, stem_to_key = _build_stem_index(modules)
+        symidx = _build_symbol_index(modules, stem_to_key)
+        budgets = _budget_for_filecount(len(modules))
+        loaded_stamp = stamp
+
+    _reload_if_stale()
 
     stdin  = sys.stdin.buffer
     stdout = sys.stdout.buffer
@@ -1851,6 +1884,7 @@ def _serve(scan_path: str, sem_path: str, report_path: str) -> None:
         elif method == "tools/call":
             name = params.get("name", "")
             args = params.get("arguments", {})
+            _reload_if_stale()
             budget = budgets.get(name, _DEFAULT_TOOL_BUDGET)
 
             if name == "vizcode_query":

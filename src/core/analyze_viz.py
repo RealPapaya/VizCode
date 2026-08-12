@@ -1251,6 +1251,49 @@ def _compute_tech_debt(circular_count: int,
     }
 
 
+# ─── Call-edge noise filter ──────────────────────────────────────────────────
+# Parsers record call expressions by BARE NAME — the receiver is not kept, so
+# `re.finditer(...)`, `map.get(...)` and `set.add(...)` all arrive as
+# 'finditer' / 'get' / 'add'. Resolving those by name attaches every builtin
+# call in the repo to whatever project symbol happens to share the name, which
+# is how a single `get()` in one file collected 323 inbound edges and buried the
+# real hotspots. These names are methods on builtin types (or ubiquitous stdlib
+# objects) in every language VizCode parses, so an unqualified call to one is
+# far more likely a builtin than a project function. Cost of the trade: a
+# project function named exactly `get`/`add`/… gets no inbound call edges.
+# Scope is deliberately limited to methods of BUILTIN TYPES (dict/list/set/str,
+# Array/Map/Promise/DOM) plus the handful of stdlib-object methods that behave
+# the same way (file, thread, datetime). Generic verbs a project is likely to
+# own — run, parse, send, emit, open, log, error — are NOT listed: they stay
+# resolvable, and the ambiguity guard below already stops them from being
+# attached to an arbitrary same-named definition in another file.
+_BUILTIN_CALL_NAMES = frozenset({
+    # dict / list / set / str / tuple methods
+    'get', 'set', 'add', 'put', 'append', 'extend', 'insert', 'remove', 'pop',
+    'clear', 'keys', 'values', 'items', 'setdefault', 'update', 'copy',
+    'count', 'index', 'sort', 'reverse', 'join', 'split', 'replace', 'strip',
+    'lstrip', 'rstrip', 'format', 'encode', 'decode', 'startswith', 'endswith',
+    'lower', 'upper', 'title', 'capitalize', 'ljust', 'rjust', 'zfill',
+    'union', 'intersection', 'difference', 'discard', 'issubset',
+    # JS builtin prototypes / DOM
+    'push', 'shift', 'unshift', 'splice', 'slice', 'concat', 'forEach', 'map',
+    'filter', 'reduce', 'includes', 'indexOf', 'lastIndexOf', 'toString',
+    'valueOf', 'trim', 'charAt', 'substring', 'padStart', 'padEnd', 'toFixed',
+    'has', 'delete', 'entries', 'then', 'catch', 'finally', 'querySelector',
+    'querySelectorAll', 'getElementById', 'addEventListener',
+    'removeEventListener', 'setAttribute', 'getAttribute', 'appendChild',
+    'preventDefault', 'stopPropagation', 'stringify',
+    # regex / json
+    'match', 'search', 'findall', 'finditer', 'fullmatch', 'sub', 'subn',
+    'compile', 'group', 'groups', 'groupdict', 'span', 'dumps', 'loads',
+    'dump', 'load',
+    # file / thread / datetime objects
+    'read', 'readline', 'readlines', 'write', 'writelines', 'flush', 'seek',
+    'tell', 'close', 'start', 'is_alive', 'now', 'today', 'utcnow',
+    'isoformat', 'strftime', 'timestamp',
+})
+
+
 # ─── build_graph ─────────────────────────────────────────────────────────────
 def build_graph(root_dir: str, progress_cb=None, include_build=False, include_dirs=None,
                 skip_health_snapshot: bool = False) -> dict:
@@ -1279,8 +1322,15 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         'finalize': (99, 100),
     }
 
+    _console_pct = [0]   # monotonic guard for the printed bar only
+
     def _cb(pct, msg, stage=None, **kwargs):
-        _console_print(f'[{pct:3d}%] {msg}', end='\r')
+        # The analysis stage emits twice — once per file checked (phase 1), then
+        # again as cached+parsed (phase 2) — so the raw pct dips backwards mid
+        # scan. The TUI takes a monotonic max of analyzed_files; the plain
+        # console line needs the same guarantee or the bar visibly rewinds.
+        _console_pct[0] = max(_console_pct[0], pct)
+        _console_print(f'[{_console_pct[0]:3d}%] {msg}', end='\r')
         payload = {}
         if stage in stage_meta:
             payload.update(stage_meta[stage])
@@ -1697,10 +1747,15 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
         file_symdefs[rel] = sym_defs
 
     # ── Persist parse cache (only the parser-output layer is stored) ──────────
+    # Prune first: entries for deleted files would otherwise live forever and
+    # every scan_cache reader (MCP, Web AI) would keep answering from them.
     try:
+        parse_memo.prune_deleted(_memo, Path(root))
         parse_memo.flush_memo(_memo, Path(root))
-    except Exception:
-        pass  # cache write failures are non-fatal
+    except Exception as e:
+        # Non-fatal, but never silent — a frozen scan_cache once went unnoticed
+        # for six weeks (LESSONS.md: silent-writes-under-src-core).
+        print(f'[WARN] Parse-cache write failed: {e}', file=sys.stderr)
 
     # ── Phase X: Collect ALL other (non-source) files for the UI ─────────────────
     # Other files are not analysed for deps but shown in UI for full codebase picture.
@@ -2436,9 +2491,19 @@ def build_graph(root_dir: str, progress_cb=None, include_build=False, include_di
             callee_names = calls_by_func[caller_idx] if caller_idx < len(calls_by_func) else []
             seen_callee: set = set()
             for callee_name in callee_names:
-                callee_id = (_file_sym_key.get((rel, callee_name))
-                             or (_sym_name_to_ids[callee_name][0]
-                                 if _sym_name_to_ids[callee_name] else None))
+                # Parsers hand us bare names, so `x.get()` is indistinguishable
+                # from a call to a project function named `get`. Never resolve
+                # builtin-type method names, and — as _resolve_symbol_ref already
+                # does for every other edge type — only take a cross-file match
+                # when exactly one definition of the name exists. Picking
+                # candidates[0] out of many was inventing edges to an arbitrary
+                # file and manufacturing fake hotspots.
+                if callee_name in _BUILTIN_CALL_NAMES:
+                    continue
+                callee_id = _file_sym_key.get((rel, callee_name))
+                if callee_id is None:
+                    _cands = _sym_name_to_ids.get(callee_name) or []
+                    callee_id = _cands[0] if len(_cands) == 1 else None
                 if callee_id and callee_id != caller_id and callee_id not in seen_callee:
                     seen_callee.add(callee_id)
                     symbol_edges.append({'from': caller_id, 'to': callee_id, 'type': 'call', 'kind': 'call'})

@@ -70,6 +70,26 @@ def open_memo(project_root: Path) -> dict:
     return {"schema_rev": MEMO_SCHEMA_REV, "built_at": "", "entries": {}}
 
 
+def prune_deleted(memo: dict, project_root: Path) -> int:
+    """Drop entries whose file no longer exists on disk. Returns the count.
+
+    Without this the memo only ever grows: a file that is renamed or deleted
+    keeps its parse result forever, and every consumer that reads
+    scan_cache.json instead of a fresh walk (mcp_server, vizbridge, the L0/L1
+    health tools) keeps reporting symbols from files that are gone. Existence —
+    not "was it in this scan" — is the test on purpose: a scan narrowed with
+    --include-dir or run without --include-build must not evict the entries it
+    simply did not visit.
+    """
+    entries = memo.get("entries")
+    if not isinstance(entries, dict):
+        return 0
+    stale = [rel for rel in entries if not (project_root / rel).exists()]
+    for rel in stale:
+        del entries[rel]
+    return len(stale)
+
+
 def flush_memo(memo: dict, project_root: Path) -> None:
     """Persist the in-memory memo dict to .vizcode/scan_cache.json.
 

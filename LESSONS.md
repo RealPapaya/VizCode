@@ -19,20 +19,54 @@ pointer line here.
 
 ---
 
-## no-relative-imports-in-src-core (2026-07-30)
-- Trap: `src/core/*.py` are imported as TOP-LEVEL modules (server, CLI and
-  conftest all put `src/core` on `sys.path`), so `from .local_dir import x`
-  raises `ImportError: attempted relative import with no known parent package`.
-  Three writers had it and all failed silently — the caller either wrapped it in
-  try/except or returned None: `result_store.save_result`,
-  `parse_memo.flush_memo`, `analyze_viz._append_health_snapshot`.
-- Cost: `result.json` never written (homepage "reopen previous scan" permanently
-  empty); `scan_cache.json` + `health_history.json` frozen for six weeks — parse
-  memo dead, Health Trend stale, and vizbridge answering Web AI from a six-week-old
-  index. Only signal was one `[WARN] Health-snapshot write failed` on stderr.
-- Rule: never write `from .x import y` under `src/`. Use `from x import y`, or the
-  two-step form at `analytics_helpers.py:940` if it must also work as a package:
-  `try: from x import y` / `except ImportError: from .x import y`.
+## bare-call-names-manufacture-fake-hotspots (2026-08-12)
+- Trap: parsers record call expressions by BARE NAME — the receiver is dropped —
+  so `re.finditer()`, `map.get()` and `set.add()` reach the resolver as
+  'finditer' / 'get' / 'add'. Phase F resolved those against same-name project
+  symbols, and for cross-file misses took `_sym_name_to_ids[name][0]` — an
+  ARBITRARY first candidate, unlike `_resolve_symbol_ref` which has always
+  required a unique match.
+- Cost: on VizCode's own scan a single `get()` in viz_chat.ts collected 323
+  inbound edges, `add()` in dart_parser.py 244, `finditer()` in a test file 177.
+  The whole "Core Nodes (most-called)" section, the Louvain communities and the
+  MCP centrality ranking that `vizcode_context` uses to pick "most relevant
+  symbols" were ranking builtin method names. 17% of call edges were fictional.
+- Rule: never resolve a call name from `_BUILTIN_CALL_NAMES` (analyze_viz.py), and
+  never take `candidates[0]` — cross-file resolution requires exactly one
+  definition, the same policy every other edge type already uses. When adding a
+  language whose builtins differ, extend `_BUILTIN_CALL_NAMES`, don't bypass it.
+  Regression test: tests/test_call_edge_resolution.py.
+
+## scan-cache-only-ever-grew (2026-08-12)
+- Trap: `parse_memo` recorded entries and never removed them, so a deleted or
+  renamed file kept its parse result forever. Everything that reads
+  `scan_cache.json` instead of re-walking the tree — mcp_server, vizbridge, all
+  the L0/L1/health tools — kept answering from files that no longer exist.
+  Separately, `mcp_server._serve` loaded the cache ONCE at startup, so a rescan
+  never reached a running MCP client until it was restarted.
+- Cost: VizCode's own cache carried 75 ghosts out of 358 entries — the `.js`
+  files deleted in the TypeScript migration were still reported as the heaviest
+  files in the repo, and `vizcode_health` contradicted the freshly generated
+  INDEX.md. Undetectable from the scan, which reported success every time.
+- Rule: `prune_deleted()` runs before every `flush_memo()`; the test is whether
+  the file EXISTS, never "was it in this scan" (a `--include-dir` or
+  no-`--include-build` run must not evict what it did not visit). Any long-lived
+  process holding derived indexes must re-stat its source (`_cache_stamp`) per
+  request. Regression tests: tests/test_parse_memo_prune.py,
+  tests/test_mcp_reload.py.
+
+## silent-writes-under-src-core (2026-07-30, merged 2026-08-12)
+- Trap: two halves of one incident. (a) `src/core/*.py` are imported as TOP-LEVEL
+  modules (server, CLI and conftest all put `src/core` on `sys.path`), so
+  `from .local_dir import x` raises ImportError — three writers had it. (b) every
+  `.vizcode/` writer swallowed the exception with a bare `pass`, so nothing said so.
+- Cost: `result.json` never written and `scan_cache.json` + `health_history.json`
+  frozen for six weeks — Web AI answering from a six-week-old index — with the
+  scan still reporting success.
+- Rule: never write `from .x import y` under `src/` (use `from x import y`, or the
+  two-step try/except form at `analytics_helpers.py`). `except: pass` is fine
+  around a cache READ that falls back to a default; around a WRITE it must be
+  `except Exception as e:` + `print(f'[WARN] …: {e}', file=sys.stderr)`.
   Regression test: tests/test_local_dir_imports.py.
 
 ## dasht-returns-the-key-so-or-fallbacks-never-fire (2026-07-30)
@@ -64,26 +98,12 @@ pointer line here.
 ## evicting-a-payload-needs-a-proven-rebuild-path (2026-07-31)
 - Trap: freeing a cached payload is only safe if EVERY reader can rebuild it.
   Evicting `job['search_index']` looked fine (`/search` has a disk-walk fallback)
-  but that fallback had been dead since the `src/` refactor — `_SI_BINARY_EXTS`
-  and friends were never imported into `server.py`, so it raised `NameError` and
-  dropped the connection; `/symbol-refs` has no fallback and silently returned
-  zero references; and the reap pass deletes temp sources at the same moment.
-- Cost: caught by adversarial review before push — would have shipped as "search
-  dies and references read 0, five seconds after you close the tab".
+  but that fallback had been dead since the `src/` refactor (NameError), and
+  `/symbol-refs` has no fallback at all — it silently returned zero references.
+- Cost: caught by adversarial review before push.
 - Rule: before evicting anything from `JOBS`, grep every reader of the key and
   prove each fallback by RUNNING it. `html` qualifies (/result re-renders from
   `data`); `search_index` does not, and stays resident.
-
-## best-effort-writes-must-still-say-when-they-fail (2026-07-30)
-- Trap: every `.vizcode/` writer swallows its exception with a bare `pass`, because
-  persistence must never abort a scan. Correct — but silent. When the relative
-  import above started raising, three caches stopped updating and NOTHING said so
-  for six weeks: no error, no log, and the scan still reported success.
-- Cost: see the entry above — four features quietly degraded.
-- Rule: `except: pass` is fine around a cache READ that falls back to a default.
-  Around a WRITE it must be `except Exception as e:` +
-  `print(f'[WARN] ...: {e}', file=sys.stderr)`. If a user could later ask "why is
-  this data stale?", the failure has to be visible somewhere.
 
 ## import-server-is-ambiguous-in-tests (2026-07-30)
 - Trap: conftest puts both `src/` and `src/core/` on sys.path, and `src/server/`
@@ -98,23 +118,16 @@ pointer line here.
   `job_manager` have no collision and import normally.)
 
 ## parser-import-block-all-or-nothing-failure (2026-07-08)
-- Trap: `src/core/analyze_viz.py` wraps ALL parser imports in a single
-  `try/except ImportError` block (lines 55–105). Adding an import for a
-  parser file that doesn't exist yet (`md_parser.py` in commit `0d91b28`)
-  causes `_PARSERS_LOADED = False` for ALL languages — every file gets an
-  empty parse result. The scan still completes (files and modules are
-  counted), but L2/L3 (functions/symbols) are entirely absent. The WARN
-  message `[WARN] Could not load language parsers: No module named '...'`
-  is the only visible signal.
-- Cost: complete loss of L2/L3 (function + symbol) nodes in the Galaxy /
-  graph view; ~321 total nodes on a project that should show far more.
-  Silently, because the scan reports success.
-- Rule: when adding a new `from parsers.X import` line in analyze_viz.py,
-  the corresponding `src/parsers/X.py` file MUST be committed in the same
-  change. Before merging, run `python -c "from core.analyze_viz import
-  _PARSERS_LOADED; print(_PARSERS_LOADED)"` (from `src/`) and verify it
-  prints `True`. Any parser import referencing a non-existent file kills
-  ALL parsing silently.
+- Trap: `src/core/analyze_viz.py` wraps ALL parser imports in ONE
+  `try/except ImportError` block, so importing a parser file that doesn't exist
+  yet sets `_PARSERS_LOADED = False` for every language — every file gets an
+  empty parse result. The scan still reports success; only
+  `[WARN] Could not load language parsers: …` on stderr hints at it.
+- Cost: total loss of L2/L3 (function + symbol) nodes across graph and Galaxy.
+- Rule: a new `from parsers.X import` line and `src/parsers/X.py` ship in the
+  SAME change. Before merging run, from `src/`:
+  `python -c "from core.analyze_viz import _PARSERS_LOADED; print(_PARSERS_LOADED)"`
+  and verify it prints `True`.
 
 ## widget-detail-must-anchor-sibling-interaction-idioms (2026-07-08)
 - Trap: a new widget whose detail view is wired correctly (data, i18n, assets)
