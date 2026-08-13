@@ -692,7 +692,7 @@ def _extract_struct_embedding(clean: str, struct_start: int) -> list:
 
 
 def _extract_struct_field_types(clean: str, struct_start: int) -> set:
-    """Collect referenced type names from a struct's named field declarations.
+    r"""Collect referenced type names from a struct's named field declarations.
 
     Fields look like `Name Type` / `Name1, Name2 Type` / `Name Type \`tag\``.
     Embedded fields (a single token) are handled separately as bases and skipped
