@@ -26,11 +26,11 @@
 │   ├── symbol/vizcode/          ← 掃描專案 + 語意分析
 │   ├── eng-to-zh-translator/    ← 英文翻譯成繁體中文
 │   ├── learn/                   ← 把教訓寫回 LESSONS.md
-│   ├── grill-me/                ← 逼問式檢驗計畫
-│   │
-│   └── 📋 workflows/ (你手動呼叫)
-│       ├── run-local.md         ← 啟動本地伺服器
-│       └── verify-analysis.md   ← 用 tests/fixtures/testproject 驗證分析結果
+│   └── grill-me/                ← 逼問式檢驗計畫
+│
+└── 📋 workflows/ (你手動呼叫)
+    ├── run-local.md             ← 啟動本地伺服器
+    └── verify-analysis.md       ← 用 tests/fixtures/testproject 驗證分析結果
 ```
 
 > `SkillMaker.md`（如何建立新 skill 的參考說明）已搬到 `docs/SkillMaker.md`。
@@ -101,6 +101,10 @@ Workflows 需要你**手動觸發**，對 AI 說「執行 run-local workflow」�
 ---
 
 ## 如何新增一個 Workflow
+
+Workflow 跟 skill 是兩回事：skill 需要自己的資料夾 + 有 frontmatter 的 `SKILL.md`
+才會被自動載入；workflow 只是一份給人手動叫用的步驟文件，放在 `.claude/workflows/`。
+放錯層（例如塞進 `skills/` 裡）會變成不會被載入的死檔。
 
 1. 在 `.claude/workflows/` 下建立 `.md` 檔
 2. 最上面要有 frontmatter：
