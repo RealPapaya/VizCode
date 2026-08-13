@@ -155,18 +155,30 @@ pointer line here.
   its built `.js` to the `js_assets` list in `html_builder.py` and verify the
   script tag appears in the served page.
 
-## gitignored-fixture-dirs-prune-analyzer-samples (2026-07-05)
-- Trap: `build_graph()` prunes gitignored directories before extension filtering.
-  A test fixture under an ignored directory name (for example `testproject/proto/`)
-  is invisible unless the test project explicitly unignores that directory.
-- Cost: analyzer content tests can run against an incomplete sample project and
-  fail at edge resolution even though the parser and fixture files are correct.
-- Rule: when adding source fixtures under a directory that may be ignored,
-  verify `git check-ignore` for the directory path and add a local fixture
-  `.gitignore` exception such as `!proto/` and `!proto/**`.
+## gitignored-dirs-bite-twice-analyzer-and-git (2026-07-05, extended 2026-08-13)
+- Trap A (analyzer): `build_graph()` prunes gitignored directories before
+  extension filtering. A fixture under an ignored directory name (for example
+  `testproject/proto/`) is invisible unless explicitly unignored.
+- Trap B (git tracking): an UNANCHORED directory pattern matches at every depth.
+  A bare `parsers/` meant for a root output dir also matched `src/parsers/`, so
+  `src/parsers/md_parser.py` was never committed — while its 45 already-tracked
+  siblings kept working, because gitignore does NOT apply to tracked files.
+  The rule was therefore asymptomatic for months and only bites NEW files.
+- Cost: A — analyzer content tests run against an incomplete sample and fail at
+  edge resolution though parser and fixtures are correct. B — `tests/test_md_parser.py`
+  was tracked while the parser it imports was not; any fresh clone breaks.
+- Rule:
+  1. Anchor directory patterns you mean to be root-only: write `/parsers/`, not
+     `parsers/`. An unanchored pattern is a claim about EVERY directory of that name.
+  2. After adding any ignore rule, run
+     `git status --ignored --porcelain | grep '^!!'` and confirm nothing under
+     `src/`, `ai/`, `static/`, or `tests/` is listed. `git check-ignore <file>`
+     alone is not enough — it stays silent for already-tracked files.
+  3. For source fixtures under a possibly-ignored directory, add a local fixture
+     `.gitignore` exception such as `!proto/` and `!proto/**`.
 
 ## pytest-green-hides-skipped-tests (2026-07-05, compressed 2026-07-30)
 - Trap: a green "N passed, 20 skipped" once hid the ENTIRE analyzer content
   suite being skipped by a stale conftest fixture path. Fixed 2026-07-08.
 - Rule: treat any skipped test in this repo as a failure to investigate. The
-  suite runs 0 skipped today (325 passed) — keep it that way.
+  suite runs 0 skipped today (365 passed, verified 2026-08-13) — keep it that way.
