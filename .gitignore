@@ -15,7 +15,7 @@ venv/
 scan_result_debug.json
 # NOTE: root-anchored on purpose. A bare `parsers/` also matches `src/parsers/`
 # and silently hid src/parsers/md_parser.py from git for months.
-# (LESSONS.md #gitignored-fixture-dirs)
+# (LESSONS.md #gitignored-dirs-bite-twice-analyzer-and-git)
 /parsers/
 
 # ── AI secrets (API keys live here — NEVER commit) ──────────────────────────
