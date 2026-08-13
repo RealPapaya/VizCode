@@ -20,6 +20,9 @@ scan_result_debug.json
 
 # ── AI secrets (API keys live here — NEVER commit) ──────────────────────────
 ai/config.json
+.env
+.env.*
+!.env.example
 
 # ── Personal notes & experiments (local only) ───────────────────────────────
 note/
