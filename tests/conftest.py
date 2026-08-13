@@ -131,8 +131,8 @@ int main(void) {
 
 @pytest.fixture(scope='module')
 def testproject_path():
-    """Return the path to the testproject directory."""
-    p = PROJECT_ROOT / 'testproject'
+    """Return the path to the multi-language fixture corpus."""
+    p = PROJECT_ROOT / 'tests' / 'fixtures' / 'testproject'
     if not p.exists():
         pytest.skip(f'testproject not found at {p}')
     return str(p)

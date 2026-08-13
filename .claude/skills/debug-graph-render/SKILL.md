@@ -84,7 +84,7 @@ Look for a `MAX_LABEL_LEN` constant in `static/core/viz_constants.ts` or layout-
 ## Testing After Fix
 
 1. Open `http://localhost:7777`
-2. Analyze the `testproject/` directory — it's small, multilingual, and exercises all node types
+2. Analyze the `tests/fixtures/testproject/` directory — it's small, multilingual, and exercises all node types
 3. Verify in browser DevTools → Network that `/result` returns valid JSON
 4. Check Console for errors
 

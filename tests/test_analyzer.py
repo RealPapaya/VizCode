@@ -1,7 +1,7 @@
 """
 tests/test_analyzer.py — Validate build_graph() output contract.
 
-Tests run against the real testproject/ directory (multi-language smoke test).
+Tests run against the real tests/fixtures/testproject/ corpus (multi-language smoke test).
 """
 import shutil
 import subprocess

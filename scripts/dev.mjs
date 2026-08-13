@@ -23,7 +23,8 @@ import { readdirSync, statSync } from 'node:fs';
 import { join, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = dirname(fileURLToPath(import.meta.url));
+// This file lives in scripts/, so the repo root is one level up.
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'static');
 const OUT = join(ROOT, 'build');
 

@@ -4,8 +4,8 @@
   "private": true,
   "description": "Build + type-check toolchain for the VizCode frontend. The app itself runs with no Node — build/ is committed so end-users stay zero-install.",
   "scripts": {
-    "build": "node build.mjs",
-    "dev": "node dev.mjs",
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/dev.mjs",
     "check": "tsc --noEmit"
   },
   "devDependencies": {

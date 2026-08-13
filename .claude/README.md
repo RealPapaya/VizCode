@@ -1,4 +1,4 @@
-# CodeViz .claude 說明書
+# VizCode .claude 說明書
 
 這份說明書讓你一眼看懂 `.claude/` 裡面有什麼、什麼時候用、怎麼維護。**你只需要看這份，不需要直接看 skill 檔案。**
 
@@ -8,21 +8,32 @@
 
 ```
 .claude/
-├── 📖 SkillMaker.md             ← 參考用：如何建立新 skill 的說明 (不用動)
+├── ⚙️  settings.json            ← 專案共用設定（hooks、權限）
+│   settings.local.json          ← 個人本機設定（gitignore，不會 commit）
+├── 🪝 hooks/                    ← 編輯後自動檢查（Python 語法、post-edit guard…）
+├── 🧠 memory/memory.md          ← AI 開新對話的快速上手指南，架構異動後必須更新
 │
-├── 🎯 Skills (AI 自動觸發)
+├── 🎯 skills/ (AI 自動觸發)
 │   ├── coding-style/            ← 程式碼風格規範
 │   ├── stateful-default-behaviour/  ← UI 狀態管理模式
-│   ├── add-ui-theme/            ← 新增 UI 主題流程
-│   ├── eng-to-zh-translator/    ← 英文翻譯成繁體中文
-│   ├── debug-graph-render/      ← D3.js 圖形渲染除錯
+│   ├── add-language-parser/     ← 新增/強化語言 parser
 │   ├── add-api-endpoint/        ← 新增 server.py API
-│   └── update-memory-md/        ← 同步更新 memory.md
-│
-└── 📋 Workflows (你手動呼叫)
-    ├── run-local.md             ← 啟動本地伺服器
-    └── verify-analysis.md       ← 用 testproject 驗證分析結果
+│   ├── add-ui-theme/            ← 新增 UI 主題流程
+│   ├── adjust-css/              ← 調整前端樣式
+│   ├── debug-graph-render/      ← Cytoscape 圖形渲染除錯
+│   ├── galaxy-workflow/         ← Galaxy view 相關工作
+│   ├── widget-detail/           ← Dashboard widget 詳情面板
+│   ├── symbol/vizcode/          ← 掃描專案 + 語意分析
+│   ├── eng-to-zh-translator/    ← 英文翻譯成繁體中文
+│   ├── learn/                   ← 把教訓寫回 LESSONS.md
+│   ├── grill-me/                ← 逼問式檢驗計畫
+│   │
+│   └── 📋 workflows/ (你手動呼叫)
+│       ├── run-local.md         ← 啟動本地伺服器
+│       └── verify-analysis.md   ← 用 tests/fixtures/testproject 驗證分析結果
 ```
+
+> `SkillMaker.md`（如何建立新 skill 的參考說明）已搬到 `docs/SkillMaker.md`。
 
 ---
 
@@ -38,7 +49,13 @@ Skills 由 AI 自動判斷是否使用，**你不需要手動觸發**。你只�
 | `eng-to-zh-translator` | 翻譯文件、UI 字串、程式碼注釋時 | 繁體中文規範、中英間距、保留 Markdown 格式 |
 | `debug-graph-render` | D3.js 圖形有視覺 bug 時 | 診斷清單、常見修法對照表 |
 | `add-api-endpoint` | 在 server.py 新增 GET/POST 路由時 | Handler 架構、JOBS 執行緒模式、安全驗證 |
-| `update-memory-md` | 任何架構異動（新增檔案、修改介面）後 | 什麼時候更新、怎麼更新哪個章節 |
+| `add-language-parser` | 新增語言、修 parsing、診斷缺失依賴時 | 6-tuple contract、要一起改的 5 個檔案 |
+| `adjust-css` | 改顏色、間距、字型、圓角等外觀時 | CSS 變數位置、各面板對應檔案 |
+| `galaxy-workflow` | 動 Galaxy view（ForceAtlas2、Sigma、背景預算）時 | Galaxy 架構與效能調校 |
+| `widget-detail` | 增修 Dashboard widget 詳情面板時 | widget 目錄慣例與註冊點 |
+| `vizcode` | `/vizcode` 掃描專案、語意分析、開 MCP server | 掃描流程與參數 |
+| `learn` | 剛踩完坑、使用者說「記下來」時 | 教訓寫回 LESSONS.md 的格式 |
+| `grill-me` | 想壓力測試一份計畫或設計時 | 逼問式決策樹 |
 
 ---
 
@@ -55,10 +72,10 @@ Workflows 需要你**手動觸發**，對 AI 說「執行 run-local workflow」�
 3. 處理 port 7777 佔用問題
 
 ### `/verify-analysis`
-**用途**: 用 `testproject/` 做快速 smoke test，確認修改後分析功能正常
+**用途**: 用 `tests/fixtures/testproject/` 做快速 smoke test，確認修改後分析功能正常
 
 步驟摘要：
-1. 在 UI 輸入 `d:\GOOGLE\CodeViz\testproject` 並分析
+1. 在 UI 輸入 `D:\Google AI\VizCode\tests\fixtures\testproject` 並分析
 2. 驗證圖形渲染、節點數量、邊正確
 3. 用 PowerShell 驗證 JSON 結構
 
@@ -114,4 +131,9 @@ Workflows 需要你**手動觸發**，對 AI 說「執行 run-local workflow」�
 
 | 文件 | 位置 | 用途 |
 |------|------|------|
-| `memory.md` | 專案根目錄 | AI 每次開新對話的快速上手指南，架構異動後必須更新 |
+| `AGENTS.md` | 專案根目錄 | 單一指令正本：session 協議 + 專案規格（三個 harness 共用） |
+| `CLAUDE.md` | 專案根目錄 | 架構、目錄佈局、parser 契約、驗證清單 |
+| `LESSONS.md` | 專案根目錄 | 本專案已知地雷；動手前必讀，踩坑後當場補寫 |
+| `docs/README.md` | `docs/` | 長篇文件索引（parser 待辦、SkillMaker、設計計畫） |
+
+> `memory.md` 已從專案根目錄搬到 `.claude/memory/memory.md`（見上面的目錄樹）。

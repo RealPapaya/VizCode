@@ -1,18 +1,18 @@
 ---
-description: Run the analyzer on testproject/ to validate that analysis output is correct after code changes
+description: Run the analyzer on tests/fixtures/testproject/ to validate that analysis output is correct after code changes
 ---
 
 # Verify Analysis Output
 
-Use `testproject/` as a smoke-test target — it's small, multilingual, and exercises all node/edge types.
+Use `tests/fixtures/testproject/` as a smoke-test target — it's small, multilingual, and exercises all node/edge types.
 
 1. Make sure the server is running (see `run-local` workflow)
 
 2. Open the UI at `http://localhost:7777`
 
-3. In the path input box, enter the full path to testproject:
+3. In the path input box, enter the full path to the fixture corpus:
 ```
-d:\Google AI\VizCode\testproject
+D:\Google AI\VizCode\tests\fixtures\testproject
 ```
 Then click **Analyze**.
 

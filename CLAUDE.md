@@ -49,7 +49,10 @@ static/              # TypeScript source (edit here); served as build/ at runtim
   types/            # data.d.ts (window.DATA JSON contract) · globals.d.ts (CDN globals, window.*)
   file_viewers/ · icon/
 build/               # committed esbuild output (the .js the browser actually loads) — generated, don't hand-edit
-package.json · tsconfig.json · build.mjs   # frontend toolchain (npm run check / build)
+scripts/             # build.mjs (esbuild transpile) · dev.mjs (watch + launch app)
+package.json · tsconfig.json               # frontend toolchain (npm run check / build / dev)
+docs/                # long-form docs — see docs/README.md for the index
+tests/               # pytest suite · fixtures/testproject (multi-language smoke-test corpus)
 ```
 
 Flow: `vizcode.py → server.py → analyze_viz.py → static/*.ts → build/*.js → vizbridge.py (AI/SSE)`

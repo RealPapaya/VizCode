@@ -2,11 +2,13 @@ import sys
 import os
 import json
 
-# 加入 src 目錄
-sys.path.append(os.path.abspath("d:/Google AI/VizCode/src"))
+# 加入 src 目錄（相對於本檔位置解析，搬動 repo 或改路徑都不會壞）
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_REPO = os.path.abspath(os.path.join(_HERE, '..', '..', '..'))
+sys.path.append(os.path.join(_REPO, 'src'))
 from core.analyze_viz import build_graph
 
-root_dir = "d:/Google AI/VizCode/testproject"
+root_dir = _HERE
 res = build_graph(root_dir)
 
 # 取得 file ID 到 file path 的對照表

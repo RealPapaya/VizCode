@@ -120,12 +120,16 @@ function _overviewTreemapGroupKey(file, path) {
     if (parts[0] === 'static' && parts[1] === 'features' && parts.length > 2) {
         return parts.slice(0, 3).join('/');
     }
+    // Fixture corpus: group per language dir, else lump the loose files together.
+    // Must precede the generic tests/ rule below, which would flatten it to tests/fixtures.
+    if (parts[0] === 'tests' && parts[1] === 'fixtures' && parts[2] === 'testproject') {
+        return parts.length > 4 ? parts.slice(0, 4).join('/') : 'tests/fixtures/testproject';
+    }
     if ((parts[0] === 'static' || parts[0] === 'src' || parts[0] === 'tests') && parts.length > 1) {
         return parts.slice(0, 2).join('/');
     }
     if (parts[0] === 'ai' && parts[1] === 'providers') return 'ai/providers';
     if (parts[0] === 'ai') return 'ai';
-    if (parts[0] === 'testproject' && parts.length > 2) return parts.slice(0, 2).join('/');
     const moduleKey = _overviewTreemapNormPath(file?._module || '');
     if (moduleKey && moduleKey !== '_root') return moduleKey;
     if (parts.length > 1) return parts[0];

@@ -16,7 +16,8 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 
-const ROOT = dirname(fileURLToPath(import.meta.url));
+// This file lives in scripts/, so the repo root is one level up.
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'static');
 const OUT = join(ROOT, 'build');
 
